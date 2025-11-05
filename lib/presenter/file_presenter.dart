@@ -121,6 +121,7 @@ class FilePresenter {
     if (success) {
       logger.i('File renamed successfully, refreshing list');
       await loadFiles(viewModel.currentPath);
+      logger.i('File list refreshed after rename');
     } else {
       logger.w('Failed to rename file: ${file.path}');
     }

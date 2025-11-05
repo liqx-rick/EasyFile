@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/core/logger.dart';
 
 class RenameDialog extends StatefulWidget {
   final FileItem file;
@@ -20,6 +21,7 @@ class _RenameDialogState extends State<RenameDialog> {
   @override
   void initState() {
     super.initState();
+    logger.d('Initializing rename dialog for: ${widget.file.name}');
     _controller = TextEditingController(text: widget.file.name);
     
     // 如果是文件，选中文件名部分（不包括扩展名）
@@ -88,7 +90,11 @@ class _RenameDialogState extends State<RenameDialog> {
         ),
         TextButton(
           onPressed: _errorText == null && _controller.text.isNotEmpty
-              ? () => Navigator.of(context).pop(_controller.text.trim())
+              ? () {
+                  final newName = _controller.text.trim();
+                  logger.i('Rename dialog confirmed: ${widget.file.name} -> $newName');
+                  Navigator.of(context).pop(newName);
+                }
               : null,
           child: const Text('重命名'),
         ),

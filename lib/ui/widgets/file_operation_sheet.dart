@@ -125,7 +125,7 @@ class FileOperationSheet extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(color: tileColor.withOpacity(0.6)),
+        style: TextStyle(color: tileColor.withValues(alpha: 0.6)),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

@@ -48,7 +48,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
       }
 
       final entities = dir.listSync()
-          .where((entity) => entity is Directory)
+          .whereType<Directory>()
           .where((entity) => !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
           .toList();
 

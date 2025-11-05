@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/logger.dart';
 
 class ProgressDialog extends StatelessWidget {
   final String title;
@@ -35,6 +36,7 @@ class ProgressDialog extends StatelessWidget {
     required String message,
     bool showProgress = true,
   }) {
+    logger.d('Showing progress dialog: $title - $message');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -47,6 +49,7 @@ class ProgressDialog extends StatelessWidget {
   }
 
   static void hide(BuildContext context) {
+    logger.d('Hiding progress dialog');
     Navigator.of(context).pop();
   }
 }

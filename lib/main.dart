@@ -5,9 +5,14 @@ import 'package:easyfile/core/logger.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   // Initialize logger before other startup so DI logs go to file
   await logger.init();
+  logger.i('EasyFile application starting...');
+  
   setupLocator();
+  logger.i('Running EasyFile app');
+  
   runApp(const EasyFileApp());
 }
   

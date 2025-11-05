@@ -12,10 +12,7 @@ dependencies:
   provider: ^6.1.0
   get_it: ^8.2.0
   path_provider: ^2.1.2
-  file_picker: ^10.3.3
   permission_handler: ^12.0.1
-  flutter_svg: ^2.0.10
-  intl: ^0.20.2
   path: ^1.8.3
 
 dev_dependencies:
