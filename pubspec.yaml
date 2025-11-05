@@ -1,0 +1,34 @@
+name: easyfile
+description: A simple cross-platform file manager built with Flutter.
+publish_to: "none"
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  provider: ^6.1.0
+  get_it: ^8.2.0
+  path_provider: ^2.1.2
+  file_picker: ^10.3.3
+  permission_handler: ^12.0.1
+  flutter_svg: ^2.0.10
+  intl: ^0.20.2
+  path: ^1.8.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 如果有资源文件，在这里添加
+  # assets:
+  #   - assets/images/
+  assets:
+    - assets/images/logo.png
+    - assets/images/logo_t.png
