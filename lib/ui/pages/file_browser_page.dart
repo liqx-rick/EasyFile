@@ -8,7 +8,10 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/sources/path_provider.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/pages/favorites_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/widgets/category_nav_bar.dart';
+import 'package:easyfile/ui/widgets/favorites_section.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
 import 'package:easyfile/ui/widgets/file_operation_sheet.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
@@ -26,7 +29,6 @@ class FileBrowserPage extends StatefulWidget {
 class _FileBrowserPageState extends State<FileBrowserPage> {
   late FilePresenter presenter;
   late FileViewModel viewModel;
-  bool _showSearchBar = false;
 
   @override
   void initState() {
@@ -40,13 +42,50 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       presenter = locator<FilePresenter>();
       logger.d('Presenter obtained: $presenter');
 
-      _loadInitialDirectory();
+      // 延迟初始化应用程序数据，先显示UI - 这个优化保留
+      Future.microtask(() => _initializeApp());
     } catch (e) {
       logger.e('Error in initState: $e');
     }
   }
 
+  /// 初始化应用程序数据
+  Future<void> _initializeApp() async {
+    logger.i('Initializing app data...');
+    
+    try {
+      // 并行初始化收藏夹和主题
+      await Future.wait([
+        presenter.initializeFavorites(),
+        presenter.initializeTheme(),
+      ]);
+      
+      // 最后加载初始目录
+      await _loadInitialDirectory();
+      
+      logger.i('App initialization completed');
+    } catch (e) {
+      logger.e('Error during app initialization: $e');
+      // 即使初始化失败，也要尝试加载目录
+      await _loadInitialDirectory();
+    }
+  }
+
   Future<void> _loadInitialDirectory() async {
+    try {
+      // 默认显示最近访问的文件
+      logger.i('Loading recent files as default view');
+      await presenter.loadRecentFiles();
+      
+    } catch (e) {
+      logger.e('Error loading recent files, fallback to directory: $e');
+      // 如果加载最近文件失败，使用目录浏览作为后备
+      await _fallbackToDirectoryView();
+    }
+  }
+
+  /// 后备方案：加载目录浏览
+  Future<void> _fallbackToDirectoryView() async {
     try {
       // 直接使用一些简单的测试路径
       List<String> testPaths = [];
@@ -91,8 +130,17 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         presenter.loadFiles(fallbackPath);
       }
     } catch (e) {
-      logger.e('Error in _loadInitialDirectory: $e');
+      logger.e('Error in _fallbackToDirectoryView: $e');
       presenter.loadFiles('/');
+    }
+  }
+
+  /// 返回最近文件模式
+  Future<void> _returnToRecentFiles() async {
+    try {
+      await presenter.loadRecentFiles();
+    } catch (e) {
+      logger.e('Error returning to recent files: $e');
     }
   }
 
@@ -202,13 +250,231 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     return true;
   }
 
-  /// 切换搜索栏的显示状态
-  void _toggleSearch() {
-    setState(() {
-      _showSearchBar = !_showSearchBar;
-    });
-    if (!_showSearchBar && viewModel.isSearchMode) {
-      presenter.clearSearch();
+  /// 处理菜单操作
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'path_selector':
+        _showPathSelector();
+        break;
+      case 'manage_favorites':
+        _showFavoritesManagePage();
+        break;
+      case 'refresh':
+        presenter.refreshCurrent();
+        break;
+      case 'settings':
+        _showSettingsDialog();
+        break;
+    }
+  }
+
+  /// 显示设置对话框
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Consumer<FileViewModel>(
+        builder: (context, vm, _) => AlertDialog(
+          title: const Text('应用设置'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.palette),
+                title: const Text('主题模式'),
+                subtitle: Text(_getThemeModeText(vm.themeMode)),
+                onTap: () => _showThemePicker(context),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('关于'),
+                subtitle: const Text('EasyFile v1.1.0'),
+                onTap: () => _showAboutDialog(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示主题选择器
+  void _showThemePicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Consumer<FileViewModel>(
+        builder: (context, vm, _) => AlertDialog(
+          title: const Text('选择主题'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<ThemeMode>(
+                title: const Text('跟随系统'),
+                value: ThemeMode.system,
+                groupValue: vm.themeMode,
+                onChanged: (mode) {
+                  if (mode != null) {
+                    presenter.setThemeMode(mode);
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+              RadioListTile<ThemeMode>(
+                title: const Text('浅色主题'),
+                value: ThemeMode.light,
+                groupValue: vm.themeMode,
+                onChanged: (mode) {
+                  if (mode != null) {
+                    presenter.setThemeMode(mode);
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+              RadioListTile<ThemeMode>(
+                title: const Text('深色主题'),
+                value: ThemeMode.dark,
+                groupValue: vm.themeMode,
+                onChanged: (mode) {
+                  if (mode != null) {
+                    presenter.setThemeMode(mode);
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示关于对话框
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'EasyFile',
+      applicationVersion: '1.1.0',
+      applicationLegalese: '© 2025 EasyFile Team',
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 16),
+          child: Text('一个简单易用的跨平台文件管理器'),
+        ),
+      ],
+    );
+  }
+
+  /// 显示收藏夹管理页面
+  void _showFavoritesManagePage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FavoritesManagePage(
+          presenter: presenter,
+          viewModel: viewModel,
+        ),
+      ),
+    );
+  }
+
+  /// 获取主题模式文本描述
+  String _getThemeModeText(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return '跟随系统';
+      case ThemeMode.light:
+        return '浅色主题';
+      case ThemeMode.dark:
+        return '深色主题';
+    }
+  }
+
+  /// 构建文件列表视图
+  Widget _buildFileList(FileViewModel vm) {
+    if (vm.files.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                vm.isSearchMode ? Icons.search_off : Icons.folder_open,
+                size: 48, // 减小图标大小
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                vm.isSearchMode ? '未找到匹配的文件' : '此文件夹为空',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Flexible(
+                child: Text(
+                  vm.isSearchMode
+                      ? '尝试使用不同的搜索关键词'
+                      : '当前路径: ${vm.currentPath.isEmpty ? '最近文件' : vm.currentPath}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: vm.files.length,
+      itemBuilder: (context, index) {
+        final file = vm.files[index];
+        return FileItemTile(
+          file: file,
+          showFullPath: vm.isSearchMode,
+          onTap: () => _onFileTap(file, vm),
+          onLongPress: () => _showFileOperations(file),
+        );
+      },
+    );
+  }
+
+  /// 处理文件点击
+  void _onFileTap(FileItem file, FileViewModel vm) {
+    // 添加到最近访问记录
+    presenter.addToRecentFiles(file);
+    
+    if (file.isDirectory) {
+      if (vm.isSearchMode) {
+        // 在搜索模式下，清除搜索并导航到该文件夹
+        presenter.clearSearch();
+        presenter.navigateToFolder(file.path);
+      } else {
+        presenter.navigateToFolder(file.path);
+      }
+    } else {
+      // 预览文件
+      _previewFile(file);
     }
   }
 
@@ -409,216 +675,264 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       child: Consumer<FileViewModel>(
         builder: (context, vm, _) {
           if (vm.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
+          
           return Scaffold(
             appBar: AppBar(
               title: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Image.asset(
                     'assets/images/logo.png',
-                    height: 36,
-                    fit: BoxFit.contain,
+                    width: 24,
+                    height: 24,
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'EasyFile',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const Text('EasyFile'),
                 ],
               ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.search),
-                  onPressed: _toggleSearch,
-                  tooltip: '搜索文件',
+                  onPressed: () => presenter.toggleSearch(),
+                  tooltip: vm.isSearchMode ? '退出搜索' : '搜索文件',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.folder_special),
-                  onPressed: _showPathSelector,
-                  tooltip: '选择目录',
+                  icon: Icon(vm.isDarkTheme ? Icons.light_mode : Icons.dark_mode),
+                  onPressed: () => presenter.toggleTheme(),
+                  tooltip: '切换主题',
+                ),
+                PopupMenuButton<String>(
+                  onSelected: _handleMenuAction,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'path_selector',
+                      child: Row(
+                        children: [
+                          Icon(Icons.folder_special),
+                          SizedBox(width: 8),
+                          Text('选择目录'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'manage_favorites',
+                      child: Row(
+                        children: [
+                          Icon(Icons.star),
+                          SizedBox(width: 8),
+                          Text('管理收藏文件夹'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'refresh',
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh),
+                          SizedBox(width: 8),
+                          Text('刷新'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'settings',
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings),
+                          SizedBox(width: 8),
+                          Text('设置'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
-              bottom: PreferredSize(
-                //路径信息栏，返回当前目录，返回按钮和路径文字
-                preferredSize: const Size.fromHeight(40),
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
-                  child: Row(
-                    children: [
-                      if (_canNavigateUp(vm.currentPath)) ...[
-                        IconButton(
-                          icon: const Icon(Icons.navigate_before),
-                          onPressed: () {
-                            logger.d('Navigate up button pressed');
-                            presenter.navigateUp();
-                          },
-                          tooltip: '返回上级目录',
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
+            ),
+            body: LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  children: [
+                    // 上部固定区域 - 限制最大高度
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: constraints.maxHeight * 0.5, // 调整为50%高度
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              vm.currentPath.isEmpty ? '主目录' : '当前目录',
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.grey),
+                            // 分类导航区（快速入口）
+                            CategoryNavBar(
+                              presenter: presenter,
+                              viewModel: vm,
                             ),
-                            Text(
-                              vm.currentPath.isEmpty
-                                  ? '(正在加载...)'
-                                  : vm.currentPath,
-                              style: const TextStyle(fontSize: 12),
-                              overflow: TextOverflow.ellipsis,
+                            const Divider(height: 1),
+                            
+                            // 收藏夹区域
+                            FavoritesSection(
+                              viewModel: vm,
+                              presenter: presenter,
+                            ),
+                            const Divider(height: 1),
+                            
+                            // 搜索栏（在搜索模式时显示）
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              height: vm.isSearchMode ? 60 : 0,
+                              child: vm.isSearchMode
+                                  ? Container(
+                                      padding: const EdgeInsets.all(8),
+                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                      child: Center(
+                                        child: TextField(
+                                          autofocus: true,
+                                          decoration: InputDecoration(
+                                            hintText: '搜索文件和文件夹...',
+                                            prefixIcon: Icon(
+                                              Icons.search,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
+                                            suffixIcon: IconButton(
+                                              icon: const Icon(Icons.close),
+                                              onPressed: () => presenter.clearSearch(),
+                                            ),
+                                            border: const OutlineInputBorder(),
+                                            isDense: true,
+                                            contentPadding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                          textInputAction: TextInputAction.search,
+                                          onSubmitted: (query) {
+                                            if (query.isNotEmpty) {
+                                              presenter.searchFiles(query);
+                                            }
+                                          },
+                                          onChanged: (query) {
+                                            if (query.isEmpty) {
+                                              presenter.clearSearch();
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+
+                            // 导航和状态信息栏
+                            if (!vm.isSearchMode && _canNavigateUp(vm.currentPath))
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_back),
+                                      onPressed: () => presenter.navigateUp(),
+                                      tooltip: '返回上级目录',
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        vm.currentPath,
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                            // 状态信息栏
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              color: Colors.grey[100],
+                              child: vm.isSearchMode
+                                  ? Row(
+                                      children: [
+                                        Icon(
+                                          Icons.search,
+                                          size: 16,
+                                          color: Theme.of(context).primaryColor,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '搜索结果: ${vm.files.length} 项',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => presenter.clearSearch(),
+                                          child: const Text('清除搜索', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ],
+                                    )
+                                  : vm.isRecentFilesMode
+                                      ? Row(
+                                          children: [
+                                            Icon(
+                                              Icons.access_time,
+                                              size: 16,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '最近访问: ${vm.files.length} 项',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(context).primaryColor,
+                                                ),
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => _fallbackToDirectoryView(),
+                                              child: const Text('浏览文件夹', style: TextStyle(fontSize: 12)),
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${vm.files.length} 项 (${vm.files.where((f) => f.isDirectory).length} 文件夹, ${vm.files.where((f) => !f.isDirectory).length} 文件)',
+                                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => _returnToRecentFiles(),
+                                              child: const Text('最近文件', style: TextStyle(fontSize: 12)),
+                                            ),
+                                          ],
+                                        ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+
+                    // 文件列表区域（可扩展）
+                    Expanded(
+                      child: _buildFileList(vm),
+                    ),
+                  ],
+                );
+              },
             ),
-            body: Column(
-              children: [
-                // 搜索栏
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: _showSearchBar ? 60 : 0,
-                  child: _showSearchBar
-                      ? Container(
-                          padding: const EdgeInsets.all(8),
-                          color: Colors.blue[50],
-                          child: TextField(
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: '搜索文件和文件夹...',
-                              prefixIcon:
-                                  const Icon(Icons.search, color: Colors.blue),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  setState(() {
-                                    _showSearchBar = false;
-                                  });
-                                  if (viewModel.isSearchMode) {
-                                    presenter.clearSearch();
-                                  }
-                                },
-                              ),
-                              border: const OutlineInputBorder(),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                            ),
-                            textInputAction: TextInputAction.search,
-                            onSubmitted: (query) {
-                              if (query.isNotEmpty) {
-                                presenter.searchFiles(query);
-                              }
-                            },
-                            onChanged: (query) {
-                              if (query.isEmpty && viewModel.isSearchMode) {
-                                presenter.clearSearch();
-                              }
-                            },
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                // 状态信息栏
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  color: Colors.grey[100],
-                  child: vm.isSearchMode
-                      ? Row(
-                          children: [
-                            const Icon(Icons.search,
-                                size: 16, color: Colors.blue),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '搜索 "${vm.searchQuery}" - 找到 ${vm.files.length} 个结果',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.blue),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => presenter.clearSearch(),
-                              child: const Text('清除搜索',
-                                  style: TextStyle(fontSize: 12)),
-                            ),
-                          ],
-                        )
-                      : Text(
-                          '找到 ${vm.files.length} 个项目 (${vm.files.where((f) => f.isDirectory).length} 个文件夹, ${vm.files.where((f) => !f.isDirectory).length} 个文件)',
-                          style:
-                              const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                ),
-                // 文件列表
-                Expanded(
-                  child: vm.files.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                vm.isSearchMode
-                                    ? Icons.search_off
-                                    : Icons.folder_open,
-                                size: 64,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(vm.isSearchMode ? '未找到匹配的文件' : '此文件夹为空'),
-                              const SizedBox(height: 8),
-                              Text(
-                                vm.isSearchMode
-                                    ? '搜索词: ${vm.searchQuery}'
-                                    : '路径: ${vm.currentPath}',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: vm.files.length,
-                          itemBuilder: (_, i) => FileItemTile(
-                            file: vm.files[i],
-                            showFullPath: vm.isSearchMode,
-                            onTap: () {
-                              if (vm.files[i].isDirectory) {
-                                if (vm.isSearchMode) {
-                                  // 在搜索模式下，清除搜索并导航到该文件夹
-                                  presenter.clearSearch();
-                                  presenter.navigateToFolder(vm.files[i].path);
-                                } else {
-                                  presenter.navigateToFolder(vm.files[i].path);
-                                }
-                              } else {
-                                // 预览文件
-                                _previewFile(vm.files[i]);
-                              }
-                            },
-                            onLongPress: () {
-                              _showFileOperations(vm.files[i]);
-                            },
-                          ),
-                        ),
-                ),
-              ],
+            
+            floatingActionButton: FloatingActionButton(
+              onPressed: () => presenter.refreshCurrent(),
+              tooltip: '刷新',
+              child: const Icon(Icons.refresh),
             ),
           );
         },

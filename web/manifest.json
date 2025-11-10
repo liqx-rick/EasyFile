@@ -1,6 +1,6 @@
 {
-    "name": "easyfile",
-    "short_name": "easyfile",
+    "name": "EasyFile",
+    "short_name": "EasyFile",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -14,18 +14,78 @@ dependencies:
   path_provider: ^2.1.2
   permission_handler: ^12.0.1
   path: ^1.8.3
+  flutter_native_splash: ^2.3.10
+  disk_space_plus: ^0.2.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
 
-  # 如果有资源文件，在这里添加
-  # assets:
-  #   - assets/images/
+  # 资源文件配置
   assets:
-    - assets/images/logo.png
-    - assets/images/logo_t.png
+    - assets/images/
+
+
+
+# Flutter Launcher Icons 配置
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 21
+  
+  # 自适应图标配置 - 1024x1024图标优化
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  
+  # iOS 配置
+  remove_alpha_ios: true
+  
+  # 高级配置 - 确保图标完整显示
+  # 注意：自适应图标要求前景图片中心区域66%可见，边缘可能被裁切
+  # 如果图标仍被裁切，考虑为前景创建一个缩小版本
+  
+  # 平台特定配置
+  platforms:
+    android:
+      adaptive_icon_background: "#FFFFFF"
+      adaptive_icon_foreground: "assets/icon/app_icon.png"
+    ios:
+      generate: true
+
+# Flutter Native Splash 配置
+flutter_native_splash:
+  # 基本配置 - 纯白色背景
+  color: "#FFFFFF"
+  color_dark: "#FFFFFF"
+  
+  # 明确设置不使用中心图片和背景图片
+  image: null
+  image_dark: null
+  
+  # 底部品牌logo配置
+  branding: assets/images/logo_splash_800.png
+  branding_dark: assets/images/logo_splash_800.png
+  branding_mode: bottom  
+  branding_bottom_padding: 80
+  
+  # 平台配置
+  android: true
+  ios: true
+  web: false
+  
+  # Android 12+ 配置 - 只在底部显示品牌logo，无中心图片
+  android_12:
+    color: "#FFFFFF"
+    color_dark: "#FFFFFF"
+    image: null
+    image_dark: null
+    background_image: null
+    background_image_dark: null
+    branding: assets/images/logo_splash_800.png
+    branding_dark: assets/images/logo_splash_800.png
