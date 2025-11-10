@@ -11,7 +11,7 @@ import 'package:easyfile/ui/widgets/file_operation_sheet.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 分类聚合视图页面
-/// 
+///
 /// 显示特定类型的所有文件（如图片、音乐等）
 class CategoryFilePage extends StatefulWidget {
   final CategoryType categoryType;
@@ -51,14 +51,16 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
     try {
       logger.i('Loading files for category: ${categoryInfo.name}');
-      final files = await widget.presenter.scanFilesByCategory(widget.categoryType);
-      
+      final files =
+          await widget.presenter.scanFilesByCategory(widget.categoryType);
+
       setState(() {
         _files = files;
         _isLoading = false;
       });
-      
-      logger.i('Loaded ${files.length} files for category ${categoryInfo.name}');
+
+      logger
+          .i('Loaded ${files.length} files for category ${categoryInfo.name}');
     } catch (e) {
       logger.e('Error loading category files: $e');
       setState(() {
@@ -93,11 +95,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             ],
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadCategoryFiles,
-              tooltip: '刷新',
-            ),
             IconButton(
               icon: const Icon(Icons.sort),
               onPressed: _showSortOptions,
@@ -151,31 +148,48 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     }
 
     if (_files.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              categoryInfo.icon,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '没有找到${categoryInfo.name}文件',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600],
+      return RefreshIndicator(
+        onRefresh: _loadCategoryFiles,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    categoryInfo.icon,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '没有找到${categoryInfo.name}文件',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '支持的格式: ${categoryInfo.extensions.take(5).join(', ')}${categoryInfo.extensions.length > 5 ? ' 等' : ''}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '下拉刷新',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '支持的格式: ${categoryInfo.extensions.take(5).join(', ')}${categoryInfo.extensions.length > 5 ? ' 等' : ''}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[500],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -213,20 +227,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             ],
           ),
         ),
-        
+
         // 文件列表
         Expanded(
-          child: ListView.builder(
-            itemCount: _files.length,
-            itemBuilder: (context, index) {
-              final file = _files[index];
-              return FileItemTile(
-                file: file,
-                showFullPath: true, // 在聚合视图中显示完整路径
-                onTap: () => _previewFile(file),
-                onLongPress: () => _showFileOperations(file),
-              );
-            },
+          child: RefreshIndicator(
+            onRefresh: _loadCategoryFiles,
+            child: ListView.builder(
+              itemCount: _files.length,
+              itemBuilder: (context, index) {
+                final file = _files[index];
+                return FileItemTile(
+                  file: file,
+                  showFullPath: true, // 在聚合视图中显示完整路径
+                  onTap: () => _previewFile(file),
+                  onLongPress: () => _showFileOperations(file),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -309,7 +326,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       builder: (context) => FileOperationSheet(
         file: file,
         onOperation: (operation) {
-          // TODO: 处理文件操作
+          // TODO: 实现文件操作功能（重命名、删除、分享等）
+          // 参考 FileBrowserPage 中的实现方式
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('功能开发中: $operation')),

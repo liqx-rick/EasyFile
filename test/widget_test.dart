@@ -11,13 +11,13 @@ void main() {
     // Initialize dependencies for testing
     await logger.init();
     setupLocator();
-    
+
     // Build our app and trigger a frame.
     await tester.pumpWidget(const EasyFileApp());
 
     // Verify that the app title is displayed
     expect(find.text('EasyFile'), findsOneWidget);
-    
+
     // Verify that we have a file browser page
     expect(find.byType(Scaffold), findsOneWidget);
   });

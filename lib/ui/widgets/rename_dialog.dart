@@ -23,7 +23,7 @@ class _RenameDialogState extends State<RenameDialog> {
     super.initState();
     logger.d('Initializing rename dialog for: ${widget.file.name}');
     _controller = TextEditingController(text: widget.file.name);
-    
+
     // 如果是文件，选中文件名部分（不包括扩展名）
     if (!widget.file.isDirectory && widget.file.name.contains('.')) {
       final lastDotIndex = widget.file.name.lastIndexOf('.');
@@ -92,7 +92,8 @@ class _RenameDialogState extends State<RenameDialog> {
           onPressed: _errorText == null && _controller.text.isNotEmpty
               ? () {
                   final newName = _controller.text.trim();
-                  logger.i('Rename dialog confirmed: ${widget.file.name} -> $newName');
+                  logger.i(
+                      'Rename dialog confirmed: ${widget.file.name} -> $newName');
                   Navigator.of(context).pop(newName);
                 }
               : null,
@@ -106,11 +107,11 @@ class _RenameDialogState extends State<RenameDialog> {
     if (name.trim().isEmpty) {
       return '名称不能为空';
     }
-    
+
     if (name.trim() == widget.file.name) {
       return '名称没有变化';
     }
-    
+
     // 检查非法字符
     final invalidChars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
     for (final char in invalidChars) {
@@ -118,7 +119,7 @@ class _RenameDialogState extends State<RenameDialog> {
         return '名称不能包含字符: $char';
       }
     }
-    
+
     return null;
   }
 }

@@ -15,7 +15,7 @@ class EasyFileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     logger.i('Building EasyFileApp');
-    
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<FileViewModel>(

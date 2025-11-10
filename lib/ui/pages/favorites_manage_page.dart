@@ -9,7 +9,7 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 管理收藏文件夹页面
-/// 
+///
 /// 显示系统默认目录，用户可以点击添加或取消收藏
 class FavoritesManagePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -67,7 +67,7 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
   /// 获取Android平台默认目录
   Future<List<DefaultDirectory>> _getAndroidDefaultDirectories() async {
     List<DefaultDirectory> directories = [];
-    
+
     // Android标准目录
     final standardPaths = {
       'DCIM': '/storage/emulated/0/DCIM',
@@ -97,14 +97,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
   /// 获取Windows平台默认目录
   Future<List<DefaultDirectory>> _getWindowsDefaultDirectories() async {
     List<DefaultDirectory> directories = [];
-    
+
     try {
       // Windows用户目录
       final userProfile = Platform.environment['USERPROFILE'];
       if (userProfile != null) {
         final standardPaths = {
           'Downloads': '$userProfile\\Downloads',
-          'Documents': '$userProfile\\Documents', 
+          'Documents': '$userProfile\\Documents',
           'Pictures': '$userProfile\\Pictures',
           'Music': '$userProfile\\Music',
           'Videos': '$userProfile\\Videos',
@@ -145,7 +145,7 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
   /// 获取通用平台默认目录
   Future<List<DefaultDirectory>> _getGenericDefaultDirectories() async {
     List<DefaultDirectory> directories = [];
-    
+
     try {
       // 尝试获取用户目录
       final documentsDir = await getApplicationDocumentsDirectory();
@@ -278,14 +278,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
   /// 切换目录收藏状态
   Future<void> _toggleDirectoryFavorite(DefaultDirectory directory) async {
     final isFavorited = _isDirectoryFavorited(directory.path);
-    
+
     if (isFavorited) {
       // 删除收藏
       final favorite = widget.viewModel.favorites.firstWhere(
         (f) => f.path == directory.path,
       );
       final success = await widget.presenter.removeFavorite(favorite.id);
-      
+
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('已取消收藏"${directory.name}"')),
@@ -300,9 +300,9 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
         iconName: directory.iconName,
         createdAt: DateTime.now(),
       );
-      
+
       final success = await widget.presenter.addFavorite(favorite);
-      
+
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('已添加收藏"${directory.name}"')),
@@ -316,13 +316,6 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('管理收藏文件夹'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDefaultDirectories,
-            tooltip: '刷新',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -334,37 +327,49 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
 
   /// 构建空状态
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.folder_off,
-            size: 64,
-            color: Colors.grey,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '未找到默认目录',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey,
+    return RefreshIndicator(
+      onRefresh: _loadDefaultDirectories,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.folder_off,
+                  size: 64,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '未找到默认目录',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '请检查系统权限或手动添加收藏夹',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '下拉刷新',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[400],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            '请检查系统权限或手动添加收藏夹',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _loadDefaultDirectories,
-            child: const Text('重试'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -388,76 +393,81 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
               Text(
                 '点击右侧图标可添加或取消收藏，收藏的目录将出现在主页面的收藏区域。',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                ),
+                      color: Colors.grey[600],
+                    ),
               ),
             ],
           ),
         ),
         const Divider(),
-        
+
         // 目录列表
         Expanded(
-          child: ListView.builder(
-            itemCount: _defaultDirectories.length,
-            itemBuilder: (context, index) {
-              final directory = _defaultDirectories[index];
-              final isFavorited = _isDirectoryFavorited(directory.path);
-              
-              return ListTile(
-                leading: Icon(
-                  _getDirectoryIcon(directory.iconName),
-                  size: 32,
-                  color: Theme.of(context).primaryColor,
-                ),
-                title: Text(
-                  directory.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(directory.description),
-                    const SizedBox(height: 2),
-                    Text(
-                      directory.path,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontFamily: 'monospace',
+          child: RefreshIndicator(
+            onRefresh: _loadDefaultDirectories,
+            child: ListView.builder(
+              itemCount: _defaultDirectories.length,
+              itemBuilder: (context, index) {
+                final directory = _defaultDirectories[index];
+                final isFavorited = _isDirectoryFavorited(directory.path);
+
+                return ListTile(
+                  leading: Icon(
+                    _getDirectoryIcon(directory.iconName),
+                    size: 32,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  title: Text(
+                    directory.name,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(directory.description),
+                      const SizedBox(height: 2),
+                      Text(
+                        directory.path,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontFamily: 'monospace',
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isFavorited)
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isFavorited)
+                        IconButton(
+                          icon: Icon(
+                            _getPinnedStateForPath(directory.path)
+                                ? Icons.push_pin
+                                : Icons.push_pin_outlined,
+                            color: _getPinnedStateForPath(directory.path)
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey,
+                          ),
+                          tooltip: _getPinnedStateForPath(directory.path)
+                              ? '取消置顶'
+                              : '置顶',
+                          onPressed: () => _togglePinForPath(directory.path),
+                        ),
                       IconButton(
                         icon: Icon(
-                          _getPinnedStateForPath(directory.path)
-                              ? Icons.push_pin
-                              : Icons.push_pin_outlined,
-                          color: _getPinnedStateForPath(directory.path)
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey,
+                          isFavorited ? Icons.star : Icons.star_border,
+                          color: isFavorited ? Colors.amber : Colors.grey,
                         ),
-                        tooltip: _getPinnedStateForPath(directory.path) ? '取消置顶' : '置顶',
-                        onPressed: () => _togglePinForPath(directory.path),
+                        onPressed: () => _toggleDirectoryFavorite(directory),
+                        tooltip: isFavorited ? '取消收藏' : '添加收藏',
                       ),
-                    IconButton(
-                      icon: Icon(
-                        isFavorited ? Icons.star : Icons.star_border,
-                        color: isFavorited ? Colors.amber : Colors.grey,
-                      ),
-                      onPressed: () => _toggleDirectoryFavorite(directory),
-                      tooltip: isFavorited ? '取消收藏' : '添加收藏',
-                    ),
-                  ],
-                ),
-                onTap: () => _toggleDirectoryFavorite(directory),
-              );
-            },
+                    ],
+                  ),
+                  onTap: () => _toggleDirectoryFavorite(directory),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -472,12 +482,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
 
   Future<void> _togglePinForPath(String path) async {
     try {
-      final existing = widget.viewModel.favorites.firstWhere((f) => f.path == path);
+      final existing =
+          widget.viewModel.favorites.firstWhere((f) => f.path == path);
       final updated = existing.copyWith(pinned: !existing.pinned);
       final ok = await widget.presenter.updateFavorite(updated);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败')),
+        SnackBar(
+            content: Text(ok ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败')),
       );
     } catch (e) {
       if (!mounted) return;

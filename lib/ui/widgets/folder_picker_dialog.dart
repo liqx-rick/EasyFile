@@ -37,7 +37,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     try {
       logger.d('Loading folders for path: $_currentPath');
       final dir = Directory(_currentPath);
-      
+
       if (!dir.existsSync()) {
         logger.w('Directory does not exist: $_currentPath');
         setState(() {
@@ -47,19 +47,22 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         return;
       }
 
-      final entities = dir.listSync()
+      final entities = dir
+          .listSync()
           .whereType<Directory>()
-          .where((entity) => !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
+          .where((entity) =>
+              !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
           .toList();
 
       final folders = entities.map((e) => FileItem.fromEntity(e)).toList();
-      folders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      folders
+          .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
       setState(() {
         _folders = folders;
         _isLoading = false;
       });
-      
+
       logger.d('Loaded ${folders.length} folders');
     } catch (e) {
       logger.e('Error loading folders: $e');
@@ -132,7 +135,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.folder_open, size: 48, color: Colors.grey),
+                              Icon(Icons.folder_open,
+                                  size: 48, color: Colors.grey),
                               SizedBox(height: 8),
                               Text('此文件夹中没有子文件夹'),
                             ],
@@ -143,7 +147,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                           itemBuilder: (context, index) {
                             final folder = _folders[index];
                             return ListTile(
-                              leading: const Icon(Icons.folder, color: Colors.amber),
+                              leading:
+                                  const Icon(Icons.folder, color: Colors.amber),
                               title: Text(folder.name),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () => _navigateToFolder(folder.path),

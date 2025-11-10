@@ -14,13 +14,13 @@ final locator = GetIt.instance;
 
 void setupLocator() {
   logger.i('Setting up dependency injection...');
-  
+
   // Core
   locator.registerLazySingleton<AppLogger>(() {
     logger.d('Registering AppLogger singleton');
     return logger;
   });
-  
+
   // Data Sources
   locator.registerLazySingleton<FavoritesLocalSource>(() {
     logger.d('Creating FavoritesLocalSource');
@@ -36,13 +36,13 @@ void setupLocator() {
     logger.d('Creating ThemeLocalSource');
     return ThemeLocalSource();
   });
-  
+
   // Repository
   locator.registerLazySingleton<FileRepository>(() {
     logger.d('Creating FileRepository (LocalFileRepository)');
     return LocalFileRepository();
   });
-  
+
   // ViewModels - 注册为单例，确保整个应用使用同一个实例
   locator.registerLazySingleton<FileViewModel>(() {
     logger.d('Creating FileViewModel (Singleton)');
@@ -53,7 +53,7 @@ void setupLocator() {
     logger.d('Creating SplashViewModel (Singleton)');
     return SplashViewModel();
   });
-  
+
   // Presenter - 使用单例的 ViewModel 和数据源
   locator.registerLazySingleton<FilePresenter>(() {
     logger.d('Creating FilePresenter (Singleton)');
@@ -70,6 +70,6 @@ void setupLocator() {
       themeSource: themeSource,
     );
   });
-  
+
   logger.i('Dependency injection setup complete');
 }

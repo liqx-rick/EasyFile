@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
@@ -31,6 +31,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
   double? _totalSpace;
   double? _freeSpace;
   bool _loadingStorage = true;
+  String? _selectedFavoritePath; // 当前选中的收藏夹路径
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       final diskSpace = DiskSpacePlus();
       final totalSpace = await diskSpace.getTotalDiskSpace;
       final freeSpace = await diskSpace.getFreeDiskSpace;
-      
+
       if (mounted) {
         setState(() {
           _totalSpace = totalSpace;
@@ -67,8 +68,41 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       return const SizedBox.shrink();
     }
 
-    final sorted = [...widget.viewModel.favorites]
-      ..sort((a, b) {
+    // 如果切换到最近Tab，清除选中状态
+    if (widget.viewModel.currentTab == TabView.recent &&
+        _selectedFavoritePath != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _selectedFavoritePath = null;
+          });
+        }
+      });
+    }
+
+    // 检查当前路径是否匹配某个收藏夹，自动更新选中状态
+    if (widget.viewModel.currentTab == TabView.browse &&
+        widget.viewModel.currentPath.isNotEmpty) {
+      // 查找匹配的收藏夹
+      final matchedFavorite = widget.viewModel.favorites.firstWhere(
+        (fav) => fav.path == widget.viewModel.currentPath,
+        orElse: () => widget.viewModel.favorites.first, // 返回一个dummy值
+      );
+
+      // 如果找到匹配的收藏夹，且当前选中状态不同，则更新
+      if (matchedFavorite.path == widget.viewModel.currentPath &&
+          _selectedFavoritePath != widget.viewModel.currentPath) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _selectedFavoritePath = widget.viewModel.currentPath;
+            });
+          }
+        });
+      }
+    }
+
+    final sorted = [...widget.viewModel.favorites]..sort((a, b) {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
@@ -121,7 +155,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         width: 100,
         height: 100,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withOpacity(0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
@@ -129,60 +166,67 @@ class _FavoritesSectionState extends State<FavoritesSection> {
           ),
         ),
         child: _loadingStorage
-          ? const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : _totalSpace == null || _freeSpace == null
-              ? Center(
-                  child: Text(
-                    '存储空间',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 10,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                    ),
-                  ),
-                )
-              : Stack(
-                  children: [
-                    // 底部居中："存储空间"文字（粗体）
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 6,
-                      child: Text(
-                        '存储空间',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          height: 1.0,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    // 右上角：已用/总容量
-                    Positioned(
-                      right: 4,
-                      top: 4,
-                      child: Text(
-                        _formatStorageText(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 8,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.0,
-                        ),
-                        maxLines: 1,
-                      ),
-                    ),
-                    // 中间：圆形进度条
-                    Center(
-                      child: _buildCircularStorageIndicator(context),
-                    ),
-                  ],
+            ? const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
+              )
+            : _totalSpace == null || _freeSpace == null
+                ? Center(
+                    child: Text(
+                      '存储空间',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withOpacity(0.6),
+                          ),
+                    ),
+                  )
+                : Stack(
+                    children: [
+                      // 底部居中："存储空间"文字（粗体）
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 6,
+                        child: Text(
+                          '存储空间',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.0,
+                                  ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      // 右上角：已用/总容量
+                      Positioned(
+                        right: 4,
+                        top: 4,
+                        child: Text(
+                          _formatStorageText(),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontSize: 8,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    height: 1.0,
+                                  ),
+                          maxLines: 1,
+                        ),
+                      ),
+                      // 中间：圆形进度条
+                      Center(
+                        child: _buildCircularStorageIndicator(context),
+                      ),
+                    ],
+                  ),
       ),
     );
   }
@@ -194,7 +238,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
 
     final usedSpace = _totalSpace! - _freeSpace!;
     final usagePercent = (usedSpace / _totalSpace! * 100).clamp(0, 100);
-    
+
     Color barColor;
     if (usagePercent < 70) {
       barColor = Colors.green;
@@ -215,7 +259,8 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             height: 46,
             child: CircularProgressIndicator(
               value: usagePercent / 100,
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
               strokeWidth: 4,
             ),
@@ -241,11 +286,11 @@ class _FavoritesSectionState extends State<FavoritesSection> {
     // disk_space_plus 返回的是 MB 单位
     final usedMB = _totalSpace! - _freeSpace!;
     final totalMB = _totalSpace!;
-    
+
     // 转换为 GB
     final usedGB = usedMB / 1024;
     final totalGB = totalMB / 1024;
-    
+
     return '${usedGB.toStringAsFixed(1)}/${totalGB.toStringAsFixed(1)}G';
   }
 
@@ -263,15 +308,18 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 if (index < displayCount) {
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0, vertical: 2.0),
                       child: _buildFavoriteCard(context, items[index]),
                     ),
                   );
                 } else if (index == displayCount && hasMore) {
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                      child: _buildMoreCard(context, items.length - displayCount),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0, vertical: 2.0),
+                      child:
+                          _buildMoreCard(context, items.length - displayCount),
                     ),
                   );
                 } else {
@@ -287,15 +335,18 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 if (itemIndex < displayCount) {
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0, vertical: 2.0),
                       child: _buildFavoriteCard(context, items[itemIndex]),
                     ),
                   );
                 } else if (itemIndex == displayCount && hasMore) {
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                      child: _buildMoreCard(context, items.length - displayCount),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0, vertical: 2.0),
+                      child:
+                          _buildMoreCard(context, items.length - displayCount),
                     ),
                   );
                 } else {
@@ -310,49 +361,64 @@ class _FavoritesSectionState extends State<FavoritesSection> {
   }
 
   Widget _buildFavoriteCard(BuildContext context, FavoriteItem favorite) {
+    // 判断是否是当前选中的收藏夹
+    final bool isSelected = _selectedFavoritePath == favorite.path;
+
     return GestureDetector(
       onLongPress: () => _showFavoriteOptions(context, favorite),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+      child: Material(
+        color: isSelected
+            ? Theme.of(context).colorScheme.primaryContainer
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        elevation: isSelected ? 4 : 1,
+        shadowColor: isSelected
+            ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
+            : Colors.black.withOpacity(0.1),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              width: 1,
             ),
-          ],
-        ),
-        child: InkWell(
-          onTap: () => _onFavoriteTap(favorite, context),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _getFavoriteEmoji(favorite.iconName),
-                  style: const TextStyle(fontSize: 20, height: 1.0),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  favorite.name,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
-                    height: 1.1,
+          ),
+          child: InkWell(
+            onTap: () => _onFavoriteTap(favorite, context),
+            borderRadius: BorderRadius.circular(12),
+            splashColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            highlightColor:
+                Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _getFavoriteEmoji(favorite.iconName),
+                    style: const TextStyle(fontSize: 20, height: 1.0),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  const SizedBox(height: 1),
+                  Text(
+                    favorite.name,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 11,
+                          height: 1.1,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -363,7 +429,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
   Widget _buildMoreCard(BuildContext context, int count) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
@@ -375,9 +444,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
               Icon(
                 Icons.more_horiz,
                 size: 20,
@@ -387,11 +456,11 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               Text(
                 '更多',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 11,
-                  height: 1.1,
-                ),
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      height: 1.1,
+                    ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -402,26 +471,46 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       ),
     );
   }
+
   String _getFavoriteEmoji(String? iconName) {
     switch (iconName) {
-      case 'home': return '🏠';
-      case 'download': return '📥';
-      case 'documents': return '📄';
-      case 'pictures': return '🖼️';
-      case 'music': return '🎵';
-      case 'videos': return '🎬';
-      case 'desktop': return '💻';
-      case 'storage': return '💾';
-      default: return '📁';
+      case 'home':
+        return '🏠';
+      case 'download':
+        return '📥';
+      case 'documents':
+        return '📄';
+      case 'pictures':
+        return '🖼️';
+      case 'music':
+        return '🎵';
+      case 'videos':
+        return '🎬';
+      case 'desktop':
+        return '💻';
+      case 'storage':
+        return '💾';
+      default:
+        return '📁';
     }
   }
 
   void _onFavoriteTap(FavoriteItem favorite, BuildContext context) {
     logger.d('Navigating to favorite: ${favorite.name} (${favorite.path})');
+
+    // 更新选中状态
+    setState(() {
+      _selectedFavoritePath = favorite.path;
+    });
+
+    // 切换到文件浏览Tab
+    widget.viewModel.setCurrentTab(TabView.browse);
+
     _checkAndNavigateToFavorite(favorite, context);
   }
 
-  Future<void> _checkAndNavigateToFavorite(FavoriteItem favorite, BuildContext context) async {
+  Future<void> _checkAndNavigateToFavorite(
+      FavoriteItem favorite, BuildContext context) async {
     try {
       final directory = Directory(favorite.path);
       if (!directory.existsSync()) {
@@ -430,7 +519,8 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: const Text('目录不存在'),
-              content: Text('收藏夹"${favorite.name}"指向的目录已不存在或无法访问。\n\n是否移除此收藏夹？'),
+              content:
+                  Text('收藏夹"${favorite.name}"指向的目录已不存在或无法访问。\n\n是否移除此收藏夹？'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -451,13 +541,15 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             final success = await widget.presenter.removeFavorite(favorite.id);
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败')),
+                SnackBar(
+                    content: Text(
+                        success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败')),
               );
             }
           }
         }
       } else {
-        widget.presenter.loadFiles(favorite.path);
+        widget.presenter.loadFiles(favorite.path, isRootNavigation: true);
         widget.presenter.updateFavoriteLastAccessed(favorite.id);
       }
     } catch (e) {
@@ -469,6 +561,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       }
     }
   }
+
   void _showFavoriteOptions(BuildContext context, FavoriteItem favorite) {
     showModalBottomSheet(
       context: context,
@@ -488,7 +581,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 final success = await widget.presenter.updateFavorite(updated);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(success ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败')),
+                    SnackBar(
+                        content: Text(success
+                            ? (updated.pinned ? '已置顶' : '已取消置顶')
+                            : '操作失败')),
                   );
                 }
               },
@@ -594,10 +690,12 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               if (newName.isNotEmpty && newName != favorite.name) {
                 Navigator.of(context).pop();
                 final updatedFavorite = favorite.copyWith(name: newName);
-                final success = await widget.presenter.updateFavorite(updatedFavorite);
+                final success =
+                    await widget.presenter.updateFavorite(updatedFavorite);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(success ? '已重命名为"$newName"' : '重命名失败')),
+                    SnackBar(
+                        content: Text(success ? '已重命名为"$newName"' : '重命名失败')),
                   );
                 }
               } else {
@@ -625,10 +723,13 @@ class _FavoritesSectionState extends State<FavoritesSection> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              final success = await widget.presenter.removeFavorite(favorite.id);
+              final success =
+                  await widget.presenter.removeFavorite(favorite.id);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(success ? '已移除收藏夹"${favorite.name}"' : '移除失败')),
+                  SnackBar(
+                      content:
+                          Text(success ? '已移除收藏夹"${favorite.name}"' : '移除失败')),
                 );
               }
             },

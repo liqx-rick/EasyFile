@@ -11,7 +11,7 @@ import 'package:easyfile/data/models/favorite_item.dart';
 /// 负责收藏夹数据的持久化存储和读取
 class FavoritesLocalSource {
   static const String _fileName = 'favorites.json';
-  
+
   /// 获取收藏夹数据文件路径
   Future<String> get _filePath async {
     final directory = await getApplicationDocumentsDirectory();
@@ -23,7 +23,7 @@ class FavoritesLocalSource {
     try {
       final filePath = await _filePath;
       final file = File(filePath);
-      
+
       if (!await file.exists()) {
         logger.d('Favorites file does not exist, returning empty list');
         return [];
@@ -31,11 +31,11 @@ class FavoritesLocalSource {
 
       final jsonString = await file.readAsString();
       final jsonList = json.decode(jsonString) as List<dynamic>;
-      
+
       final favorites = jsonList
           .map((json) => FavoriteItem.fromJson(json as Map<String, dynamic>))
           .toList();
-      
+
       logger.d('Loaded ${favorites.length} favorites from storage');
       return favorites;
     } catch (e, stackTrace) {
@@ -49,15 +49,15 @@ class FavoritesLocalSource {
     try {
       final filePath = await _filePath;
       final file = File(filePath);
-      
+
       // 确保目录存在
       await file.parent.create(recursive: true);
-      
+
       final jsonList = favorites.map((favorite) => favorite.toJson()).toList();
       final jsonString = json.encode(jsonList);
-      
+
       await file.writeAsString(jsonString);
-      
+
       logger.d('Saved ${favorites.length} favorites to storage');
       return true;
     } catch (e, stackTrace) {
@@ -70,13 +70,13 @@ class FavoritesLocalSource {
   Future<bool> addFavorite(FavoriteItem favorite) async {
     try {
       final favorites = await getFavorites();
-      
+
       // 检查是否已存在相同路径的收藏夹
       if (favorites.any((f) => f.path == favorite.path)) {
         logger.w('Favorite with path ${favorite.path} already exists');
         return false;
       }
-      
+
       favorites.add(favorite);
       return await saveFavorites(favorites);
     } catch (e, stackTrace) {
@@ -90,14 +90,14 @@ class FavoritesLocalSource {
     try {
       final favorites = await getFavorites();
       final initialLength = favorites.length;
-      
+
       favorites.removeWhere((f) => f.id == id);
-      
+
       if (favorites.length == initialLength) {
         logger.w('Favorite with id $id not found');
         return false;
       }
-      
+
       return await saveFavorites(favorites);
     } catch (e, stackTrace) {
       logger.e('Error removing favorite: $e\nStackTrace: $stackTrace');
@@ -110,12 +110,12 @@ class FavoritesLocalSource {
     try {
       final favorites = await getFavorites();
       final index = favorites.indexWhere((f) => f.id == updatedFavorite.id);
-      
+
       if (index == -1) {
         logger.w('Favorite with id ${updatedFavorite.id} not found');
         return false;
       }
-      
+
       favorites[index] = updatedFavorite;
       return await saveFavorites(favorites);
     } catch (e, stackTrace) {
@@ -129,20 +129,21 @@ class FavoritesLocalSource {
     try {
       final favorites = await getFavorites();
       final index = favorites.indexWhere((f) => f.id == id);
-      
+
       if (index == -1) {
         logger.w('Favorite with id $id not found');
         return false;
       }
-      
+
       final updatedFavorite = favorites[index].copyWith(
         lastAccessedAt: DateTime.now(),
       );
-      
+
       favorites[index] = updatedFavorite;
       return await saveFavorites(favorites);
     } catch (e, stackTrace) {
-      logger.e('Error updating last accessed time: $e\nStackTrace: $stackTrace');
+      logger
+          .e('Error updating last accessed time: $e\nStackTrace: $stackTrace');
       return false;
     }
   }
@@ -152,11 +153,11 @@ class FavoritesLocalSource {
     try {
       final filePath = await _filePath;
       final file = File(filePath);
-      
+
       if (await file.exists()) {
         await file.delete();
       }
-      
+
       logger.d('Cleared all favorites');
       return true;
     } catch (e, stackTrace) {

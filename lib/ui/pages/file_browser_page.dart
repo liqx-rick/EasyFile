@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/sources/path_provider.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -52,17 +53,17 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   /// 初始化应用程序数据
   Future<void> _initializeApp() async {
     logger.i('Initializing app data...');
-    
+
     try {
       // 并行初始化收藏夹和主题
       await Future.wait([
         presenter.initializeFavorites(),
         presenter.initializeTheme(),
       ]);
-      
+
       // 最后加载初始目录
       await _loadInitialDirectory();
-      
+
       logger.i('App initialization completed');
     } catch (e) {
       logger.e('Error during app initialization: $e');
@@ -76,7 +77,6 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       // 默认显示最近访问的文件
       logger.i('Loading recent files as default view');
       await presenter.loadRecentFiles();
-      
     } catch (e) {
       logger.e('Error loading recent files, fallback to directory: $e');
       // 如果加载最近文件失败，使用目录浏览作为后备
@@ -135,12 +135,15 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     }
   }
 
-  /// 返回最近文件模式
-  Future<void> _returnToRecentFiles() async {
+  /// 返回主页（最近访问文件列表）
+  Future<void> _returnToHome() async {
     try {
+      // 切换到最近 Tab
+      viewModel.setCurrentTab(TabView.recent);
+      // 加载最近文件
       await presenter.loadRecentFiles();
     } catch (e) {
-      logger.e('Error returning to recent files: $e');
+      logger.e('Error returning to home: $e');
     }
   }
 
@@ -187,7 +190,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       );
 
       if (selectedPath != null && mounted) {
-        presenter.loadFiles(selectedPath);
+        presenter.loadFiles(selectedPath, isRootNavigation: true);
       }
     } catch (e) {
       if (mounted) {
@@ -230,6 +233,11 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
   bool _canNavigateUp(String currentPath) {
     if (currentPath.isEmpty) return false;
 
+    // 检查是否已经回到了导航起始路径（收藏夹根路径）
+    if (currentPath == viewModel.rootPath) {
+      return false;
+    }
+
     // 对于 Windows，检查是否在根目录（如 C:\）
     if (Platform.isWindows) {
       // 如果路径是类似 "C:\" 的格式，则不能再上级
@@ -258,9 +266,6 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         break;
       case 'manage_favorites':
         _showFavoritesManagePage();
-        break;
-      case 'refresh':
-        presenter.refreshCurrent();
         break;
       case 'settings':
         _showSettingsDialog();
@@ -400,51 +405,156 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     }
   }
 
+  /// 获取主题图标
+  IconData _getThemeIcon(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return Icons.light_mode; // 浅色模式：太阳
+      case ThemeMode.dark:
+        return Icons.dark_mode; // 深色模式：月亮
+      case ThemeMode.system:
+        return Icons.brightness_auto; // 跟随系统：自动亮度图标
+    }
+  }
+
+  /// 获取主题切换提示文字
+  String _getThemeTooltip(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return '当前：浅色主题';
+      case ThemeMode.dark:
+        return '当前：深色主题';
+      case ThemeMode.system:
+        return '当前：跟随系统';
+    }
+  }
+
+  /// 构建 Tab 按钮
+  Widget _buildTabButton(
+    BuildContext context,
+    String label,
+    TabView tab,
+    bool isSelected, {
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 获取文件浏览Tab的标签文本
+  String _getBrowseTabLabel(FileViewModel vm) {
+    if (vm.currentTab == TabView.browse && vm.currentPath.isNotEmpty) {
+      // 查找匹配的收藏夹
+      final matchedFavorite = vm.favorites.firstWhere(
+        (fav) => fav.path == vm.currentPath,
+        orElse: () => FavoriteItem(
+          id: '',
+          name: '',
+          path: '',
+          iconName: 'folder',
+          pinned: false,
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      if (matchedFavorite.name.isNotEmpty) {
+        return '文件浏览 - ${matchedFavorite.name}';
+      }
+    }
+    return '文件浏览';
+  }
+
   /// 构建文件列表视图
   Widget _buildFileList(FileViewModel vm) {
     if (vm.files.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                vm.isSearchMode ? Icons.search_off : Icons.folder_open,
-                size: 48, // 减小图标大小
-                color: Colors.grey,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                vm.isSearchMode ? '未找到匹配的文件' : '此文件夹为空',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.grey,
-                  fontSize: 16,
+      return RefreshIndicator(
+        onRefresh: () async {
+          await presenter.refreshCurrent();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      vm.isSearchMode ? Icons.search_off : Icons.folder_open,
+                      size: 48, // 减小图标大小
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      vm.isSearchMode ? '未找到匹配的文件' : '此文件夹为空',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.grey,
+                            fontSize: 16,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: Text(
+                        vm.isSearchMode
+                            ? '尝试使用不同的搜索关键词'
+                            : '当前路径: ${vm.currentPath.isEmpty ? '最近文件' : vm.currentPath}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '下拉刷新',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: Text(
-                  vm.isSearchMode
-                      ? '尝试使用不同的搜索关键词'
-                      : '当前路径: ${vm.currentPath.isEmpty ? '最近文件' : vm.currentPath}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
+    return RefreshIndicator(
+      onRefresh: () async {
+        await presenter.refreshCurrent();
+      },
+      child: vm.viewMode == ViewMode.list
+          ? _buildListView(vm)
+          : _buildGridView(vm),
+    );
+  }
+
+  /// 构建列表视图
+  Widget _buildListView(FileViewModel vm) {
     return ListView.builder(
       itemCount: vm.files.length,
       itemBuilder: (context, index) {
@@ -459,11 +569,128 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
     );
   }
 
+  /// 构建网格视图
+  Widget _buildGridView(FileViewModel vm) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: vm.files.length,
+      itemBuilder: (context, index) {
+        final file = vm.files[index];
+        return _buildGridItem(file, vm);
+      },
+    );
+  }
+
+  /// 构建网格项
+  Widget _buildGridItem(FileItem file, FileViewModel vm) {
+    return InkWell(
+      onTap: () => _onFileTap(file, vm),
+      onLongPress: () => _showFileOperations(file),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 文件图标
+            Icon(
+              file.isDirectory ? Icons.folder : _getFileIcon(file),
+              size: 48,
+              color: file.isDirectory ? Colors.amber : Colors.blue,
+            ),
+            const SizedBox(height: 8),
+            // 文件名
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                file.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            // 文件大小或日期
+            if (!file.isDirectory)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _formatFileSize(file.size),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 获取文件图标
+  IconData _getFileIcon(FileItem file) {
+    final ext = file.name.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mkv':
+        return Icons.video_file;
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+        return Icons.audio_file;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip;
+      case 'txt':
+        return Icons.text_snippet;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  /// 格式化文件大小
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
   /// 处理文件点击
   void _onFileTap(FileItem file, FileViewModel vm) {
     // 添加到最近访问记录
     presenter.addToRecentFiles(file);
-    
+
     if (file.isDirectory) {
       if (vm.isSearchMode) {
         // 在搜索模式下，清除搜索并导航到该文件夹
@@ -679,7 +906,7 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
               body: Center(child: CircularProgressIndicator()),
             );
           }
-          
+
           return Scaffold(
             appBar: AppBar(
               title: Row(
@@ -696,14 +923,14 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => presenter.toggleSearch(),
-                  tooltip: vm.isSearchMode ? '退出搜索' : '搜索文件',
+                  icon: Icon(_getThemeIcon(vm.themeMode)),
+                  onPressed: () => presenter.toggleTheme(),
+                  tooltip: _getThemeTooltip(vm.themeMode),
                 ),
                 IconButton(
-                  icon: Icon(vm.isDarkTheme ? Icons.light_mode : Icons.dark_mode),
-                  onPressed: () => presenter.toggleTheme(),
-                  tooltip: '切换主题',
+                  icon: const Icon(Icons.home),
+                  onPressed: _returnToHome,
+                  tooltip: '返回主页',
                 ),
                 PopupMenuButton<String>(
                   onSelected: _handleMenuAction,
@@ -725,16 +952,6 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                           Icon(Icons.star),
                           SizedBox(width: 8),
                           Text('管理收藏文件夹'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'refresh',
-                      child: Row(
-                        children: [
-                          Icon(Icons.refresh),
-                          SizedBox(width: 8),
-                          Text('刷新'),
                         ],
                       ),
                     ),
@@ -772,86 +989,152 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                               viewModel: vm,
                             ),
                             const Divider(height: 1),
-                            
+
                             // 收藏夹区域
                             FavoritesSection(
                               viewModel: vm,
                               presenter: presenter,
                             ),
                             const Divider(height: 1),
-                            
+
+                            // Tab 切换栏和工具按钮
+                            Container(
+                              color: Theme.of(context).colorScheme.surface,
+                              child: Row(
+                                children: [
+                                  // Tab 切换 - 居左对齐
+                                  _buildTabButton(
+                                    context,
+                                    '最近',
+                                    TabView.recent,
+                                    vm.currentTab == TabView.recent,
+                                    onTap: () {
+                                      viewModel.setCurrentTab(TabView.recent);
+                                      presenter.loadRecentFiles();
+                                    },
+                                  ),
+                                  // 分割线
+                                  Container(
+                                    width: 1,
+                                    height: 20,
+                                    color: Theme.of(context).dividerColor,
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 2),
+                                  ),
+                                  _buildTabButton(
+                                    context,
+                                    _getBrowseTabLabel(vm),
+                                    TabView.browse,
+                                    vm.currentTab == TabView.browse,
+                                    onTap: null, // 文件浏览 Tab 不可点击，只能通过收藏夹激活
+                                  ),
+                                  // 占位空间
+                                  const Spacer(),
+                                  // 工具按钮组（紧凑显示）
+                                  if (vm.currentTab == TabView.browse)
+                                    Transform.translate(
+                                      offset: const Offset(
+                                          24, 0), // 向右移动24px，减少与视图切换图标的间距
+                                      child: IconButton(
+                                        icon:
+                                            const Icon(Icons.search, size: 20),
+                                        onPressed: () =>
+                                            presenter.toggleSearch(),
+                                        tooltip:
+                                            vm.isSearchMode ? '退出搜索' : '搜索文件',
+                                        padding: const EdgeInsets.all(8),
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                    ),
+                                  IconButton(
+                                    icon: Icon(
+                                      vm.viewMode == ViewMode.list
+                                          ? Icons.grid_view
+                                          : Icons.view_list,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => viewModel.toggleViewMode(),
+                                    tooltip: vm.viewMode == ViewMode.list
+                                        ? '网格视图'
+                                        : '列表视图',
+                                    padding: const EdgeInsets.all(8),
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            ),
+
                             // 搜索栏（在搜索模式时显示）
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
-                              height: vm.isSearchMode ? 60 : 0,
+                              height: vm.isSearchMode ? 56 : 0,
                               child: vm.isSearchMode
                                   ? Container(
-                                      padding: const EdgeInsets.all(8),
-                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                      child: Center(
-                                        child: TextField(
-                                          autofocus: true,
-                                          decoration: InputDecoration(
-                                            hintText: '搜索文件和文件夹...',
-                                            prefixIcon: Icon(
-                                              Icons.search,
-                                              color: Theme.of(context).primaryColor,
-                                            ),
-                                            suffixIcon: IconButton(
-                                              icon: const Icon(Icons.close),
-                                              onPressed: () => presenter.clearSearch(),
-                                            ),
-                                            border: const OutlineInputBorder(),
-                                            isDense: true,
-                                            contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      child: TextField(
+                                        autofocus: true,
+                                        decoration: InputDecoration(
+                                          hintText: '搜索文件...',
+                                          hintStyle:
+                                              const TextStyle(fontSize: 14),
+                                          prefixIcon: Icon(
+                                            Icons.search,
+                                            color:
+                                                Theme.of(context).primaryColor,
+                                            size: 20,
                                           ),
-                                          textInputAction: TextInputAction.search,
-                                          onSubmitted: (query) {
-                                            if (query.isNotEmpty) {
-                                              presenter.searchFiles(query);
-                                            }
-                                          },
-                                          onChanged: (query) {
-                                            if (query.isEmpty) {
-                                              presenter.clearSearch();
-                                            }
-                                          },
+                                          suffixIcon: IconButton(
+                                            icon: const Icon(Icons.close,
+                                                size: 20),
+                                            onPressed: () =>
+                                                presenter.clearSearch(),
+                                            tooltip: '清除搜索',
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          filled: true,
+                                          fillColor: Theme.of(context)
+                                              .colorScheme
+                                              .surface,
                                         ),
+                                        style: const TextStyle(fontSize: 14),
+                                        textInputAction: TextInputAction.search,
+                                        onSubmitted: (query) {
+                                          if (query.isNotEmpty) {
+                                            presenter.searchFiles(query);
+                                          }
+                                        },
+                                        onChanged: (query) {
+                                          if (query.isEmpty) {
+                                            presenter.clearSearch();
+                                          }
+                                        },
                                       ),
                                     )
                                   : const SizedBox.shrink(),
                             ),
 
-                            // 导航和状态信息栏
-                            if (!vm.isSearchMode && _canNavigateUp(vm.currentPath))
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.arrow_back),
-                                      onPressed: () => presenter.navigateUp(),
-                                      tooltip: '返回上级目录',
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        vm.currentPath,
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
                             // 状态信息栏
                             Container(
+                              height: 36,
                               width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              color: Colors.grey[100],
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                               child: vm.isSearchMode
                                   ? Row(
                                       children: [
@@ -866,23 +1149,27 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                                             '搜索结果: ${vm.files.length} 项',
                                             style: TextStyle(
                                               fontSize: 12,
-                                              color: Theme.of(context).primaryColor,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
                                             ),
                                           ),
                                         ),
                                         TextButton(
-                                          onPressed: () => presenter.clearSearch(),
-                                          child: const Text('清除搜索', style: TextStyle(fontSize: 12)),
+                                          onPressed: () =>
+                                              presenter.clearSearch(),
+                                          child: const Text('清除搜索',
+                                              style: TextStyle(fontSize: 12)),
                                         ),
                                       ],
                                     )
-                                  : vm.isRecentFilesMode
+                                  : vm.currentTab == TabView.recent
                                       ? Row(
                                           children: [
                                             Icon(
                                               Icons.access_time,
                                               size: 16,
-                                              color: Theme.of(context).primaryColor,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
@@ -890,28 +1177,48 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                                                 '最近访问: ${vm.files.length} 项',
                                                 style: TextStyle(
                                                   fontSize: 12,
-                                                  color: Theme.of(context).primaryColor,
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
                                                 ),
                                               ),
-                                            ),
-                                            TextButton(
-                                              onPressed: () => _fallbackToDirectoryView(),
-                                              child: const Text('浏览文件夹', style: TextStyle(fontSize: 12)),
                                             ),
                                           ],
                                         )
                                       : Row(
                                           children: [
+                                            Icon(
+                                              Icons.folder_open,
+                                              size: 16,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                            const SizedBox(width: 8),
                                             Expanded(
                                               child: Text(
-                                                '${vm.files.length} 项 (${vm.files.where((f) => f.isDirectory).length} 文件夹, ${vm.files.where((f) => !f.isDirectory).length} 文件)',
-                                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                                '${vm.files.length} 项',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
+                                                ),
                                               ),
                                             ),
-                                            TextButton(
-                                              onPressed: () => _returnToRecentFiles(),
-                                              child: const Text('最近文件', style: TextStyle(fontSize: 12)),
-                                            ),
+                                            if (vm.currentPath.isNotEmpty &&
+                                                _canNavigateUp(vm.currentPath))
+                                              IconButton(
+                                                icon: const Icon(
+                                                    Icons.arrow_upward,
+                                                    size: 16),
+                                                onPressed: () =>
+                                                    presenter.navigateUp(),
+                                                tooltip: '返回上级',
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(
+                                                  minWidth: 24,
+                                                  minHeight: 24,
+                                                ),
+                                              ),
                                           ],
                                         ),
                             ),
@@ -927,12 +1234,6 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                   ],
                 );
               },
-            ),
-            
-            floatingActionButton: FloatingActionButton(
-              onPressed: () => presenter.refreshCurrent(),
-              tooltip: '刷新',
-              child: const Icon(Icons.refresh),
             ),
           );
         },

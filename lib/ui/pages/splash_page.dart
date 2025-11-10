@@ -24,16 +24,16 @@ class _SplashPageState extends State<SplashPage>
   @override
   void initState() {
     super.initState();
-    
+
     // 获取依赖
     logger = GetIt.instance<AppLogger>();
-    
+
     // 初始化动画控制器
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -53,17 +53,16 @@ class _SplashPageState extends State<SplashPage>
     try {
       // 开始logo淡入动画
       _animationController.forward();
-      
+
       // 获取ViewModel并创建Presenter
       final viewModel = Provider.of<SplashViewModel>(context, listen: false);
       presenter = SplashPresenter(
         viewModel: viewModel,
         logger: logger,
       );
-      
+
       // 开始应用初始化
       await presenter.initApp(context);
-      
     } catch (e) {
       logger.e('SplashPage: Error during initialization: $e');
       // 即使出错也要继续，避免用户卡在启动页
@@ -84,7 +83,7 @@ class _SplashPageState extends State<SplashPage>
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -120,13 +119,13 @@ class _SplashPageState extends State<SplashPage>
                     ),
                   ),
                 ),
-                
+
                 // 状态信息区域
                 Expanded(
                   flex: 1,
                   child: _buildStatusSection(viewModel, theme),
                 ),
-                
+
                 // 底部版权信息
                 Padding(
                   padding: const EdgeInsets.only(bottom: 32.0),
@@ -155,9 +154,9 @@ class _SplashPageState extends State<SplashPage>
             letterSpacing: 1.2,
           ),
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // 应用描述
         Text(
           '一个简洁高效的文件管理器',
@@ -192,9 +191,9 @@ class _SplashPageState extends State<SplashPage>
             size: 24,
             color: Colors.green,
           ),
-        
+
         const SizedBox(height: 16),
-        
+
         // 状态文本
         AnimatedOpacity(
           opacity: viewModel.initMessage.isNotEmpty ? 1.0 : 0.0,

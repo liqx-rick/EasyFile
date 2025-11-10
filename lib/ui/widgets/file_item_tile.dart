@@ -6,9 +6,9 @@ class FileItemTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool showFullPath;
-  
+
   const FileItemTile({
-    super.key, 
+    super.key,
     required this.file,
     this.onTap,
     this.onLongPress,
@@ -30,37 +30,35 @@ class FileItemTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: showFullPath ? SizedBox(
-        height: 32, // 固定高度避免溢出
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Expanded(
-              child: Text(
-                file.path,
-                style: const TextStyle(fontSize: 11, color: Colors.blue),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      subtitle: showFullPath
+          ? SizedBox(
+              height: 32, // 固定高度避免溢出
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: Text(
+                      file.path,
+                      style: const TextStyle(fontSize: 11, color: Colors.blue),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    file.isDirectory ? '文件夹' : _formatFileSize(file.size),
+                    style: const TextStyle(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-            ),
-            Text(
-              file.isDirectory 
-                  ? '文件夹'
-                  : _formatFileSize(file.size),
-              style: const TextStyle(fontSize: 11),
+            )
+          : Text(
+              file.isDirectory ? '文件夹' : _formatFileSize(file.size),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
-      ) : Text(
-        file.isDirectory 
-            ? '文件夹'
-            : _formatFileSize(file.size),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
       isThreeLine: showFullPath,
       trailing: file.isDirectory ? const Icon(Icons.chevron_right) : null,
       onTap: onTap,
@@ -155,7 +153,8 @@ class FileItemTile extends StatelessWidget {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

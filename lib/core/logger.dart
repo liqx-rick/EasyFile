@@ -16,7 +16,8 @@ class AppLogger {
 
   /// Initialize the logger and open the log file. Call early in main().
   /// Optionally pass a [minLevel] to override the default level.
-  Future<void> init({String filename = 'easyfile.log', LogLevel? minLevel}) async {
+  Future<void> init(
+      {String filename = 'easyfile.log', LogLevel? minLevel}) async {
     try {
       if (minLevel != null) {
         _minLevel = minLevel;
@@ -28,8 +29,8 @@ class AppLogger {
       } catch (_) {
         dir = Directory.current;
       }
-  final file = File('${dir.path}${Platform.pathSeparator}$filename');
-  _sink = file.openWrite(mode: FileMode.append);
+      final file = File('${dir.path}${Platform.pathSeparator}$filename');
+      _sink = file.openWrite(mode: FileMode.append);
       _initialized = true;
       logPath = file.path;
 
@@ -37,7 +38,7 @@ class AppLogger {
         _sink!.writeln(line);
       }
       _buffer.clear();
-      
+
       // Log the file path after successful initialization
       i('Logger initialized successfully');
       i('Log file path: $logPath');

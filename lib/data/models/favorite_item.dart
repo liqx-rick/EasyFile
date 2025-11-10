@@ -4,19 +4,19 @@
 class FavoriteItem {
   /// 收藏夹唯一标识符
   final String id;
-  
+
   /// 收藏夹显示名称
   final String name;
-  
+
   /// 收藏夹路径
   final String path;
-  
+
   /// 收藏夹图标（可选，默认为文件夹图标）
   final String? iconName;
-  
+
   /// 创建时间
   final DateTime createdAt;
-  
+
   /// 最后访问时间
   final DateTime? lastAccessedAt;
 
@@ -88,12 +88,12 @@ class FavoriteItem {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-  return other is FavoriteItem &&
+    return other is FavoriteItem &&
         other.id == id &&
         other.name == name &&
         other.path == path &&
-    other.iconName == iconName &&
-    other.pinned == pinned;
+        other.iconName == iconName &&
+        other.pinned == pinned;
   }
 
   @override

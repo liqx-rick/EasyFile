@@ -15,7 +15,8 @@ class FileOperationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 16, left: 0, right: 0, bottom: 8), // 减少底部padding
+      padding: const EdgeInsets.only(
+          top: 16, left: 0, right: 0, bottom: 8), // 减少底部padding
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -112,7 +113,7 @@ class FileOperationSheet extends StatelessWidget {
     Color? color,
   }) {
     final tileColor = color ?? Theme.of(context).colorScheme.onSurface;
-    
+
     return ListTile(
       dense: true, // 使ListTile更紧凑
       visualDensity: VisualDensity.compact, // 进一步减少密度
@@ -142,7 +143,8 @@ class FileOperationSheet extends StatelessWidget {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }

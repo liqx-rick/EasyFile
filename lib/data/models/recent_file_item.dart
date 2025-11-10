@@ -76,7 +76,7 @@ class RecentFileItem {
         return FileItem.fromEntity(entity);
       }
     } catch (_) {}
-    
+
     // 如果文件不存在，创建一个基本的FileItem
     return FileItem(
       name: name,
@@ -95,8 +95,7 @@ class RecentFileItem {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is RecentFileItem &&
-        other.path == path;
+    return other is RecentFileItem && other.path == path;
   }
 
   @override

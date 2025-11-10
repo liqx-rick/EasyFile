@@ -27,11 +27,20 @@ class FilePresenter {
     required this.favoritesSource,
     required this.recentFilesSource,
     required this.themeSource,
-  });  Future<void> loadFiles(String path) async {
-    logger.i('FilePresenter.loadFiles called with path: $path');
+  });
+  Future<void> loadFiles(String path, {bool isRootNavigation = false}) async {
+    logger.i(
+        'FilePresenter.loadFiles called with path: $path, isRootNavigation: $isRootNavigation');
     viewModel.setLoading(true);
     logger.d('Setting current path: $path');
     viewModel.setCurrentPath(path);
+
+    // 如果是根导航（从收藏夹或其他入口进入），设置根路径
+    if (isRootNavigation) {
+      logger.d('Setting root path: $path');
+      viewModel.setRootPath(path);
+    }
+
     // 当加载具体路径时，退出最近文件模式
     if (viewModel.isRecentFilesMode) {
       logger.d('Exiting recent files mode, switching to directory browsing');
@@ -42,7 +51,8 @@ class FilePresenter {
     logger.i('Files loaded: ${files.length} items');
     viewModel.setFiles(files);
     viewModel.setLoading(false);
-    logger.d('ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}');
+    logger.d(
+        'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}');
   }
 
   Future<void> navigateToFolder(String folderPath) async {
@@ -52,7 +62,7 @@ class FilePresenter {
   Future<void> navigateUp() async {
     final currentPath = viewModel.currentPath;
     logger.d('NavigateUp called with current path: $currentPath');
-    
+
     if (currentPath.isNotEmpty) {
       // 使用 path.dirname 来获取父目录，这样可以正确处理 Windows 和 Unix 路径
       final parentPath = path.dirname(currentPath);
@@ -64,17 +74,18 @@ class FilePresenter {
       if (Platform.isWindows) {
         logger.d('parentPath.endsWith(":"): ${parentPath.endsWith(':')}');
       }
-      
+
       // 检查是否已经到达根目录
       // Windows: C:\ -> C:, Unix: / -> /
-      if (parentPath != currentPath && 
-          parentPath.isNotEmpty && 
+      if (parentPath != currentPath &&
+          parentPath.isNotEmpty &&
           parentPath != '.' &&
           !(Platform.isWindows && parentPath.endsWith(':'))) {
         logger.i('Navigating up from $currentPath to $parentPath');
         await loadFiles(parentPath);
       } else {
-        logger.w('Already at root directory or invalid parent path. Current: $currentPath, Parent: $parentPath');
+        logger.w(
+            'Already at root directory or invalid parent path. Current: $currentPath, Parent: $parentPath');
       }
     } else {
       logger.w('Current path is empty, cannot navigate up');
@@ -86,7 +97,7 @@ class FilePresenter {
     viewModel.setLoading(true);
     viewModel.setSearchMode(true);
     viewModel.setSearchQuery(query);
-    
+
     final files = await repository.searchFiles(viewModel.currentPath, query);
     logger.i('Search completed: ${files.length} results found');
     viewModel.setFiles(files);
@@ -113,7 +124,8 @@ class FilePresenter {
   }
 
   Future<bool> copyFile(FileItem file, String destinationPath) async {
-    logger.i('FilePresenter.copyFile called from ${file.path} to $destinationPath');
+    logger.i(
+        'FilePresenter.copyFile called from ${file.path} to $destinationPath');
     final success = await repository.copyFile(file, destinationPath);
     if (success) {
       logger.i('File copied successfully, refreshing list');
@@ -125,7 +137,8 @@ class FilePresenter {
   }
 
   Future<bool> moveFile(FileItem file, String destinationPath) async {
-    logger.i('FilePresenter.moveFile called from ${file.path} to $destinationPath');
+    logger.i(
+        'FilePresenter.moveFile called from ${file.path} to $destinationPath');
     final success = await repository.moveFile(file, destinationPath);
     if (success) {
       logger.i('File moved successfully, refreshing list');
@@ -150,13 +163,13 @@ class FilePresenter {
   }
 
   // 收藏夹相关方法
-  
+
   /// 初始化收藏夹数据
   Future<void> initializeFavorites() async {
     logger.i('FilePresenter.initializeFavorites called');
     try {
       final favorites = await favoritesSource.getFavorites();
-      
+
       // 如果是首次运行且没有收藏夹，则添加默认收藏夹
       if (favorites.isEmpty) {
         logger.i('No favorites found, initializing default favorites');
@@ -176,28 +189,65 @@ class FilePresenter {
 
   /// 初始化默认收藏夹
   Future<void> _initializeDefaultFavorites() async {
-    logger.i('Initializing default favorites for platform: ${Platform.operatingSystem}');
-    
+    logger.i(
+        'Initializing default favorites for platform: ${Platform.operatingSystem}');
+
     try {
       List<Map<String, String>> defaultPaths = [];
-      
+
       if (Platform.isAndroid) {
         defaultPaths = [
-          {'name': 'DCIM', 'path': '/storage/emulated/0/DCIM', 'icon': 'pictures'},
-          {'name': 'Pictures', 'path': '/storage/emulated/0/Pictures', 'icon': 'pictures'},
-          {'name': 'Documents', 'path': '/storage/emulated/0/Documents', 'icon': 'documents'},
-          {'name': 'Music', 'path': '/storage/emulated/0/Music', 'icon': 'music'},
-          {'name': 'Movies', 'path': '/storage/emulated/0/Movies', 'icon': 'videos'},
+          {
+            'name': 'DCIM',
+            'path': '/storage/emulated/0/DCIM',
+            'icon': 'pictures'
+          },
+          {
+            'name': 'Pictures',
+            'path': '/storage/emulated/0/Pictures',
+            'icon': 'pictures'
+          },
+          {
+            'name': 'Documents',
+            'path': '/storage/emulated/0/Documents',
+            'icon': 'documents'
+          },
+          {
+            'name': 'Music',
+            'path': '/storage/emulated/0/Music',
+            'icon': 'music'
+          },
+          {
+            'name': 'Movies',
+            'path': '/storage/emulated/0/Movies',
+            'icon': 'videos'
+          },
         ];
       } else if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
         if (userProfile != null) {
           defaultPaths = [
-            {'name': 'Downloads', 'path': '$userProfile\\Downloads', 'icon': 'download'},
-            {'name': 'Documents', 'path': '$userProfile\\Documents', 'icon': 'documents'},
-            {'name': 'Pictures', 'path': '$userProfile\\Pictures', 'icon': 'pictures'},
+            {
+              'name': 'Downloads',
+              'path': '$userProfile\\Downloads',
+              'icon': 'download'
+            },
+            {
+              'name': 'Documents',
+              'path': '$userProfile\\Documents',
+              'icon': 'documents'
+            },
+            {
+              'name': 'Pictures',
+              'path': '$userProfile\\Pictures',
+              'icon': 'pictures'
+            },
             {'name': 'Music', 'path': '$userProfile\\Music', 'icon': 'music'},
-            {'name': 'Videos', 'path': '$userProfile\\Videos', 'icon': 'videos'},
+            {
+              'name': 'Videos',
+              'path': '$userProfile\\Videos',
+              'icon': 'videos'
+            },
           ];
         }
       } else {
@@ -205,8 +255,16 @@ class FilePresenter {
         final home = Platform.environment['HOME'];
         if (home != null) {
           defaultPaths = [
-            {'name': 'Documents', 'path': '$home/Documents', 'icon': 'documents'},
-            {'name': 'Downloads', 'path': '$home/Downloads', 'icon': 'download'},
+            {
+              'name': 'Documents',
+              'path': '$home/Documents',
+              'icon': 'documents'
+            },
+            {
+              'name': 'Downloads',
+              'path': '$home/Downloads',
+              'icon': 'download'
+            },
             {'name': 'Pictures', 'path': '$home/Pictures', 'icon': 'pictures'},
             {'name': 'Music', 'path': '$home/Music', 'icon': 'music'},
             {'name': 'Videos', 'path': '$home/Videos', 'icon': 'videos'},
@@ -225,7 +283,7 @@ class FilePresenter {
             iconName: pathInfo['icon'],
             createdAt: DateTime.now(),
           );
-          
+
           final success = await favoritesSource.addFavorite(favorite);
           if (success) {
             addedCount++;
@@ -237,7 +295,7 @@ class FilePresenter {
           logger.d('Skipping non-existent default path: ${pathInfo['path']}');
         }
       }
-      
+
       logger.i('Added $addedCount default favorites');
     } catch (e) {
       logger.e('Error initializing default favorites: $e');
@@ -282,7 +340,8 @@ class FilePresenter {
 
   /// 更新收藏夹
   Future<bool> updateFavorite(FavoriteItem updatedFavorite) async {
-    logger.i('FilePresenter.updateFavorite called for: ${updatedFavorite.name}');
+    logger
+        .i('FilePresenter.updateFavorite called for: ${updatedFavorite.name}');
     try {
       final success = await favoritesSource.updateFavorite(updatedFavorite);
       if (success) {
@@ -316,16 +375,21 @@ class FilePresenter {
     try {
       // 先清理无效的文件
       await recentFilesSource.cleanupRecentFiles();
-      
-      // 获取最近文件
+
+      // 获取最近文件，并过滤掉文件夹
       final recentFiles = await recentFilesSource.getRecentFiles();
-      final fileItems = recentFiles.map((rf) => rf.toFileItem()).toList();
-      
+      final fileItems = recentFiles
+          .where((rf) => !rf.isDirectory) // 只保留文件，不显示文件夹
+          .map((rf) => rf.toFileItem())
+          .toList();
+
       viewModel.setFiles(fileItems);
       viewModel.setCurrentPath(''); // 清空路径表示这是最近文件视图
+      viewModel.setRootPath(''); // 设置根路径为空
       viewModel.setIsRecentFilesMode(true); // 设置为最近文件模式
-      
-      logger.d('Loaded ${fileItems.length} recent files');
+
+      logger
+          .d('Loaded ${fileItems.length} recent files (folders filtered out)');
     } catch (e) {
       logger.e('Error loading recent files: $e');
       viewModel.setFiles([]);
@@ -334,6 +398,12 @@ class FilePresenter {
 
   /// 添加文件到最近访问记录
   Future<void> addToRecentFiles(FileItem file) async {
+    // 只记录文件，不记录文件夹
+    if (file.isDirectory) {
+      logger.d('Skipping folder from recent: ${file.name}');
+      return;
+    }
+
     logger.d('Adding file to recent: ${file.name}');
     try {
       final recentFile = RecentFileItem.fromFileItem(file);
@@ -351,13 +421,8 @@ class FilePresenter {
     try {
       final themeMode = await themeSource.getThemeMode();
       viewModel.setThemeMode(themeMode);
-      
-      // 根据系统亮度设置当前主题状态
-      final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-      final isDark = await themeSource.isDarkTheme(brightness);
-      viewModel.setIsDarkTheme(isDark);
-      
-      logger.d('Theme initialized - mode: $themeMode, isDark: $isDark');
+
+      logger.d('Theme initialized - mode: $themeMode');
     } catch (e) {
       logger.e('Error initializing theme: $e');
     }
@@ -367,18 +432,29 @@ class FilePresenter {
   Future<void> toggleTheme() async {
     logger.i('FilePresenter.toggleTheme called');
     try {
+      final oldMode = viewModel.themeMode;
       viewModel.toggleTheme();
-      final success = await themeSource.saveThemeMode(viewModel.themeMode);
-      
+      final newMode = viewModel.themeMode;
+      logger.d('Theme mode changed from $oldMode to $newMode');
+
+      final success = await themeSource.saveThemeMode(newMode);
+
       if (success) {
-        // 更新当前主题状态
-        final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-        final isDark = await themeSource.isDarkTheme(brightness);
-        viewModel.setIsDarkTheme(isDark);
-        
-        logger.i('Theme toggled successfully to: ${viewModel.themeMode}');
+        // 验证保存是否成功
+        final savedMode = await themeSource.getThemeMode();
+        logger.d('Verified saved theme mode: $savedMode');
+
+        if (savedMode != newMode) {
+          logger.w('Theme mode mismatch! Expected: $newMode, Got: $savedMode');
+          // 重新设置为正确的值
+          viewModel.setThemeMode(newMode);
+        }
+
+        logger.i('Theme toggled successfully to: $newMode');
       } else {
-        logger.w('Failed to save theme mode');
+        logger.w('Failed to save theme mode, reverting to: $oldMode');
+        // 如果保存失败，恢复原来的模式
+        viewModel.setThemeMode(oldMode);
       }
     } catch (e) {
       logger.e('Error toggling theme: $e');
@@ -391,13 +467,8 @@ class FilePresenter {
     try {
       viewModel.setThemeMode(mode);
       final success = await themeSource.saveThemeMode(mode);
-      
+
       if (success) {
-        // 更新当前主题状态
-        final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-        final isDark = await themeSource.isDarkTheme(brightness);
-        viewModel.setIsDarkTheme(isDark);
-        
         logger.i('Theme mode set successfully to: $mode');
       } else {
         logger.w('Failed to save theme mode');
@@ -408,7 +479,7 @@ class FilePresenter {
   }
 
   /// 搜索相关方法
-  
+
   /// 切换搜索模式
   void toggleSearch() {
     logger.d('FilePresenter.toggleSearch called');
@@ -426,7 +497,7 @@ class FilePresenter {
   /// 按文件类型扫描文件
   Future<List<FileItem>> scanFilesByCategory(CategoryType categoryType) async {
     logger.i('FilePresenter.scanFilesByCategory called for: $categoryType');
-    
+
     try {
       // 获取分类信息
       final categoryInfo = CategoryInfo.getInfoByType(categoryType);
@@ -436,10 +507,10 @@ class FilePresenter {
       }
 
       List<FileItem> categoryFiles = [];
-      
+
       // 确定扫描路径
       List<String> scanPaths = [];
-      
+
       if (categoryType == CategoryType.downloads) {
         // 下载文件夹特殊处理
         scanPaths = await _getDownloadPaths();
@@ -447,29 +518,29 @@ class FilePresenter {
         // 其他类型扫描常见目录
         scanPaths = await _getCommonScanPaths();
       }
-      
+
       logger.d('Scanning paths for ${categoryInfo.name}: $scanPaths');
-      
+
       // 扫描每个路径
       for (final scanPath in scanPaths) {
         final files = await _scanCategoryInPath(scanPath, categoryInfo);
         categoryFiles.addAll(files);
       }
-      
+
       // 去重（同一文件可能在多个路径中）
       final uniqueFiles = <String, FileItem>{};
       for (final file in categoryFiles) {
         uniqueFiles[file.path] = file;
       }
-      
+
       final result = uniqueFiles.values.toList();
-      
+
       // 按修改时间排序（最新的在前）
       result.sort((a, b) => b.modified.compareTo(a.modified));
-      
-      logger.i('Found ${result.length} files for category ${categoryInfo.name}');
+
+      logger
+          .i('Found ${result.length} files for category ${categoryInfo.name}');
       return result;
-      
     } catch (e) {
       logger.e('Error scanning files by category $categoryType: $e');
       rethrow;
@@ -479,7 +550,7 @@ class FilePresenter {
   /// 打开分类视图
   Future<bool> openCategory(CategoryType categoryType) async {
     logger.i('FilePresenter.openCategory called for: $categoryType');
-    
+
     try {
       // 获取分类信息
       final categoryInfo = CategoryInfo.getInfoByType(categoryType);
@@ -491,7 +562,6 @@ class FilePresenter {
       // 导航到分类页面
       // 这里我们先返回true，实际的页面导航会在UI层处理
       return true;
-      
     } catch (e) {
       logger.e('Error opening category $categoryType: $e');
       return false;
@@ -501,7 +571,7 @@ class FilePresenter {
   /// 获取下载路径
   Future<List<String>> _getDownloadPaths() async {
     final paths = <String>[];
-    
+
     try {
       if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
@@ -530,7 +600,7 @@ class FilePresenter {
     } catch (e) {
       logger.w('Error getting download paths: $e');
     }
-    
+
     // 过滤存在的路径
     final existingPaths = <String>[];
     for (final path in paths) {
@@ -538,14 +608,14 @@ class FilePresenter {
         existingPaths.add(path);
       }
     }
-    
+
     return existingPaths;
   }
 
   /// 获取常见扫描路径
   Future<List<String>> _getCommonScanPaths() async {
     final paths = <String>[];
-    
+
     try {
       if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
@@ -588,7 +658,7 @@ class FilePresenter {
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
-    
+
     // 过滤存在的路径
     final existingPaths = <String>[];
     for (final path in paths) {
@@ -596,27 +666,27 @@ class FilePresenter {
         existingPaths.add(path);
       }
     }
-    
+
     return existingPaths;
   }
 
   /// 在指定路径中扫描分类文件
-  Future<List<FileItem>> _scanCategoryInPath(String path, CategoryInfo categoryInfo) async {
+  Future<List<FileItem>> _scanCategoryInPath(
+      String path, CategoryInfo categoryInfo) async {
     final files = <FileItem>[];
-    
+
     try {
       final directory = Directory(path);
       if (!directory.existsSync()) {
         return files;
       }
-      
+
       // 递归扫描，但限制深度避免性能问题
       await _scanDirectory(directory, categoryInfo, files, 0, 3);
-      
     } catch (e) {
       logger.w('Error scanning category in path $path: $e');
     }
-    
+
     return files;
   }
 
@@ -631,10 +701,10 @@ class FilePresenter {
     if (currentDepth >= maxDepth) {
       return;
     }
-    
+
     try {
       final entities = directory.listSync();
-      
+
       for (final entity in entities) {
         try {
           if (entity is File) {
@@ -649,7 +719,8 @@ class FilePresenter {
             }
           } else if (entity is Directory) {
             // 递归扫描子目录
-            await _scanDirectory(entity, categoryInfo, files, currentDepth + 1, maxDepth);
+            await _scanDirectory(
+                entity, categoryInfo, files, currentDepth + 1, maxDepth);
           }
         } catch (e) {
           // 忽略单个文件的错误，继续扫描

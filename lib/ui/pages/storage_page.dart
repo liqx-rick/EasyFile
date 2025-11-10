@@ -49,15 +49,17 @@ class _StoragePageState extends State<StoragePage> {
       }
 
       _currentPath = rootPath;
-      
+
       final directory = Directory(rootPath);
       if (directory.existsSync()) {
-        final entities = directory.listSync()
-            .where((entity) => !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
+        final entities = directory
+            .listSync()
+            .where((entity) =>
+                !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
             .toList();
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
-        
+
         // 按类型排序：文件夹在前，文件在后
         files.sort((a, b) {
           if (a.isDirectory && !b.isDirectory) return -1;
@@ -90,7 +92,7 @@ class _StoragePageState extends State<StoragePage> {
   void _onFileTap(FileItem file) {
     if (file.isDirectory) {
       // 导航到该文件夹
-      widget.presenter.loadFiles(file.path);
+      widget.presenter.loadFiles(file.path, isRootNavigation: true);
       Navigator.of(context).pop();
     } else {
       // 可以添加文件预览功能
@@ -103,7 +105,8 @@ class _StoragePageState extends State<StoragePage> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -112,45 +115,55 @@ class _StoragePageState extends State<StoragePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('存储空间'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadStorageFiles,
-            tooltip: '刷新',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
             )
           : _files.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.folder_off,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '没有找到文件',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
+              ? RefreshIndicator(
+                  onRefresh: _loadStorageFiles,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.folder_off,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              '没有找到文件',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _currentPath,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              '下拉刷新',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _currentPath,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 )
               : Column(
@@ -159,7 +172,10 @@ class _StoragePageState extends State<StoragePage> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withOpacity(0.5),
                       child: Row(
                         children: [
                           Icon(
@@ -182,39 +198,50 @@ class _StoragePageState extends State<StoragePage> {
                     // 统计信息
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       color: Colors.blue.shade50,
                       child: Text(
                         '找到 ${_files.length} 个项目 (${_files.where((f) => f.isDirectory).length} 个文件夹, ${_files.where((f) => !f.isDirectory).length} 个文件)',
-                        style: const TextStyle(fontSize: 12, color: Colors.blue),
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.blue),
                       ),
                     ),
                     // 文件列表
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: _files.length,
-                        itemBuilder: (context, index) {
-                          final file = _files[index];
-                          return ListTile(
-                            leading: Icon(
-                              file.isDirectory ? Icons.folder : Icons.insert_drive_file,
-                              color: file.isDirectory ? Colors.amber : Colors.grey,
-                            ),
-                            title: Text(
-                              file.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              file.isDirectory ? '文件夹' : _formatFileSize(file.size),
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: file.isDirectory 
-                                ? const Icon(Icons.chevron_right) 
-                                : null,
-                            onTap: () => _onFileTap(file),
-                          );
-                        },
+                      child: RefreshIndicator(
+                        onRefresh: _loadStorageFiles,
+                        child: ListView.builder(
+                          itemCount: _files.length,
+                          itemBuilder: (context, index) {
+                            final file = _files[index];
+                            return ListTile(
+                              leading: Icon(
+                                file.isDirectory
+                                    ? Icons.folder
+                                    : Icons.insert_drive_file,
+                                color: file.isDirectory
+                                    ? Colors.amber
+                                    : Colors.grey,
+                              ),
+                              title: Text(
+                                file.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                file.isDirectory
+                                    ? '文件夹'
+                                    : _formatFileSize(file.size),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              trailing: file.isDirectory
+                                  ? const Icon(Icons.chevron_right)
+                                  : null,
+                              onTap: () => _onFileTap(file),
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],

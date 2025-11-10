@@ -4,43 +4,59 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 
+/// Tab 视图类型
+enum TabView {
+  recent, // 最近访问
+  browse, // 文件浏览
+}
+
+/// 视图模式
+enum ViewMode {
+  list, // 列表视图
+  grid, // 网格视图
+}
+
 class FileViewModel extends ChangeNotifier {
   bool _isLoading = false;
   List<FileItem> _files = [];
   String _currentPath = '';
+  String _rootPath = ''; // 导航起始路径（收藏夹根路径或最近文件模式的空路径）
   bool _isSearchMode = false;
   String _searchQuery = '';
   bool _isRecentFilesMode = false;
-  
-  // 新增的状态
+
+  // 应用级状态
   List<FavoriteItem> _favorites = [];
   ThemeMode _themeMode = ThemeMode.system;
-  bool _isDarkTheme = false;
+  TabView _currentTab = TabView.recent;
+  ViewMode _viewMode = ViewMode.list;
 
   // 基础状态的 getters
   bool get isLoading => _isLoading;
   List<FileItem> get files => _files;
   String get currentPath => _currentPath;
+  String get rootPath => _rootPath; // 获取根路径
   bool get isSearchMode => _isSearchMode;
   String get searchQuery => _searchQuery;
   bool get isRecentFilesMode => _isRecentFilesMode;
-  
-  // 新增状态的 getters
+
+  // 应用级状态的 getters
   List<FavoriteItem> get favorites => _favorites;
   ThemeMode get themeMode => _themeMode;
-  bool get isDarkTheme => _isDarkTheme;
-  
+  TabView get currentTab => _currentTab;
+  ViewMode get viewMode => _viewMode;
+
   /// 获取当前路径的显示名称
   String get currentPathName {
     if (_currentPath.isEmpty) return '正在加载...';
-    
+
     final segments = _currentPath.split(RegExp(r'[/\\]'));
     final lastSegment = segments.last;
-    
+
     if (lastSegment.isEmpty && segments.length > 1) {
       return segments[segments.length - 2];
     }
-    
+
     return lastSegment.isEmpty ? '根目录' : lastSegment;
   }
 
@@ -59,6 +75,12 @@ class FileViewModel extends ChangeNotifier {
   void setCurrentPath(String path) {
     logger.d('Setting current path: $path');
     _currentPath = path;
+    notifyListeners();
+  }
+
+  void setRootPath(String path) {
+    logger.d('Setting root path: $path');
+    _rootPath = path;
     notifyListeners();
   }
 
@@ -123,23 +145,18 @@ class FileViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setIsDarkTheme(bool isDark) {
-    logger.d('Setting dark theme: $isDark');
-    _isDarkTheme = isDark;
-    notifyListeners();
-  }
-
   void toggleTheme() {
     logger.d('Toggling theme from $_themeMode');
+    // 三模式循环：light → dark → system → light
     switch (_themeMode) {
-      case ThemeMode.system:
-        _themeMode = ThemeMode.light;
-        break;
       case ThemeMode.light:
         _themeMode = ThemeMode.dark;
         break;
       case ThemeMode.dark:
         _themeMode = ThemeMode.system;
+        break;
+      case ThemeMode.system:
+        _themeMode = ThemeMode.light;
         break;
     }
     notifyListeners();
@@ -172,5 +189,24 @@ class FileViewModel extends ChangeNotifier {
   void setError(String message) {
     logger.e('ViewModel error: $message');
     // 可以在这里添加错误状态的处理
+  }
+
+  // Tab 和视图模式相关方法
+  void setCurrentTab(TabView tab) {
+    logger.d('Setting current tab: $tab');
+    _currentTab = tab;
+    notifyListeners();
+  }
+
+  void setViewMode(ViewMode mode) {
+    logger.d('Setting view mode: $mode');
+    _viewMode = mode;
+    notifyListeners();
+  }
+
+  void toggleViewMode() {
+    logger.d('Toggling view mode from $_viewMode');
+    _viewMode = _viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list;
+    notifyListeners();
   }
 }

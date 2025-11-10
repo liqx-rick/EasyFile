@@ -29,7 +29,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   Future<void> _loadFileContent() async {
     try {
       logger.d('Loading file content for: ${widget.file.path}');
-      
+
       if (_isImageFile(widget.file.name)) {
         logger.d('File is an image, no content loading needed');
         setState(() {
@@ -43,7 +43,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         final file = File(widget.file.path);
         final content = await file.readAsString();
         logger.d('Text file loaded, length: ${content.length}');
-        
+
         setState(() {
           _fileContent = content;
           _isLoading = false;
@@ -72,9 +72,28 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   bool _isTextFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
     return [
-      'txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts',
-      'dart', 'java', 'py', 'cpp', 'c', 'h', 'cs', 'php',
-      'yaml', 'yml', 'ini', 'conf', 'log', 'csv'
+      'txt',
+      'md',
+      'json',
+      'xml',
+      'html',
+      'css',
+      'js',
+      'ts',
+      'dart',
+      'java',
+      'py',
+      'cpp',
+      'c',
+      'h',
+      'cs',
+      'php',
+      'yaml',
+      'yml',
+      'ini',
+      'conf',
+      'log',
+      'csv'
     ].contains(ext);
   }
 
@@ -237,12 +256,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
   }
 }

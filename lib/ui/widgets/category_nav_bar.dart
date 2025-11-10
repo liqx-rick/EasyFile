@@ -7,12 +7,12 @@ import 'package:easyfile/ui/pages/category_file_page.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 分类导航栏组件
-/// 
+///
 /// 显示五类文件快捷入口：图片、文档、音乐、视频、下载
 class CategoryNavBar extends StatelessWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
-  
+
   const CategoryNavBar({
     super.key,
     required this.presenter,
@@ -30,31 +30,32 @@ class CategoryNavBar extends StatelessWidget {
   /// 构建分类网格 - 适应屏幕宽度
   Widget _buildCategoryGrid(BuildContext context) {
     final categories = CategoryInfo.allCategories;
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // 根据屏幕宽度动态调整
         final screenWidth = constraints.maxWidth;
         final crossAxisCount = 5; // 固定5列
-        
+
         // 计算可用宽度和间距
         final totalHorizontalPadding = 16; // 左右padding
         final availableWidth = screenWidth - totalHorizontalPadding;
-        
+
         // 动态计算间距，确保适配屏幕
         final minSpacing = 2.0; // 最小间距
         final maxSpacing = 8.0; // 最大间距
         final totalSpacingWidth = (crossAxisCount - 1) * maxSpacing;
         final cardWidth = (availableWidth - totalSpacingWidth) / crossAxisCount;
-        
+
         // 如果卡片太小，减少间距
-        final actualSpacing = cardWidth < 60 
-            ? minSpacing 
-            : (cardWidth < 70 ? 4.0 : maxSpacing);
-        
-        final actualCardWidth = (availableWidth - (crossAxisCount - 1) * actualSpacing) / crossAxisCount;
+        final actualSpacing =
+            cardWidth < 60 ? minSpacing : (cardWidth < 70 ? 4.0 : maxSpacing);
+
+        final actualCardWidth =
+            (availableWidth - (crossAxisCount - 1) * actualSpacing) /
+                crossAxisCount;
         final cardHeight = actualCardWidth * 0.9; // 稍微扁一点的比例
-        
+
         return SizedBox(
           height: cardHeight + 16, // 卡片高度 + 额外padding
           child: GridView.builder(
@@ -79,12 +80,22 @@ class CategoryNavBar extends StatelessWidget {
   }
 
   /// 构建单个分类卡片
-  Widget _buildCategoryCard(BuildContext context, CategoryInfo category, double cardWidth) {
+  Widget _buildCategoryCard(
+      BuildContext context, CategoryInfo category, double cardWidth) {
     // 根据卡片宽度动态调整图标和文字大小
     final iconSize = (cardWidth * 0.3).clamp(16.0, 24.0);
     final fontSize = (cardWidth * 0.15).clamp(9.0, 12.0);
     final iconPadding = (cardWidth * 0.08).clamp(3.0, 6.0);
-    
+
+    // 根据主题调整颜色
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final adjustedIconColor = isDark
+        ? _adjustColorForDarkTheme(category.iconColor)
+        : category.iconColor;
+    final adjustedBgColor = isDark
+        ? _adjustBackgroundForDarkTheme(category.iconColor)
+        : category.backgroundColor;
+
     return Material(
       elevation: 1,
       borderRadius: BorderRadius.circular(8),
@@ -93,10 +104,10 @@ class CategoryNavBar extends StatelessWidget {
         onTap: () => _onCategoryTap(context, category),
         child: Container(
           decoration: BoxDecoration(
-            color: category.backgroundColor,
+            color: adjustedBgColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: category.iconColor.withOpacity(0.2),
+              color: adjustedIconColor.withOpacity(0.3),
               width: 0.5,
             ),
           ),
@@ -110,19 +121,19 @@ class CategoryNavBar extends StatelessWidget {
                 child: Container(
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
-                    color: category.iconColor.withOpacity(0.1),
+                    color: adjustedIconColor.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     category.icon,
                     size: iconSize,
-                    color: category.iconColor,
+                    color: adjustedIconColor,
                   ),
                 ),
               ),
-              
+
               SizedBox(height: cardWidth * 0.05), // 动态间距
-              
+
               // 文本
               Flexible(
                 flex: 1,
@@ -131,10 +142,10 @@ class CategoryNavBar extends StatelessWidget {
                   child: Text(
                     category.name,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: category.iconColor,
-                      fontSize: fontSize,
-                    ),
+                          fontWeight: FontWeight.w500,
+                          color: adjustedIconColor,
+                          fontSize: fontSize,
+                        ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -148,12 +159,24 @@ class CategoryNavBar extends StatelessWidget {
     );
   }
 
+  /// 为深色主题调整图标颜色（提高亮度）
+  Color _adjustColorForDarkTheme(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    // 提高亮度到 65-75% 范围，保持饱和度
+    return hsl.withLightness(0.7).withSaturation(0.7).toColor();
+  }
 
+  /// 为深色主题调整背景颜色
+  Color _adjustBackgroundForDarkTheme(Color iconColor) {
+    final hsl = HSLColor.fromColor(iconColor);
+    // 使用低亮度和低饱和度的背景色
+    return hsl.withLightness(0.15).withSaturation(0.3).toColor();
+  }
 
   /// 处理分类点击
   void _onCategoryTap(BuildContext context, CategoryInfo category) {
     logger.i('Category tapped: ${category.name} (${category.type})');
-    
+
     // 直接导航到分类聚合视图页面
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -170,7 +193,7 @@ class CategoryNavBar extends StatelessWidget {
 /// 备选方案：水平滚动布局（如果网格太挤）
 class CategoryNavBarHorizontal extends StatelessWidget {
   final FilePresenter presenter;
-  
+
   const CategoryNavBarHorizontal({
     super.key,
     required this.presenter,
@@ -189,13 +212,13 @@ class CategoryNavBarHorizontal extends StatelessWidget {
             child: Text(
               '快速入口',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
             ),
           ),
           const SizedBox(height: 8),
-          
+
           // 水平滚动列表
           SizedBox(
             height: 80,
@@ -241,9 +264,9 @@ class CategoryNavBarHorizontal extends StatelessWidget {
                 Text(
                   category.name,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: category.iconColor,
-                  ),
+                        fontWeight: FontWeight.w500,
+                        color: category.iconColor,
+                      ),
                   textAlign: TextAlign.center,
                 ),
               ],

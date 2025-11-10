@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 class SplashViewModel extends ChangeNotifier {
   // 是否正在初始化
   bool _isInitializing = false;
-  
+
   // 初始化消息
   String _initMessage = '';
-  
+
   // logo透明度（用于淡入动画）
   double _logoOpacity = 0.0;
 
