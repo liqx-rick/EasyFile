@@ -16,6 +16,13 @@ dependencies:
   path: ^1.8.3
   flutter_native_splash: ^2.3.10
   disk_space_plus: ^0.2.6
+  video_player: ^2.10.0
+  chewie: ^1.8.5
+  audioplayers: ^6.1.0
+  video_thumbnail: ^0.5.3
+  crypto: ^3.0.3
+  open_file: ^3.3.2
+  pdfx: ^2.6.0
 
 dev_dependencies:
   flutter_test:

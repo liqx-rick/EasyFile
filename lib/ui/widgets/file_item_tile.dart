@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/utils/time_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/ui/widgets/image_thumbnail.dart';
+import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
+import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
+import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 
 class FileItemTile extends StatelessWidget {
   final FileItem file;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool showFullPath;
+  final bool showAccessTime;
+  final DateTime? accessTime;
 
   const FileItemTile({
     super.key,
@@ -13,15 +21,42 @@ class FileItemTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.showFullPath = false,
+    this.showAccessTime = false,
+    this.accessTime,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
+    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
+    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
+    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
+    
     return ListTile(
-      leading: Icon(
-        file.isDirectory ? Icons.folder : _getFileIcon(),
-        color: file.isDirectory ? Colors.amber : _getFileColor(),
-      ),
+      leading: isImage
+          ? ImageThumbnail(
+              imagePath: file.path,
+              size: 40,
+            )
+          : isVideo
+              ? RealVideoThumbnail(
+                  videoPath: file.path,
+                  size: 40,
+                )
+              : isAudio
+                  ? AudioCoverWidget(
+                      audioPath: file.path,
+                      size: 40,
+                    )
+                  : isDocument
+                      ? DocumentIconWidgetRounded(
+                          fileName: file.name,
+                          size: 40,
+                        )
+                      : Icon(
+                          file.isDirectory ? Icons.folder : _getFileIcon(),
+                          color: file.isDirectory ? Colors.amber : _getFileColor(),
+                        ),
       title: Text(
         file.name,
         style: TextStyle(
@@ -55,7 +90,13 @@ class FileItemTile extends StatelessWidget {
               ),
             )
           : Text(
-              file.isDirectory ? '文件夹' : _formatFileSize(file.size),
+              _buildSubtitleText(),
+              style: TextStyle(
+                fontSize: 11,
+                color: showAccessTime
+                    ? Colors.grey[600]
+                    : Theme.of(context).textTheme.bodySmall?.color,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -153,8 +194,25 @@ class FileItemTile extends StatelessWidget {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024)
+    if (bytes < 1024 * 1024 * 1024) {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  String _buildSubtitleText() {
+    if (file.isDirectory) {
+      return '文件夹';
+    }
+
+    final sizeText = _formatFileSize(file.size);
+
+    // 如果需要显示访问时间且时间不为空
+    if (showAccessTime && accessTime != null) {
+      final timeText = TimeFormatter.formatRelativeTime(accessTime!);
+      return '$sizeText · $timeText';
+    }
+
+    return sizeText;
   }
 }

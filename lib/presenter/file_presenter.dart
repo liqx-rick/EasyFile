@@ -489,7 +489,14 @@ class FilePresenter {
   /// 刷新当前目录
   Future<void> refreshCurrent() async {
     logger.i('FilePresenter.refreshCurrent called');
-    await loadFiles(viewModel.currentPath);
+    // 如果是最近文件模式，刷新最近文件列表
+    if (viewModel.isRecentFilesMode) {
+      logger.d('Refreshing recent files');
+      await loadRecentFiles();
+    } else {
+      // 否则刷新当前目录
+      await loadFiles(viewModel.currentPath);
+    }
   }
 
   // 分类相关方法

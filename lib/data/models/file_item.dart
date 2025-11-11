@@ -6,6 +6,7 @@ class FileItem {
   final bool isDirectory;
   final int size;
   final DateTime modified;
+  final DateTime? accessedAt; // 访问时间（可选，用于最近文件列表）
 
   FileItem({
     required this.name,
@@ -13,6 +14,7 @@ class FileItem {
     required this.isDirectory,
     required this.size,
     required this.modified,
+    this.accessedAt,
   });
 
   factory FileItem.fromEntity(FileSystemEntity entity) {

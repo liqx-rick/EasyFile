@@ -18,6 +18,12 @@ import 'package:easyfile/ui/widgets/file_operation_sheet.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 import 'package:easyfile/ui/widgets/progress_dialog.dart';
 import 'package:easyfile/ui/widgets/rename_dialog.dart';
+import 'package:easyfile/ui/widgets/image_thumbnail.dart';
+import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
+import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
+import 'package:easyfile/ui/widgets/document_icon_widget.dart';
+import 'package:easyfile/utils/time_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 class FileBrowserPage extends StatefulWidget {
@@ -562,6 +568,8 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         return FileItemTile(
           file: file,
           showFullPath: vm.isSearchMode,
+          showAccessTime: vm.currentTab == TabView.recent, // 在最近Tab显示访问时间
+          accessTime: file.accessedAt, // 传递访问时间
           onTap: () => _onFileTap(file, vm),
           onLongPress: () => _showFileOperations(file),
         );
@@ -589,6 +597,11 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
 
   /// 构建网格项
   Widget _buildGridItem(FileItem file, FileViewModel vm) {
+    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
+    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
+    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
+    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
+    
     return InkWell(
       onTap: () => _onFileTap(file, vm),
       onLongPress: () => _showFileOperations(file),
@@ -601,12 +614,33 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 文件图标
-            Icon(
-              file.isDirectory ? Icons.folder : _getFileIcon(file),
-              size: 48,
-              color: file.isDirectory ? Colors.amber : Colors.blue,
-            ),
+            // 文件图标或缩略图
+            if (isImage)
+              ImageThumbnail(
+                imagePath: file.path,
+                size: 64,
+              )
+            else if (isVideo)
+              RealVideoThumbnail(
+                videoPath: file.path,
+                size: 64,
+              )
+            else if (isAudio)
+              AudioCoverWidget(
+                audioPath: file.path,
+                size: 64,
+              )
+            else if (isDocument)
+              DocumentIconWidget(
+                fileName: file.name,
+                size: 64,
+              )
+            else
+              Icon(
+                file.isDirectory ? Icons.folder : _getFileIcon(file),
+                size: 48,
+                color: file.isDirectory ? Colors.amber : Colors.blue,
+              ),
             const SizedBox(height: 8),
             // 文件名
             Padding(
@@ -619,16 +653,21 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
                 style: const TextStyle(fontSize: 12),
               ),
             ),
-            // 文件大小或日期
+            // 文件大小或访问时间
             if (!file.isDirectory)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  _formatFileSize(file.size),
+                  vm.currentTab == TabView.recent && file.accessedAt != null
+                      ? '${_formatFileSize(file.size)} · ${_formatRelativeTime(file.accessedAt!)}'
+                      : _formatFileSize(file.size),
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey[600],
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ),
           ],
@@ -684,6 +723,11 @@ class _FileBrowserPageState extends State<FileBrowserPage> {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// 格式化相对时间
+  String _formatRelativeTime(DateTime dateTime) {
+    return TimeFormatter.formatRelativeTime(dateTime);
   }
 
   /// 处理文件点击

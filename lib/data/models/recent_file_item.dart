@@ -73,7 +73,15 @@ class RecentFileItem {
     try {
       final entity = isDirectory ? Directory(path) : File(path);
       if (entity.existsSync()) {
-        return FileItem.fromEntity(entity);
+        final stat = entity.statSync();
+        return FileItem(
+          name: name,
+          path: path,
+          isDirectory: isDirectory,
+          size: stat.size,
+          modified: stat.modified,
+          accessedAt: accessedAt, // 携带访问时间
+        );
       }
     } catch (_) {}
 
@@ -84,6 +92,7 @@ class RecentFileItem {
       isDirectory: isDirectory,
       size: 0,
       modified: accessedAt,
+      accessedAt: accessedAt, // 携带访问时间
     );
   }
 
