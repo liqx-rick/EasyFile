@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/di/locator.dart';
 import '../core/logger.dart';
+import '../data/services/data_migration_service.dart';
 import '../viewmodel/splash_viewmodel.dart';
 
 /// 启动页业务逻辑处理器
@@ -126,16 +128,55 @@ class SplashPresenter {
   Future<void> _performAdditionalInit() async {
     try {
       logger.d('SplashPresenter: Performing additional initialization...');
+      
+      // 执行数据迁移（从旧Favorites到新QuickAccess）
+      await _performDataMigration();
+      
       viewModel.setInitMessage('准备就绪...');
-
-      // 这里可以添加其他初始化任务
-      // 例如：检查应用更新、预加载收藏夹、清理临时文件等
-      // 移除延迟，直接完成额外初始化
-      // await Future.delayed(const Duration(milliseconds: 500));
 
       logger.i('SplashPresenter: All initialization tasks completed');
     } catch (e) {
       logger.w('SplashPresenter: Error in additional initialization: $e');
+    }
+  }
+
+  /// 执行数据迁移
+  Future<void> _performDataMigration() async {
+    try {
+      logger.d('SplashPresenter: Checking data migration requirements...');
+      viewModel.setInitMessage('检查数据迁移...');
+
+      final migrationService = locator<DataMigrationService>();
+      
+      // 检查是否需要迁移
+      final needsMigration = await migrationService.needsMigration();
+      
+      if (needsMigration) {
+        logger.i('SplashPresenter: Migration needed, starting migration process...');
+        viewModel.setInitMessage('正在迁移收藏数据...');
+        
+        // 执行迁移
+        final result = await migrationService.migrate();
+        
+        // 记录迁移结果
+        logger.i('SplashPresenter: Migration completed - '
+            'Total: ${result.totalCount}, '
+            'Success: ${result.successCount}, '
+            'Failed: ${result.failedCount}, '
+            'Skipped: ${result.skippedCount}');
+        
+        if (result.failedCount > 0) {
+          logger.w('SplashPresenter: Migration had failures: ${result.errors}');
+        }
+        
+        viewModel.setInitMessage('数据迁移完成');
+      } else {
+        logger.d('SplashPresenter: No migration needed');
+      }
+    } catch (e) {
+      logger.e('SplashPresenter: Error during data migration: $e');
+      // 迁移失败不阻塞应用启动
+      viewModel.setInitMessage('数据迁移失败，将使用默认设置');
     }
   }
 

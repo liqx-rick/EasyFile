@@ -8,15 +8,18 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/sources/path_provider.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/pages/favorites_manage_page.dart';
+import 'package:easyfile/presenter/quick_access_presenter.dart';
+import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
-import 'package:easyfile/ui/widgets/favorites_section.dart';
+import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/ui/widgets/new_folder_notification.dart';
+import 'package:easyfile/ui/widgets/file_category_tab_bar.dart';
+import 'package:easyfile/ui/widgets/search_history_panel.dart';
 
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
@@ -26,6 +29,7 @@ import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/time_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 
 class FileBrowserPage extends StatefulWidget {
   const FileBrowserPage({super.key});
@@ -38,11 +42,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   late FilePresenter presenter;
   late FileViewModel viewModel;
+  QuickAccessPresenter? quickAccessPresenter;
+  QuickAccessViewModel? quickAccessViewModel;
   bool _hasCheckedRestore = false; // 标记是否已经检查过恢复
   
   // 批量操作相关状态
   bool _isSelectionMode = false;
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
+
+  // 搜索相关状态
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _showSearchHistory = false;
 
   @override
   bool get wantKeepAlive => true; // 保持状态不被销毁
@@ -60,6 +71,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       presenter = locator<FilePresenter>();
       logger.d('Presenter obtained: $presenter');
 
+      quickAccessViewModel = locator<QuickAccessViewModel>();
+      logger.d('QuickAccessViewModel obtained: $quickAccessViewModel');
+
+      quickAccessPresenter = locator<QuickAccessPresenter>();
+      logger.d('QuickAccessPresenter obtained: $quickAccessPresenter');
+
       // 延迟初始化应用程序数据，先显示UI - 这个优化保留
       Future.microtask(() => _initializeApp());
       
@@ -76,6 +93,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -225,80 +244,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
-  Future<void> _showPathSelector() async {
-    try {
-      final availablePaths = await PathProviderService.getAvailablePaths();
-      if (!mounted) return;
-
-      if (availablePaths.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有找到可用的目录')),
-        );
-        return;
-      }
-
-      final selectedPath = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('选择目录'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: availablePaths.length,
-              itemBuilder: (context, index) {
-                final path = availablePaths[index];
-                final displayName = _getDisplayName(path);
-                return ListTile(
-                  leading: const Icon(Icons.folder),
-                  title: Text(displayName),
-                  subtitle: Text(path, style: const TextStyle(fontSize: 12)),
-                  onTap: () => Navigator.of(context).pop(path),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-          ],
-        ),
-      );
-
-      if (selectedPath != null && mounted) {
-        presenter.loadFiles(selectedPath, isRootNavigation: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('获取目录列表失败: $e')),
-        );
-      }
-    }
-  }
-
-  String _getDisplayName(String path) {
-    if (path.contains('/storage/emulated/0')) {
-      if (path == '/storage/emulated/0') return '内部存储';
-      if (path.contains('/Download')) return '下载';
-      if (path.contains('/Documents')) return '文档';
-      if (path.contains('/Pictures')) return '图片';
-      if (path.contains('/Android/data')) return '应用数据';
-    }
-
-    if (path.contains('Documents')) return '文档';
-    if (path.contains('Desktop')) return '桌面';
-    if (path.contains('Downloads')) return '下载';
-    if (path.contains('Pictures')) return '图片';
-
-    final segments = path.split(Platform.pathSeparator);
-    return segments.last.isEmpty
-        ? segments[segments.length - 2]
-        : segments.last;
-  }
-
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
     Navigator.of(context)
@@ -353,108 +298,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       case 'theme':
         presenter.toggleTheme();
         break;
-      case 'path_selector':
-        _showPathSelector();
+      case 'manage_quick_access':
+        _navigateToQuickAccessManagePage();
         break;
-      case 'manage_favorites':
-        _showFavoritesManagePage();
-        break;
-      case 'settings':
-        _showSettingsDialog();
+      case 'about':
+        _showAboutDialog();
         break;
     }
-  }
-
-  /// 显示设置对话框
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Consumer<FileViewModel>(
-        builder: (context, vm, _) => AlertDialog(
-          title: const Text('应用设置'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.palette),
-                title: const Text('主题模式'),
-                subtitle: Text(_getThemeModeText(vm.themeMode)),
-                onTap: () => _showThemePicker(context),
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.info),
-                title: const Text('关于'),
-                subtitle: const Text('EasyFile v1.1.0'),
-                onTap: () => _showAboutDialog(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('关闭'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 显示主题选择器
-  void _showThemePicker(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => Consumer<FileViewModel>(
-        builder: (context, vm, _) => AlertDialog(
-          title: const Text('选择主题'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<ThemeMode>(
-                title: const Text('跟随系统'),
-                value: ThemeMode.system,
-                groupValue: vm.themeMode,
-                onChanged: (mode) {
-                  if (mode != null) {
-                    presenter.setThemeMode(mode);
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-              RadioListTile<ThemeMode>(
-                title: const Text('浅色主题'),
-                value: ThemeMode.light,
-                groupValue: vm.themeMode,
-                onChanged: (mode) {
-                  if (mode != null) {
-                    presenter.setThemeMode(mode);
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-              RadioListTile<ThemeMode>(
-                title: const Text('深色主题'),
-                value: ThemeMode.dark,
-                groupValue: vm.themeMode,
-                onChanged: (mode) {
-                  if (mode != null) {
-                    presenter.setThemeMode(mode);
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   /// 显示关于对话框
@@ -473,28 +323,21 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
-  /// 显示收藏夹管理页面
-  void _showFavoritesManagePage() {
+  /// 导航到快速访问管理页面
+  void _navigateToQuickAccessManagePage() {
+    if (quickAccessPresenter == null || quickAccessViewModel == null) {
+      logger.e('QuickAccessPresenter or ViewModel is null');
+      return;
+    }
+    
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => FavoritesManagePage(
-          presenter: presenter,
-          viewModel: viewModel,
+        builder: (context) => QuickAccessManagePage(
+          presenter: quickAccessPresenter!,
+          viewModel: quickAccessViewModel!,
         ),
       ),
     );
-  }
-
-  /// 获取主题模式文本描述
-  String _getThemeModeText(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return '跟随系统';
-      case ThemeMode.light:
-        return '浅色主题';
-      case ThemeMode.dark:
-        return '深色主题';
-    }
   }
 
   /// 获取主题图标
@@ -997,10 +840,24 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return ChangeNotifierProvider<FileViewModel>.value(
-      value: viewModel,
-      child: Consumer<FileViewModel>(
-        builder: (context, vm, _) {
+    
+    // 如果 QuickAccess 相关还未初始化，只显示加载中
+    if (quickAccessViewModel == null || quickAccessPresenter == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<FileViewModel>.value(value: viewModel),
+        ChangeNotifierProvider<QuickAccessViewModel>.value(value: quickAccessViewModel!),
+        ChangeNotifierProvider<NewFolderNotificationService>.value(
+          value: locator<NewFolderNotificationService>(),
+        ),
+      ],
+      child: Consumer2<FileViewModel, QuickAccessViewModel>(
+        builder: (context, vm, quickVm, _) {
           if (vm.isLoading) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
@@ -1071,33 +928,23 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           ),
                           const PopupMenuDivider(),
                           const PopupMenuItem(
-                            value: 'path_selector',
+                            value: 'manage_quick_access',
                             child: Row(
                               children: [
                                 Icon(Icons.folder_special),
                                 SizedBox(width: 8),
-                                Text('选择目录'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'manage_favorites',
-                            child: Row(
-                              children: [
-                                Icon(Icons.star),
-                                SizedBox(width: 8),
-                                Text('管理收藏文件夹'),
+                                Text('管理快速访问'),
                               ],
                             ),
                           ),
                           const PopupMenuDivider(),
                           const PopupMenuItem(
-                            value: 'settings',
+                            value: 'about',
                             child: Row(
                               children: [
-                                Icon(Icons.settings),
+                                Icon(Icons.info_outline),
                                 SizedBox(width: 8),
-                                Text('设置'),
+                                Text('关于'),
                               ],
                             ),
                           ),
@@ -1126,10 +973,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             ),
                             const Divider(height: 1),
 
-                            // 收藏夹区域
-                            FavoritesSection(
-                              viewModel: vm,
-                              presenter: presenter,
+                            // 快速访问区域（新）
+                            QuickAccessSection(
+                              quickAccessViewModel: quickAccessViewModel!,
+                              quickAccessPresenter: quickAccessPresenter!,
+                              fileViewModel: vm,
+                              filePresenter: presenter,
                             ),
                             const Divider(height: 1),
 
@@ -1233,6 +1082,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                           .colorScheme
                                           .surfaceContainerHighest,
                                       child: TextField(
+                                        controller: _searchController,
+                                        focusNode: _searchFocusNode,
                                         autofocus: true,
                                         decoration: InputDecoration(
                                           hintText: '搜索文件...',
@@ -1244,12 +1095,39 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                                 Theme.of(context).primaryColor,
                                             size: 20,
                                           ),
-                                          suffixIcon: IconButton(
-                                            icon: const Icon(Icons.close,
-                                                size: 20),
-                                            onPressed: () =>
-                                                presenter.clearSearch(),
-                                            tooltip: '清除搜索',
+                                          suffixIcon: ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              maxWidth: _searchController.text.isNotEmpty ? 96 : 48,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (_searchController.text.isNotEmpty)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.clear, size: 20),
+                                                    onPressed: () {
+                                                      _searchController.clear();
+                                                      setState(() {
+                                                        _showSearchHistory = false;
+                                                      });
+                                                    },
+                                                    tooltip: '清除',
+                                                    padding: EdgeInsets.zero,
+                                                  ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.close, size: 20),
+                                                  onPressed: () {
+                                                    _searchController.clear();
+                                                    presenter.clearSearch();
+                                                    setState(() {
+                                                      _showSearchHistory = false;
+                                                    });
+                                                  },
+                                                  tooltip: '退出搜索',
+                                                  padding: EdgeInsets.zero,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                           border: OutlineInputBorder(
                                             borderRadius:
@@ -1268,12 +1146,23 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                         ),
                                         style: const TextStyle(fontSize: 14),
                                         textInputAction: TextInputAction.search,
+                                        onTap: () {
+                                          setState(() {
+                                            _showSearchHistory = _searchController.text.isEmpty;
+                                          });
+                                        },
                                         onSubmitted: (query) {
                                           if (query.isNotEmpty) {
                                             presenter.searchFiles(query);
+                                            setState(() {
+                                              _showSearchHistory = false;
+                                            });
                                           }
                                         },
                                         onChanged: (query) {
+                                          setState(() {
+                                            _showSearchHistory = query.isEmpty;
+                                          });
                                           if (query.isEmpty) {
                                             presenter.clearSearch();
                                           }
@@ -1384,10 +1273,39 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
                     ),
 
+                    // 文件类型筛选Tab栏（仅在浏览模式显示）
+                    if (vm.currentTab == TabView.browse && !vm.isSearchMode)
+                      FileCategoryTabBar(
+                        stats: vm.fileTypeStats,
+                        selectedCategory: vm.selectedCategory,
+                        onCategoryChanged: (category) {
+                          vm.setSelectedCategory(category);
+                        },
+                      ),
+
+                    // 搜索历史面板（搜索模式且输入框为空时显示）
+                    if (vm.isSearchMode && _showSearchHistory)
+                      Expanded(
+                        child: SearchHistoryPanel(
+                          historySource: presenter.searchHistorySource,
+                          onSearchSelected: (keyword) {
+                            _searchController.text = keyword;
+                            presenter.searchFiles(keyword);
+                            setState(() {
+                              _showSearchHistory = false;
+                            });
+                          },
+                          onClearHistory: () {
+                            setState(() {});
+                          },
+                        ),
+                      ),
+
                     // 文件列表区域（可扩展）
-                    Expanded(
-                      child: _buildFileList(vm),
-                    ),
+                    if (!_showSearchHistory)
+                      Expanded(
+                        child: _buildFileList(vm),
+                      ),
                   ],
                 );
               },

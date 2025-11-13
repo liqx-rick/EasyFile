@@ -5,6 +5,8 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
+import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/data/services/file_type_analyzer.dart';
 
 /// Tab 视图类型
 enum TabView {
@@ -22,11 +24,16 @@ enum ViewMode {
 class FileViewModel extends ChangeNotifier {
   bool _isLoading = false;
   List<FileItem> _files = [];
+  List<FileItem> _allFiles = []; // 保存所有文件（未筛选）
   String _currentPath = '';
   String _rootPath = ''; // 导航起始路径（收藏夹根路径或最近文件模式的空路径）
   bool _isSearchMode = false;
   String _searchQuery = '';
   bool _isRecentFilesMode = false;
+
+  // 文件类型筛选
+  FileCategory _selectedCategory = FileCategory.all;
+  final FileTypeAnalyzer _fileTypeAnalyzer = FileTypeAnalyzer();
 
   // 应用级状态
   List<FavoriteItem> _favorites = [];
@@ -105,6 +112,10 @@ class FileViewModel extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   bool get isRecentFilesMode => _isRecentFilesMode;
 
+  // 文件类型筛选的 getters
+  FileCategory get selectedCategory => _selectedCategory;
+  FileTypeStats get fileTypeStats => _fileTypeAnalyzer.analyze(_allFiles);
+
   // 应用级状态的 getters
   List<FavoriteItem> get favorites => _favorites;
   List<FavoriteFileItem> get favoriteFiles => _favoriteFiles;
@@ -134,8 +145,31 @@ class FileViewModel extends ChangeNotifier {
 
   void setFiles(List<FileItem> files) {
     logger.d('Setting files list: ${files.length} items');
-    _files = files;
+    _allFiles = files;
+    _applyFilters();
+  }
+
+  /// 应用筛选条件
+  void _applyFilters() {
+    _files = _fileTypeAnalyzer.filterByCategory(_allFiles, _selectedCategory);
     notifyListeners();
+  }
+
+  /// 设置选中的文件类型分类
+  void setSelectedCategory(FileCategory category) {
+    logger.d('Setting selected category: ${category.displayName}');
+    if (_selectedCategory != category) {
+      _selectedCategory = category;
+      _applyFilters();
+    }
+  }
+
+  /// 重置文件类型筛选
+  void resetCategoryFilter() {
+    if (_selectedCategory != FileCategory.all) {
+      _selectedCategory = FileCategory.all;
+      _applyFilters();
+    }
   }
 
   void setCurrentPath(String path) {

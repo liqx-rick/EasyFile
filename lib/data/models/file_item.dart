@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:easyfile/data/models/file_category.dart';
+
 class FileItem {
   final String name;
   final String path;
@@ -16,6 +18,12 @@ class FileItem {
     required this.modified,
     this.accessedAt,
   });
+
+  /// 获取文件类型分类
+  FileCategory get category {
+    if (isDirectory) return FileCategory.all;
+    return FileCategoryExtension.fromFileName(name);
+  }
 
   factory FileItem.fromEntity(FileSystemEntity entity) {
     final stat = entity.statSync();

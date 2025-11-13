@@ -7,9 +7,19 @@ import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/local_file_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
+import 'package:easyfile/data/sources/quick_access_local_source.dart';
+import 'package:easyfile/data/sources/search_history_local_source.dart';
+import 'package:easyfile/data/services/folder_analyzer.dart';
+import 'package:easyfile/data/services/smart_app_scanner.dart';
+import 'package:easyfile/data/services/user_folder_detector.dart';
+import 'package:easyfile/data/services/alias_recommendation_service.dart';
+import 'package:easyfile/data/services/data_migration_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/splash_viewmodel.dart';
+import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
+import 'package:easyfile/ui/widgets/new_folder_notification.dart';
 
 final locator = GetIt.instance;
 
@@ -49,6 +59,46 @@ void setupLocator() {
     return ThemeLocalSource();
   });
 
+  locator.registerLazySingleton<QuickAccessLocalSource>(() {
+    logger.d('Creating QuickAccessLocalSource');
+    return QuickAccessLocalSource();
+  });
+
+  locator.registerLazySingleton<SearchHistoryLocalSource>(() {
+    logger.d('Creating SearchHistoryLocalSource');
+    return SearchHistoryLocalSource();
+  });
+
+  // Services
+  locator.registerLazySingleton<FolderAnalyzer>(() {
+    logger.d('Creating FolderAnalyzer');
+    return FolderAnalyzer();
+  });
+
+  locator.registerLazySingleton<SmartAppScanner>(() {
+    logger.d('Creating SmartAppScanner');
+    return SmartAppScanner();
+  });
+
+  locator.registerLazySingleton<UserFolderDetector>(() {
+    logger.d('Creating UserFolderDetector');
+    return UserFolderDetector();
+  });
+
+  locator.registerLazySingleton<AliasRecommendationService>(() {
+    logger.d('Creating AliasRecommendationService');
+    return AliasRecommendationService();
+  });
+
+  locator.registerLazySingleton<DataMigrationService>(() {
+    logger.d('Creating DataMigrationService');
+    return DataMigrationService(
+      favoritesSource: locator<FavoritesLocalSource>(),
+      quickAccessSource: locator<QuickAccessLocalSource>(),
+      folderAnalyzer: locator<FolderAnalyzer>(),
+    );
+  });
+
   // Repository
   locator.registerLazySingleton<FileRepository>(() {
     logger.d('Creating FileRepository (LocalFileRepository)');
@@ -66,6 +116,16 @@ void setupLocator() {
     return SplashViewModel();
   });
 
+  locator.registerLazySingleton<QuickAccessViewModel>(() {
+    logger.d('Creating QuickAccessViewModel (Singleton)');
+    return QuickAccessViewModel();
+  });
+
+  locator.registerLazySingleton<NewFolderNotificationService>(() {
+    logger.d('Creating NewFolderNotificationService (Singleton)');
+    return NewFolderNotificationService();
+  });
+
   // Presenter - 使用单例的 ViewModel 和数据源
   locator.registerLazySingleton<FilePresenter>(() {
     logger.d('Creating FilePresenter (Singleton)');
@@ -75,8 +135,9 @@ void setupLocator() {
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
     final themeSource = locator<ThemeLocalSource>();
+    final searchHistorySource = locator<SearchHistoryLocalSource>();
     
-    logger.d('FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource');
+    logger.d('FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, searchHistorySource=$searchHistorySource');
     
     return FilePresenter(
       repository: repository,
@@ -85,6 +146,28 @@ void setupLocator() {
       favoriteFilesSource: favoriteFilesSource,
       recentFilesSource: recentFilesSource,
       themeSource: themeSource,
+      searchHistorySource: searchHistorySource,
+    );
+  });
+
+  locator.registerLazySingleton<QuickAccessPresenter>(() {
+    logger.d('Creating QuickAccessPresenter (Singleton)');
+    final localSource = locator<QuickAccessLocalSource>();
+    final viewModel = locator<QuickAccessViewModel>();
+    final appScanner = locator<SmartAppScanner>();
+    final userDetector = locator<UserFolderDetector>();
+    final aliasService = locator<AliasRecommendationService>();
+    final notificationService = locator<NewFolderNotificationService>();
+    
+    logger.d('QuickAccessPresenter dependencies: localSource=$localSource, viewModel=$viewModel');
+    
+    return QuickAccessPresenter(
+      localSource: localSource,
+      viewModel: viewModel,
+      appScanner: appScanner,
+      userDetector: userDetector,
+      aliasService: aliasService,
+      notificationService: notificationService,
     );
   });
 

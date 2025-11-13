@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// ÒôÆµ·âÃæ×é¼ş£¨¼ò»¯°æ£©
+/// éŸ³é¢‘å°é¢éƒ¨ä»¶ï¼ˆç®€åŒ–ç‰ˆï¼‰
 class AudioCoverWidget extends StatelessWidget {
   final String audioPath;
   final double size;

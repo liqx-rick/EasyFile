@@ -15,6 +15,7 @@ import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
+import 'package:easyfile/data/sources/search_history_local_source.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 class FilePresenter {
@@ -24,6 +25,7 @@ class FilePresenter {
   final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
   final ThemeLocalSource themeSource;
+  final SearchHistoryLocalSource searchHistorySource;
 
   FilePresenter({
     required this.repository,
@@ -32,6 +34,7 @@ class FilePresenter {
     required this.favoriteFilesSource,
     required this.recentFilesSource,
     required this.themeSource,
+    required this.searchHistorySource,
   }) {
     logger.d('FilePresenter constructor called');
     logger.d('favoriteFilesSource type: ${favoriteFilesSource.runtimeType}');
@@ -54,6 +57,10 @@ class FilePresenter {
       logger.d('Exiting recent files mode, switching to directory browsing');
       viewModel.setIsRecentFilesMode(false);
     }
+
+    // 重置文件类型筛选
+    viewModel.resetCategoryFilter();
+
     logger.d('Current path set, loading files...');
     final files = await repository.getFiles(path);
     logger.i('Files loaded: ${files.length} items');
@@ -108,6 +115,10 @@ class FilePresenter {
 
     final files = await repository.searchFiles(viewModel.currentPath, query);
     logger.i('Search completed: ${files.length} results found');
+    
+    // 保存搜索历史
+    await searchHistorySource.addSearchRecord(query, resultCount: files.length);
+    
     viewModel.setFiles(files);
     viewModel.setLoading(false);
   }
