@@ -4,6 +4,8 @@ import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:path/path.dart' as path;
+import 'package:easyfile/utils/path_security.dart';
 
 class LocalFileRepository implements FileRepository {
   @override
@@ -69,6 +71,43 @@ class LocalFileRepository implements FileRepository {
 
   @override
   Future<bool> deleteFile(FileItem file) async {
+    // 安全检查：验证路径是否允许删除
+    final riskLevel = PathSecurity.getPathRiskLevel(file.path);
+    
+    // 禁止删除的路径直接拒绝
+    if (riskLevel == PathRiskLevel.forbidden) {
+      PathSecurity.logOperation(
+        operation: 'DELETE',
+        path: file.path,
+        riskLevel: riskLevel,
+        allowed: false,
+        reason: 'Forbidden system path',
+      );
+      logger.e('Delete operation blocked: ${file.path} is a forbidden system path');
+      return false;
+    }
+    
+    // 危险路径也拒绝（需要在UI层有特殊确认）
+    if (riskLevel == PathRiskLevel.danger) {
+      PathSecurity.logOperation(
+        operation: 'DELETE',
+        path: file.path,
+        riskLevel: riskLevel,
+        allowed: false,
+        reason: 'Dangerous path - requires explicit user confirmation',
+      );
+      logger.w('Delete operation blocked: ${file.path} is a dangerous path');
+      return false;
+    }
+    
+    // 记录操作日志
+    PathSecurity.logOperation(
+      operation: 'DELETE',
+      path: file.path,
+      riskLevel: riskLevel,
+      allowed: true,
+    );
+    
     final entity = FileSystemEntity.typeSync(file.path);
     try {
       logger.i('Deleting file: ${file.path}');
@@ -103,8 +142,73 @@ class LocalFileRepository implements FileRepository {
 
   @override
   Future<bool> moveFile(FileItem file, String destinationPath) async {
+    // 安全检查：验证源路径是否允许移动
+    final sourceRiskLevel = PathSecurity.getPathRiskLevel(file.path);
+    
+    // 禁止移动的路径直接拒绝
+    if (sourceRiskLevel == PathRiskLevel.forbidden) {
+      PathSecurity.logOperation(
+        operation: 'MOVE',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'Forbidden system path',
+      );
+      logger.e('Move operation blocked: ${file.path} is a forbidden system path');
+      return false;
+    }
+    
+    // 危险路径也拒绝
+    if (sourceRiskLevel == PathRiskLevel.danger) {
+      PathSecurity.logOperation(
+        operation: 'MOVE',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'Dangerous path',
+      );
+      logger.w('Move operation blocked: ${file.path} is a dangerous path');
+      return false;
+    }
+    
+    // 验证目标路径的安全性
+    final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
+    if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
+      PathSecurity.logOperation(
+        operation: 'MOVE',
+        path: '${file.path} -> $destinationPath',
+        riskLevel: targetRiskLevel,
+        allowed: false,
+        reason: 'Target path is protected',
+      );
+      logger.w('Move operation blocked: target path $destinationPath is protected');
+      return false;
+    }
+    
+    // 检查是否为系统关键文件夹
+    final currentName = file.path.split(Platform.pathSeparator).last;
+    if (PathSecurity.isSystemFolderName(currentName)) {
+      PathSecurity.logOperation(
+        operation: 'MOVE',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'System critical folder',
+      );
+      logger.w('Move operation blocked: "$currentName" is a system folder');
+      return false;
+    }
+    
     try {
       logger.i('Moving file from ${file.path} to $destinationPath');
+      
+      // 记录操作日志
+      PathSecurity.logOperation(
+        operation: 'MOVE',
+        path: '${file.path} -> $destinationPath',
+        riskLevel: sourceRiskLevel,
+        allowed: true,
+      );
 
       final source = file.isDirectory ? Directory(file.path) : File(file.path);
       await source.rename(destinationPath);
@@ -130,11 +234,77 @@ class LocalFileRepository implements FileRepository {
 
   @override
   Future<bool> renameFile(FileItem file, String newName) async {
+    // 安全检查：验证源路径是否允许重命名
+    final sourceRiskLevel = PathSecurity.getPathRiskLevel(file.path);
+    
+    // 禁止重命名的路径直接拒绝
+    if (sourceRiskLevel == PathRiskLevel.forbidden) {
+      PathSecurity.logOperation(
+        operation: 'RENAME',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'Forbidden system path',
+      );
+      logger.e('Rename operation blocked: ${file.path} is a forbidden system path');
+      return false;
+    }
+    
+    // 危险路径也拒绝
+    if (sourceRiskLevel == PathRiskLevel.danger) {
+      PathSecurity.logOperation(
+        operation: 'RENAME',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'Dangerous path',
+      );
+      logger.w('Rename operation blocked: ${file.path} is a dangerous path');
+      return false;
+    }
+    
+    // 检查是否为系统关键文件夹名称
+    final currentName = file.path.split(Platform.pathSeparator).last;
+    if (PathSecurity.isSystemFolderName(currentName)) {
+      PathSecurity.logOperation(
+        operation: 'RENAME',
+        path: file.path,
+        riskLevel: sourceRiskLevel,
+        allowed: false,
+        reason: 'System critical folder name',
+      );
+      logger.w('Rename operation blocked: "$currentName" is a system folder');
+      return false;
+    }
+    
     try {
       logger.i('Renaming file ${file.path} to $newName');
 
       final parentDir = Directory(file.path).parent.path;
-      final newPath = '$parentDir${Platform.pathSeparator}$newName';
+      // 使用 path.join 保证跨平台路径正确
+      final newPath = path.join(parentDir, newName);
+      
+      // 验证目标路径的安全性
+      final targetRiskLevel = PathSecurity.getPathRiskLevel(newPath);
+      if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
+        PathSecurity.logOperation(
+          operation: 'RENAME',
+          path: '${file.path} -> $newPath',
+          riskLevel: targetRiskLevel,
+          allowed: false,
+          reason: 'Target path is protected',
+        );
+        logger.w('Rename operation blocked: target path $newPath is protected');
+        return false;
+      }
+      
+      // 记录操作日志
+      PathSecurity.logOperation(
+        operation: 'RENAME',
+        path: '${file.path} -> $newPath',
+        riskLevel: sourceRiskLevel,
+        allowed: true,
+      );
 
       final source = file.isDirectory ? Directory(file.path) : File(file.path);
       await source.rename(newPath);

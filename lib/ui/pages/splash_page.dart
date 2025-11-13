@@ -8,7 +8,9 @@ import '../../core/logger.dart';
 
 /// 启动页界面
 class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
+  final VoidCallback? onComplete;
+  
+  const SplashPage({super.key, this.onComplete});
 
   @override
   State<SplashPage> createState() => _SplashPageState();
@@ -20,6 +22,7 @@ class _SplashPageState extends State<SplashPage>
   late AppLogger logger;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  bool _hasInitialized = false; // 标记是否已经初始化过
 
   @override
   void initState() {
@@ -44,13 +47,17 @@ class _SplashPageState extends State<SplashPage>
 
     // 延迟一帧后开始初始化，确保页面已经构建完成
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startInitialization();
+      if (!_hasInitialized) {
+        _startInitialization();
+      }
     });
   }
 
   /// 开始初始化流程
   Future<void> _startInitialization() async {
     try {
+      _hasInitialized = true; // 标记已开始初始化
+      
       // 开始logo淡入动画
       _animationController.forward();
 
@@ -59,16 +66,15 @@ class _SplashPageState extends State<SplashPage>
       presenter = SplashPresenter(
         viewModel: viewModel,
         logger: logger,
+        onComplete: widget.onComplete, // 传递完成回调
       );
 
       // 开始应用初始化
       await presenter.initApp(context);
     } catch (e) {
       logger.e('SplashPage: Error during initialization: $e');
-      // 即使出错也要继续，避免用户卡在启动页
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/fileBrowser');
-      }
+      // 即使出错也要继续，调用完成回调
+      widget.onComplete?.call();
     }
   }
 

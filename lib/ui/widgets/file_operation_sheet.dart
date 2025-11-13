@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 class FileOperationSheet extends StatelessWidget {
   final FileItem file;
@@ -53,7 +54,7 @@ class FileOperationSheet extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        file.isDirectory ? '文件夹' : _formatFileSize(file.size),
+                        file.isDirectory ? '文件夹' : FileUtils.formatFileSize(file.size),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -138,15 +139,6 @@ class FileOperationSheet extends StatelessWidget {
     logger.d('File operation selected: $operation for ${file.name}');
     Navigator.of(context).pop();
     onOperation(operation);
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
 

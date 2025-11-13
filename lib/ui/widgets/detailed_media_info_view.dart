@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/utils/media_info_extractor.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/utils/time_formatter.dart';
 
 /// 详细媒体信息展示组件
 /// 
@@ -52,7 +54,7 @@ class DetailedMediaInfoView extends StatelessWidget {
                 _buildRow('标题', info.title!),
               _buildRow('文件名', info.fileName),
               _buildRow('格式', info.format),
-              _buildRow('文件大小', _formatFileSize(info.fileSize)),
+              _buildRow('文件大小', FileUtils.formatFileSize(info.fileSize)),
               if (info.duration != null)
                 _buildRow('时长', _formatDuration(info.duration!)),
             ],
@@ -102,8 +104,8 @@ class DetailedMediaInfoView extends StatelessWidget {
             '文件信息',
             Icons.folder_open,
             [
-              _buildRow('创建时间', _formatDateTime(info.createdAt)),
-              _buildRow('修改时间', _formatDateTime(info.modifiedAt)),
+              _buildRow('创建时间', TimeFormatter.formatFullTime(info.createdAt)),
+              _buildRow('修改时间', TimeFormatter.formatFullTime(info.modifiedAt)),
             ],
           ),
         ],
@@ -178,15 +180,6 @@ class DetailedMediaInfoView extends StatelessWidget {
     );
   }
 
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
@@ -196,10 +189,5 @@ class DetailedMediaInfoView extends StatelessWidget {
       return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }

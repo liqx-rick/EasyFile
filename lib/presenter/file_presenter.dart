@@ -1,15 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
+import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
+import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -18,6 +21,7 @@ class FilePresenter {
   final FileRepository repository;
   final FileViewModel viewModel;
   final FavoritesLocalSource favoritesSource;
+  final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
   final ThemeLocalSource themeSource;
 
@@ -25,9 +29,13 @@ class FilePresenter {
     required this.repository,
     required this.viewModel,
     required this.favoritesSource,
+    required this.favoriteFilesSource,
     required this.recentFilesSource,
     required this.themeSource,
-  });
+  }) {
+    logger.d('FilePresenter constructor called');
+    logger.d('favoriteFilesSource type: ${favoriteFilesSource.runtimeType}');
+  }
   Future<void> loadFiles(String path, {bool isRootNavigation = false}) async {
     logger.i(
         'FilePresenter.loadFiles called with path: $path, isRootNavigation: $isRootNavigation');
@@ -123,6 +131,45 @@ class FilePresenter {
     return success;
   }
 
+  /// 批量删除文件
+  Future<Map<String, bool>> batchDeleteFiles(List<String> filePaths) async {
+    logger.i('FilePresenter.batchDeleteFiles called for ${filePaths.length} files');
+    final results = <String, bool>{};
+    
+    for (final filePath in filePaths) {
+      try {
+        final file = File(filePath);
+        if (file.existsSync()) {
+          final fileItem = FileItem(
+            name: path.basename(filePath),
+            path: filePath,
+            size: file.lengthSync(),
+            modified: file.lastModifiedSync(),
+            isDirectory: false,
+          );
+          final success = await repository.deleteFile(fileItem);
+          results[filePath] = success;
+          if (success) {
+            logger.d('Deleted file: $filePath');
+          } else {
+            logger.w('Failed to delete file: $filePath');
+          }
+        } else {
+          logger.w('File not found: $filePath');
+          results[filePath] = false;
+        }
+      } catch (e) {
+        logger.e('Error deleting file $filePath: $e');
+        results[filePath] = false;
+      }
+    }
+    
+    final successCount = results.values.where((v) => v).length;
+    logger.i('Batch delete completed: $successCount/${filePaths.length} files deleted');
+    
+    return results;
+  }
+
   Future<bool> copyFile(FileItem file, String destinationPath) async {
     logger.i(
         'FilePresenter.copyFile called from ${file.path} to $destinationPath');
@@ -147,6 +194,96 @@ class FilePresenter {
       logger.w('Failed to move file: ${file.path}');
     }
     return success;
+  }
+
+  /// 批量移动文件
+  Future<Map<String, bool>> batchMoveFiles(List<String> filePaths, String destinationPath) async {
+    logger.i('FilePresenter.batchMoveFiles called for ${filePaths.length} files to $destinationPath');
+    final results = <String, bool>{};
+    
+    // 验证目标路径是否存在
+    final destDir = Directory(destinationPath);
+    if (!destDir.existsSync()) {
+      logger.w('Destination directory does not exist: $destinationPath');
+      for (final filePath in filePaths) {
+        results[filePath] = false;
+      }
+      return results;
+    }
+    
+    for (final filePath in filePaths) {
+      try {
+        final file = File(filePath);
+        if (file.existsSync()) {
+          final fileName = path.basename(filePath);
+          // 构造完整的目标路径（目录路径 + 文件名）
+          final fullDestinationPath = path.join(destinationPath, fileName);
+          
+          final fileItem = FileItem(
+            name: fileName,
+            path: filePath,
+            size: file.lengthSync(),
+            modified: file.lastModifiedSync(),
+            isDirectory: false,
+          );
+          final success = await repository.moveFile(fileItem, fullDestinationPath);
+          results[filePath] = success;
+          if (success) {
+            logger.d('Moved file: $filePath to $fullDestinationPath');
+          } else {
+            logger.w('Failed to move file: $filePath');
+          }
+        } else {
+          logger.w('File not found: $filePath');
+          results[filePath] = false;
+        }
+      } catch (e) {
+        logger.e('Error moving file $filePath: $e');
+        results[filePath] = false;
+      }
+    }
+    
+    final successCount = results.values.where((v) => v).length;
+    logger.i('Batch move completed: $successCount/${filePaths.length} files moved');
+    
+    return results;
+  }
+
+  /// 批量分享文件
+  Future<bool> batchShareFiles(List<String> filePaths) async {
+    logger.i('FilePresenter.batchShareFiles called for ${filePaths.length} files');
+    
+    const platform = MethodChannel('com.example.easyfile/share');
+    
+    try {
+      // 过滤出存在的文件
+      final existingFilePaths = <String>[];
+      for (final filePath in filePaths) {
+        final file = File(filePath);
+        if (file.existsSync()) {
+          existingFilePaths.add(filePath);
+          logger.d('Added file to share: $filePath');
+        } else {
+          logger.w('File not found, skipping: $filePath');
+        }
+      }
+      
+      if (existingFilePaths.isEmpty) {
+        logger.w('No valid files to share');
+        return false;
+      }
+      
+      // 使用原生方法分享文件
+      await platform.invokeMethod('shareMultipleFiles', {
+        'filePaths': existingFilePaths,
+      });
+      
+      logger.i('Share completed for ${existingFilePaths.length} files');
+      return true;
+    } catch (e) {
+      logger.e('Error sharing files: $e');
+      return false;
+    }
   }
 
   Future<bool> renameFile(FileItem file, String newName) async {
@@ -484,6 +621,111 @@ class FilePresenter {
   void toggleSearch() {
     logger.d('FilePresenter.toggleSearch called');
     viewModel.toggleSearchMode();
+  }
+
+  // 收藏文件相关方法
+
+  /// 初始化收藏文件列表
+  Future<void> initializeFavoriteFiles() async {
+    logger.i('FilePresenter.initializeFavoriteFiles called');
+    try {
+      final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
+      viewModel.setFavoriteFiles(favoriteFiles);
+      logger.d('Favorite files initialized - count: ${favoriteFiles.length}');
+    } catch (e) {
+      logger.e('Error initializing favorite files: $e');
+    }
+  }
+
+  /// 加载收藏文件列表（供Tab切换时调用）
+  Future<void> loadFavoriteFiles() async {
+    logger.i('FilePresenter.loadFavoriteFiles called');
+    try {
+      viewModel.setLoading(true);
+      
+      // 从本地数据源加载收藏文件列表
+      final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
+      viewModel.setFavoriteFiles(favoriteFiles);
+      
+      // 将收藏文件转换为FileItem列表以便在UI中显示
+      final fileItems = <FileItem>[];
+      for (final favoriteFile in favoriteFiles) {
+        try {
+          final file = File(favoriteFile.filePath);
+          if (file.existsSync()) {
+            final fileItem = FileItem(
+              name: path.basename(favoriteFile.filePath),
+              path: favoriteFile.filePath,
+              size: file.lengthSync(),
+              modified: file.lastModifiedSync(),
+              isDirectory: false,
+            );
+            fileItems.add(fileItem);
+          } else {
+            logger.w('Favorite file no longer exists: ${favoriteFile.filePath}');
+          }
+        } catch (e) {
+          logger.w('Error processing favorite file ${favoriteFile.filePath}: $e');
+        }
+      }
+      
+      viewModel.setFiles(fileItems);
+      viewModel.setLoading(false);
+      
+      logger.i('Loaded ${fileItems.length} favorite files for display');
+    } catch (e) {
+      logger.e('Error loading favorite files: $e');
+      viewModel.setLoading(false);
+    }
+  }
+
+  /// 切换文件收藏状态
+  Future<bool> toggleFavoriteFile(FileItem file) async {
+    logger.i('FilePresenter.toggleFavoriteFile called for: ${file.path}');
+    try {
+      final isFavorite = viewModel.isFavoriteFile(file.path);
+      
+      if (isFavorite) {
+        // 取消收藏
+        final success = await favoriteFilesSource.removeFavoriteFile(file.path);
+        if (success) {
+          viewModel.removeFavoriteFile(file.path);
+          logger.i('File removed from favorites: ${file.path}');
+          return false;
+        }
+      } else {
+        // 添加收藏
+        final favoriteFile = FavoriteFileItem(
+          filePath: file.path,
+          addedTime: DateTime.now(),
+        );
+        final success = await favoriteFilesSource.addFavoriteFile(favoriteFile);
+        if (success) {
+          viewModel.addFavoriteFile(favoriteFile);
+          logger.i('File added to favorites: ${file.path}');
+          return true;
+        }
+      }
+      
+      return isFavorite;
+    } catch (e) {
+      logger.e('Error toggling favorite file: $e');
+      return viewModel.isFavoriteFile(file.path);
+    }
+  }
+
+  /// 更新收藏文件访问信息
+  Future<void> updateFavoriteFileAccess(String filePath) async {
+    logger.d('Updating favorite file access: $filePath');
+    try {
+      await favoriteFilesSource.updateFileAccess(filePath);
+      
+      // 重新加载收藏列表以更新UI
+      final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
+      viewModel.setFavoriteFiles(favoriteFiles);
+    } catch (e) {
+      logger.w('Error updating favorite file access: $e');
+    }
   }
 
   /// 刷新当前目录

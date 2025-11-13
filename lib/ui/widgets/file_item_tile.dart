@@ -11,6 +11,8 @@ class FileItemTile extends StatelessWidget {
   final FileItem file;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onFavoriteToggle; // 收藏按钮回调
+  final bool isFavorite; // 是否已收藏
   final bool showFullPath;
   final bool showAccessTime;
   final DateTime? accessTime;
@@ -20,6 +22,8 @@ class FileItemTile extends StatelessWidget {
     required this.file,
     this.onTap,
     this.onLongPress,
+    this.onFavoriteToggle,
+    this.isFavorite = false,
     this.showFullPath = false,
     this.showAccessTime = false,
     this.accessTime,
@@ -81,7 +85,7 @@ class FileItemTile extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    file.isDirectory ? '文件夹' : _formatFileSize(file.size),
+                    file.isDirectory ? '文件夹' : FileUtils.formatFileSize(file.size),
                     style: const TextStyle(fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -101,10 +105,34 @@ class FileItemTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
       isThreeLine: showFullPath,
-      trailing: file.isDirectory ? const Icon(Icons.chevron_right) : null,
+      trailing: _buildTrailing(),
       onTap: onTap,
       onLongPress: onLongPress,
     );
+  }
+
+  /// 构建trailing部分（收藏按钮 + 文件夹图标）
+  Widget? _buildTrailing() {
+    if (file.isDirectory) {
+      return const Icon(Icons.chevron_right);
+    }
+    
+    // 文件显示收藏按钮
+    if (onFavoriteToggle != null) {
+      return IconButton(
+        icon: Icon(
+          isFavorite ? Icons.star : Icons.star_border,
+          color: isFavorite ? Colors.amber : Colors.grey,
+          size: 20,
+        ),
+        onPressed: onFavoriteToggle,
+        tooltip: isFavorite ? '取消收藏' : '收藏',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+      );
+    }
+    
+    return null;
   }
 
   IconData _getFileIcon() {
@@ -191,21 +219,14 @@ class FileItemTile extends StatelessWidget {
     }
   }
 
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
+
 
   String _buildSubtitleText() {
     if (file.isDirectory) {
       return '文件夹';
     }
 
-    final sizeText = _formatFileSize(file.size);
+    final sizeText = FileUtils.formatFileSize(file.size);
 
     // 如果需要显示访问时间且时间不为空
     if (showAccessTime && accessTime != null) {

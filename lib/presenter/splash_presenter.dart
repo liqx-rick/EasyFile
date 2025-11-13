@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../core/logger.dart';
@@ -11,20 +10,19 @@ import '../viewmodel/splash_viewmodel.dart';
 class SplashPresenter {
   final SplashViewModel viewModel;
   final AppLogger logger;
+  final VoidCallback? onComplete;
   Timer? _delayTimer;
 
   SplashPresenter({
     required this.viewModel,
     required this.logger,
+    this.onComplete,
   });
 
   /// 初始化应用
   Future<void> initApp(BuildContext context) async {
     try {
       logger.i('SplashPresenter: Starting app initialization...');
-
-      // 移除native splash，显示Flutter splash页面
-      FlutterNativeSplash.remove();
 
       // 设置初始化开始状态
       viewModel.setInitializing(true);
@@ -157,8 +155,8 @@ class SplashPresenter {
   void _navigateToMainPage(BuildContext context) {
     logger.i('SplashPresenter: Navigating to FileBrowserPage');
 
-    // 使用pushReplacement确保用户不能返回到启动页
-    Navigator.pushReplacementNamed(context, '/fileBrowser');
+    // 调用完成回调来切换页面，而不是使用路由导航
+    onComplete?.call();
   }
 
   /// 清理资源

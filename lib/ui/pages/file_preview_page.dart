@@ -78,7 +78,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           logger.d('File is a PDF, loading PDF viewer');
           await _loadPdfDocument();
         } else {
-          // Office 文档显示信息页面
           logger.d('File is an Office document, showing info page');
           setState(() {
             _isLoading = false;
@@ -157,8 +156,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   /// 加载 PDF 文档
   Future<void> _loadPdfDocument() async {
     try {
-      logger.d('Loading PDF document: ${widget.file.path}');
-      
       setState(() {
         _pdfController = PdfController(
           document: PdfDocument.openFile(widget.file.path),
@@ -166,13 +163,12 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         _isLoading = false;
       });
 
-      // 获取总页数
       final document = await PdfDocument.openFile(widget.file.path);
       setState(() {
         _totalPages = document.pagesCount;
       });
 
-      logger.i('PDF loaded successfully, pages: $_totalPages');
+      logger.i('PDF loaded: $_totalPages pages');
     } catch (e) {
       logger.e('Error loading PDF: $e');
       setState(() {
@@ -281,7 +277,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
     return Column(
       children: [
-        // PDF 工具栏
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -334,7 +329,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             ],
           ),
         ),
-        // PDF 内容
         Expanded(
           child: PdfView(
             controller: _pdfController!,
@@ -371,14 +365,12 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // 大号文档图标
             DocumentIconWidget(
               fileName: widget.file.name,
               size: 128,
             ),
             const SizedBox(height: 24),
             
-            // 文件名
             Text(
               widget.file.name,
               style: const TextStyle(
@@ -389,7 +381,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             ),
             const SizedBox(height: 8),
             
-            // 文件大小和类型
             Text(
               '${_formatFileSize(widget.file.size)} · ${_getDocumentTypeLabel()}',
               style: TextStyle(
@@ -400,7 +391,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             
             const SizedBox(height: 32),
             
-            // 主操作按钮 - 选择应用打开
             SizedBox(
               width: double.infinity,
               height: 48,

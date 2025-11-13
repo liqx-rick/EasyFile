@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 /// 媒体文件信息栏组件
 /// 
@@ -65,7 +66,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
           _duration = controller.value.duration;
           final width = controller.value.size.width.toInt();
           final height = controller.value.size.height.toInt();
-          _resolution = '${width}x${height}';
+          _resolution = '${width}x$height';
         });
       }
     } finally {
@@ -98,15 +99,6 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
       return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   String _getFileFormat() {
@@ -199,7 +191,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
                 // 文件大小
                 _InfoChip(
                   icon: Icons.storage,
-                  label: _formatFileSize(widget.fileSize),
+                  label: FileUtils.formatFileSize(widget.fileSize),
                   color: widget.isVideo ? Colors.blue : Colors.purple,
                 ),
               ],

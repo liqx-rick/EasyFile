@@ -315,6 +315,11 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.home),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: '返回主页',
+        ),
         title: const Text('管理收藏文件夹'),
       ),
       body: _isLoading
