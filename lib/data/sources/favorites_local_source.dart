@@ -142,8 +142,9 @@ class FavoritesLocalSource {
       favorites[index] = updatedFavorite;
       return await saveFavorites(favorites);
     } catch (e, stackTrace) {
-      logger
-          .e('Error updating last accessed time: $e\nStackTrace: $stackTrace');
+      logger.e(
+        'Error updating last accessed time: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }

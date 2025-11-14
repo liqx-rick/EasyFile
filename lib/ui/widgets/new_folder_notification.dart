@@ -7,15 +7,16 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 class NewFolderNotificationService extends ChangeNotifier {
   // 待通知的新文件夹列表
   final List<QuickAccessFolder> _pendingFolders = [];
-  
+
   // 是否显示通知徽章
   bool _showBadge = false;
-  
+
   // 是否已读
   bool _isRead = false;
 
   // Getters
-  List<QuickAccessFolder> get pendingFolders => List.unmodifiable(_pendingFolders);
+  List<QuickAccessFolder> get pendingFolders =>
+      List.unmodifiable(_pendingFolders);
   bool get showBadge => _showBadge && !_isRead;
   int get unreadCount => _isRead ? 0 : _pendingFolders.length;
   bool get hasPendingFolders => _pendingFolders.isNotEmpty;
@@ -23,7 +24,7 @@ class NewFolderNotificationService extends ChangeNotifier {
   /// 添加新发现的文件夹
   void addNewFolders(List<QuickAccessFolder> folders) {
     if (folders.isEmpty) return;
-    
+
     _pendingFolders.addAll(folders);
     _showBadge = true;
     _isRead = false;
@@ -89,11 +90,7 @@ class NewFolderBadge extends StatelessWidget {
   final int count;
   final VoidCallback? onTap;
 
-  const NewFolderBadge({
-    super.key,
-    required this.count,
-    this.onTap,
-  });
+  const NewFolderBadge({super.key, required this.count, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -107,10 +104,7 @@ class NewFolderBadge extends StatelessWidget {
           color: Colors.red,
           borderRadius: BorderRadius.circular(10),
         ),
-        constraints: const BoxConstraints(
-          minWidth: 18,
-          minHeight: 18,
-        ),
+        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
         child: Text(
           count > 99 ? '99+' : '$count',
           style: const TextStyle(
@@ -321,9 +315,7 @@ class _NewFolderNotificationDialogState
                   Navigator.of(context).pop();
                 },
           child: Text(
-            _selectedPaths.isEmpty
-                ? '添加'
-                : '添加 (${_selectedPaths.length})',
+            _selectedPaths.isEmpty ? '添加' : '添加 (${_selectedPaths.length})',
           ),
         ),
       ],
@@ -339,7 +331,9 @@ class _NewFolderNotificationDialogState
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Wrap(
@@ -451,7 +445,9 @@ class NewFolderNotificationBanner extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Theme.of(context).colorScheme.primaryContainer,
-            Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+            Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: 0.7),
           ],
         ),
         borderRadius: BorderRadius.circular(12),
@@ -493,7 +489,9 @@ class NewFolderNotificationBanner extends StatelessWidget {
                         '发现 $count 个新文件夹',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
                         ),
                       ),
                       const SizedBox(height: 2),

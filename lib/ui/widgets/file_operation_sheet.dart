@@ -17,7 +17,11 @@ class FileOperationSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.only(
-          top: 16, left: 0, right: 0, bottom: 8), // 减少底部padding
+        top: 16,
+        left: 0,
+        right: 0,
+        bottom: 8,
+      ), // 减少底部padding
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -54,11 +58,10 @@ class FileOperationSheet extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        file.isDirectory ? '文件夹' : FileUtils.formatFileSize(file.size),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        file.isDirectory
+                            ? '文件夹'
+                            : FileUtils.formatFileSize(file.size),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -142,9 +145,4 @@ class FileOperationSheet extends StatelessWidget {
   }
 }
 
-enum FileOperation {
-  copy,
-  move,
-  rename,
-  delete,
-}
+enum FileOperation { copy, move, rename, delete }

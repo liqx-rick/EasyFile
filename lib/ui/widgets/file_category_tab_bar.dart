@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/services/file_type_analyzer.dart';
+import 'package:easyfile/core/logger.dart';
 
 /// 文件类型筛选Tab栏
 class FileCategoryTabBar extends StatelessWidget {
@@ -27,32 +28,33 @@ class FileCategoryTabBar extends StatelessWidget {
       ...stats.getVisibleCategories(),
     ];
 
+    // 调试信息
+    logger.d(
+      'FileCategoryTabBar: totalCount=${stats.totalCount}, totalFileCount=${stats.totalFileCount}, totalDirectoryCount=${stats.totalDirectoryCount}',
+    );
+    for (final category in visibleCategories) {
+      final count = stats.getCount(category);
+      logger.d('Category ${category.displayName}: count=$count');
+    }
+
     return Container(
-      height: 48,
+      height: 30,
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor,
-            width: 0.5,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
         ),
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         itemCount: visibleCategories.length,
         itemBuilder: (context, index) {
           final category = visibleCategories[index];
           final count = stats.getCount(category);
           final isSelected = category == selectedCategory;
 
-          return _buildCategoryTab(
-            context,
-            category,
-            count,
-            isSelected,
-          );
+          return _buildCategoryTab(context, category, count, isSelected);
         },
       ),
     );
@@ -68,26 +70,21 @@ class FileCategoryTabBar extends StatelessWidget {
     final textColor = isSelected
         ? colorScheme.primary
         : colorScheme.onSurface.withOpacity(0.6);
-    final backgroundColor = isSelected
-        ? colorScheme.primaryContainer.withOpacity(0.5)
-        : Colors.transparent;
 
     return GestureDetector(
       onTap: () => onCategoryChanged(category),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
         decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(20),
           border: isSelected
-              ? Border.all(color: colorScheme.primary, width: 1.5)
+              ? Border(bottom: BorderSide(color: colorScheme.primary, width: 2))
               : null,
         ),
         child: Text(
-          category.displayName,
+          '${category.displayName} ($count)',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             color: textColor,
           ),

@@ -82,12 +82,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
     for (final entry in standardPaths.entries) {
       final dir = Directory(entry.value);
       if (dir.existsSync()) {
-        directories.add(DefaultDirectory(
-          name: entry.key,
-          path: entry.value,
-          iconName: _getIconForDirectoryName(entry.key),
-          description: _getDescriptionForDirectoryName(entry.key),
-        ));
+        directories.add(
+          DefaultDirectory(
+            name: entry.key,
+            path: entry.value,
+            iconName: _getIconForDirectoryName(entry.key),
+            description: _getDescriptionForDirectoryName(entry.key),
+          ),
+        );
       }
     }
 
@@ -114,12 +116,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
         for (final entry in standardPaths.entries) {
           final dir = Directory(entry.value);
           if (dir.existsSync()) {
-            directories.add(DefaultDirectory(
-              name: entry.key,
-              path: entry.value,
-              iconName: _getIconForDirectoryName(entry.key),
-              description: _getDescriptionForDirectoryName(entry.key),
-            ));
+            directories.add(
+              DefaultDirectory(
+                name: entry.key,
+                path: entry.value,
+                iconName: _getIconForDirectoryName(entry.key),
+                description: _getDescriptionForDirectoryName(entry.key),
+              ),
+            );
           }
         }
       }
@@ -128,12 +132,14 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
       final systemDrive = Platform.environment['SystemDrive'] ?? 'C:';
       final systemDir = Directory('$systemDrive\\');
       if (systemDir.existsSync()) {
-        directories.add(DefaultDirectory(
-          name: 'System Drive',
-          path: systemDir.path,
-          iconName: 'storage',
-          description: '系统盘',
-        ));
+        directories.add(
+          DefaultDirectory(
+            name: 'System Drive',
+            path: systemDir.path,
+            iconName: 'storage',
+            description: '系统盘',
+          ),
+        );
       }
     } catch (e) {
       logger.w('Error getting Windows directories: $e');
@@ -149,34 +155,40 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
     try {
       // 尝试获取用户目录
       final documentsDir = await getApplicationDocumentsDirectory();
-      directories.add(DefaultDirectory(
-        name: 'Documents',
-        path: documentsDir.path,
-        iconName: 'documents',
-        description: '文档目录',
-      ));
+      directories.add(
+        DefaultDirectory(
+          name: 'Documents',
+          path: documentsDir.path,
+          iconName: 'documents',
+          description: '文档目录',
+        ),
+      );
 
       // 当前工作目录
       final currentDir = Directory.current;
       if (currentDir.existsSync()) {
-        directories.add(DefaultDirectory(
-          name: 'Current',
-          path: currentDir.path,
-          iconName: 'folder',
-          description: '当前目录',
-        ));
+        directories.add(
+          DefaultDirectory(
+            name: 'Current',
+            path: currentDir.path,
+            iconName: 'folder',
+            description: '当前目录',
+          ),
+        );
       }
 
       // 根目录 (Unix-like系统)
       if (!Platform.isWindows) {
         final rootDir = Directory('/');
         if (rootDir.existsSync()) {
-          directories.add(DefaultDirectory(
-            name: 'Root',
-            path: '/',
-            iconName: 'storage',
-            description: '根目录',
-          ));
+          directories.add(
+            DefaultDirectory(
+              name: 'Root',
+              path: '/',
+              iconName: 'storage',
+              description: '根目录',
+            ),
+          );
         }
       }
     } catch (e) {
@@ -287,9 +299,9 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
       final success = await widget.presenter.removeFavorite(favorite.id);
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已取消收藏"${directory.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('已取消收藏"${directory.name}"')));
       }
     } else {
       // 添加收藏
@@ -304,9 +316,9 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
       final success = await widget.presenter.addFavorite(favorite);
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已添加收藏"${directory.name}"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('已添加收藏"${directory.name}"')));
       }
     }
   }
@@ -325,8 +337,8 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _defaultDirectories.isEmpty
-              ? _buildEmptyState()
-              : _buildDirectoriesList(),
+          ? _buildEmptyState()
+          : _buildDirectoriesList(),
     );
   }
 
@@ -342,34 +354,21 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.folder_off,
-                  size: 64,
-                  color: Colors.grey,
-                ),
+                const Icon(Icons.folder_off, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
                 const Text(
                   '未找到默认目录',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   '请检查系统权限或手动添加收藏夹',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   '下拉刷新',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[400],
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[400]),
                 ),
               ],
             ),
@@ -390,16 +389,13 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '系统默认目录',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text('系统默认目录', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
                 '点击右侧图标可添加或取消收藏，收藏的目录将出现在主页面的收藏区域。',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
               ),
             ],
           ),
@@ -487,20 +483,22 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
 
   Future<void> _togglePinForPath(String path) async {
     try {
-      final existing =
-          widget.viewModel.favorites.firstWhere((f) => f.path == path);
+      final existing = widget.viewModel.favorites.firstWhere(
+        (f) => f.path == path,
+      );
       final updated = existing.copyWith(pinned: !existing.pinned);
       final ok = await widget.presenter.updateFavorite(updated);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(ok ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败')),
+          content: Text(ok ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('操作失败')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败')));
     }
   }
 }

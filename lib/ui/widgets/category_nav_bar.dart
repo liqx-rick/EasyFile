@@ -12,11 +12,13 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 class CategoryNavBar extends StatelessWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
+  final Function(double)? onCardSizeCalculated;
 
   const CategoryNavBar({
     super.key,
     required this.presenter,
     required this.viewModel,
+    this.onCardSizeCalculated,
   });
 
   @override
@@ -42,22 +44,28 @@ class CategoryNavBar extends StatelessWidget {
         final availableWidth = screenWidth - totalHorizontalPadding;
 
         // 动态计算间距，确保适配屏幕
-        final minSpacing = 2.0; // 最小间距
-        final maxSpacing = 8.0; // 最大间距
-        final totalSpacingWidth = (crossAxisCount - 1) * maxSpacing;
+        final minSpacing = 10.0; // 最小间距增加到10
+        final maxSpacing = 50.0; // 最大间距
+        final totalSpacingWidth = (crossAxisCount - 1) * minSpacing;
         final cardWidth = (availableWidth - totalSpacingWidth) / crossAxisCount;
 
-        // 如果卡片太小，减少间距
-        final actualSpacing =
-            cardWidth < 60 ? minSpacing : (cardWidth < 70 ? 4.0 : maxSpacing);
+        // 根据卡片大小调整间距
+        final actualSpacing = cardWidth < 60
+            ? minSpacing
+            : (cardWidth < 70 ? 11.0 : maxSpacing);
 
         final actualCardWidth =
             (availableWidth - (crossAxisCount - 1) * actualSpacing) /
-                crossAxisCount;
-        final cardHeight = actualCardWidth * 0.9; // 稍微扁一点的比例
+            crossAxisCount;
+        final cardHeight = actualCardWidth;
+
+        // Notify parent of the calculated card size
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onCardSizeCalculated?.call(cardHeight);
+        });
 
         return SizedBox(
-          height: cardHeight + 16, // 卡片高度 + 额外padding
+          height: cardHeight + 4, // 卡片高度 + 额外padding
           child: GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -81,10 +89,13 @@ class CategoryNavBar extends StatelessWidget {
 
   /// 构建单个分类卡片
   Widget _buildCategoryCard(
-      BuildContext context, CategoryInfo category, double cardWidth) {
-    // 根据卡片宽度动态调整图标和文字大小
-    final iconSize = (cardWidth * 0.3).clamp(16.0, 24.0);
-    final fontSize = (cardWidth * 0.15).clamp(9.0, 12.0);
+    BuildContext context,
+    CategoryInfo category,
+    double cardWidth,
+  ) {
+    // 根据卡片宽度动态调整图标和文字大小，确保最小可读性
+    final iconSize = (cardWidth * 0.3).clamp(18.0, 26.0);
+    final fontSize = 12.0; // 固定为12px，确保可读性
     final iconPadding = (cardWidth * 0.08).clamp(3.0, 6.0);
 
     // 根据主题调整颜色
@@ -133,7 +144,6 @@ class CategoryNavBar extends StatelessWidget {
               ),
 
               SizedBox(height: cardWidth * 0.05), // 动态间距
-
               // 文本
               Flexible(
                 flex: 1,
@@ -142,10 +152,10 @@ class CategoryNavBar extends StatelessWidget {
                   child: Text(
                     category.name,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: adjustedIconColor,
-                          fontSize: fontSize,
-                        ),
+                      fontWeight: FontWeight.w500,
+                      color: adjustedIconColor,
+                      fontSize: fontSize,
+                    ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -194,10 +204,7 @@ class CategoryNavBar extends StatelessWidget {
 class CategoryNavBarHorizontal extends StatelessWidget {
   final FilePresenter presenter;
 
-  const CategoryNavBarHorizontal({
-    super.key,
-    required this.presenter,
-  });
+  const CategoryNavBarHorizontal({super.key, required this.presenter});
 
   @override
   Widget build(BuildContext context) {
@@ -212,9 +219,9 @@ class CategoryNavBarHorizontal extends StatelessWidget {
             child: Text(
               '快速入口',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -255,18 +262,14 @@ class CategoryNavBarHorizontal extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  category.icon,
-                  size: 28,
-                  color: category.iconColor,
-                ),
+                Icon(category.icon, size: 28, color: category.iconColor),
                 const SizedBox(height: 4),
                 Text(
                   category.name,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: category.iconColor,
-                      ),
+                    fontWeight: FontWeight.w500,
+                    color: category.iconColor,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -279,8 +282,8 @@ class CategoryNavBarHorizontal extends StatelessWidget {
 
   void _onCategoryTap(BuildContext context, CategoryInfo category) {
     // 与上面相同的逻辑
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('功能开发中：${category.name}分类')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('功能开发中：${category.name}分类')));
   }
 }

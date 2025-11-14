@@ -38,13 +38,9 @@ class EasyFileApp extends StatelessWidget {
             darkTheme: AppTheme.darkTheme,
             // 使用命名路由系统
             initialRoute: '/',
-            routes: {
-              '/': (context) => const AppNavigator(),
-            },
+            routes: {'/': (context) => const AppNavigator()},
             // 保持导航栈在应用生命周期中
-            navigatorObservers: [
-              _AppNavigatorObserver(),
-            ],
+            navigatorObservers: [_AppNavigatorObserver()],
           );
         },
       ),
@@ -73,15 +69,15 @@ class AppNavigator extends StatefulWidget {
   State<AppNavigator> createState() => _AppNavigatorState();
 }
 
-class _AppNavigatorState extends State<AppNavigator> 
+class _AppNavigatorState extends State<AppNavigator>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   bool _hasCompletedSplash = false;
   bool _isLoadingState = true;
-  
+
   // 静态变量：标记应用是否已经显示过 Splash（整个进程生命周期内）
   static bool _hasShownSplashInThisProcess = false;
   static DateTime? _processStartTime;
-  
+
   // MethodChannel 用于与原生通信
   static const platform = MethodChannel('com.example.easyfile/state');
 
@@ -92,24 +88,27 @@ class _AppNavigatorState extends State<AppNavigator>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
     // 记录进程启动时间
     if (_processStartTime == null) {
       _processStartTime = DateTime.now();
       logger.i('AppNavigator: NEW PROCESS started at $_processStartTime');
     }
-    
+
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
     try {
       // 检查是否从后台恢复
-      final isRestoringFromBackground = 
-          await platform.invokeMethod<bool>('isRestoringFromBackground') ?? false;
-      
-      logger.i('App initialization - Restoring from background: $isRestoringFromBackground');
-      
+      final isRestoringFromBackground =
+          await platform.invokeMethod<bool>('isRestoringFromBackground') ??
+          false;
+
+      logger.i(
+        'App initialization - Restoring from background: $isRestoringFromBackground',
+      );
+
       if (isRestoringFromBackground) {
         // 从后台恢复：不显示 Splash Page，恢复之前的状态
         _hasCompletedSplash = true;
@@ -119,7 +118,7 @@ class _AppNavigatorState extends State<AppNavigator>
         _hasCompletedSplash = _hasShownSplashInThisProcess;
         if (!_hasCompletedSplash) {
           logger.i('New app launch - will show splash and reset to Recent tab');
-          
+
           // 清除保存的状态并重置 FileViewModel
           final prefs = await SharedPreferences.getInstance();
           await Future.wait([
@@ -127,7 +126,7 @@ class _AppNavigatorState extends State<AppNavigator>
             prefs.remove('current_tab'),
             prefs.remove('last_browse_path'),
           ]);
-          
+
           // 重置 FileViewModel 到默认状态（Recent tab）
           try {
             locator<FileViewModel>().resetToDefault();
@@ -157,12 +156,14 @@ class _AppNavigatorState extends State<AppNavigator>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     if (_processStartTime != null) {
-      final timeSinceStart = DateTime.now().difference(_processStartTime!).inSeconds;
+      final timeSinceStart = DateTime.now()
+          .difference(_processStartTime!)
+          .inSeconds;
       logger.i('App lifecycle: $state (${timeSinceStart}s since start)');
     }
-    
+
     if (state == AppLifecycleState.paused) {
       logger.w('App going to background');
     } else if (state == AppLifecycleState.resumed) {
@@ -173,7 +174,7 @@ class _AppNavigatorState extends State<AppNavigator>
   void _onSplashComplete() {
     logger.i('Splash complete');
     _hasShownSplashInThisProcess = true;
-    
+
     if (mounted) {
       setState(() {
         _hasCompletedSplash = true;
@@ -184,16 +185,12 @@ class _AppNavigatorState extends State<AppNavigator>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    
+
     if (_isLoadingState) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    
-    return _hasCompletedSplash 
+
+    return _hasCompletedSplash
         ? const FileBrowserPage()
         : SplashPage(onComplete: _onSplashComplete);
   }

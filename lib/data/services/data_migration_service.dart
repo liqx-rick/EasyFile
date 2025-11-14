@@ -21,9 +21,9 @@ class DataMigrationService {
     required FavoritesLocalSource favoritesSource,
     required QuickAccessLocalSource quickAccessSource,
     required FolderAnalyzer folderAnalyzer,
-  })  : _favoritesSource = favoritesSource,
-        _quickAccessSource = quickAccessSource,
-        _folderAnalyzer = folderAnalyzer;
+  }) : _favoritesSource = favoritesSource,
+       _quickAccessSource = quickAccessSource,
+       _folderAnalyzer = folderAnalyzer;
 
   /// 检查是否需要迁移
   Future<bool> needsMigration() async {
@@ -70,9 +70,11 @@ class DataMigrationService {
       for (final favorite in favorites) {
         try {
           final quickAccessFolder = await _convertToQuickAccessFolder(favorite);
-          
+
           if (quickAccessFolder != null) {
-            final success = await _quickAccessSource.addFolder(quickAccessFolder);
+            final success = await _quickAccessSource.addFolder(
+              quickAccessFolder,
+            );
             if (success) {
               result.successCount++;
               logger.d('Migrated: ${favorite.path}');
@@ -92,9 +94,11 @@ class DataMigrationService {
         }
       }
 
-      logger.i('Migration completed: ${result.successCount} success, '
-          '${result.failedCount} failed, ${result.skippedCount} skipped');
-      
+      logger.i(
+        'Migration completed: ${result.successCount} success, '
+        '${result.failedCount} failed, ${result.skippedCount} skipped',
+      );
+
       return result;
     } catch (e) {
       logger.e('Error during migration: $e');
@@ -104,7 +108,9 @@ class DataMigrationService {
   }
 
   /// 将 FavoriteItem 转换为 QuickAccessFolder
-  Future<QuickAccessFolder?> _convertToQuickAccessFolder(FavoriteItem favorite) async {
+  Future<QuickAccessFolder?> _convertToQuickAccessFolder(
+    FavoriteItem favorite,
+  ) async {
     try {
       // 检查文件夹是否存在
       final dir = Directory(favorite.path);
@@ -233,7 +239,7 @@ class MigrationResult {
 
   bool get isSuccess => failedCount == 0 && totalCount > 0;
   bool get hasData => totalCount > 0;
-  
+
   String get summary {
     return 'Total: $totalCount, Success: $successCount, '
         'Failed: $failedCount, Skipped: $skippedCount';

@@ -36,7 +36,7 @@ class UserFolder {
       stats: stats,
       type: type,
     );
-    
+
     return QuickAccessFolder(
       id: '${DateTime.now().millisecondsSinceEpoch}_$name',
       path: path,
@@ -57,14 +57,14 @@ class UserFolder {
 /// 用户自建目录检测服务
 class UserFolderDetector {
   final FolderAnalyzer _analyzer = FolderAnalyzer();
-  
+
   static const String _lastDetectionTimeKey = 'last_user_folder_detection_time';
   static const String _detectedFoldersKey = 'detected_user_folder_paths';
 
   /// 扫描范围：只扫描特定区域，避免全盘扫描
   static const List<String> scanRoots = [
-    '/storage/emulated/0',           // 主存储根目录
-    '/storage/emulated/0/Download',  // 下载目录（注意Android上是Download不是Downloads）
+    '/storage/emulated/0', // 主存储根目录
+    '/storage/emulated/0/Download', // 下载目录（注意Android上是Download不是Downloads）
     '/storage/emulated/0/Documents', // 文档目录
   ];
 
@@ -79,8 +79,7 @@ class UserFolderDetector {
     '/storage/emulated/0/Podcasts',
     // 添加所有应用目录路径
     ...AppDirConfigs.allApps.map((app) => app.path),
-    ...AppDirConfigs.allApps
-        .expand((app) => app.alternativePaths),
+    ...AppDirConfigs.allApps.expand((app) => app.alternativePaths),
   ];
 
   /// 检测用户自建目录
@@ -134,21 +133,25 @@ class UserFolderDetector {
           );
 
           results.add(userFolder);
-          logger.d('Detected user folder: ${userFolder.name} at ${userFolder.path}');
+          logger.d(
+            'Detected user folder: ${userFolder.name} at ${userFolder.path}',
+          );
         }
       } catch (e) {
         logger.w('Error scanning root directory $root: $e');
       }
     }
 
-    logger.i('User folder detection completed: ${results.length} folders found');
+    logger.i(
+      'User folder detection completed: ${results.length} folders found',
+    );
     return results;
   }
 
   /// 增量检测新文件夹（只检测自上次扫描后新创建的）
   Future<List<UserFolder>> detectNewFolders() async {
     logger.i('Starting incremental new folder detection');
-    
+
     final lastDetectionTime = await _getLastDetectionTime();
     final allFolders = await detectUserFolders();
 
@@ -185,7 +188,7 @@ class UserFolderDetector {
           'parentApp': appConfig.name,
         };
       }
-      
+
       // 检查备选路径
       for (final altPath in appConfig.alternativePaths) {
         if (path.startsWith(altPath) && path != altPath) {
@@ -198,10 +201,7 @@ class UserFolderDetector {
     }
 
     // 否则就是用户自建目录
-    return {
-      'type': QuickAccessFolderType.userCustom,
-      'parentApp': null,
-    };
+    return {'type': QuickAccessFolderType.userCustom, 'parentApp': null};
   }
 
   /// 判断是否应该排除该路径
@@ -215,11 +215,21 @@ class UserFolderDetector {
 
     // 2. 检查是否是已知的系统目录
     final systemDirs = [
-      'DCIM', 'Pictures', 'Documents', 'Download', 'Downloads',
-      'Music', 'Movies', 'Podcasts', 'Ringtones', 'Alarms',
-      'Notifications', 'Android', 'data',
+      'DCIM',
+      'Pictures',
+      'Documents',
+      'Download',
+      'Downloads',
+      'Music',
+      'Movies',
+      'Podcasts',
+      'Ringtones',
+      'Alarms',
+      'Notifications',
+      'Android',
+      'data',
     ];
-    
+
     final name = path.split(Platform.pathSeparator).last;
     if (systemDirs.contains(name)) {
       return true;
@@ -250,10 +260,14 @@ class UserFolderDetector {
     // 4. 不是特殊系统目录
     final lowerName = name.toLowerCase();
     final excludeKeywords = [
-      'lost.dir', 'lost+found', 'system',
-      'data', 'obb', 'media',
+      'lost.dir',
+      'lost+found',
+      'system',
+      'data',
+      'obb',
+      'media',
     ];
-    
+
     if (excludeKeywords.any((keyword) => lowerName.contains(keyword))) {
       return false;
     }
@@ -303,14 +317,16 @@ class UserFolderDetector {
 
         final detectionResult = _detectFolderType(path);
 
-        results.add(UserFolder(
-          name: path.split(Platform.pathSeparator).last,
-          path: path,
-          stats: stats,
-          createdAt: await _getCreatedTime(path),
-          type: detectionResult['type'] as QuickAccessFolderType,
-          parentApp: detectionResult['parentApp'] as String?,
-        ));
+        results.add(
+          UserFolder(
+            name: path.split(Platform.pathSeparator).last,
+            path: path,
+            stats: stats,
+            createdAt: await _getCreatedTime(path),
+            type: detectionResult['type'] as QuickAccessFolderType,
+            parentApp: detectionResult['parentApp'] as String?,
+          ),
+        );
       }
     } catch (e) {
       logger.e('Error scanning specific root $rootPath: $e');
@@ -332,11 +348,11 @@ class UserFolderDetector {
   /// 批量验证文件夹
   Future<Map<String, bool>> validateUserFolders(List<String> paths) async {
     final results = <String, bool>{};
-    
+
     for (final path in paths) {
       results[path] = await validateUserFolder(path);
     }
-    
+
     return results;
   }
 
@@ -353,8 +369,8 @@ class UserFolderDetector {
 
     // 查找应用配置
     final appConfig = AppDirConfigs.allApps.firstWhere(
-      (config) => config.path == appPath || 
-                  config.alternativePaths.contains(appPath),
+      (config) =>
+          config.path == appPath || config.alternativePaths.contains(appPath),
       orElse: () => AppDirConfig(name: 'Unknown', path: appPath, priority: 3),
     );
 
@@ -407,14 +423,16 @@ class UserFolderDetector {
 
         // 只添加有足够内容的目录
         if (stats.totalFiles >= 10 || stats.totalSizeMB >= 5.0) {
-          results.add(UserFolder(
-            name: name,
-            path: path,
-            stats: stats,
-            createdAt: await _getCreatedTime(path),
-            type: QuickAccessFolderType.appSubfolder,
-            parentApp: appName,
-          ));
+          results.add(
+            UserFolder(
+              name: name,
+              path: path,
+              stats: stats,
+              createdAt: await _getCreatedTime(path),
+              type: QuickAccessFolderType.appSubfolder,
+              parentApp: appName,
+            ),
+          );
         }
 
         // 继续递归
@@ -496,7 +514,7 @@ class UserFolderDetector {
   Future<Map<String, dynamic>> getDetectionStatistics() async {
     final lastDetectionTime = await _getLastDetectionTime();
     final detectedPaths = await _getDetectedFolderPaths();
-    
+
     return {
       'lastDetectionTime': lastDetectionTime?.toIso8601String(),
       'detectedFoldersCount': detectedPaths.length,

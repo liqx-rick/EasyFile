@@ -42,8 +42,10 @@ class FileItem {
     // 如果还是空的，从路径中提取
     if (name.isEmpty) {
       final pathParts = entity.path.split(Platform.pathSeparator);
-      name = pathParts.lastWhere((part) => part.isNotEmpty,
-          orElse: () => 'Unknown');
+      name = pathParts.lastWhere(
+        (part) => part.isNotEmpty,
+        orElse: () => 'Unknown',
+      );
     }
 
     return FileItem(

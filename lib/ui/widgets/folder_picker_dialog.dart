@@ -50,13 +50,16 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
       final entities = dir
           .listSync()
           .whereType<Directory>()
-          .where((entity) =>
-              !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
+          .where(
+            (entity) =>
+                !entity.path.split(Platform.pathSeparator).last.startsWith('.'),
+          )
           .toList();
 
       final folders = entities.map((e) => FileItem.fromEntity(e)).toList();
-      folders
-          .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      folders.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
 
       setState(() {
         _folders = folders;
@@ -131,30 +134,31 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _folders.isEmpty
-                      ? const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.folder_open,
-                                  size: 48, color: Colors.grey),
-                              SizedBox(height: 8),
-                              Text('此文件夹中没有子文件夹'),
-                            ],
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.folder_open, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('此文件夹中没有子文件夹'),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _folders.length,
+                      itemBuilder: (context, index) {
+                        final folder = _folders[index];
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.folder,
+                            color: Colors.amber,
                           ),
-                        )
-                      : ListView.builder(
-                          itemCount: _folders.length,
-                          itemBuilder: (context, index) {
-                            final folder = _folders[index];
-                            return ListTile(
-                              leading:
-                                  const Icon(Icons.folder, color: Colors.amber),
-                              title: Text(folder.name),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => _navigateToFolder(folder.path),
-                            );
-                          },
-                        ),
+                          title: Text(folder.name),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _navigateToFolder(folder.path),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

@@ -9,7 +9,7 @@ import '../../core/logger.dart';
 /// 启动页界面
 class SplashPage extends StatefulWidget {
   final VoidCallback? onComplete;
-  
+
   const SplashPage({super.key, this.onComplete});
 
   @override
@@ -37,13 +37,9 @@ class _SplashPageState extends State<SplashPage>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
 
     // 延迟一帧后开始初始化，确保页面已经构建完成
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -57,7 +53,7 @@ class _SplashPageState extends State<SplashPage>
   Future<void> _startInitialization() async {
     try {
       _hasInitialized = true; // 标记已开始初始化
-      
+
       // 开始logo淡入动画
       _animationController.forward();
 
@@ -98,10 +94,7 @@ class _SplashPageState extends State<SplashPage>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              theme.colorScheme.surface,
-              theme.colorScheme.surface,
-            ],
+            colors: [theme.colorScheme.surface, theme.colorScheme.surface],
           ),
         ),
         child: Consumer<SplashViewModel>(
@@ -127,10 +120,7 @@ class _SplashPageState extends State<SplashPage>
                 ),
 
                 // 状态信息区域
-                Expanded(
-                  flex: 1,
-                  child: _buildStatusSection(viewModel, theme),
-                ),
+                Expanded(flex: 1, child: _buildStatusSection(viewModel, theme)),
 
                 // 底部版权信息
                 Padding(
@@ -192,11 +182,7 @@ class _SplashPageState extends State<SplashPage>
             ),
           )
         else
-          Icon(
-            Icons.check_circle,
-            size: 24,
-            color: Colors.green,
-          ),
+          Icon(Icons.check_circle, size: 24, color: Colors.green),
 
         const SizedBox(height: 16),
 

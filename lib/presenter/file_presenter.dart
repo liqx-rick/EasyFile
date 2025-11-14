@@ -41,7 +41,8 @@ class FilePresenter {
   }
   Future<void> loadFiles(String path, {bool isRootNavigation = false}) async {
     logger.i(
-        'FilePresenter.loadFiles called with path: $path, isRootNavigation: $isRootNavigation');
+      'FilePresenter.loadFiles called with path: $path, isRootNavigation: $isRootNavigation',
+    );
     viewModel.setLoading(true);
     logger.d('Setting current path: $path');
     viewModel.setCurrentPath(path);
@@ -67,7 +68,8 @@ class FilePresenter {
     viewModel.setFiles(files);
     viewModel.setLoading(false);
     logger.d(
-        'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}');
+      'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}',
+    );
   }
 
   Future<void> navigateToFolder(String folderPath) async {
@@ -100,7 +102,8 @@ class FilePresenter {
         await loadFiles(parentPath);
       } else {
         logger.w(
-            'Already at root directory or invalid parent path. Current: $currentPath, Parent: $parentPath');
+          'Already at root directory or invalid parent path. Current: $currentPath, Parent: $parentPath',
+        );
       }
     } else {
       logger.w('Current path is empty, cannot navigate up');
@@ -115,10 +118,10 @@ class FilePresenter {
 
     final files = await repository.searchFiles(viewModel.currentPath, query);
     logger.i('Search completed: ${files.length} results found');
-    
+
     // 保存搜索历史
     await searchHistorySource.addSearchRecord(query, resultCount: files.length);
-    
+
     viewModel.setFiles(files);
     viewModel.setLoading(false);
   }
@@ -144,9 +147,11 @@ class FilePresenter {
 
   /// 批量删除文件
   Future<Map<String, bool>> batchDeleteFiles(List<String> filePaths) async {
-    logger.i('FilePresenter.batchDeleteFiles called for ${filePaths.length} files');
+    logger.i(
+      'FilePresenter.batchDeleteFiles called for ${filePaths.length} files',
+    );
     final results = <String, bool>{};
-    
+
     for (final filePath in filePaths) {
       try {
         final file = File(filePath);
@@ -174,16 +179,19 @@ class FilePresenter {
         results[filePath] = false;
       }
     }
-    
+
     final successCount = results.values.where((v) => v).length;
-    logger.i('Batch delete completed: $successCount/${filePaths.length} files deleted');
-    
+    logger.i(
+      'Batch delete completed: $successCount/${filePaths.length} files deleted',
+    );
+
     return results;
   }
 
   Future<bool> copyFile(FileItem file, String destinationPath) async {
     logger.i(
-        'FilePresenter.copyFile called from ${file.path} to $destinationPath');
+      'FilePresenter.copyFile called from ${file.path} to $destinationPath',
+    );
     final success = await repository.copyFile(file, destinationPath);
     if (success) {
       logger.i('File copied successfully, refreshing list');
@@ -196,7 +204,8 @@ class FilePresenter {
 
   Future<bool> moveFile(FileItem file, String destinationPath) async {
     logger.i(
-        'FilePresenter.moveFile called from ${file.path} to $destinationPath');
+      'FilePresenter.moveFile called from ${file.path} to $destinationPath',
+    );
     final success = await repository.moveFile(file, destinationPath);
     if (success) {
       logger.i('File moved successfully, refreshing list');
@@ -208,10 +217,15 @@ class FilePresenter {
   }
 
   /// 批量移动文件
-  Future<Map<String, bool>> batchMoveFiles(List<String> filePaths, String destinationPath) async {
-    logger.i('FilePresenter.batchMoveFiles called for ${filePaths.length} files to $destinationPath');
+  Future<Map<String, bool>> batchMoveFiles(
+    List<String> filePaths,
+    String destinationPath,
+  ) async {
+    logger.i(
+      'FilePresenter.batchMoveFiles called for ${filePaths.length} files to $destinationPath',
+    );
     final results = <String, bool>{};
-    
+
     // 验证目标路径是否存在
     final destDir = Directory(destinationPath);
     if (!destDir.existsSync()) {
@@ -221,7 +235,7 @@ class FilePresenter {
       }
       return results;
     }
-    
+
     for (final filePath in filePaths) {
       try {
         final file = File(filePath);
@@ -229,7 +243,7 @@ class FilePresenter {
           final fileName = path.basename(filePath);
           // 构造完整的目标路径（目录路径 + 文件名）
           final fullDestinationPath = path.join(destinationPath, fileName);
-          
+
           final fileItem = FileItem(
             name: fileName,
             path: filePath,
@@ -237,7 +251,10 @@ class FilePresenter {
             modified: file.lastModifiedSync(),
             isDirectory: false,
           );
-          final success = await repository.moveFile(fileItem, fullDestinationPath);
+          final success = await repository.moveFile(
+            fileItem,
+            fullDestinationPath,
+          );
           results[filePath] = success;
           if (success) {
             logger.d('Moved file: $filePath to $fullDestinationPath');
@@ -253,19 +270,23 @@ class FilePresenter {
         results[filePath] = false;
       }
     }
-    
+
     final successCount = results.values.where((v) => v).length;
-    logger.i('Batch move completed: $successCount/${filePaths.length} files moved');
-    
+    logger.i(
+      'Batch move completed: $successCount/${filePaths.length} files moved',
+    );
+
     return results;
   }
 
   /// 批量分享文件
   Future<bool> batchShareFiles(List<String> filePaths) async {
-    logger.i('FilePresenter.batchShareFiles called for ${filePaths.length} files');
-    
+    logger.i(
+      'FilePresenter.batchShareFiles called for ${filePaths.length} files',
+    );
+
     const platform = MethodChannel('com.example.easyfile/share');
-    
+
     try {
       // 过滤出存在的文件
       final existingFilePaths = <String>[];
@@ -278,17 +299,17 @@ class FilePresenter {
           logger.w('File not found, skipping: $filePath');
         }
       }
-      
+
       if (existingFilePaths.isEmpty) {
         logger.w('No valid files to share');
         return false;
       }
-      
+
       // 使用原生方法分享文件
       await platform.invokeMethod('shareMultipleFiles', {
         'filePaths': existingFilePaths,
       });
-      
+
       logger.i('Share completed for ${existingFilePaths.length} files');
       return true;
     } catch (e) {
@@ -338,7 +359,8 @@ class FilePresenter {
   /// 初始化默认收藏夹
   Future<void> _initializeDefaultFavorites() async {
     logger.i(
-        'Initializing default favorites for platform: ${Platform.operatingSystem}');
+      'Initializing default favorites for platform: ${Platform.operatingSystem}',
+    );
 
     try {
       List<Map<String, String>> defaultPaths = [];
@@ -348,27 +370,27 @@ class FilePresenter {
           {
             'name': 'DCIM',
             'path': '/storage/emulated/0/DCIM',
-            'icon': 'pictures'
+            'icon': 'pictures',
           },
           {
             'name': 'Pictures',
             'path': '/storage/emulated/0/Pictures',
-            'icon': 'pictures'
+            'icon': 'pictures',
           },
           {
             'name': 'Documents',
             'path': '/storage/emulated/0/Documents',
-            'icon': 'documents'
+            'icon': 'documents',
           },
           {
             'name': 'Music',
             'path': '/storage/emulated/0/Music',
-            'icon': 'music'
+            'icon': 'music',
           },
           {
             'name': 'Movies',
             'path': '/storage/emulated/0/Movies',
-            'icon': 'videos'
+            'icon': 'videos',
           },
         ];
       } else if (Platform.isWindows) {
@@ -378,23 +400,23 @@ class FilePresenter {
             {
               'name': 'Downloads',
               'path': '$userProfile\\Downloads',
-              'icon': 'download'
+              'icon': 'download',
             },
             {
               'name': 'Documents',
               'path': '$userProfile\\Documents',
-              'icon': 'documents'
+              'icon': 'documents',
             },
             {
               'name': 'Pictures',
               'path': '$userProfile\\Pictures',
-              'icon': 'pictures'
+              'icon': 'pictures',
             },
             {'name': 'Music', 'path': '$userProfile\\Music', 'icon': 'music'},
             {
               'name': 'Videos',
               'path': '$userProfile\\Videos',
-              'icon': 'videos'
+              'icon': 'videos',
             },
           ];
         }
@@ -406,12 +428,12 @@ class FilePresenter {
             {
               'name': 'Documents',
               'path': '$home/Documents',
-              'icon': 'documents'
+              'icon': 'documents',
             },
             {
               'name': 'Downloads',
               'path': '$home/Downloads',
-              'icon': 'download'
+              'icon': 'download',
             },
             {'name': 'Pictures', 'path': '$home/Pictures', 'icon': 'pictures'},
             {'name': 'Music', 'path': '$home/Music', 'icon': 'music'},
@@ -488,8 +510,9 @@ class FilePresenter {
 
   /// 更新收藏夹
   Future<bool> updateFavorite(FavoriteItem updatedFavorite) async {
-    logger
-        .i('FilePresenter.updateFavorite called for: ${updatedFavorite.name}');
+    logger.i(
+      'FilePresenter.updateFavorite called for: ${updatedFavorite.name}',
+    );
     try {
       final success = await favoritesSource.updateFavorite(updatedFavorite);
       if (success) {
@@ -536,8 +559,9 @@ class FilePresenter {
       viewModel.setRootPath(''); // 设置根路径为空
       viewModel.setIsRecentFilesMode(true); // 设置为最近文件模式
 
-      logger
-          .d('Loaded ${fileItems.length} recent files (folders filtered out)');
+      logger.d(
+        'Loaded ${fileItems.length} recent files (folders filtered out)',
+      );
     } catch (e) {
       logger.e('Error loading recent files: $e');
       viewModel.setFiles([]);
@@ -653,11 +677,11 @@ class FilePresenter {
     logger.i('FilePresenter.loadFavoriteFiles called');
     try {
       viewModel.setLoading(true);
-      
+
       // 从本地数据源加载收藏文件列表
       final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
       viewModel.setFavoriteFiles(favoriteFiles);
-      
+
       // 将收藏文件转换为FileItem列表以便在UI中显示
       final fileItems = <FileItem>[];
       for (final favoriteFile in favoriteFiles) {
@@ -673,16 +697,20 @@ class FilePresenter {
             );
             fileItems.add(fileItem);
           } else {
-            logger.w('Favorite file no longer exists: ${favoriteFile.filePath}');
+            logger.w(
+              'Favorite file no longer exists: ${favoriteFile.filePath}',
+            );
           }
         } catch (e) {
-          logger.w('Error processing favorite file ${favoriteFile.filePath}: $e');
+          logger.w(
+            'Error processing favorite file ${favoriteFile.filePath}: $e',
+          );
         }
       }
-      
+
       viewModel.setFiles(fileItems);
       viewModel.setLoading(false);
-      
+
       logger.i('Loaded ${fileItems.length} favorite files for display');
     } catch (e) {
       logger.e('Error loading favorite files: $e');
@@ -695,7 +723,7 @@ class FilePresenter {
     logger.i('FilePresenter.toggleFavoriteFile called for: ${file.path}');
     try {
       final isFavorite = viewModel.isFavoriteFile(file.path);
-      
+
       if (isFavorite) {
         // 取消收藏
         final success = await favoriteFilesSource.removeFavoriteFile(file.path);
@@ -717,7 +745,7 @@ class FilePresenter {
           return true;
         }
       }
-      
+
       return isFavorite;
     } catch (e) {
       logger.e('Error toggling favorite file: $e');
@@ -730,7 +758,7 @@ class FilePresenter {
     logger.d('Updating favorite file access: $filePath');
     try {
       await favoriteFilesSource.updateFileAccess(filePath);
-      
+
       // 重新加载收藏列表以更新UI
       final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
       viewModel.setFavoriteFiles(favoriteFiles);
@@ -798,8 +826,9 @@ class FilePresenter {
       // 按修改时间排序（最新的在前）
       result.sort((a, b) => b.modified.compareTo(a.modified));
 
-      logger
-          .i('Found ${result.length} files for category ${categoryInfo.name}');
+      logger.i(
+        'Found ${result.length} files for category ${categoryInfo.name}',
+      );
       return result;
     } catch (e) {
       logger.e('Error scanning files by category $categoryType: $e');
@@ -836,10 +865,7 @@ class FilePresenter {
       if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
         if (userProfile != null) {
-          paths.addAll([
-            '$userProfile\\Downloads',
-            '$userProfile\\Desktop',
-          ]);
+          paths.addAll(['$userProfile\\Downloads', '$userProfile\\Desktop']);
         }
       } else if (Platform.isAndroid) {
         paths.addAll([
@@ -851,10 +877,7 @@ class FilePresenter {
       } else {
         final home = Platform.environment['HOME'];
         if (home != null) {
-          paths.addAll([
-            '$home/Downloads',
-            '$home/Desktop',
-          ]);
+          paths.addAll(['$home/Downloads', '$home/Desktop']);
         }
       }
     } catch (e) {
@@ -932,7 +955,9 @@ class FilePresenter {
 
   /// 在指定路径中扫描分类文件
   Future<List<FileItem>> _scanCategoryInPath(
-      String path, CategoryInfo categoryInfo) async {
+    String path,
+    CategoryInfo categoryInfo,
+  ) async {
     final files = <FileItem>[];
 
     try {
@@ -980,7 +1005,12 @@ class FilePresenter {
           } else if (entity is Directory) {
             // 递归扫描子目录
             await _scanDirectory(
-                entity, categoryInfo, files, currentDepth + 1, maxDepth);
+              entity,
+              categoryInfo,
+              files,
+              currentDepth + 1,
+              maxDepth,
+            );
           }
         } catch (e) {
           // 忽略单个文件的错误，继续扫描

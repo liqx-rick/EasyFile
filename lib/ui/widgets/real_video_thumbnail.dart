@@ -6,7 +6,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 
 /// 视频真实缩略图组件
-/// 
+///
 /// 从视频文件生成真实的第一帧缩略图
 /// 支持缓存机制，避免重复生成
 class RealVideoThumbnail extends StatefulWidget {
@@ -106,10 +106,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade700,
-            Colors.blue.shade500,
-          ],
+          colors: [Colors.blue.shade700, Colors.blue.shade500],
         ),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -134,10 +131,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade700,
-            Colors.blue.shade500,
-          ],
+          colors: [Colors.blue.shade700, Colors.blue.shade500],
         ),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -182,10 +176,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.4),
-                  ],
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
                 ),
               ),
             ),

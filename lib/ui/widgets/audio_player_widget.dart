@@ -4,7 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 音频播放器组件
-/// 
+///
 /// 使用 audioplayers 实现音频播放功能
 /// 支持播放控制、进度条、循环播放等功能
 class AudioPlayerWidget extends StatefulWidget {
@@ -41,11 +41,13 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Future<void> _initializePlayer() async {
     try {
       logger.d('Initializing audio player for: ${widget.audioPath}');
-      
+
       _audioPlayer = AudioPlayer();
 
       // 监听播放状态
-      _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((state) {
+      _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((
+        state,
+      ) {
         if (mounted) {
           setState(() {
             _isPlaying = state == PlayerState.playing;
@@ -75,7 +77,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       await _audioPlayer.setSourceDeviceFile(widget.audioPath);
 
       logger.d('Audio player initialized successfully');
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -126,9 +128,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
   void _showError(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -137,7 +139,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
@@ -230,7 +232,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // 文件名
               Text(
                 widget.fileName,
@@ -244,7 +246,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 48),
-              
+
               // 进度条
               Column(
                 children: [
@@ -258,8 +260,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     ),
                     child: Slider(
                       value: _position.inSeconds.toDouble(),
-                      max: _duration.inSeconds.toDouble() > 0 
-                          ? _duration.inSeconds.toDouble() 
+                      max: _duration.inSeconds.toDouble() > 0
+                          ? _duration.inSeconds.toDouble()
                           : 1.0,
                       onChanged: (value) {
                         _seek(Duration(seconds: value.toInt()));
@@ -285,7 +287,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 ],
               ),
               const SizedBox(height: 32),
-              
+
               // 控制按钮
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -298,7 +300,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     onPressed: _stop,
                   ),
                   const SizedBox(width: 24),
-                  
+
                   // 播放/暂停按钮
                   Container(
                     decoration: BoxDecoration(
@@ -313,14 +315,15 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     ),
                   ),
                   const SizedBox(width: 24),
-                  
+
                   // 快进按钮
                   IconButton(
                     icon: const Icon(Icons.forward_10),
                     iconSize: 40,
                     color: Colors.white,
                     onPressed: () {
-                      final newPosition = _position + const Duration(seconds: 10);
+                      final newPosition =
+                          _position + const Duration(seconds: 10);
                       if (newPosition < _duration) {
                         _seek(newPosition);
                       } else {

@@ -1,12 +1,5 @@
 /// 文件类型枚举
-enum FileType {
-  image,
-  video,
-  audio,
-  document,
-  archive,
-  other,
-}
+enum FileType { image, video, audio, document, archive, other }
 
 /// 文件夹统计信息
 ///
@@ -59,17 +52,17 @@ class FolderStats {
   /// 主要文件类型（数量最多的类型）
   FileType? get primaryFileType {
     if (fileTypeCounts.isEmpty) return null;
-    
+
     var maxCount = 0;
     FileType? primaryType;
-    
+
     fileTypeCounts.forEach((type, count) {
       if (count > maxCount) {
         maxCount = count;
         primaryType = type;
       }
     });
-    
+
     return primaryType;
   }
 
@@ -81,26 +74,24 @@ class FolderStats {
   }
 
   /// 是否主要包含图片
-  bool get isPrimarilyImages => 
-      imageCount > 0 && imageCount > totalFiles * 0.7;
+  bool get isPrimarilyImages => imageCount > 0 && imageCount > totalFiles * 0.7;
 
   /// 是否主要包含视频
-  bool get isPrimarilyVideos => 
-      videoCount > 0 && videoCount > totalFiles * 0.7;
+  bool get isPrimarilyVideos => videoCount > 0 && videoCount > totalFiles * 0.7;
 
   /// 是否主要包含音频
-  bool get isPrimarilyAudio => 
-      audioCount > 0 && audioCount > totalFiles * 0.7;
+  bool get isPrimarilyAudio => audioCount > 0 && audioCount > totalFiles * 0.7;
 
   /// 是否主要包含文档
-  bool get isPrimarilyDocuments => 
+  bool get isPrimarilyDocuments =>
       documentCount > 0 && documentCount > totalFiles * 0.7;
 
   /// 从 JSON 创建
   factory FolderStats.fromJson(Map<String, dynamic> json) {
-    final typeCountsJson = json['fileTypeCounts'] as Map<String, dynamic>? ?? {};
+    final typeCountsJson =
+        json['fileTypeCounts'] as Map<String, dynamic>? ?? {};
     final fileTypeCounts = <FileType, int>{};
-    
+
     typeCountsJson.forEach((key, value) {
       try {
         final type = FileType.values.firstWhere(

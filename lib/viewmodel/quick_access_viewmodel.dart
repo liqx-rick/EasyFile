@@ -15,12 +15,14 @@ class QuickAccessViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   /// 获取系统目录
-  List<QuickAccessFolder> get systemFolders =>
-      _folders.where((f) => f.type == QuickAccessFolderType.system && !f.isHidden).toList();
+  List<QuickAccessFolder> get systemFolders => _folders
+      .where((f) => f.type == QuickAccessFolderType.system && !f.isHidden)
+      .toList();
 
   /// 获取应用根目录
-  List<QuickAccessFolder> get appRootFolders =>
-      _folders.where((f) => f.type == QuickAccessFolderType.appRoot && !f.isHidden).toList();
+  List<QuickAccessFolder> get appRootFolders => _folders
+      .where((f) => f.type == QuickAccessFolderType.appRoot && !f.isHidden)
+      .toList();
 
   /// 获取应用子目录
   List<QuickAccessFolder> get appSubfolders => _folders
@@ -28,8 +30,9 @@ class QuickAccessViewModel extends ChangeNotifier {
       .toList();
 
   /// 获取用户自定义目录
-  List<QuickAccessFolder> get userCustomFolders =>
-      _folders.where((f) => f.type == QuickAccessFolderType.userCustom && !f.isHidden).toList();
+  List<QuickAccessFolder> get userCustomFolders => _folders
+      .where((f) => f.type == QuickAccessFolderType.userCustom && !f.isHidden)
+      .toList();
 
   /// 获取置顶的文件夹
   List<QuickAccessFolder> get pinnedFolders =>

@@ -188,16 +188,8 @@ class AppDirConfigs {
       path: '/storage/emulated/0/Discord',
       priority: 2,
     ),
-    AppDirConfig(
-      name: 'Viber',
-      path: '/storage/emulated/0/Viber',
-      priority: 2,
-    ),
-    AppDirConfig(
-      name: 'Line',
-      path: '/storage/emulated/0/Line',
-      priority: 2,
-    ),
+    AppDirConfig(name: 'Viber', path: '/storage/emulated/0/Viber', priority: 2),
+    AppDirConfig(name: 'Line', path: '/storage/emulated/0/Line', priority: 2),
     AppDirConfig(
       name: '微博',
       path: '/storage/emulated/0/weibo',
@@ -287,11 +279,7 @@ class AppDirConfigs {
   /// Tier 3 - 低优先级应用（用户触发）
   static const List<AppDirConfig> tier3Apps = [
     // 办公协作
-    AppDirConfig(
-      name: 'Slack',
-      path: '/storage/emulated/0/Slack',
-      priority: 3,
-    ),
+    AppDirConfig(name: 'Slack', path: '/storage/emulated/0/Slack', priority: 3),
     AppDirConfig(
       name: 'Notion',
       path: '/storage/emulated/0/Notion',
@@ -306,16 +294,8 @@ class AppDirConfigs {
     ),
 
     // 电商购物
-    AppDirConfig(
-      name: '淘宝',
-      path: '/storage/emulated/0/taobao',
-      priority: 3,
-    ),
-    AppDirConfig(
-      name: '京东',
-      path: '/storage/emulated/0/jd',
-      priority: 3,
-    ),
+    AppDirConfig(name: '淘宝', path: '/storage/emulated/0/taobao', priority: 3),
+    AppDirConfig(name: '京东', path: '/storage/emulated/0/jd', priority: 3),
     AppDirConfig(
       name: '拼多多',
       path: '/storage/emulated/0/pinduoduo',
@@ -343,26 +323,10 @@ class AppDirConfigs {
     ),
 
     // 其他
-    AppDirConfig(
-      name: 'Zoom',
-      path: '/storage/emulated/0/Zoom',
-      priority: 3,
-    ),
-    AppDirConfig(
-      name: '支付宝',
-      path: '/storage/emulated/0/alipay',
-      priority: 3,
-    ),
-    AppDirConfig(
-      name: '美团',
-      path: '/storage/emulated/0/meituan',
-      priority: 3,
-    ),
-    AppDirConfig(
-      name: '高德地图',
-      path: '/storage/emulated/0/amap',
-      priority: 3,
-    ),
+    AppDirConfig(name: 'Zoom', path: '/storage/emulated/0/Zoom', priority: 3),
+    AppDirConfig(name: '支付宝', path: '/storage/emulated/0/alipay', priority: 3),
+    AppDirConfig(name: '美团', path: '/storage/emulated/0/meituan', priority: 3),
+    AppDirConfig(name: '高德地图', path: '/storage/emulated/0/amap', priority: 3),
     AppDirConfig(
       name: '网易云音乐',
       path: '/storage/emulated/0/netease/cloudmusic',
@@ -379,10 +343,10 @@ class AppDirConfigs {
 
   /// 获取所有应用配置
   static List<AppDirConfig> get allApps => [
-        ...tier1Apps,
-        ...tier2Apps,
-        ...tier3Apps,
-      ];
+    ...tier1Apps,
+    ...tier2Apps,
+    ...tier3Apps,
+  ];
 
   /// 根据优先级获取应用配置
   static List<AppDirConfig> getAppsByPriority(int priority) {
@@ -394,7 +358,7 @@ class AppDirConfigs {
 
   /// 获取中高优先级应用
   static List<AppDirConfig> get mediumHighPriorityApps => [
-        ...tier1Apps,
-        ...tier2Apps,
-      ];
+    ...tier1Apps,
+    ...tier2Apps,
+  ];
 }

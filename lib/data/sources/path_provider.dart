@@ -91,7 +91,7 @@ class PathProviderService {
           'Desktop',
           'Documents',
           'Downloads',
-          'Pictures'
+          'Pictures',
         ];
         for (final folder in desktopFolders) {
           final folderPath = '$home${Platform.pathSeparator}$folder';

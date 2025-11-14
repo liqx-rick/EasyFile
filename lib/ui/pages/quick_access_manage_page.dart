@@ -26,13 +26,13 @@ class QuickAccessManagePage extends StatefulWidget {
 class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   // 应用目录展开状态
   final Map<String, bool> _expandedAppFolders = {};
-  
+
   // 是否处于编辑模式
   bool _isEditMode = false;
-  
+
   // 是否处于首页排序编辑模式
   bool _isEditingHomeOrder = false;
-  
+
   // 选中的文件夹ID集合
   final Set<String> _selectedIds = {};
 
@@ -71,7 +71,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           .toList();
       final hasNotAdded = selectedFolders.any((f) => !f.isAddedToQuickAccess);
       final hasAdded = selectedFolders.any((f) => f.isAddedToQuickAccess);
-      
+
       return AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -191,10 +191,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         children: [
           // 扫描提示（如果正在扫描）
           if (widget.viewModel.isScanning) _buildScanningIndicator(),
-          
+
           // 首页展示区域
           _buildHomeDisplaySection(),
-          
+
           // 系统目录部分
           _buildSection(
             title: '系统目录',
@@ -202,10 +202,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             folders: widget.viewModel.systemFolders,
             color: Colors.blue,
           ),
-          
+
           // 应用目录部分（带树状结构）
           _buildAppSection(),
-          
+
           // 用户自定义部分
           _buildSection(
             title: '用户自定义',
@@ -237,10 +237,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           SizedBox(width: 12),
           Text(
             '正在扫描目录...',
-            style: TextStyle(
-              color: Colors.blue,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -249,10 +246,16 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
   /// 构建首页展示区域
   Widget _buildHomeDisplaySection() {
-    final homeFolders = widget.viewModel.folders
-        .where((f) => f.isOnHomePage)
-        .toList()
-      ..sort((a, b) => (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999));
+    // 获取用户定制的首页文件夹（homeDisplayOrder 不为 null）
+    final userCustomizedFolders =
+        widget.viewModel.folders
+            .where((f) => f.homeDisplayOrder != null)
+            .toList()
+          ..sort(
+            (a, b) => (a.homeDisplayOrder ?? 999).compareTo(
+              b.homeDisplayOrder ?? 999,
+            ),
+          );
 
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 16, 10, 8),
@@ -265,14 +268,14 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               const Icon(Icons.star, color: Colors.amber, size: 20),
               const SizedBox(width: 8),
               Text(
-                '首页展示 (${homeFolders.length}/6)',
+                '首页展示 (${userCustomizedFolders.length}/7)',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
-              if (homeFolders.isNotEmpty)
+              if (userCustomizedFolders.isNotEmpty)
                 TextButton.icon(
                   onPressed: () {
                     setState(() {
@@ -285,14 +288,14 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // 卡片列表或空状态
-          if (homeFolders.isEmpty)
+          if (userCustomizedFolders.isEmpty)
             _buildEmptyHomeDisplay()
           else
             _isEditingHomeOrder
-                ? _buildHomeDisplayReorderable(homeFolders)
-                : _buildHomeDisplayCards(homeFolders),
+                ? _buildHomeDisplayReorderable(userCustomizedFolders)
+                : _buildHomeDisplayCards(userCustomizedFolders),
         ],
       ),
     );
@@ -309,15 +312,24 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.star_border, size: 48, color: Colors.grey[400]),
+            Icon(Icons.lightbulb_outline, size: 48, color: Colors.amber[400]),
+            const SizedBox(height: 12),
+            Text(
+              '未定制首页推荐',
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
-              '暂无首页展示项',
-              style: TextStyle(color: Colors.grey[600]),
+              '首页当前显示随机系统目录',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
             const SizedBox(height: 4),
             Text(
-              '在下方列表中选择项目加入首页',
+              '从下方列表选择项目加入首页，定制您的专属推荐',
               style: TextStyle(fontSize: 12, color: Colors.grey[500]),
             ),
           ],
@@ -326,27 +338,59 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     );
   }
 
-  /// 非编辑模式：横向滚动卡片
+  /// 非编辑模式：横向均匀分布卡片
   Widget _buildHomeDisplayCards(List<QuickAccessFolder> folders) {
-    return SizedBox(
-      height: 62,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: folders.length,
-        itemBuilder: (context, index) {
-          final folder = folders[index];
-          return _buildHomeCard(folder, index);
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = 20.0; // 两侧padding
+        final minSpacing = 2.0;
+        final maxSpacing = 12.0;
+
+        // 预留7个位置（即使当前文件夹数量不足7个）
+        final totalPositions = 7;
+
+        // 计算可用空间（减去两侧padding）
+        final availableWidth = constraints.maxWidth - (horizontalPadding * 2);
+
+        // 计算间距总宽度：6个间距（7个卡片之间）
+        final spacingCount = totalPositions - 1;
+        final totalSpacing = minSpacing * spacingCount;
+
+        // 计算卡片大小：(可用宽度 - 间距总宽度) / 7
+        final cardSize = ((availableWidth - totalSpacing) / totalPositions)
+            .clamp(40.0, 80.0);
+
+        // 重新计算实际间距
+        final actualTotalSpacing = availableWidth - (cardSize * totalPositions);
+        final spacing = (actualTotalSpacing / spacingCount).clamp(
+          minSpacing,
+          maxSpacing,
+        );
+
+        return SizedBox(
+          height: cardSize,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                for (int i = 0; i < folders.length; i++) ...[
+                  _buildHomeCard(folders[i], i, cardSize),
+                  if (i < folders.length - 1) SizedBox(width: spacing),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   /// 单个首页卡片
-  Widget _buildHomeCard(QuickAccessFolder folder, int index) {
+  Widget _buildHomeCard(QuickAccessFolder folder, int index, double cardSize) {
     return Container(
-      width: 64,
-      height: 64,
-      margin: EdgeInsets.only(right: index == 5 ? 0 : 2),
+      width: cardSize,
+      height: cardSize,
       child: Card(
         elevation: 2,
         child: InkWell(
@@ -363,19 +407,19 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                   children: [
                     Icon(
                       _getFolderIcon(folder),
-                      size: 24,
+                      size: cardSize * 0.35,
                       color: _getFolderColor(folder.type),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: cardSize * 0.03),
                     SizedBox(
-                      width: 60,
+                      width: cardSize - 4,
                       child: Text(
                         folder.displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 10,
+                        style: TextStyle(
+                          fontSize: (cardSize * 0.16).clamp(9.0, 12.0),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -389,7 +433,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 right: 2,
                 child: InkWell(
                   onTap: () async {
-                    final success = await widget.presenter.setHomeDisplayOrder(folder.id, null);
+                    final success = await widget.presenter.setHomeDisplayOrder(
+                      folder.id,
+                      null,
+                    );
                     if (mounted) {
                       _showSnackBar(success ? '已移出首页' : '操作失败');
                     }
@@ -425,7 +472,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         if (oldIndex < newIndex) {
           newIndex -= 1;
         }
-        
+
         // 更新顺序
         final orderMap = <String, int?>{};
         for (int i = 0; i < folders.length; i++) {
@@ -447,21 +494,32 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           }
           orderMap[folders[i].id] = newOrder;
         }
-        
+
         await widget.presenter.updateHomeDisplayOrders(orderMap);
       },
       itemBuilder: (context, index) {
         final folder = folders[index];
-        return _buildHomeReorderableItem(folder, index, key: ValueKey(folder.id));
+        return _buildHomeReorderableItem(
+          folder,
+          index,
+          key: ValueKey(folder.id),
+        );
       },
     );
   }
 
   /// 可拖拽的首页项
-  Widget _buildHomeReorderableItem(QuickAccessFolder folder, int index, {required Key key}) {
+  Widget _buildHomeReorderableItem(
+    QuickAccessFolder folder,
+    int index, {
+    required Key key,
+  }) {
     return ListTile(
       key: key,
-      leading: Icon(_getFolderIcon(folder), color: _getFolderColor(folder.type)),
+      leading: Icon(
+        _getFolderIcon(folder),
+        color: _getFolderColor(folder.type),
+      ),
       title: Text(folder.displayName),
       subtitle: Text(folder.path, style: const TextStyle(fontSize: 11)),
       trailing: Row(
@@ -470,7 +528,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           IconButton(
             icon: const Icon(Icons.close, color: Colors.red),
             onPressed: () async {
-              final success = await widget.presenter.setHomeDisplayOrder(folder.id, null);
+              final success = await widget.presenter.setHomeDisplayOrder(
+                folder.id,
+                null,
+              );
               if (mounted) {
                 _showSnackBar(success ? '已移出首页' : '操作失败');
               }
@@ -518,26 +579,16 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.folder_off,
-                  size: 64,
-                  color: Colors.grey,
-                ),
+                const Icon(Icons.folder_off, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
                 const Text(
                   '暂无快速访问目录',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   '点击右下角按钮开始扫描',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
@@ -684,14 +735,16 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               : null,
         ),
         if (isExpanded && subfolders.isNotEmpty)
-          ...subfolders.map((subfolder) => Padding(
-                padding: const EdgeInsets.only(left: 32),
-                child: _buildFolderTile(
-                  subfolder,
-                  Colors.orange.withValues(alpha: 0.7),
-                  isSubfolder: true,
-                ),
-              )),
+          ...subfolders.map(
+            (subfolder) => Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: _buildFolderTile(
+                subfolder,
+                Colors.orange.withValues(alpha: 0.7),
+                isSubfolder: true,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -737,7 +790,11 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               text: TextSpan(
                 style: TextStyle(
                   fontWeight: isSubfolder ? FontWeight.normal : FontWeight.w500,
-                  color: exists ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black) : Colors.grey,
+                  color: exists
+                      ? (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black)
+                      : Colors.grey,
                   decoration: exists ? null : TextDecoration.lineThrough,
                   fontSize: 16,
                 ),
@@ -783,7 +840,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       ),
       subtitle: Padding(
         padding: EdgeInsets.only(
-          left: (!_isEditMode || !canSelect) ? 36 : 0, // 图标宽度(24) + 右边距(12) = 36
+          left: (!_isEditMode || !canSelect)
+              ? 36
+              : 0, // 图标宽度(24) + 右边距(12) = 36
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -791,10 +850,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           children: [
             Text(
               folder.path,
-              style: const TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
+              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -803,10 +859,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 padding: const EdgeInsets.only(top: 2),
                 child: const Text(
                   '目录不存在',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.red,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.red),
                 ),
               ),
           ],
@@ -835,7 +888,12 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   }
 
   /// 构建文件夹图标（包含状态指示）
-  Widget _buildFolderIcon(QuickAccessFolder folder, bool isSubfolder, bool exists, Color color) {
+  Widget _buildFolderIcon(
+    QuickAccessFolder folder,
+    bool isSubfolder,
+    bool exists,
+    Color color,
+  ) {
     // 子文件夹使用箭头图标
     if (isSubfolder) {
       return Icon(
@@ -861,11 +919,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         height: 24,
         child: Stack(
           children: [
-            Icon(
-              Icons.folder,
-              color: exists ? color : Colors.grey,
-              size: 24,
-            ),
+            Icon(Icons.folder, color: exists ? color : Colors.grey, size: 24),
             Positioned(
               right: 0,
               bottom: 0,
@@ -888,17 +942,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     }
 
     // 未加入：普通文件夹
-    return Icon(
-      Icons.folder,
-      color: exists ? color : Colors.grey,
-      size: 24,
-    );
+    return Icon(Icons.folder, color: exists ? color : Colors.grey, size: 24);
   }
 
   Widget _buildFolderActions(QuickAccessFolder folder) {
     final isOnHomePage = folder.isOnHomePage;
     final isAdded = folder.isAddedToQuickAccess;
-    
+
     return PopupMenuButton<String>(
       onSelected: (value) => _handleFolderAction(value, folder),
       itemBuilder: (context) {
@@ -906,63 +956,75 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
         // 首页展示操作 - 所有项目都可以加入首页展示
         if (isOnHomePage) {
-          items.add(const PopupMenuItem(
-            value: 'remove_from_home',
-            child: ListTile(
-              dense: true,
-              leading: Icon(Icons.star_border),
-              title: Text('移出首页展示'),
+          items.add(
+            const PopupMenuItem(
+              value: 'remove_from_home',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.star_border),
+                title: Text('移出首页展示'),
+              ),
             ),
-          ));
+          );
         } else {
-          items.add(const PopupMenuItem(
-            value: 'add_to_home',
-            child: ListTile(
-              dense: true,
-              leading: Icon(Icons.star),
-              title: Text('加入首页展示'),
+          items.add(
+            const PopupMenuItem(
+              value: 'add_to_home',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.star),
+                title: Text('加入首页展示'),
+              ),
             ),
-          ));
+          );
         }
 
         // 别名编辑
-        items.add(const PopupMenuItem(
-          value: 'alias',
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.edit),
-            title: Text('编辑别名'),
+        items.add(
+          const PopupMenuItem(
+            value: 'alias',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.edit),
+              title: Text('编辑别名'),
+            ),
           ),
-        ));
+        );
 
         // 快速访问操作
         items.add(const PopupMenuDivider());
         if (isAdded) {
-          items.add(const PopupMenuItem(
-            value: 'remove_from_qa',
-            child: ListTile(
-              dense: true,
-              leading: Icon(Icons.remove_circle_outline),
-              title: Text('移出快速访问'),
+          items.add(
+            const PopupMenuItem(
+              value: 'remove_from_qa',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.remove_circle_outline),
+                title: Text('移出快速访问'),
+              ),
             ),
-          ));
+          );
         } else {
-          items.add(const PopupMenuItem(
-            value: 'add_to_qa',
-            child: ListTile(
-              dense: true,
-              leading: Icon(Icons.add_circle_outline, color: Colors.green),
-              title: Text('加入快速访问', style: TextStyle(color: Colors.green)),
+          items.add(
+            const PopupMenuItem(
+              value: 'add_to_qa',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.add_circle_outline, color: Colors.green),
+                title: Text('加入快速访问', style: TextStyle(color: Colors.green)),
+              ),
             ),
-          ));
-          items.add(const PopupMenuItem(
-            value: 'hide',
-            child: ListTile(
-              dense: true,
-              leading: Icon(Icons.visibility_off, color: Colors.orange),
-              title: Text('忽略此项', style: TextStyle(color: Colors.orange)),
+          );
+          items.add(
+            const PopupMenuItem(
+              value: 'hide',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.visibility_off, color: Colors.orange),
+                title: Text('忽略此项', style: TextStyle(color: Colors.orange)),
+              ),
             ),
-          ));
+          );
         }
 
         return items;
@@ -1015,14 +1077,20 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     }
   }
 
-  Future<void> _handleFolderAction(String action, QuickAccessFolder folder) async {
+  Future<void> _handleFolderAction(
+    String action,
+    QuickAccessFolder folder,
+  ) async {
     switch (action) {
       case 'add_to_home':
         await _handleAddToHome(folder);
         break;
 
       case 'remove_from_home':
-        final success = await widget.presenter.setHomeDisplayOrder(folder.id, null);
+        final success = await widget.presenter.setHomeDisplayOrder(
+          folder.id,
+          null,
+        );
         if (mounted) {
           _showSnackBar(success ? '已移出首页展示' : '操作失败');
         }
@@ -1049,19 +1117,22 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     }
   }
 
-  /// 处理加入首页（检查6项限制）
+  /// 处理加入首页（检查7项限制）
   Future<void> _handleAddToHome(QuickAccessFolder folder) async {
     final homeFolders = await widget.presenter.getHomeFolders();
-    
-    if (homeFolders.length >= 6) {
-      // 已满6项，需要替换
+
+    if (homeFolders.length >= 7) {
+      // 已满7项，需要替换
       if (mounted) {
         _showReplaceHomeItemDialog(folder, homeFolders);
       }
     } else {
-      // 未满6项，直接添加
+      // 未满7项，直接添加
       final order = homeFolders.length;
-      final success = await widget.presenter.setHomeDisplayOrder(folder.id, order);
+      final success = await widget.presenter.setHomeDisplayOrder(
+        folder.id,
+        order,
+      );
       if (mounted) {
         _showSnackBar(success ? '已加入首页展示' : '操作失败');
       }
@@ -1079,25 +1150,44 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           children: [
             Text('扫描完成！'),
             const SizedBox(height: 12),
-            
+
             // 分类统计
             if (result.totalFound > 0) ...[
-              Text('发现目录分类：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(
+                '发现目录分类：',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               const SizedBox(height: 8),
               if (result.systemCount > 0)
-                _buildResultRow('  系统目录', result.systemCount, color: Colors.blue),
+                _buildResultRow(
+                  '  系统目录',
+                  result.systemCount,
+                  color: Colors.blue,
+                ),
               if (result.appRootCount > 0)
-                _buildResultRow('  应用根目录', result.appRootCount, color: Colors.orange),
+                _buildResultRow(
+                  '  应用根目录',
+                  result.appRootCount,
+                  color: Colors.orange,
+                ),
               if (result.appSubCount > 0)
-                _buildResultRow('  应用子目录', result.appSubCount, color: Colors.orange.shade300),
+                _buildResultRow(
+                  '  应用子目录',
+                  result.appSubCount,
+                  color: Colors.orange.shade300,
+                ),
               if (result.userCustomCount > 0)
-                _buildResultRow('  用户自建', result.userCustomCount, color: Colors.green),
+                _buildResultRow(
+                  '  用户自建',
+                  result.userCustomCount,
+                  color: Colors.green,
+                ),
               const Divider(height: 20),
             ],
-            
+
             // 总计
             _buildResultRow('发现总计', result.totalFound, highlight: true),
-            
+
             // 操作结果
             if (result.newlyAdded > 0)
               _buildResultRow('新增目录', result.newlyAdded, color: Colors.green),
@@ -1117,9 +1207,15 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     );
   }
 
-  Widget _buildResultRow(String label, int count, {bool highlight = false, Color? color}) {
-    final displayColor = color ?? (highlight ? Theme.of(context).colorScheme.primary : null);
-    
+  Widget _buildResultRow(
+    String label,
+    int count, {
+    bool highlight = false,
+    Color? color,
+  }) {
+    final displayColor =
+        color ?? (highlight ? Theme.of(context).colorScheme.primary : null);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1149,7 +1245,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     // 初始值：如果有userAlias用userAlias，否则用recommendedAlias，都没有就空
     final initialValue = folder.userAlias ?? folder.recommendedAlias ?? '';
     final controller = TextEditingController(text: initialValue);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1164,10 +1260,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '系统推荐: ${folder.recommendedAlias}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ),
             const SizedBox(height: 16),
@@ -1221,12 +1314,12 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     final selectedFolders = widget.viewModel.folders
         .where((f) => _selectedIds.contains(f.id) && !f.isAddedToQuickAccess)
         .toList();
-    
+
     if (selectedFolders.isEmpty) {
       _showSnackBar('选中的目录已全部加入快速访问');
       return;
     }
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1241,7 +1334,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             onPressed: () async {
               int successCount = 0;
               for (final folder in selectedFolders) {
-                final success = await widget.presenter.addToQuickAccess(folder.id);
+                final success = await widget.presenter.addToQuickAccess(
+                  folder.id,
+                );
                 if (success) successCount++;
               }
               if (mounted) {
@@ -1253,9 +1348,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 _showSnackBar('已加入 $successCount 个目录');
               }
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.green,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
             child: const Text('加入'),
           ),
         ],
@@ -1268,17 +1361,19 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     final selectedFolders = widget.viewModel.folders
         .where((f) => _selectedIds.contains(f.id) && f.isAddedToQuickAccess)
         .toList();
-    
+
     if (selectedFolders.isEmpty) {
       _showSnackBar('选中的目录未加入快速访问');
       return;
     }
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('批量移出快速访问'),
-        content: Text('确定要将选中的 ${selectedFolders.length} 个目录移出快速访问吗？\n\n不会删除实际文件，稍后可以重新加入。'),
+        content: Text(
+          '确定要将选中的 ${selectedFolders.length} 个目录移出快速访问吗？\n\n不会删除实际文件，稍后可以重新加入。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1298,9 +1393,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 _showSnackBar('已移出 $count 个目录');
               }
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('移出'),
           ),
         ],
@@ -1309,9 +1402,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// 移出快速访问确认对话框
@@ -1320,7 +1413,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('移出快速访问'),
-        content: Text('确定要将"${folder.displayName}"移出快速访问吗？\n\n不会删除实际文件，稍后可以重新加入。'),
+        content: Text(
+          '确定要将"${folder.displayName}"移出快速访问吗？\n\n不会删除实际文件，稍后可以重新加入。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1328,7 +1423,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
           FilledButton(
             onPressed: () async {
-              final success = await widget.presenter.removeFromQuickAccess(folder.id);
+              final success = await widget.presenter.removeFromQuickAccess(
+                folder.id,
+              );
               if (mounted) {
                 Navigator.of(context).pop();
                 _showSnackBar(success ? '已移出快速访问' : '操作失败');
@@ -1347,7 +1444,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('忽略此项'),
-        content: Text('确定要忽略"${folder.displayName}"吗？\n\n该项将不再显示在列表中，可通过深度扫描重新发现。'),
+        content: Text(
+          '确定要忽略"${folder.displayName}"吗？\n\n该项将不再显示在列表中，可通过深度扫描重新发现。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1361,9 +1460,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 _showSnackBar(success ? '已忽略' : '操作失败');
               }
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('忽略'),
           ),
         ],
@@ -1393,16 +1490,21 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('首页最多显示6项，请选择要替换的项目：'),
+                  const Text('首页最多显示7项，请选择要替换的项目：'),
                   const SizedBox(height: 16),
-                  ...currentHomeFolders.map((folder) => RadioListTile<String>(
-                    dense: true,
-                    value: folder.id,
-                    groupValue: selectedId,
-                    onChanged: (value) => setState(() => selectedId = value),
-                    title: Text(folder.displayName),
-                    subtitle: Text(folder.path, style: const TextStyle(fontSize: 12)),
-                  )),
+                  ...currentHomeFolders.map(
+                    (folder) => RadioListTile<String>(
+                      dense: true,
+                      value: folder.id,
+                      groupValue: selectedId,
+                      onChanged: (value) => setState(() => selectedId = value),
+                      title: Text(folder.displayName),
+                      subtitle: Text(
+                        folder.path,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1419,7 +1521,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                       // 移除选中的项，添加新项
                       final orderMap = <String, int?>{};
                       orderMap[selectedId!] = null; // 移除
-                      
+
                       // 重新分配顺序
                       int order = 0;
                       for (final folder in currentHomeFolders) {
@@ -1429,7 +1531,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                       }
                       orderMap[newFolder.id] = order; // 添加新项
 
-                      final success = await widget.presenter.updateHomeDisplayOrders(orderMap);
+                      final success = await widget.presenter
+                          .updateHomeDisplayOrders(orderMap);
                       if (mounted) {
                         Navigator.of(context).pop();
                         _showSnackBar(success ? '已替换并加入首页' : '操作失败');

@@ -19,7 +19,7 @@ class FolderAnalyzer {
   }) async {
     try {
       final dir = Directory(path);
-      
+
       if (!dir.existsSync()) {
         logger.w('Folder does not exist: $path');
         return FolderStats.empty();
@@ -38,18 +38,18 @@ class FolderAnalyzer {
         includeHidden: includeHidden,
         onFile: (file) {
           totalFiles++;
-          
+
           // 统计文件大小
           try {
             totalSizeBytes += file.lengthSync();
           } catch (e) {
             logger.w('Failed to get file size: ${file.path}');
           }
-          
+
           // 统计文件类型
           final fileType = _detectFileType(file.path);
           fileTypeCounts[fileType] = (fileTypeCounts[fileType] ?? 0) + 1;
-          
+
           // 记录最新修改时间
           try {
             final modified = file.lastModifiedSync();
@@ -62,7 +62,7 @@ class FolderAnalyzer {
         },
         onDirectory: (directory) {
           totalFolders++;
-          
+
           // 记录目录的最新修改时间
           try {
             final modified = directory.statSync().modified;
@@ -70,7 +70,9 @@ class FolderAnalyzer {
               latestModified = modified;
             }
           } catch (e) {
-            logger.w('Failed to get directory modification time: ${directory.path}');
+            logger.w(
+              'Failed to get directory modification time: ${directory.path}',
+            );
           }
         },
       );
@@ -112,7 +114,7 @@ class FolderAnalyzer {
           onFile(entity);
         } else if (entity is Directory) {
           onDirectory(entity);
-          
+
           // 递归扫描子目录
           if (currentDepth < maxDepth) {
             await _scanDirectory(
@@ -134,40 +136,52 @@ class FolderAnalyzer {
   /// 检测文件类型
   FileType _detectFileType(String filePath) {
     final extension = filePath.split('.').last.toLowerCase();
-    
+
     // 图片
     if (_isImageExtension(extension)) {
       return FileType.image;
     }
-    
+
     // 视频
     if (_isVideoExtension(extension)) {
       return FileType.video;
     }
-    
+
     // 音频
     if (_isAudioExtension(extension)) {
       return FileType.audio;
     }
-    
+
     // 文档
     if (_isDocumentExtension(extension)) {
       return FileType.document;
     }
-    
+
     // 压缩包
     if (_isArchiveExtension(extension)) {
       return FileType.archive;
     }
-    
+
     return FileType.other;
   }
 
   /// 判断是否是图片扩展名
   bool _isImageExtension(String ext) {
     const imageExts = [
-      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
-      'ico', 'tiff', 'tif', 'heic', 'heif', 'raw', 'cr2',
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+      'heic',
+      'heif',
+      'raw',
+      'cr2',
     ];
     return imageExts.contains(ext);
   }
@@ -175,8 +189,20 @@ class FolderAnalyzer {
   /// 判断是否是视频扩展名
   bool _isVideoExtension(String ext) {
     const videoExts = [
-      'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm',
-      'm4v', 'mpg', 'mpeg', '3gp', 'ts', 'vob', 'ogv',
+      'mp4',
+      'avi',
+      'mov',
+      'wmv',
+      'flv',
+      'mkv',
+      'webm',
+      'm4v',
+      'mpg',
+      'mpeg',
+      '3gp',
+      'ts',
+      'vob',
+      'ogv',
     ];
     return videoExts.contains(ext);
   }
@@ -184,8 +210,19 @@ class FolderAnalyzer {
   /// 判断是否是音频扩展名
   bool _isAudioExtension(String ext) {
     const audioExts = [
-      'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a',
-      'opus', 'ape', 'alac', 'aiff', 'mid', 'midi',
+      'mp3',
+      'wav',
+      'flac',
+      'aac',
+      'ogg',
+      'wma',
+      'm4a',
+      'opus',
+      'ape',
+      'alac',
+      'aiff',
+      'mid',
+      'midi',
     ];
     return audioExts.contains(ext);
   }
@@ -193,9 +230,25 @@ class FolderAnalyzer {
   /// 判断是否是文档扩展名
   bool _isDocumentExtension(String ext) {
     const docExts = [
-      'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-      'txt', 'rtf', 'odt', 'ods', 'odp', 'pages', 'numbers',
-      'keynote', 'csv', 'md', 'epub', 'mobi',
+      'pdf',
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'ppt',
+      'pptx',
+      'txt',
+      'rtf',
+      'odt',
+      'ods',
+      'odp',
+      'pages',
+      'numbers',
+      'keynote',
+      'csv',
+      'md',
+      'epub',
+      'mobi',
     ];
     return docExts.contains(ext);
   }
@@ -203,8 +256,18 @@ class FolderAnalyzer {
   /// 判断是否是压缩包扩展名
   bool _isArchiveExtension(String ext) {
     const archiveExts = [
-      'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz',
-      'iso', 'dmg', 'apk', 'jar', 'war',
+      'zip',
+      'rar',
+      '7z',
+      'tar',
+      'gz',
+      'bz2',
+      'xz',
+      'iso',
+      'dmg',
+      'apk',
+      'jar',
+      'war',
     ];
     return archiveExts.contains(ext);
   }
@@ -237,11 +300,17 @@ class FolderAnalyzer {
   bool isTempOrCacheFolder(String path) {
     final name = path.split(Platform.pathSeparator).last.toLowerCase();
     const tempKeywords = [
-      'cache', 'temp', 'tmp', 'temporary',
-      '.cache', '.temp', '.tmp',
-      'thumbnails', '.thumbnails',
+      'cache',
+      'temp',
+      'tmp',
+      'temporary',
+      '.cache',
+      '.temp',
+      '.tmp',
+      'thumbnails',
+      '.thumbnails',
     ];
-    
+
     return tempKeywords.any((keyword) => name.contains(keyword));
   }
 
@@ -252,7 +321,7 @@ class FolderAnalyzer {
     bool includeHidden = false,
   }) async {
     final results = <String, FolderStats>{};
-    
+
     for (final path in paths) {
       final stats = await analyzeFolderStats(
         path,
@@ -261,7 +330,7 @@ class FolderAnalyzer {
       );
       results[path] = stats;
     }
-    
+
     return results;
   }
 }

@@ -16,8 +16,10 @@ class AppLogger {
 
   /// Initialize the logger and open the log file. Call early in main().
   /// Optionally pass a [minLevel] to override the default level.
-  Future<void> init(
-      {String filename = 'easyfile.log', LogLevel? minLevel}) async {
+  Future<void> init({
+    String filename = 'easyfile.log',
+    LogLevel? minLevel,
+  }) async {
     try {
       if (minLevel != null) {
         _minLevel = minLevel;

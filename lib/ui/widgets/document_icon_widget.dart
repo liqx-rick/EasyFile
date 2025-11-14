@@ -6,11 +6,7 @@ class DocumentIconWidget extends StatelessWidget {
   final String fileName;
   final double size;
 
-  const DocumentIconWidget({
-    super.key,
-    required this.fileName,
-    this.size = 48,
-  });
+  const DocumentIconWidget({super.key, required this.fileName, this.size = 48});
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +21,7 @@ class DocumentIconWidget extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            color,
-            color.withOpacity(0.7),
-          ],
+          colors: [color, color.withOpacity(0.7)],
         ),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
@@ -42,11 +35,7 @@ class DocumentIconWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            iconData,
-            color: Colors.white,
-            size: size * 0.45,
-          ),
+          Icon(iconData, color: Colors.white, size: size * 0.45),
           if (label.isNotEmpty) ...[
             SizedBox(height: size * 0.05),
             Text(
@@ -145,10 +134,7 @@ class DocumentIconWidgetRounded extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            color,
-            color.withOpacity(0.7),
-          ],
+          colors: [color, color.withOpacity(0.7)],
         ),
         borderRadius: BorderRadius.circular(size * 0.15),
         boxShadow: [
@@ -159,11 +145,7 @@ class DocumentIconWidgetRounded extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(
-        iconData,
-        color: Colors.white,
-        size: size * 0.6,
-      ),
+      child: Icon(iconData, color: Colors.white, size: size * 0.6),
     );
   }
 

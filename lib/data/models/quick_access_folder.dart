@@ -8,13 +8,13 @@ const Object _undefined = Object();
 enum QuickAccessFolderType {
   /// 系统预定义目录（Downloads, Documents等）
   system,
-  
+
   /// 应用根目录（自动扫描）
   appRoot,
-  
+
   /// 应用子目录（用户手动pin，归属到父应用）
   appSubfolder,
-  
+
   /// 用户自建目录
   userCustom,
 }
@@ -138,8 +138,10 @@ class QuickAccessFolder {
           : null,
       accessCount: (json['accessCount'] as int?) ?? 0,
       pinned: (json['pinned'] as bool?) ?? false, // 保留用于迁移
-      isAddedToQuickAccess: (json['isAddedToQuickAccess'] as bool?) ?? 
-          (json['pinned'] as bool?) ?? true, // 迁移：旧数据默认已加入
+      isAddedToQuickAccess:
+          (json['isAddedToQuickAccess'] as bool?) ??
+          (json['pinned'] as bool?) ??
+          true, // 迁移：旧数据默认已加入
       isHidden: (json['isHidden'] as bool?) ?? false,
       homeDisplayOrder: json['homeDisplayOrder'] as int?,
       stats: json['stats'] != null
@@ -223,7 +225,9 @@ class QuickAccessFolder {
       pinned: pinned ?? this.pinned,
       isAddedToQuickAccess: isAddedToQuickAccess ?? this.isAddedToQuickAccess,
       isHidden: isHidden ?? this.isHidden,
-      homeDisplayOrder: homeDisplayOrder == _undefined ? this.homeDisplayOrder : homeDisplayOrder as int?,
+      homeDisplayOrder: homeDisplayOrder == _undefined
+          ? this.homeDisplayOrder
+          : homeDisplayOrder as int?,
       stats: stats ?? this.stats,
       iconName: iconName ?? this.iconName,
     );

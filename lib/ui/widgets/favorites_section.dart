@@ -102,7 +102,8 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       }
     }
 
-    final sorted = [...widget.viewModel.favorites]..sort((a, b) {
+    final sorted = [...widget.viewModel.favorites]
+      ..sort((a, b) {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
@@ -112,10 +113,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 3,
-            child: _buildFavoritesGrid(context, sorted),
-          ),
+          Expanded(flex: 3, child: _buildFavoritesGrid(context, sorted)),
           const SizedBox(width: 12),
           Container(
             width: 1,
@@ -155,10 +153,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         width: 100,
         height: 100,
         decoration: BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest
-              .withOpacity(0.5),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
@@ -174,59 +171,52 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 ),
               )
             : _totalSpace == null || _freeSpace == null
-                ? Center(
+            ? Center(
+                child: Text(
+                  '存储空间',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 10,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                  ),
+                ),
+              )
+            : Stack(
+                children: [
+                  // 底部居中："存储空间"文字（粗体）
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 6,
                     child: Text(
                       '存储空间',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontSize: 10,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withOpacity(0.6),
-                          ),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        height: 1.0,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  )
-                : Stack(
-                    children: [
-                      // 底部居中："存储空间"文字（粗体）
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 6,
-                        child: Text(
-                          '存储空间',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.0,
-                                  ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      // 右上角：已用/总容量
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: Text(
-                          _formatStorageText(),
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontSize: 8,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                    height: 1.0,
-                                  ),
-                          maxLines: 1,
-                        ),
-                      ),
-                      // 中间：圆形进度条
-                      Center(
-                        child: _buildCircularStorageIndicator(context),
-                      ),
-                    ],
                   ),
+                  // 右上角：已用/总容量
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: Text(
+                      _formatStorageText(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontSize: 8,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        height: 1.0,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  // 中间：圆形进度条
+                  Center(child: _buildCircularStorageIndicator(context)),
+                ],
+              ),
       ),
     );
   }
@@ -259,8 +249,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             height: 46,
             child: CircularProgressIndicator(
               value: usagePercent / 100,
-              backgroundColor:
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
               strokeWidth: 4,
             ),
@@ -309,7 +300,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0, vertical: 2.0),
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
                       child: _buildFavoriteCard(context, items[index]),
                     ),
                   );
@@ -317,9 +310,13 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0, vertical: 2.0),
-                      child:
-                          _buildMoreCard(context, items.length - displayCount),
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
+                      child: _buildMoreCard(
+                        context,
+                        items.length - displayCount,
+                      ),
                     ),
                   );
                 } else {
@@ -336,7 +333,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0, vertical: 2.0),
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
                       child: _buildFavoriteCard(context, items[itemIndex]),
                     ),
                   );
@@ -344,9 +343,13 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0, vertical: 2.0),
-                      child:
-                          _buildMoreCard(context, items.length - displayCount),
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
+                      child: _buildMoreCard(
+                        context,
+                        items.length - displayCount,
+                      ),
                     ),
                   );
                 } else {
@@ -389,11 +392,14 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             onTap: () => _onFavoriteTap(favorite, context),
             borderRadius: BorderRadius.circular(12),
             splashColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-            highlightColor:
-                Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            highlightColor: Theme.of(
+              context,
+            ).colorScheme.primary.withOpacity(0.1),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4.0,
+                vertical: 2.0,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -405,14 +411,15 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   Text(
                     favorite.name,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          fontSize: 11,
-                          height: 1.1,
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                        ),
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      fontSize: 11,
+                      height: 1.1,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
@@ -429,10 +436,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
   Widget _buildMoreCard(BuildContext context, int count) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withOpacity(0.5),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
@@ -456,11 +462,11 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               Text(
                 '更多',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 11,
-                      height: 1.1,
-                    ),
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                  height: 1.1,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -510,7 +516,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
   }
 
   Future<void> _checkAndNavigateToFavorite(
-      FavoriteItem favorite, BuildContext context) async {
+    FavoriteItem favorite,
+    BuildContext context,
+  ) async {
     try {
       final directory = Directory(favorite.path);
       if (!directory.existsSync()) {
@@ -519,8 +527,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: const Text('目录不存在'),
-              content:
-                  Text('收藏夹"${favorite.name}"指向的目录已不存在或无法访问。\n\n是否移除此收藏夹？'),
+              content: Text(
+                '收藏夹"${favorite.name}"指向的目录已不存在或无法访问。\n\n是否移除此收藏夹？',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -542,8 +551,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                    content: Text(
-                        success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败')),
+                  content: Text(
+                    success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败',
+                  ),
+                ),
               );
             }
           }
@@ -555,9 +566,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
     } catch (e) {
       logger.e('Error checking favorite directory: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('访问目录"${favorite.name}"时出错')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('访问目录"${favorite.name}"时出错')));
       }
     }
   }
@@ -582,9 +593,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text(success
-                            ? (updated.pinned ? '已置顶' : '已取消置顶')
-                            : '操作失败')),
+                      content: Text(
+                        success ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败',
+                      ),
+                    ),
                   );
                 }
               },
@@ -690,12 +702,14 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               if (newName.isNotEmpty && newName != favorite.name) {
                 Navigator.of(context).pop();
                 final updatedFavorite = favorite.copyWith(name: newName);
-                final success =
-                    await widget.presenter.updateFavorite(updatedFavorite);
+                final success = await widget.presenter.updateFavorite(
+                  updatedFavorite,
+                );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text(success ? '已重命名为"$newName"' : '重命名失败')),
+                      content: Text(success ? '已重命名为"$newName"' : '重命名失败'),
+                    ),
                   );
                 }
               } else {
@@ -723,13 +737,16 @@ class _FavoritesSectionState extends State<FavoritesSection> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              final success =
-                  await widget.presenter.removeFavorite(favorite.id);
+              final success = await widget.presenter.removeFavorite(
+                favorite.id,
+              );
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                      content:
-                          Text(success ? '已移除收藏夹"${favorite.name}"' : '移除失败')),
+                    content: Text(
+                      success ? '已移除收藏夹"${favorite.name}"' : '移除失败',
+                    ),
+                  ),
                 );
               }
             },

@@ -98,18 +98,11 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.history,
-                size: 64,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.history, size: 64, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(
                 '暂无搜索历史',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -130,8 +123,8 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
                 Text(
                   '最近搜索',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _clearAllHistory,
@@ -149,11 +142,7 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
               spacing: 8,
               runSpacing: 8,
               children: _recentSearches.map((item) {
-                return _buildHistoryChip(
-                  context,
-                  item,
-                  showCount: false,
-                );
+                return _buildHistoryChip(context, item, showCount: false);
               }).toList(),
             ),
             const SizedBox(height: 24),
@@ -172,8 +161,8 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
                 Text(
                   '热门搜索',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),

@@ -68,7 +68,20 @@ enum DocumentFileType {
         return ext == 'PDF';
       case DocumentFileType.other:
         // 其他：不属于上述任何类型的文档
-        return !['TXT', 'MD', 'LOG', 'RTF', 'DOC', 'DOCX', 'XLS', 'XLSX', 'CSV', 'PPT', 'PPTX', 'PDF'].contains(ext);
+        return ![
+          'TXT',
+          'MD',
+          'LOG',
+          'RTF',
+          'DOC',
+          'DOCX',
+          'XLS',
+          'XLSX',
+          'CSV',
+          'PPT',
+          'PPTX',
+          'PDF',
+        ].contains(ext);
       default:
         return false;
     }
@@ -117,18 +130,81 @@ enum DownloadFileType {
       case DownloadFileType.archive:
         return ['ZIP', 'RAR', '7Z', 'TAR', 'GZ', 'BZ2', 'XZ'].contains(ext);
       case DownloadFileType.document:
-        return ['PDF', 'DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'TXT', 'MD'].contains(ext);
+        return [
+          'PDF',
+          'DOC',
+          'DOCX',
+          'XLS',
+          'XLSX',
+          'PPT',
+          'PPTX',
+          'TXT',
+          'MD',
+        ].contains(ext);
       case DownloadFileType.image:
-        return ['JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'SVG'].contains(ext);
+        return [
+          'JPG',
+          'JPEG',
+          'PNG',
+          'GIF',
+          'BMP',
+          'WEBP',
+          'SVG',
+        ].contains(ext);
       case DownloadFileType.media:
-        return ['MP3', 'MP4', 'AVI', 'MKV', 'MOV', 'WMV', 'FLV', 'WAV', 'FLAC'].contains(ext);
+        return [
+          'MP3',
+          'MP4',
+          'AVI',
+          'MKV',
+          'MOV',
+          'WMV',
+          'FLV',
+          'WAV',
+          'FLAC',
+        ].contains(ext);
       case DownloadFileType.other:
         // 其他：不属于上述任何类型
-        final allKnownExts = ['APK', 'EXE', 'MSI', 'DMG', 'DEB', 'RPM', 
-                              'ZIP', 'RAR', '7Z', 'TAR', 'GZ', 'BZ2', 'XZ',
-                              'PDF', 'DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'TXT', 'MD',
-                              'JPG', 'JPEG', 'PNG', 'GIF', 'BMP', 'WEBP', 'SVG',
-                              'MP3', 'MP4', 'AVI', 'MKV', 'MOV', 'WMV', 'FLV', 'WAV', 'FLAC'];
+        final allKnownExts = [
+          'APK',
+          'EXE',
+          'MSI',
+          'DMG',
+          'DEB',
+          'RPM',
+          'ZIP',
+          'RAR',
+          '7Z',
+          'TAR',
+          'GZ',
+          'BZ2',
+          'XZ',
+          'PDF',
+          'DOC',
+          'DOCX',
+          'XLS',
+          'XLSX',
+          'PPT',
+          'PPTX',
+          'TXT',
+          'MD',
+          'JPG',
+          'JPEG',
+          'PNG',
+          'GIF',
+          'BMP',
+          'WEBP',
+          'SVG',
+          'MP3',
+          'MP4',
+          'AVI',
+          'MKV',
+          'MOV',
+          'WMV',
+          'FLV',
+          'WAV',
+          'FLAC',
+        ];
         return !allKnownExts.contains(ext);
       default:
         return false;
@@ -161,56 +237,67 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   List<FileItem> _files = [];
   String _errorMessage = '';
   String _loadingProgress = '';
-  
+
   // 视图模式
   bool _isGridView = false;
-  
+
   // 搜索
   bool _isSearchMode = false;
   String _searchQuery = '';
-  
+
   // 分组相关
   bool _groupByDate = false;
-  
+
   // 文件类型筛选
   DocumentFileType _documentTypeFilter = DocumentFileType.all;
   DownloadFileType _downloadTypeFilter = DownloadFileType.all;
-  
+
   // 批量操作相关
   bool _isSelectionMode = false;
   Set<String> _selectedFiles = {}; // 使用Set存储选中文件的路径
-  
+
   // 计算选中文件的总大小
   int get _selectedTotalSize {
     int total = 0;
     for (final path in _selectedFiles) {
-      final file = _files.firstWhere((f) => f.path == path, orElse: () => _files.first);
+      final file = _files.firstWhere(
+        (f) => f.path == path,
+        orElse: () => _files.first,
+      );
       total += file.size;
     }
     return total;
   }
-  
+
   // 过滤后的文件列表（按搜索和文件类型筛选）
   List<FileItem> get _filteredFiles {
     var result = _files;
-    
+
     // 按文件类型筛选
-    if (widget.categoryType == CategoryType.documents && _documentTypeFilter != DocumentFileType.all) {
-      result = result.where((f) => _documentTypeFilter.matches(f.name)).toList();
-    } else if (widget.categoryType == CategoryType.downloads && _downloadTypeFilter != DownloadFileType.all) {
-      result = result.where((f) => _downloadTypeFilter.matches(f.name)).toList();
+    if (widget.categoryType == CategoryType.documents &&
+        _documentTypeFilter != DocumentFileType.all) {
+      result = result
+          .where((f) => _documentTypeFilter.matches(f.name))
+          .toList();
+    } else if (widget.categoryType == CategoryType.downloads &&
+        _downloadTypeFilter != DownloadFileType.all) {
+      result = result
+          .where((f) => _downloadTypeFilter.matches(f.name))
+          .toList();
     }
-    
+
     // 按搜索关键词筛选
     if (_searchQuery.isNotEmpty) {
-      result = result.where((f) => 
-        f.name.toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
+      result = result
+          .where(
+            (f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()),
+          )
+          .toList();
     }
-    
+
     return result;
   }
-  
+
   // 按日期分组的文件列表
   Map<String, List<FileItem>> get _groupedFiles {
     final Map<String, List<FileItem>> groups = {
@@ -220,36 +307,38 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       '本月': [],
       '更早': [],
     };
-    
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
     final thisMonthStart = DateTime(now.year, now.month, 1);
-    
+
     for (final file in _filteredFiles) {
       final fileDate = DateTime(
         file.modified.year,
         file.modified.month,
         file.modified.day,
       );
-      
+
       if (fileDate.isAtSameMomentAs(today)) {
         groups['今天']!.add(file);
       } else if (fileDate.isAtSameMomentAs(yesterday)) {
         groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) || fileDate.isAtSameMomentAs(thisWeekStart)) {
+      } else if (fileDate.isAfter(thisWeekStart) ||
+          fileDate.isAtSameMomentAs(thisWeekStart)) {
         groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) || fileDate.isAtSameMomentAs(thisMonthStart)) {
+      } else if (fileDate.isAfter(thisMonthStart) ||
+          fileDate.isAtSameMomentAs(thisMonthStart)) {
         groups['本月']!.add(file);
       } else {
         groups['更早']!.add(file);
       }
     }
-    
+
     // 移除空分组
     groups.removeWhere((key, value) => value.isEmpty);
-    
+
     return groups;
   }
 
@@ -262,14 +351,14 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     _loadFileTypeFilter();
     _loadCategoryFiles();
   }
-  
+
   /// 加载视图偏好
   Future<void> _loadViewPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = 'category_view_${widget.categoryType.name}';
       final savedView = prefs.getBool(key);
-      
+
       setState(() {
         // 如果有保存的偏好就用保存的，否则根据分类类型自动选择
         if (savedView != null) {
@@ -286,14 +375,14 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       });
     }
   }
-  
+
   /// 加载分组偏好
   Future<void> _loadGroupPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = 'category_group_by_date_${widget.categoryType.name}';
       final savedGroup = prefs.getBool(key) ?? false;
-      
+
       setState(() {
         _groupByDate = savedGroup;
       });
@@ -301,7 +390,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.e('Failed to load group preference: $e');
     }
   }
-  
+
   /// 保存视图偏好
   Future<void> _saveViewPreference() async {
     try {
@@ -312,7 +401,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.e('Failed to save view preference: $e');
     }
   }
-  
+
   /// 保存分组偏好
   Future<void> _saveGroupPreference() async {
     try {
@@ -323,12 +412,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.e('Failed to save group preference: $e');
     }
   }
-  
+
   /// 加载文件类型筛选偏好
   Future<void> _loadFileTypeFilter() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       if (widget.categoryType == CategoryType.documents) {
         final key = 'category_file_type_filter_documents';
         final savedIndex = prefs.getInt(key) ?? 0;
@@ -346,12 +435,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.e('Failed to load file type filter: $e');
     }
   }
-  
+
   /// 保存文件类型筛选偏好
   Future<void> _saveFileTypeFilter() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       if (widget.categoryType == CategoryType.documents) {
         final key = 'category_file_type_filter_documents';
         await prefs.setInt(key, _documentTypeFilter.index);
@@ -363,11 +452,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.e('Failed to save file type filter: $e');
     }
   }
-  
+
   /// 获取默认视图模式（图片和视频默认网格，其他默认列表）
   bool _getDefaultViewMode() {
     return widget.categoryType == CategoryType.images ||
-           widget.categoryType == CategoryType.video;
+        widget.categoryType == CategoryType.video;
   }
 
   /// 从缓存加载文件列表
@@ -376,22 +465,22 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       final prefs = await SharedPreferences.getInstance();
       final key = 'category_cache_${widget.categoryType.name}';
       final cacheJson = prefs.getString(key);
-      
+
       if (cacheJson == null) {
         logger.d('No cache found for ${widget.categoryType.name}');
         return [];
       }
-      
+
       final cacheData = json.decode(cacheJson) as Map<String, dynamic>;
       final timestamp = cacheData['timestamp'] as int;
       final cacheAge = DateTime.now().millisecondsSinceEpoch - timestamp;
-      
+
       // 缓存有效期：24小时（86400000毫秒）
       if (cacheAge > 86400000) {
         logger.d('Cache expired for ${widget.categoryType.name}');
         return [];
       }
-      
+
       final filesData = cacheData['files'] as List<dynamic>;
       final files = filesData.map((fileJson) {
         final map = fileJson as Map<String, dynamic>;
@@ -403,8 +492,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           modified: DateTime.fromMillisecondsSinceEpoch(map['modified'] as int),
         );
       }).toList();
-      
-      logger.i('Loaded ${files.length} files from cache for ${widget.categoryType.name}');
+
+      logger.i(
+        'Loaded ${files.length} files from cache for ${widget.categoryType.name}',
+      );
       return files;
     } catch (e) {
       logger.e('Failed to load cache: $e');
@@ -417,18 +508,22 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = 'category_cache_${widget.categoryType.name}';
-      
+
       final cacheData = {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'categoryType': widget.categoryType.name,
-        'files': files.map((file) => {
-          'name': file.name,
-          'path': file.path,
-          'size': file.size,
-          'modified': file.modified.millisecondsSinceEpoch,
-        }).toList(),
+        'files': files
+            .map(
+              (file) => {
+                'name': file.name,
+                'path': file.path,
+                'size': file.size,
+                'modified': file.modified.millisecondsSinceEpoch,
+              },
+            )
+            .toList(),
       };
-      
+
       await prefs.setString(key, json.encode(cacheData));
       logger.i('Cached ${files.length} files for ${widget.categoryType.name}');
     } catch (e) {
@@ -481,16 +576,17 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     // Step 2: 后台扫描最新数据
     try {
       logger.i('Loading files for category: ${categoryInfo.name}');
-      
+
       // 显示扫描进度
       if (_isLoading) {
         setState(() {
           _loadingProgress = '正在扫描${categoryInfo.name}文件...';
         });
       }
-      
-      final files =
-          await widget.presenter.scanFilesByCategory(widget.categoryType);
+
+      final files = await widget.presenter.scanFilesByCategory(
+        widget.categoryType,
+      );
 
       // Step 3: 更新UI和缓存
       setState(() {
@@ -502,8 +598,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 保存到缓存
       await _saveToCache(files);
 
-      logger
-          .i('Loaded ${files.length} files for category ${categoryInfo.name}');
+      logger.i(
+        'Loaded ${files.length} files for category ${categoryInfo.name}',
+      );
     } catch (e) {
       logger.e('Error loading category files: $e');
       setState(() {
@@ -576,16 +673,25 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                           ),
                           onPressed: () {
                             setState(() {
-                              if (_selectedFiles.length == _filteredFiles.length) {
+                              if (_selectedFiles.length ==
+                                  _filteredFiles.length) {
                                 _selectedFiles.clear();
                               } else {
-                                _selectedFiles = _filteredFiles.map((f) => f.path).toSet();
+                                _selectedFiles = _filteredFiles
+                                    .map((f) => f.path)
+                                    .toSet();
                               }
                             });
                           },
-                          tooltip: _selectedFiles.length == _filteredFiles.length ? '取消全选' : '全选',
+                          tooltip:
+                              _selectedFiles.length == _filteredFiles.length
+                              ? '取消全选'
+                              : '全选',
                           padding: EdgeInsets.zero,
-                          visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
                         ),
                       ]
                     : [
@@ -601,7 +707,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                           },
                           tooltip: '搜索',
                           padding: EdgeInsets.zero,
-                          visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
                         ),
                         // 视图切换按钮
                         IconButton(
@@ -617,7 +726,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                           },
                           tooltip: _isGridView ? '列表视图' : '网格视图',
                           padding: EdgeInsets.zero,
-                          visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
                         ),
                       ],
               ),
@@ -632,14 +744,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               height: _isSearchMode ? 56 : 0,
               child: _isSearchMode
                   ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       child: TextField(
                         autofocus: true,
                         decoration: InputDecoration(
                           hintText: '搜索${categoryInfo.name}...',
                           hintStyle: const TextStyle(fontSize: 14),
-                          prefixIcon: Icon(Icons.search, color: Theme.of(context).primaryColor, size: 20),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.close, size: 20),
                             onPressed: () {
@@ -654,7 +775,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           filled: true,
                           fillColor: Theme.of(context).colorScheme.surface,
                         ),
@@ -673,7 +797,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           ],
         ),
         // 批量操作底部工具栏
-        bottomNavigationBar: _isSelectionMode ? _buildSelectionBottomBar() : null,
+        bottomNavigationBar: _isSelectionMode
+            ? _buildSelectionBottomBar()
+            : null,
       ),
     );
   }
@@ -704,11 +830,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red[300],
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
             const SizedBox(height: 16),
             Text(
               _errorMessage,
@@ -736,33 +858,26 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    categoryInfo.icon,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(categoryInfo.icon, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   Text(
                     '没有找到${categoryInfo.name}文件',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '支持的格式: ${categoryInfo.extensions.take(5).join(', ')}${categoryInfo.extensions.length > 5 ? ' 等' : ''}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[500],
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     '下拉刷新',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[400],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                   ),
                 ],
               ),
@@ -781,11 +896,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           color: categoryInfo.backgroundColor.withOpacity(0.3),
           child: Row(
             children: [
-              Icon(
-                categoryInfo.icon,
-                size: 16,
-                color: categoryInfo.iconColor,
-              ),
+              Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -808,10 +919,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               // 文件大小
               Text(
                 _formatTotalSize(),
-                style: TextStyle(
-                  color: categoryInfo.iconColor,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: categoryInfo.iconColor, fontSize: 12),
               ),
               const SizedBox(width: 8),
               // 分组切换按钮（仅在列表模式下显示）
@@ -866,7 +974,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         ),
 
         // 文件类型筛选标签（仅文档和下载分类显示，搜索模式下隐藏）
-        if (!_isSearchMode && (widget.categoryType == CategoryType.documents || widget.categoryType == CategoryType.downloads))
+        if (!_isSearchMode &&
+            (widget.categoryType == CategoryType.documents ||
+                widget.categoryType == CategoryType.downloads))
           _buildFileTypeChips(),
 
         // 文件列表或网格
@@ -893,7 +1003,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               child: Text(
                 '${_selectedFiles.length} 个文件 · ${_formatSize(_selectedTotalSize)}',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
@@ -908,7 +1018,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 onPressed: _copyFile,
                 tooltip: '复制',
                 padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
               ),
             // 重命名按钮（仅单个文件时显示）
             if (_selectedFiles.length == 1)
@@ -917,7 +1030,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 onPressed: _renameFile,
                 tooltip: '重命名',
                 padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
               ),
             // 分享按钮
             IconButton(
@@ -967,7 +1083,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 调用presenter批量分享
       final filePaths = _selectedFiles.toList();
       final success = await widget.presenter.batchShareFiles(filePaths);
-      
+
       if (mounted) {
         if (success) {
           // 分享成功后退出多选模式
@@ -987,10 +1103,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('分享失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('分享失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1010,9 +1123,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     // 显示文件夹选择对话框
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => _FolderPickerDialog(
-        currentPath: initialPath,
-      ),
+      builder: (context) => _FolderPickerDialog(currentPath: initialPath),
     );
 
     if (destinationPath == null || !mounted) return;
@@ -1044,24 +1155,27 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     try {
       // 调用presenter批量移动
       final filePaths = _selectedFiles.toList();
-      final results = await widget.presenter.batchMoveFiles(filePaths, destinationPath);
-      
+      final results = await widget.presenter.batchMoveFiles(
+        filePaths,
+        destinationPath,
+      );
+
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
-        
+
         // 统计成功和失败的数量
         final successCount = results.values.where((v) => v).length;
         final failCount = results.length - successCount;
-        
+
         // 刷新文件列表
         await _loadCategoryFiles(forceRefresh: true);
-        
+
         // 退出多选模式
         setState(() {
           _isSelectionMode = false;
           _selectedFiles.clear();
         });
-        
+
         // 显示结果提示
         if (failCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1084,10 +1198,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('移动失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1096,7 +1207,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 批量删除
   void _batchDelete() async {
     if (_selectedFiles.isEmpty) return;
-    
+
     // 使用增强的删除确认对话框
     final confirmed = await EnhancedDeleteDialog.showBatchDeleteConfirmation(
       context: context,
@@ -1135,23 +1246,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 调用presenter批量删除
       final filePaths = _selectedFiles.toList();
       final results = await widget.presenter.batchDeleteFiles(filePaths);
-      
+
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
-        
+
         // 统计成功和失败的数量
         final successCount = results.values.where((v) => v).length;
         final failCount = results.length - successCount;
-        
+
         // 刷新文件列表
         await _loadCategoryFiles(forceRefresh: true);
-        
+
         // 退出多选模式
         setState(() {
           _isSelectionMode = false;
           _selectedFiles.clear();
         });
-        
+
         // 显示结果提示
         if (failCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1174,10 +1285,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('删除失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1186,16 +1294,15 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 复制文件（单个文件）
   void _copyFile() async {
     if (_selectedFiles.length != 1) return;
-    
+
     final filePath = _selectedFiles.first;
     final file = _files.firstWhere((f) => f.path == filePath);
-    
+
     // 显示文件夹选择对话框
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => _FolderPickerDialog(
-        currentPath: path.dirname(filePath),
-      ),
+      builder: (context) =>
+          _FolderPickerDialog(currentPath: path.dirname(filePath)),
     );
 
     if (destinationPath == null || !mounted) return;
@@ -1228,20 +1335,20 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 调用presenter复制文件
       final targetPath = path.join(destinationPath, path.basename(filePath));
       final success = await widget.presenter.copyFile(file, targetPath);
-      
+
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
-        
+
         if (success) {
           // 刷新文件列表
           await _loadCategoryFiles(forceRefresh: true);
-          
+
           // 退出多选模式
           setState(() {
             _isSelectionMode = false;
             _selectedFiles.clear();
           });
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('复制成功'),
@@ -1250,10 +1357,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('复制失败'),
-              backgroundColor: Colors.red,
-            ),
+            const SnackBar(content: Text('复制失败'), backgroundColor: Colors.red),
           );
         }
       }
@@ -1261,10 +1365,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('复制失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1273,14 +1374,16 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 重命名文件（单个文件）
   void _renameFile() async {
     if (_selectedFiles.length != 1) return;
-    
+
     final filePath = _selectedFiles.first;
     final file = _files.firstWhere((f) => f.path == filePath);
     final currentName = path.basenameWithoutExtension(filePath);
     final extension = path.extension(filePath);
-    
+
     // 显示重命名对话框
-    final TextEditingController controller = TextEditingController(text: currentName);
+    final TextEditingController controller = TextEditingController(
+      text: currentName,
+    );
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1348,20 +1451,20 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 调用presenter重命名文件
       final newFileName = newName.trim() + extension;
       final success = await widget.presenter.renameFile(file, newFileName);
-      
+
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
-        
+
         if (success) {
           // 刷新文件列表
           await _loadCategoryFiles(forceRefresh: true);
-          
+
           // 退出多选模式
           setState(() {
             _isSelectionMode = false;
             _selectedFiles.clear();
           });
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('重命名成功'),
@@ -1370,10 +1473,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('重命名失败'),
-              backgroundColor: Colors.red,
-            ),
+            const SnackBar(content: Text('重命名失败'), backgroundColor: Colors.red),
           );
         }
       }
@@ -1381,10 +1481,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('重命名失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1421,12 +1518,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         itemBuilder: (context, index) {
           final type = DocumentFileType.values[index];
           final isSelected = _documentTypeFilter == type;
-          
+
           return FilterChip(
-            label: Text(
-              type.label,
-              style: const TextStyle(fontSize: 13),
-            ),
+            label: Text(type.label, style: const TextStyle(fontSize: 14)),
             selected: isSelected,
             showCheckmark: false,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
@@ -1434,10 +1528,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
             selectedColor: categoryInfo.iconColor.withOpacity(0.2),
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
             side: BorderSide(
-              color: isSelected 
-                  ? categoryInfo.iconColor 
+              color: isSelected
+                  ? categoryInfo.iconColor
                   : Theme.of(context).dividerColor,
               width: isSelected ? 1.5 : 1,
             ),
@@ -1476,12 +1572,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         itemBuilder: (context, index) {
           final type = DownloadFileType.values[index];
           final isSelected = _downloadTypeFilter == type;
-          
+
           return FilterChip(
-            label: Text(
-              type.label,
-              style: const TextStyle(fontSize: 13),
-            ),
+            label: Text(type.label, style: const TextStyle(fontSize: 14)),
             selected: isSelected,
             showCheckmark: false,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
@@ -1489,10 +1582,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
             selectedColor: categoryInfo.iconColor.withOpacity(0.2),
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
             side: BorderSide(
-              color: isSelected 
-                  ? categoryInfo.iconColor 
+              color: isSelected
+                  ? categoryInfo.iconColor
                   : Theme.of(context).dividerColor,
               width: isSelected ? 1.5 : 1,
             ),
@@ -1516,14 +1611,14 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     if (_groupByDate) {
       return _buildGroupedListView();
     }
-    
+
     // 否则显示普通列表
     return ListView.builder(
       itemCount: _filteredFiles.length,
       itemBuilder: (context, index) {
         final file = _filteredFiles[index];
         final isSelected = _selectedFiles.contains(file.path);
-        
+
         return InkWell(
           onTap: () {
             if (_isSelectionMode) {
@@ -1566,12 +1661,18 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               // 收藏按钮（始终显示）
               IconButton(
                 icon: Icon(
-                  widget.viewModel.isFavoriteFile(file.path) ? Icons.star : Icons.star_border,
-                  color: widget.viewModel.isFavoriteFile(file.path) ? Colors.amber : Colors.grey,
+                  widget.viewModel.isFavoriteFile(file.path)
+                      ? Icons.star
+                      : Icons.star_border,
+                  color: widget.viewModel.isFavoriteFile(file.path)
+                      ? Colors.amber
+                      : Colors.grey,
                   size: 20,
                 ),
                 onPressed: () async {
-                  final isFavorite = await widget.presenter.toggleFavoriteFile(file);
+                  final isFavorite = await widget.presenter.toggleFavoriteFile(
+                    file,
+                  );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -1581,7 +1682,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     );
                   }
                 },
-                tooltip: widget.viewModel.isFavoriteFile(file.path) ? '取消收藏' : '收藏',
+                tooltip: widget.viewModel.isFavoriteFile(file.path)
+                    ? '取消收藏'
+                    : '收藏',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -1603,7 +1706,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       });
                     },
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                    visualDensity: const VisualDensity(
+                      horizontal: -4,
+                      vertical: -4,
+                    ),
                   ),
                 ),
             ],
@@ -1612,27 +1718,33 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
     );
   }
-  
+
   /// 构建按日期分组的列表视图
   Widget _buildGroupedListView() {
     final groups = _groupedFiles;
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    final existingGroups = groupKeys.where((key) => groups.containsKey(key)).toList();
-    
+    final existingGroups = groupKeys
+        .where((key) => groups.containsKey(key))
+        .toList();
+
     return ListView.builder(
-      itemCount: existingGroups.map((key) => groups[key]!.length + 1).fold<int>(0, (a, b) => a + b),
+      itemCount: existingGroups
+          .map((key) => groups[key]!.length + 1)
+          .fold<int>(0, (a, b) => a + b),
       itemBuilder: (context, index) {
         // 计算当前索引属于哪个分组
         int currentIndex = index;
         for (final groupKey in existingGroups) {
           final groupFiles = groups[groupKey]!;
           final groupItemCount = groupFiles.length + 1; // +1 for header
-          
+
           if (currentIndex == 0) {
             // 分组标题
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
               child: Row(
                 children: [
                   Text(
@@ -1658,7 +1770,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             // 分组中的文件项
             final file = groupFiles[currentIndex - 1];
             final isSelected = _selectedFiles.contains(file.path);
-            
+
             return InkWell(
               onTap: () {
                 if (_isSelectionMode) {
@@ -1701,12 +1813,17 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   // 收藏按钮（始终显示）
                   IconButton(
                     icon: Icon(
-                      widget.viewModel.isFavoriteFile(file.path) ? Icons.star : Icons.star_border,
-                      color: widget.viewModel.isFavoriteFile(file.path) ? Colors.amber : Colors.grey,
+                      widget.viewModel.isFavoriteFile(file.path)
+                          ? Icons.star
+                          : Icons.star_border,
+                      color: widget.viewModel.isFavoriteFile(file.path)
+                          ? Colors.amber
+                          : Colors.grey,
                       size: 20,
                     ),
                     onPressed: () async {
-                      final isFavorite = await widget.presenter.toggleFavoriteFile(file);
+                      final isFavorite = await widget.presenter
+                          .toggleFavoriteFile(file);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -1716,7 +1833,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         );
                       }
                     },
-                    tooltip: widget.viewModel.isFavoriteFile(file.path) ? '取消收藏' : '收藏',
+                    tooltip: widget.viewModel.isFavoriteFile(file.path)
+                        ? '取消收藏'
+                        : '收藏',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -1738,7 +1857,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                           });
                         },
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                        visualDensity: const VisualDensity(
+                          horizontal: -4,
+                          vertical: -4,
+                        ),
                       ),
                     ),
                 ],
@@ -1748,7 +1870,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             currentIndex -= groupItemCount;
           }
         }
-        
+
         return const SizedBox.shrink();
       },
     );
@@ -1808,12 +1930,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected 
+          color: isSelected
               ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected 
+            color: isSelected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).dividerColor,
             width: isSelected ? 2 : 1,
@@ -1823,7 +1945,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           children: [
             // 主内容区域
             Padding(
-              padding: const EdgeInsets.only(top: 28, left: 4, right: 4, bottom: 4),
+              padding: const EdgeInsets.only(
+                top: 28,
+                left: 4,
+                right: 4,
+                bottom: 4,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1832,30 +1959,18 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   Expanded(
                     child: Center(
                       child: isImage
-                          ? ImageThumbnail(
-                              imagePath: file.path,
-                              size: 80,
-                            )
+                          ? ImageThumbnail(imagePath: file.path, size: 80)
                           : isVideo
-                              ? RealVideoThumbnail(
-                                  videoPath: file.path,
-                                  size: 80,
-                                )
-                              : isAudio
-                                  ? AudioCoverWidget(
-                                      audioPath: file.path,
-                                      size: 64,
-                                    )
-                                  : isDocument
-                                      ? DocumentIconWidget(
-                                          fileName: file.name,
-                                          size: 64,
-                                        )
-                                      : Icon(
-                                          Icons.insert_drive_file,
-                                          size: 48,
-                                          color: Colors.grey[400],
-                                        ),
+                          ? RealVideoThumbnail(videoPath: file.path, size: 80)
+                          : isAudio
+                          ? AudioCoverWidget(audioPath: file.path, size: 64)
+                          : isDocument
+                          ? DocumentIconWidget(fileName: file.name, size: 64)
+                          : Icon(
+                              Icons.insert_drive_file,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1864,7 +1979,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
                       file.name,
-                      style: const TextStyle(fontSize: 11),
+                      style: const TextStyle(fontSize: 12),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -1874,10 +1989,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   // 文件大小
                   Text(
                     FileUtils.formatFileSize(file.size),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -1913,7 +2025,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         });
                       },
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                      visualDensity: const VisualDensity(
+                        horizontal: -4,
+                        vertical: -4,
+                      ),
                     ),
                   ),
                 ),
@@ -1924,7 +2039,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               right: 4,
               child: InkWell(
                 onTap: () async {
-                  final newIsFavorite = await widget.presenter.toggleFavoriteFile(file);
+                  final newIsFavorite = await widget.presenter
+                      .toggleFavoriteFile(file);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -1942,7 +2058,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   ),
                   child: Icon(
                     isFavorite ? Icons.star : Icons.star_border,
-                    size: 16,
+                    size: 18,
                     color: isFavorite ? Colors.amber : Colors.grey,
                   ),
                 ),
@@ -2017,9 +2133,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => FilePreviewPage(file: file),
-      ),
+      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
     );
   }
 }
@@ -2028,9 +2142,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 class _FolderPickerDialog extends StatefulWidget {
   final String currentPath;
 
-  const _FolderPickerDialog({
-    required this.currentPath,
-  });
+  const _FolderPickerDialog({required this.currentPath});
 
   @override
   State<_FolderPickerDialog> createState() => _FolderPickerDialogState();
@@ -2044,29 +2156,32 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
   @override
   void initState() {
     super.initState();
-    _currentPath = widget.currentPath.isNotEmpty 
-        ? widget.currentPath 
-        : (Platform.isWindows 
-            ? Platform.environment['USERPROFILE'] ?? 'C:\\'
-            : Platform.environment['HOME'] ?? '/');
+    _currentPath = widget.currentPath.isNotEmpty
+        ? widget.currentPath
+        : (Platform.isWindows
+              ? Platform.environment['USERPROFILE'] ?? 'C:\\'
+              : Platform.environment['HOME'] ?? '/');
     _loadFolders();
   }
 
   Future<void> _loadFolders() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final directory = Directory(_currentPath);
       if (!directory.existsSync()) {
         throw Exception('目录不存在');
       }
 
-      final entities = directory.listSync()
+      final entities = directory
+          .listSync()
           .whereType<Directory>()
           .where((dir) => !path.basename(dir.path).startsWith('.'))
           .toList();
-      
-      entities.sort((a, b) => path.basename(a.path).compareTo(path.basename(b.path)));
+
+      entities.sort(
+        (a, b) => path.basename(a.path).compareTo(path.basename(b.path)),
+      );
 
       setState(() {
         _folders = entities;
@@ -2075,9 +2190,9 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载文件夹失败：$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));
       }
     }
   }
@@ -2089,8 +2204,8 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
 
   void _navigateUp() {
     final parentPath = path.dirname(_currentPath);
-    if (parentPath != _currentPath && 
-        parentPath.isNotEmpty && 
+    if (parentPath != _currentPath &&
+        parentPath.isNotEmpty &&
         parentPath != '.' &&
         !(Platform.isWindows && parentPath.endsWith(':'))) {
       _navigateToFolder(parentPath);
@@ -2123,10 +2238,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
                       const SizedBox(height: 4),
                       Text(
                         _currentPath,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -2140,7 +2252,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
               ],
             ),
             const Divider(),
-            
+
             // 返回上级按钮
             ListTile(
               leading: const Icon(Icons.arrow_upward),
@@ -2148,33 +2260,36 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
               onTap: _navigateUp,
               dense: true,
             ),
-            
+
             const Divider(),
-            
+
             // 文件夹列表
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _folders.isEmpty
-                      ? const Center(child: Text('此目录下没有文件夹'))
-                      : ListView.builder(
-                          itemCount: _folders.length,
-                          itemBuilder: (context, index) {
-                            final folder = _folders[index];
-                            final folderName = path.basename(folder.path);
-                            
-                            return ListTile(
-                              leading: const Icon(Icons.folder, color: Colors.amber),
-                              title: Text(folderName),
-                              onTap: () => _navigateToFolder(folder.path),
-                              dense: true,
-                            );
-                          },
-                        ),
+                  ? const Center(child: Text('此目录下没有文件夹'))
+                  : ListView.builder(
+                      itemCount: _folders.length,
+                      itemBuilder: (context, index) {
+                        final folder = _folders[index];
+                        final folderName = path.basename(folder.path);
+
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.folder,
+                            color: Colors.amber,
+                          ),
+                          title: Text(folderName),
+                          onTap: () => _navigateToFolder(folder.path),
+                          dense: true,
+                        );
+                      },
+                    ),
             ),
-            
+
             const Divider(),
-            
+
             // 底部按钮
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

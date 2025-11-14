@@ -8,11 +8,11 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 
 /// 添加快速访问文件夹的结果
 enum AddFolderResult {
-  added,        // 成功添加新文件夹
-  unhidden,     // 恢复了隐藏的文件夹
-  exists,       // 已存在且未隐藏
+  added, // 成功添加新文件夹
+  unhidden, // 恢复了隐藏的文件夹
+  exists, // 已存在且未隐藏
   skippedHidden, // 跳过隐藏的文件夹（不恢复）
-  error,        // 发生错误
+  error, // 发生错误
 }
 
 /// 快速访问本地数据源
@@ -42,15 +42,17 @@ class QuickAccessLocalSource {
       final jsonList = json.decode(jsonString) as List<dynamic>;
 
       final folders = jsonList
-          .map((json) =>
-              QuickAccessFolder.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => QuickAccessFolder.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
 
       logger.d('Loaded ${folders.length} quick access folders from storage');
       return folders;
     } catch (e, stackTrace) {
       logger.e(
-          'Error loading quick access folders: $e\nStackTrace: $stackTrace');
+        'Error loading quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return [];
     }
   }
@@ -73,23 +75,27 @@ class QuickAccessLocalSource {
       return true;
     } catch (e, stackTrace) {
       logger.e(
-          'Error saving quick access folders: $e\nStackTrace: $stackTrace');
+        'Error saving quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
 
   /// 添加快速访问文件夹
   /// [unhideIfHidden] 如果为true，当文件夹已存在且被隐藏时，会取消隐藏；否则跳过
-  Future<AddFolderResult> addFolderWithResult(QuickAccessFolder folder, {bool unhideIfHidden = true}) async {
+  Future<AddFolderResult> addFolderWithResult(
+    QuickAccessFolder folder, {
+    bool unhideIfHidden = true,
+  }) async {
     try {
       final folders = await getAllFolders();
 
       // 检查是否已存在相同路径的文件夹
       final existingIndex = folders.indexWhere((f) => f.path == folder.path);
-      
+
       if (existingIndex != -1) {
         final existing = folders[existingIndex];
-        
+
         // 如果已存在且被隐藏
         if (existing.isHidden) {
           if (unhideIfHidden) {
@@ -107,7 +113,7 @@ class QuickAccessLocalSource {
             return AddFolderResult.skippedHidden;
           }
         }
-        
+
         // 如果已存在且未隐藏，则跳过
         logger.w('Quick access folder with path ${folder.path} already exists');
         return AddFolderResult.exists;
@@ -126,9 +132,16 @@ class QuickAccessLocalSource {
   /// 添加快速访问文件夹（旧版本，保持兼容性）
   /// [unhideIfHidden] 如果为true，当文件夹已存在且被隐藏时，会取消隐藏；否则跳过
   @Deprecated('Use addFolderWithResult instead')
-  Future<bool> addFolder(QuickAccessFolder folder, {bool unhideIfHidden = true}) async {
-    final result = await addFolderWithResult(folder, unhideIfHidden: unhideIfHidden);
-    return result == AddFolderResult.added || result == AddFolderResult.unhidden;
+  Future<bool> addFolder(
+    QuickAccessFolder folder, {
+    bool unhideIfHidden = true,
+  }) async {
+    final result = await addFolderWithResult(
+      folder,
+      unhideIfHidden: unhideIfHidden,
+    );
+    return result == AddFolderResult.added ||
+        result == AddFolderResult.unhidden;
   }
 
   /// 删除快速访问文件夹
@@ -147,7 +160,8 @@ class QuickAccessLocalSource {
       return await saveFolders(folders);
     } catch (e, stackTrace) {
       logger.e(
-          'Error removing quick access folder: $e\nStackTrace: $stackTrace');
+        'Error removing quick access folder: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -168,7 +182,8 @@ class QuickAccessLocalSource {
       return await saveFolders(folders);
     } catch (e, stackTrace) {
       logger.e(
-          'Error removing multiple quick access folders: $e\nStackTrace: $stackTrace');
+        'Error removing multiple quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -188,7 +203,8 @@ class QuickAccessLocalSource {
       return await saveFolders(folders);
     } catch (e, stackTrace) {
       logger.e(
-          'Error updating quick access folder: $e\nStackTrace: $stackTrace');
+        'Error updating quick access folder: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -208,7 +224,8 @@ class QuickAccessLocalSource {
       return await saveFolders(folders);
     } catch (e, stackTrace) {
       logger.e(
-          'Error updating multiple quick access folders: $e\nStackTrace: $stackTrace');
+        'Error updating multiple quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -232,8 +249,7 @@ class QuickAccessLocalSource {
       folders[index] = updatedFolder;
       return await saveFolders(folders);
     } catch (e, stackTrace) {
-      logger.e(
-          'Error updating access info: $e\nStackTrace: $stackTrace');
+      logger.e('Error updating access info: $e\nStackTrace: $stackTrace');
       return false;
     }
   }
@@ -253,7 +269,7 @@ class QuickAccessLocalSource {
       final updatedFolder = folders[index].copyWith(
         userAlias: alias.isEmpty ? null : alias,
       );
-      
+
       folders[index] = updatedFolder;
       return await saveFolders(folders);
     } catch (e, stackTrace) {
@@ -305,14 +321,16 @@ class QuickAccessLocalSource {
       return await saveFolders(folders);
     } catch (e, stackTrace) {
       logger.e(
-          'Error adding multiple quick access folders: $e\nStackTrace: $stackTrace');
+        'Error adding multiple quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
 
   /// 根据类型获取文件夹
   Future<List<QuickAccessFolder>> getFoldersByType(
-      QuickAccessFolderType type) async {
+    QuickAccessFolderType type,
+  ) async {
     try {
       final folders = await getAllFolders();
       return folders.where((f) => f.type == type).toList();
@@ -335,17 +353,21 @@ class QuickAccessLocalSource {
 
   /// 根据父应用获取子文件夹
   Future<List<QuickAccessFolder>> getFoldersByParentApp(
-      String parentApp) async {
+    String parentApp,
+  ) async {
     try {
       final folders = await getAllFolders();
       return folders
-          .where((f) =>
-              f.type == QuickAccessFolderType.appSubfolder &&
-              f.parentApp == parentApp)
+          .where(
+            (f) =>
+                f.type == QuickAccessFolderType.appSubfolder &&
+                f.parentApp == parentApp,
+          )
           .toList();
     } catch (e, stackTrace) {
       logger.e(
-          'Error getting folders by parent app: $e\nStackTrace: $stackTrace');
+        'Error getting folders by parent app: $e\nStackTrace: $stackTrace',
+      );
       return [];
     }
   }
@@ -375,7 +397,8 @@ class QuickAccessLocalSource {
       return true;
     } catch (e, stackTrace) {
       logger.e(
-          'Error clearing quick access folders: $e\nStackTrace: $stackTrace');
+        'Error clearing quick access folders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -411,7 +434,7 @@ class QuickAccessLocalSource {
     int count = 0;
     try {
       final folders = await getAllFolders();
-      
+
       for (final id in ids) {
         final index = folders.indexWhere((f) => f.id == id);
         if (index != -1) {
@@ -430,7 +453,9 @@ class QuickAccessLocalSource {
       logger.d('Added $count folders to quick access');
       return count;
     } catch (e, stackTrace) {
-      logger.e('Error batch adding to quick access: $e\nStackTrace: $stackTrace');
+      logger.e(
+        'Error batch adding to quick access: $e\nStackTrace: $stackTrace',
+      );
       return count;
     }
   }
@@ -464,7 +489,7 @@ class QuickAccessLocalSource {
     int count = 0;
     try {
       final folders = await getAllFolders();
-      
+
       for (final id in ids) {
         final index = folders.indexWhere((f) => f.id == id);
         if (index != -1) {
@@ -483,7 +508,9 @@ class QuickAccessLocalSource {
       logger.d('Removed $count folders from quick access');
       return count;
     } catch (e, stackTrace) {
-      logger.e('Error batch removing from quick access: $e\nStackTrace: $stackTrace');
+      logger.e(
+        'Error batch removing from quick access: $e\nStackTrace: $stackTrace',
+      );
       return count;
     }
   }
@@ -518,7 +545,7 @@ class QuickAccessLocalSource {
     int count = 0;
     try {
       final folders = await getAllFolders();
-      
+
       for (final id in ids) {
         final index = folders.indexWhere((f) => f.id == id);
         if (index != -1) {
@@ -556,7 +583,9 @@ class QuickAccessLocalSource {
 
       final updatedFolder = folders[index].copyWith(
         homeDisplayOrder: order,
-        isAddedToQuickAccess: order != null ? true : folders[index].isAddedToQuickAccess,
+        isAddedToQuickAccess: order != null
+            ? true
+            : folders[index].isAddedToQuickAccess,
       );
 
       folders[index] = updatedFolder;
@@ -571,20 +600,24 @@ class QuickAccessLocalSource {
   Future<bool> updateHomeDisplayOrders(Map<String, int?> orderMap) async {
     try {
       final folders = await getAllFolders();
-      
+
       for (final entry in orderMap.entries) {
         final index = folders.indexWhere((f) => f.id == entry.key);
         if (index != -1) {
           folders[index] = folders[index].copyWith(
             homeDisplayOrder: entry.value,
-            isAddedToQuickAccess: entry.value != null ? true : folders[index].isAddedToQuickAccess,
+            isAddedToQuickAccess: entry.value != null
+                ? true
+                : folders[index].isAddedToQuickAccess,
           );
         }
       }
 
       return await saveFolders(folders);
     } catch (e, stackTrace) {
-      logger.e('Error updating home display orders: $e\nStackTrace: $stackTrace');
+      logger.e(
+        'Error updating home display orders: $e\nStackTrace: $stackTrace',
+      );
       return false;
     }
   }
@@ -593,11 +626,13 @@ class QuickAccessLocalSource {
   Future<List<QuickAccessFolder>> getHomeFolders() async {
     try {
       final folders = await getAllFolders();
-      final homeFolders = folders
-          .where((f) => f.homeDisplayOrder != null)
-          .toList()
-        ..sort((a, b) => (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999));
-      
+      final homeFolders =
+          folders.where((f) => f.homeDisplayOrder != null).toList()..sort(
+            (a, b) => (a.homeDisplayOrder ?? 999).compareTo(
+              b.homeDisplayOrder ?? 999,
+            ),
+          );
+
       return homeFolders;
     } catch (e, stackTrace) {
       logger.e('Error getting home folders: $e\nStackTrace: $stackTrace');
@@ -609,7 +644,9 @@ class QuickAccessLocalSource {
   Future<List<QuickAccessFolder>> getAddedFolders() async {
     try {
       final folders = await getAllFolders();
-      return folders.where((f) => f.isAddedToQuickAccess && !f.isHidden).toList();
+      return folders
+          .where((f) => f.isAddedToQuickAccess && !f.isHidden)
+          .toList();
     } catch (e, stackTrace) {
       logger.e('Error getting added folders: $e\nStackTrace: $stackTrace');
       return [];
@@ -620,11 +657,14 @@ class QuickAccessLocalSource {
   Future<List<QuickAccessFolder>> getScannedOnlyFolders() async {
     try {
       final folders = await getAllFolders();
-      return folders.where((f) => !f.isAddedToQuickAccess && !f.isHidden).toList();
+      return folders
+          .where((f) => !f.isAddedToQuickAccess && !f.isHidden)
+          .toList();
     } catch (e, stackTrace) {
-      logger.e('Error getting scanned only folders: $e\nStackTrace: $stackTrace');
+      logger.e(
+        'Error getting scanned only folders: $e\nStackTrace: $stackTrace',
+      );
       return [];
     }
   }
 }
-

@@ -77,13 +77,14 @@ class RecentFilesLocalSource {
       final recentFiles = await getRecentFiles();
 
       // 查找是否已存在
-      final existingIndex =
-          recentFiles.indexWhere((f) => f.path == recentFile.path);
+      final existingIndex = recentFiles.indexWhere(
+        (f) => f.path == recentFile.path,
+      );
 
       if (existingIndex != -1) {
         // 更新已存在的文件（增加访问次数和更新时间）
-        recentFiles[existingIndex] =
-            recentFiles[existingIndex].copyWithAccess();
+        recentFiles[existingIndex] = recentFiles[existingIndex]
+            .copyWithAccess();
         logger.d('Updated existing recent file: ${recentFile.name}');
       } else {
         // 添加新文件
@@ -157,7 +158,8 @@ class RecentFilesLocalSource {
 
       if (validFiles.length != recentFiles.length) {
         logger.i(
-            'Cleaned up ${recentFiles.length - validFiles.length} invalid recent files');
+          'Cleaned up ${recentFiles.length - validFiles.length} invalid recent files',
+        );
         return await saveRecentFiles(validFiles);
       }
 

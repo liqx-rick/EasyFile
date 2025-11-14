@@ -137,19 +137,19 @@ class AliasRecommendationService {
   String? _getAppFolderAlias(String path, String originalName) {
     // WhatsApp 特殊路径
     if (path.contains('WhatsApp')) {
-      if (path.endsWith('/WhatsApp Images') || 
+      if (path.endsWith('/WhatsApp Images') ||
           path.contains('WhatsApp/Media/WhatsApp Images')) {
         return 'WhatsApp图片';
       }
-      if (path.endsWith('/WhatsApp Video') || 
+      if (path.endsWith('/WhatsApp Video') ||
           path.contains('WhatsApp/Media/WhatsApp Video')) {
         return 'WhatsApp视频';
       }
-      if (path.endsWith('/WhatsApp Audio') || 
+      if (path.endsWith('/WhatsApp Audio') ||
           path.contains('WhatsApp/Media/WhatsApp Audio')) {
         return 'WhatsApp语音';
       }
-      if (path.endsWith('/WhatsApp Documents') || 
+      if (path.endsWith('/WhatsApp Documents') ||
           path.contains('WhatsApp/Media/WhatsApp Documents')) {
         return 'WhatsApp文档';
       }
@@ -302,8 +302,7 @@ class AliasRecommendationService {
 
     // 首字母大写
     if (beautified.isNotEmpty) {
-      beautified = beautified[0].toUpperCase() + 
-                   beautified.substring(1);
+      beautified = beautified[0].toUpperCase() + beautified.substring(1);
     }
 
     return beautified;
@@ -368,20 +367,20 @@ class AliasRecommendationService {
   bool isValidAlias(String alias) {
     if (alias.trim().isEmpty) return false;
     if (alias.length > 50) return false;
-    
+
     // 不允许的字符
     final invalidChars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
     for (final char in invalidChars) {
       if (alias.contains(char)) return false;
     }
-    
+
     return true;
   }
 
   /// 清理别名（移除非法字符）
   String sanitizeAlias(String alias) {
     var sanitized = alias;
-    
+
     // 替换非法字符
     final invalidChars = {
       '/': '-',
@@ -394,19 +393,19 @@ class AliasRecommendationService {
       '>': '',
       '|': '-',
     };
-    
+
     invalidChars.forEach((invalid, replacement) {
       sanitized = sanitized.replaceAll(invalid, replacement);
     });
-    
+
     // 移除多余空格
     sanitized = sanitized.replaceAll(RegExp(r'\s+'), ' ').trim();
-    
+
     // 限制长度
     if (sanitized.length > 50) {
       sanitized = sanitized.substring(0, 50);
     }
-    
+
     return sanitized;
   }
 
@@ -420,16 +419,16 @@ class AliasRecommendationService {
   int calculateAliasSimilarity(String alias1, String alias2) {
     final lower1 = alias1.toLowerCase().trim();
     final lower2 = alias2.toLowerCase().trim();
-    
+
     if (lower1 == lower2) return 100;
     if (lower1.contains(lower2) || lower2.contains(lower1)) return 80;
-    
+
     // 简单的字符匹配度计算
     final set1 = lower1.split('').toSet();
     final set2 = lower2.split('').toSet();
     final intersection = set1.intersection(set2).length;
     final union = set1.union(set2).length;
-    
+
     return ((intersection / union) * 100).round();
   }
 }

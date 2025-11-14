@@ -5,10 +5,7 @@ import 'package:easyfile/core/logger.dart';
 class RenameDialog extends StatefulWidget {
   final FileItem file;
 
-  const RenameDialog({
-    super.key,
-    required this.file,
-  });
+  const RenameDialog({super.key, required this.file});
 
   @override
   State<RenameDialog> createState() => _RenameDialogState();
@@ -61,10 +58,7 @@ class _RenameDialogState extends State<RenameDialog> {
         children: [
           Text(
             '原名称：${widget.file.name}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -93,7 +87,8 @@ class _RenameDialogState extends State<RenameDialog> {
               ? () {
                   final newName = _controller.text.trim();
                   logger.i(
-                      'Rename dialog confirmed: ${widget.file.name} -> $newName');
+                    'Rename dialog confirmed: ${widget.file.name} -> $newName',
+                  );
                   Navigator.of(context).pop(newName);
                 }
               : null,

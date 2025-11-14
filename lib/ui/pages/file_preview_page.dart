@@ -15,10 +15,7 @@ import 'package:pdfx/pdfx.dart';
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
 
-  const FilePreviewPage({
-    super.key,
-    required this.file,
-  });
+  const FilePreviewPage({super.key, required this.file});
 
   @override
   State<FilePreviewPage> createState() => _FilePreviewPageState();
@@ -149,7 +146,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       'ini',
       'conf',
       'log',
-      'csv'
+      'csv',
     ].contains(ext);
   }
 
@@ -219,9 +216,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           fileSize: widget.file.size,
           isVideo: true,
         ),
-        Expanded(
-          child: VideoPlayerWidget(videoPath: widget.file.path),
-        ),
+        Expanded(child: VideoPlayerWidget(videoPath: widget.file.path)),
       ],
     );
   }
@@ -247,9 +242,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   Widget _buildTextPreview() {
     if (_fileContent == null) {
-      return const Center(
-        child: Text('无内容'),
-      );
+      return const Center(child: Text('无内容'));
     }
 
     return Padding(
@@ -257,11 +250,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       child: SingleChildScrollView(
         child: SelectableText(
           _fileContent!,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 14,
-            height: 1.4,
-          ),
+          style: TextStyle(fontFamily: 'monospace', fontSize: 14, height: 1.4),
         ),
       ),
     );
@@ -270,9 +259,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   /// 构建 PDF 查看器
   Widget _buildPdfViewer() {
     if (_pdfController == null) {
-      return const Center(
-        child: Text('PDF 加载失败'),
-      );
+      return const Center(child: Text('PDF 加载失败'));
     }
 
     return Column(
@@ -281,9 +268,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.grey[100],
-            border: Border(
-              bottom: BorderSide(color: Colors.grey[300]!),
-            ),
+            border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
           ),
           child: Row(
             children: [
@@ -335,12 +320,10 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             scrollDirection: Axis.vertical,
             builders: PdfViewBuilders<DefaultBuilderOptions>(
               options: const DefaultBuilderOptions(),
-              documentLoaderBuilder: (_) => const Center(
-                child: CircularProgressIndicator(),
-              ),
-              pageLoaderBuilder: (_) => const Center(
-                child: CircularProgressIndicator(),
-              ),
+              documentLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
+              pageLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
               errorBuilder: (_, error) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -365,32 +348,23 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            DocumentIconWidget(
-              fileName: widget.file.name,
-              size: 128,
-            ),
+            DocumentIconWidget(fileName: widget.file.name, size: 128),
             const SizedBox(height: 24),
-            
+
             Text(
               widget.file.name,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            
+
             Text(
               '${_formatFileSize(widget.file.size)} · ${_getDocumentTypeLabel()}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -404,9 +378,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // 文件信息卡片
             Card(
               child: Padding(
@@ -422,14 +396,23 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                       ),
                     ),
                     const Divider(),
-                    _buildInfoRowWithIcon(Icons.folder_outlined, '路径', 
-                        _truncatePath(widget.file.path)),
+                    _buildInfoRowWithIcon(
+                      Icons.folder_outlined,
+                      '路径',
+                      _truncatePath(widget.file.path),
+                    ),
                     const SizedBox(height: 12),
-                    _buildInfoRowWithIcon(Icons.calendar_today, '修改时间', 
-                        _formatDateTime(widget.file.modified)),
+                    _buildInfoRowWithIcon(
+                      Icons.calendar_today,
+                      '修改时间',
+                      _formatDateTime(widget.file.modified),
+                    ),
                     const SizedBox(height: 12),
-                    _buildInfoRowWithIcon(Icons.storage, '大小', 
-                        _formatFileSize(widget.file.size)),
+                    _buildInfoRowWithIcon(
+                      Icons.storage,
+                      '大小',
+                      _formatFileSize(widget.file.size),
+                    ),
                   ],
                 ),
               ),
@@ -453,10 +436,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
               const SizedBox(height: 4),
               Text(
@@ -495,15 +475,12 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   Future<void> _openWithAppChooser() async {
     try {
       logger.i('Opening file with app chooser: ${widget.file.path}');
-      
+
       // 获取 MIME 类型
       String? mimeType = _getMimeType(widget.file.name);
-      
-      final result = await OpenFile.open(
-        widget.file.path,
-        type: mimeType,
-      );
-      
+
+      final result = await OpenFile.open(widget.file.path, type: mimeType);
+
       if (mounted) {
         String message;
         switch (result.type) {
@@ -583,10 +560,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.file.name,
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(widget.file.name, style: const TextStyle(fontSize: 16)),
             Text(
               _getFileTypeDisplay(),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -604,38 +578,38 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(_error!),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _error = null;
-                          });
-                          _loadFileContent();
-                        },
-                        child: const Text('重试'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(_error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _error = null;
+                      });
+                      _loadFileContent();
+                    },
+                    child: const Text('重试'),
                   ),
-                )
-              : _isImageFile(widget.file.name)
-                  ? _buildImagePreview()
-                  : _isVideoFile(widget.file.name)
-                      ? _buildVideoPreview()
-                      : _isAudioFile(widget.file.name)
-                          ? _buildAudioPreview()
-                          : FileUtils.isPdfFile(widget.file.name)
-                              ? _buildPdfViewer()
-                              : FileUtils.isDocumentFile(widget.file.name)
-                                  ? _buildDocumentInfo()
-                                  : _buildTextPreview(),
+                ],
+              ),
+            )
+          : _isImageFile(widget.file.name)
+          ? _buildImagePreview()
+          : _isVideoFile(widget.file.name)
+          ? _buildVideoPreview()
+          : _isAudioFile(widget.file.name)
+          ? _buildAudioPreview()
+          : FileUtils.isPdfFile(widget.file.name)
+          ? _buildPdfViewer()
+          : FileUtils.isDocumentFile(widget.file.name)
+          ? _buildDocumentInfo()
+          : _buildTextPreview(),
     );
   }
 
@@ -737,9 +711,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       logger.e('Error loading detailed media info: $e');
       if (context.mounted) {
         Navigator.of(context).pop(); // 关闭加载对话框
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载详细信息失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载详细信息失败: $e')));
       }
     }
   }
@@ -757,9 +731,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          Expanded(
-            child: SelectableText(value),
-          ),
+          Expanded(child: SelectableText(value)),
         ],
       ),
     );

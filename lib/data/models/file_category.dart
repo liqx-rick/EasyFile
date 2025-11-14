@@ -1,13 +1,13 @@
 /// 文件类型分类枚举
 enum FileCategory {
-  all,        // 全部
-  image,      // 图片
-  video,      // 视频
-  audio,      // 音频
-  document,   // 文档
-  archive,    // 压缩包
-  apk,        // APK安装包
-  other,      // 其他
+  all, // 全部
+  image, // 图片
+  video, // 视频
+  audio, // 音频
+  document, // 文档
+  archive, // 压缩包
+  apk, // APK安装包
+  other, // 其他
 }
 
 /// 文件类型分类扩展
@@ -61,27 +61,89 @@ extension FileCategoryExtension on FileCategory {
     final ext = extension.toLowerCase();
 
     // 图片
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'heic', 'heif'].contains(ext)) {
+    if ([
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'bmp',
+      'svg',
+      'ico',
+      'heic',
+      'heif',
+    ].contains(ext)) {
       return FileCategory.image;
     }
 
     // 视频
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', '3gp', 'm4v', 'mpg', 'mpeg'].contains(ext)) {
+    if ([
+      'mp4',
+      'avi',
+      'mkv',
+      'mov',
+      'wmv',
+      'flv',
+      'webm',
+      '3gp',
+      'm4v',
+      'mpg',
+      'mpeg',
+    ].contains(ext)) {
       return FileCategory.video;
     }
 
     // 音频
-    if (['mp3', 'flac', 'wav', 'aac', 'm4a', 'ogg', 'wma', 'ape', 'alac', 'opus'].contains(ext)) {
+    if ([
+      'mp3',
+      'flac',
+      'wav',
+      'aac',
+      'm4a',
+      'ogg',
+      'wma',
+      'ape',
+      'alac',
+      'opus',
+    ].contains(ext)) {
       return FileCategory.audio;
     }
 
     // 文档
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'odt', 'ods', 'odp', 'csv', 'md'].contains(ext)) {
+    if ([
+      'pdf',
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'ppt',
+      'pptx',
+      'txt',
+      'rtf',
+      'odt',
+      'ods',
+      'odp',
+      'csv',
+      'md',
+    ].contains(ext)) {
       return FileCategory.document;
     }
 
     // 压缩包
-    if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'z', 'lz', 'lzma', 'tgz', 'tbz2'].contains(ext)) {
+    if ([
+      'zip',
+      'rar',
+      '7z',
+      'tar',
+      'gz',
+      'bz2',
+      'xz',
+      'z',
+      'lz',
+      'lzma',
+      'tgz',
+      'tbz2',
+    ].contains(ext)) {
       return FileCategory.archive;
     }
 

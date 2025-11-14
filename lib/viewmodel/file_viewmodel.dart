@@ -10,9 +10,9 @@ import 'package:easyfile/data/services/file_type_analyzer.dart';
 
 /// Tab 视图类型
 enum TabView {
-  recent,   // 最近访问
+  recent, // 最近访问
   favorite, // 收藏文件
-  browse,   // 文件浏览
+  browse, // 文件浏览
 }
 
 /// 视图模式
@@ -55,7 +55,7 @@ class FileViewModel extends ChangeNotifier {
   Future<void> _loadSavedState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 加载上次的 tab
       final savedTab = prefs.getString(_keyCurrentTab);
       if (savedTab != null) {
@@ -65,7 +65,7 @@ class FileViewModel extends ChangeNotifier {
         );
         logger.d('Restored current tab: $_currentTab');
       }
-      
+
       // 加载上次浏览的路径
       _lastBrowsePath = prefs.getString(_keyLastBrowsePath);
       if (_lastBrowsePath != null) {
@@ -81,11 +81,11 @@ class FileViewModel extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyCurrentTab, _currentTab.toString());
-      
+
       if (_currentTab == TabView.browse && _currentPath.isNotEmpty) {
         await prefs.setString(_keyLastBrowsePath, _currentPath);
       }
-      
+
       logger.d('Saved current state: tab=$_currentTab, path=$_currentPath');
     } catch (e) {
       logger.e('Error saving current state: $e');
@@ -175,13 +175,13 @@ class FileViewModel extends ChangeNotifier {
   void setCurrentPath(String path) {
     logger.d('Setting current path: $path');
     _currentPath = path;
-    
+
     // 如果在浏览模式，保存当前路径
     if (_currentTab == TabView.browse && path.isNotEmpty) {
       _lastBrowsePath = path;
       _saveCurrentState();
     }
-    
+
     notifyListeners();
   }
 

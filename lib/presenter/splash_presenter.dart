@@ -71,8 +71,9 @@ class SplashPresenter {
       // 检查存储权限
       final storageStatus = await Permission.storage.status;
       if (storageStatus.isDenied) {
-        logger
-            .i('SplashPresenter: Storage permission is denied, requesting...');
+        logger.i(
+          'SplashPresenter: Storage permission is denied, requesting...',
+        );
         await Permission.storage.request();
       }
 
@@ -128,10 +129,10 @@ class SplashPresenter {
   Future<void> _performAdditionalInit() async {
     try {
       logger.d('SplashPresenter: Performing additional initialization...');
-      
+
       // 执行数据迁移（从旧Favorites到新QuickAccess）
       await _performDataMigration();
-      
+
       viewModel.setInitMessage('准备就绪...');
 
       logger.i('SplashPresenter: All initialization tasks completed');
@@ -147,28 +148,32 @@ class SplashPresenter {
       viewModel.setInitMessage('检查数据迁移...');
 
       final migrationService = locator<DataMigrationService>();
-      
+
       // 检查是否需要迁移
       final needsMigration = await migrationService.needsMigration();
-      
+
       if (needsMigration) {
-        logger.i('SplashPresenter: Migration needed, starting migration process...');
+        logger.i(
+          'SplashPresenter: Migration needed, starting migration process...',
+        );
         viewModel.setInitMessage('正在迁移收藏数据...');
-        
+
         // 执行迁移
         final result = await migrationService.migrate();
-        
+
         // 记录迁移结果
-        logger.i('SplashPresenter: Migration completed - '
-            'Total: ${result.totalCount}, '
-            'Success: ${result.successCount}, '
-            'Failed: ${result.failedCount}, '
-            'Skipped: ${result.skippedCount}');
-        
+        logger.i(
+          'SplashPresenter: Migration completed - '
+          'Total: ${result.totalCount}, '
+          'Success: ${result.successCount}, '
+          'Failed: ${result.failedCount}, '
+          'Skipped: ${result.skippedCount}',
+        );
+
         if (result.failedCount > 0) {
           logger.w('SplashPresenter: Migration had failures: ${result.errors}');
         }
-        
+
         viewModel.setInitMessage('数据迁移完成');
       } else {
         logger.d('SplashPresenter: No migration needed');

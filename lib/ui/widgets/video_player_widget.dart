@@ -5,16 +5,13 @@ import 'package:chewie/chewie.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 视频播放器组件
-/// 
+///
 /// 使用 video_player 和 chewie 实现视频播放功能
 /// 支持播放控制、进度条、全屏等功能
 class VideoPlayerWidget extends StatefulWidget {
   final String videoPath;
 
-  const VideoPlayerWidget({
-    super.key,
-    required this.videoPath,
-  });
+  const VideoPlayerWidget({super.key, required this.videoPath});
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
@@ -35,13 +32,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Future<void> _initializePlayer() async {
     try {
       logger.d('Initializing video player for: ${widget.videoPath}');
-      
+
       // 检查文件是否存在
       final file = File(widget.videoPath);
       if (!await file.exists()) {
         throw Exception('视频文件不存在');
       }
-      
+
       // 创建视频控制器
       _videoPlayerController = VideoPlayerController.file(file);
 
@@ -69,9 +66,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         ),
         placeholder: Container(
           color: Colors.black,
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: const Center(child: CircularProgressIndicator()),
         ),
         errorBuilder: (context, errorMessage) {
           return Center(
@@ -92,7 +87,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       );
 
       logger.d('Video player initialized successfully');
-      
+
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -161,9 +156,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     }
 
     if (_chewieController == null) {
-      return const Center(
-        child: Text('视频加载失败'),
-      );
+      return const Center(child: Text('视频加载失败'));
     }
 
     return Container(

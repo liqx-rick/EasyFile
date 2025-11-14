@@ -19,6 +19,7 @@ class QuickAccessSection extends StatefulWidget {
   final QuickAccessPresenter quickAccessPresenter;
   final FileViewModel fileViewModel;
   final FilePresenter filePresenter;
+  final double categoryCardSize;
 
   const QuickAccessSection({
     super.key,
@@ -26,6 +27,7 @@ class QuickAccessSection extends StatefulWidget {
     required this.quickAccessPresenter,
     required this.fileViewModel,
     required this.filePresenter,
+    this.categoryCardSize = 0.0,
   });
 
   @override
@@ -36,11 +38,14 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     with SingleTickerProviderStateMixin {
   // 动画控制器
   late AnimationController _animationController;
-  
+
   // 存储空间信息
   double? _totalSpace;
   double? _freeSpace;
   bool _loadingStorage = true;
+
+  // "更多"卡片的GlobalKey，用于定位菜单弹出位置
+  final GlobalKey _moreCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -98,164 +103,235 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   @override
   Widget build(BuildContext context) {
     final folders = widget.quickAccessViewModel.folders;
-    // 筛选首页展示的文件夹并排序
-    final homeFolders = folders.where((f) => f.isOnHomePage).toList()
-      ..sort((a, b) => (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999));
-    
-    if (homeFolders.isEmpty) {
+
+    // 筛选用户定制的首页展示文件夹
+    final userCustomizedHomeFolders =
+        folders.where((f) => f.homeDisplayOrder != null).toList()..sort(
+          (a, b) =>
+              (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999),
+        );
+
+    List<QuickAccessFolder> displayFoldersForHome;
+
+    if (userCustomizedHomeFolders.isNotEmpty) {
+      // 用户已定制过首页，使用用户定制的
+      displayFoldersForHome = userCustomizedHomeFolders;
+    } else {
+      // 用户未定制，从系统目录中随机选择4个
+      final systemFolders = folders
+          .where((f) => f.type == QuickAccessFolderType.system)
+          .toList();
+      if (systemFolders.length <= 4) {
+        displayFoldersForHome = systemFolders;
+      } else {
+        // 随机打乱并取前4个
+        systemFolders.shuffle();
+        displayFoldersForHome = systemFolders.take(4).toList();
+      }
+    }
+
+    if (displayFoldersForHome.isEmpty) {
       return const SizedBox.shrink();
     }
 
+    // 根据推荐数量决定布局模式
+    final isCompactMode = displayFoldersForHome.length <= 4;
+
+    // 调试信息
+    logger.d(
+      'QuickAccessSection: displayFolders count = ${displayFoldersForHome.length}, isCompactMode = $isCompactMode',
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 2),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 快速访问区域（2行3列卡片）
-            Expanded(
-              flex: 3,
-              child: _buildQuickAccessCards(context, homeFolders),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 快速访问区域 - 根据模式调整比例
+          Expanded(
+            flex: isCompactMode ? 80 : 65,
+            child: _buildQuickAccessCards(
+              context,
+              displayFoldersForHome,
+              isCompactMode,
             ),
-            
-            // 分隔线
-            const SizedBox(width: 12),
-            Column(
-              children: [
-                const SizedBox(height: 20), // 标题高度
-                Expanded(
-                  child: Container(
-                    width: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).dividerColor.withValues(alpha: 0),
-                          Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                          Theme.of(context).dividerColor.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
+          ),
+
+          // 分隔线区域 - 根据模式调整比例
+          Expanded(
+            flex: isCompactMode ? 4 : 5,
+            child: Center(
+              child: Container(
+                width: 1,
+                height: isCompactMode ? 60 : 100,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).dividerColor.withValues(alpha: 0),
+                      Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                      Theme.of(context).dividerColor.withValues(alpha: 0),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-            const SizedBox(width: 12),
-            
-            // 存储空间信息
-            Column(
-              children: [
-                const SizedBox(height: 20), // 标题高度
-                Expanded(
-                  child: _buildStorageInfo(context),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+
+          // 存储空间信息 - 根据模式调整比例和显示方式
+          Expanded(
+            flex: isCompactMode ? 16 : 30,
+            child: isCompactMode
+                ? _buildStorageInfoCompact(context)
+                : _buildStorageInfo(context),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildQuickAccessCards(BuildContext context, List<QuickAccessFolder> homeFolders) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 标题和弹出菜单按钮
-        Row(
-          children: [
-            InkWell(
-              onTap: () => _showFolderMenu(context),
-              borderRadius: BorderRadius.circular(4),
-              child: Container(
-                padding: const EdgeInsets.all(1),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(
-                  Icons.expand_more,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-            Text(
-              '快速访问',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-        
-        //const SizedBox(height: 1),
-        
-        // 2行3列卡片布局
-        Column(
-          children: [
-            // 第一行（3个卡片）
-            Row(
-              children: [
-                for (int i = 0; i < 3 && i < homeFolders.length; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: i < 2 ? 3 : 0),
-                      child: _buildFolderCard(context, homeFolders[i]),
-                    ),
-                  ),
-                // 填充空白卡片
-                for (int i = homeFolders.length; i < 3; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: i < 2 ? 3 : 0),
-                      child: const SizedBox(),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            // 第二行（3个卡片）
-            Row(
-              children: [
-                for (int i = 3; i < 6 && i < homeFolders.length; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: (i - 3) < 2 ? 3 : 0),
-                      child: _buildFolderCard(context, homeFolders[i]),
-                    ),
-                  ),
-                // 填充空白卡片
-                for (int i = homeFolders.length; i < 6; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: (i - 3) < 2 ? 3 : 0),
-                      child: const SizedBox(),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ],
+  Widget _buildQuickAccessCards(
+    BuildContext context,
+    List<QuickAccessFolder> homeFolders,
+    bool isCompactMode,
+  ) {
+    logger.d(
+      '_buildQuickAccessCards: isCompactMode = $isCompactMode, folders = ${homeFolders.length}',
     );
+
+    if (isCompactMode) {
+      // 紧凑模式：单行显示，最多4个文件夹 + 1个更多卡片
+      final displayFolders = homeFolders.take(4).toList();
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+
+          // 单行5个卡片（4个文件夹 + 1个更多）
+          final totalCards = 5;
+          final minSpacing = 3.0;
+          final maxSpacing = 12.0;
+
+          // 计算卡片尺寸
+          final estimatedCardSize =
+              (availableWidth - (totalCards + 1) * minSpacing) / totalCards;
+          final cardSize = estimatedCardSize.clamp(40.0, double.infinity);
+
+          // 计算实际间距
+          final totalCardWidth = cardSize * totalCards;
+          final availableSpace = availableWidth - totalCardWidth;
+          final spacing = availableSpace > 0
+              ? (availableSpace / (totalCards + 1)).clamp(
+                  minSpacing,
+                  maxSpacing,
+                )
+              : minSpacing;
+
+          return Row(
+            children: [
+              SizedBox(width: spacing),
+              for (int i = 0; i < displayFolders.length; i++) ...[
+                _buildFolderCard(context, displayFolders[i], cardSize),
+                SizedBox(width: spacing),
+              ],
+              // 总是显示更多卡片
+              _buildMoreCard(context, cardSize),
+              SizedBox(width: spacing),
+            ],
+          );
+        },
+      );
+    } else {
+      // 正常模式：2行显示，最多7个文件夹 + 1个更多卡片
+      final displayFolders = homeFolders.take(7).toList();
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+
+          // 每行4张卡片
+          final cardsPerRow = 4;
+          final minSpacing = 3.0;
+          final maxSpacing = 12.0;
+
+          // 计算卡片尺寸
+          final estimatedCardSize =
+              (availableWidth - (cardsPerRow + 1) * minSpacing) / cardsPerRow;
+          final cardSize = estimatedCardSize.clamp(40.0, double.infinity);
+
+          // 计算实际间距
+          final totalCardWidth = cardSize * cardsPerRow;
+          final availableSpace = availableWidth - totalCardWidth;
+          final spacing = availableSpace > 0
+              ? (availableSpace / (cardsPerRow + 1)).clamp(
+                  minSpacing,
+                  maxSpacing,
+                )
+              : minSpacing;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 第一行
+              Row(
+                children: [
+                  SizedBox(width: spacing),
+                  for (int i = 0; i < 4 && i < displayFolders.length; i++) ...[
+                    _buildFolderCard(context, displayFolders[i], cardSize),
+                    SizedBox(width: spacing),
+                  ],
+                  // 如果第一行不满4个，在第一行末尾显示"更多"
+                  if (displayFolders.length < 4) ...[
+                    _buildMoreCard(context, cardSize),
+                    SizedBox(width: spacing),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 3),
+              // 第二行
+              Row(
+                children: [
+                  SizedBox(width: spacing),
+                  for (int i = 4; i < 8 && i < displayFolders.length; i++) ...[
+                    _buildFolderCard(context, displayFolders[i], cardSize),
+                    SizedBox(width: spacing),
+                  ],
+                  // 如果第一行满了但第二行有空间，在第二行末尾显示"更多"
+                  if (displayFolders.length >= 4) ...[
+                    _buildMoreCard(context, cardSize),
+                    SizedBox(width: spacing),
+                  ],
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   Future<void> _showFolderMenu(BuildContext context) async {
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final RelativeRect position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
+    // 获取"更多"卡片的位置
+    final RenderBox? moreCardBox =
+        _moreCardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (moreCardBox == null) return;
+
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset moreCardPosition = moreCardBox.localToGlobal(
+      Offset.zero,
+      ancestor: overlay,
+    );
+    final Size moreCardSize = moreCardBox.size;
+
+    // 计算菜单位置：从"更多"卡片的右侧展开
+    final RelativeRect position = RelativeRect.fromLTRB(
+      moreCardPosition.dx + moreCardSize.width, // 左边界：卡片右侧
+      moreCardPosition.dy, // 顶部对齐卡片顶部
+      overlay.size.width -
+          (moreCardPosition.dx + moreCardSize.width + 200), // 右边界：留出菜单宽度
+      overlay.size.height - moreCardPosition.dy, // 底部
     );
 
     final QuickAccessFolder? selected = await showMenu<QuickAccessFolder>(
@@ -269,16 +345,36 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     }
   }
 
-  List<PopupMenuEntry<QuickAccessFolder>> _buildPopupMenuItems(BuildContext context) {
+  List<PopupMenuEntry<QuickAccessFolder>> _buildPopupMenuItems(
+    BuildContext context,
+  ) {
     final allFolders = widget.quickAccessViewModel.folders;
-    
+
     // 按类型分组
-    final systemFolders = allFolders.where((f) => f.type == QuickAccessFolderType.system && f.isAddedToQuickAccess).toList();
-    final appFolders = allFolders.where((f) => (f.type == QuickAccessFolderType.appRoot || f.type == QuickAccessFolderType.appSubfolder) && f.isAddedToQuickAccess).toList();
-    final userFolders = allFolders.where((f) => f.type == QuickAccessFolderType.userCustom && f.isAddedToQuickAccess).toList();
-    
+    final systemFolders = allFolders
+        .where(
+          (f) =>
+              f.type == QuickAccessFolderType.system && f.isAddedToQuickAccess,
+        )
+        .toList();
+    final appFolders = allFolders
+        .where(
+          (f) =>
+              (f.type == QuickAccessFolderType.appRoot ||
+                  f.type == QuickAccessFolderType.appSubfolder) &&
+              f.isAddedToQuickAccess,
+        )
+        .toList();
+    final userFolders = allFolders
+        .where(
+          (f) =>
+              f.type == QuickAccessFolderType.userCustom &&
+              f.isAddedToQuickAccess,
+        )
+        .toList();
+
     List<PopupMenuEntry<QuickAccessFolder>> items = [];
-    
+
     // 系统文件夹
     if (systemFolders.isNotEmpty) {
       items.add(
@@ -298,7 +394,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
               Text(
                 '系统 (${systemFolders.length})',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.blue,
                 ),
@@ -314,7 +410,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         items.add(const PopupMenuDivider());
       }
     }
-    
+
     // 应用文件夹
     if (appFolders.isNotEmpty) {
       items.add(
@@ -334,7 +430,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
               Text(
                 '应用 (${appFolders.length})',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.orange,
                 ),
@@ -350,7 +446,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         items.add(const PopupMenuDivider());
       }
     }
-    
+
     // 自定义文件夹
     if (userFolders.isNotEmpty) {
       items.add(
@@ -370,7 +466,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
               Text(
                 '我的 (${userFolders.length})',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.green,
                 ),
@@ -383,13 +479,16 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         items.add(_buildFolderMenuItem(folder, Colors.green));
       }
     }
-    
+
     return items;
   }
 
-  PopupMenuItem<QuickAccessFolder> _buildFolderMenuItem(QuickAccessFolder folder, Color color) {
+  PopupMenuItem<QuickAccessFolder> _buildFolderMenuItem(
+    QuickAccessFolder folder,
+    Color color,
+  ) {
     final exists = Directory(folder.path).existsSync();
-    
+
     return PopupMenuItem<QuickAccessFolder>(
       value: folder,
       enabled: exists,
@@ -417,14 +516,20 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     );
   }
 
-  Widget _buildFolderCard(BuildContext context, QuickAccessFolder folder) {
+  Widget _buildFolderCard(
+    BuildContext context,
+    QuickAccessFolder folder,
+    double cardSize,
+  ) {
     final exists = Directory(folder.path).existsSync();
     final color = _getFolderColorByType(folder.type);
-    
-    return AspectRatio(
-      aspectRatio: 1.0, // 保持正方形
-      child: Card(
+
+    return SizedBox(
+      width: cardSize,
+      height: cardSize,
+      child: Material(
         elevation: 2,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: exists ? () => _navigateToFolder(folder) : null,
           borderRadius: BorderRadius.circular(12),
@@ -436,22 +541,65 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
               children: [
                 Icon(
                   _getFolderIcon(folder),
-                  size: 22,
+                  size: 24,
                   color: exists ? color : Colors.grey,
                 ),
                 const SizedBox(height: 1),
-                Flexible(
-                  child: Text(
-                    folder.displayName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                      color: exists ? null : Colors.grey,
-                      height: 1.1,
-                    ),
+                Text(
+                  folder.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: exists ? null : Colors.grey,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建"更多"卡片
+  Widget _buildMoreCard(BuildContext context, double cardSize) {
+    return SizedBox(
+      key: _moreCardKey, // 添加key用于定位
+      width: cardSize,
+      height: cardSize,
+      child: Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).colorScheme.surface,
+        child: InkWell(
+          onTap: () => _showFolderMenu(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.more_horiz,
+                  size: 24,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '更多',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.1,
                   ),
                 ),
               ],
@@ -479,21 +627,132 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       case QuickAccessFolderType.system:
         // 根据路径判断系统文件夹类型
         final path = folder.path.toLowerCase();
-        if (path.contains('dcim') || path.contains('camera')) return Icons.camera_alt;
+        if (path.contains('dcim') || path.contains('camera'))
+          return Icons.camera_alt;
         if (path.contains('download')) return Icons.download;
-        if (path.contains('picture') || path.contains('photo')) return Icons.photo;
+        if (path.contains('picture') || path.contains('photo'))
+          return Icons.photo;
         if (path.contains('document')) return Icons.description;
         if (path.contains('music')) return Icons.music_note;
-        if (path.contains('movie') || path.contains('video')) return Icons.video_library;
+        if (path.contains('movie') || path.contains('video'))
+          return Icons.video_library;
         return Icons.folder_special;
-        
+
       case QuickAccessFolderType.appRoot:
       case QuickAccessFolderType.appSubfolder:
         return Icons.apps;
-        
+
       case QuickAccessFolderType.userCustom:
         return Icons.folder;
     }
+  }
+
+  /// 紧凑模式的存储信息显示（文字+进度条）
+  Widget _buildStorageInfoCompact(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StoragePage(
+              presenter: widget.filePresenter,
+              viewModel: widget.fileViewModel,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.storage,
+                  size: 11,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  '存储',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            if (_loadingStorage)
+              const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_totalSpace != null && _freeSpace != null) ...[
+              // 进度条
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: (_totalSpace! - _freeSpace!) / _totalSpace!,
+                  backgroundColor: Colors.grey[300],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _getStorageColor(_freeSpace! / _totalSpace!),
+                  ),
+                  minHeight: 3,
+                ),
+              ),
+              const SizedBox(height: 3),
+              // 文字信息 - 使用FittedBox防止换行
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_formatStorageSize(_freeSpace!)} 可用',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '共 ${_formatStorageSize(_totalSpace!)}',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ] else
+              Text(
+                '加载失败',
+                style: TextStyle(fontSize: 9, color: Colors.grey[600]),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStorageInfo(BuildContext context) {
@@ -512,7 +771,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         width: 120,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -530,8 +791,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                 Text(
                   '存储',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
@@ -573,15 +834,19 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                             Text(
                               _formatStorageSize(_freeSpace!),
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Text(
                               '可用',
                               style: TextStyle(
-                                fontSize: 8,
-                                color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                                fontSize: 10,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color
+                                    ?.withValues(alpha: 0.6),
                               ),
                             ),
                           ],
@@ -593,8 +858,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                   Text(
                     '共 ${_formatStorageSize(_totalSpace!)}',
                     style: TextStyle(
-                      fontSize: 8,
-                      color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5),
+                      fontSize: 10,
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.color?.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
@@ -602,10 +869,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             else
               Text(
                 '加载失败',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
           ],
         ),
@@ -634,11 +898,11 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     if (value == null || value == 0) {
       return '加载中';
     }
-    
+
     // DiskSpacePlus返回MB
     final sizeInMB = value;
     final sizeInGB = sizeInMB / 1024;
-    
+
     if (sizeInGB < 1) {
       return '${sizeInMB.toStringAsFixed(0)} MB';
     }
@@ -648,10 +912,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   void _navigateToFolder(QuickAccessFolder folder) {
     // 更新访问时间
     widget.quickAccessPresenter.updateAccessInfo(folder.path);
-    
+
     // 导航到文件夹
     widget.filePresenter.navigateToFolder(folder.path);
-    
+
     // 切换到浏览Tab
     widget.fileViewModel.setCurrentTab(TabView.browse);
   }

@@ -30,9 +30,11 @@ class SearchHistoryLocalSource {
 
       final content = await file.readAsString();
       final List<dynamic> jsonList = json.decode(content);
-      
+
       final history = jsonList
-          .map((json) => SearchHistoryItem.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => SearchHistoryItem.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
 
       // 按搜索时间倒序排列
@@ -50,10 +52,10 @@ class SearchHistoryLocalSource {
   Future<List<SearchHistoryItem>> getPopularSearches({int limit = 10}) async {
     try {
       final allHistory = await getAllHistory();
-      
+
       // 按搜索次数降序排列
       allHistory.sort((a, b) => b.searchCount.compareTo(a.searchCount));
-      
+
       return allHistory.take(limit).toList();
     } catch (e) {
       logger.e('Error getting popular searches: $e');
@@ -70,10 +72,12 @@ class SearchHistoryLocalSource {
 
     try {
       final history = await getAllHistory();
-      
+
       // 查找是否已存在该关键词
-      final existingIndex = history.indexWhere((item) => item.keyword == keyword);
-      
+      final existingIndex = history.indexWhere(
+        (item) => item.keyword == keyword,
+      );
+
       if (existingIndex >= 0) {
         // 更新现有记录：增加搜索次数，更新时间
         final existing = history[existingIndex];
@@ -82,7 +86,9 @@ class SearchHistoryLocalSource {
           searchCount: existing.searchCount + 1,
           resultCount: resultCount,
         );
-        logger.d('Updated search record for "$keyword", count: ${history[existingIndex].searchCount}');
+        logger.d(
+          'Updated search record for "$keyword", count: ${history[existingIndex].searchCount}',
+        );
       } else {
         // 添加新记录
         final newItem = SearchHistoryItem(
@@ -114,15 +120,15 @@ class SearchHistoryLocalSource {
     try {
       final history = await getAllHistory();
       final initialLength = history.length;
-      
+
       history.removeWhere((item) => item.keyword == keyword);
-      
+
       if (history.length < initialLength) {
         await _saveHistory(history);
         logger.i('Deleted search record: "$keyword"');
         return true;
       }
-      
+
       return false;
     } catch (e) {
       logger.e('Error deleting search record: $e');
@@ -140,7 +146,7 @@ class SearchHistoryLocalSource {
         await file.delete();
         logger.i('Cleared all search history');
       }
-      
+
       return true;
     } catch (e) {
       logger.e('Error clearing search history: $e');
@@ -157,7 +163,7 @@ class SearchHistoryLocalSource {
     try {
       final history = await getAllHistory();
       final lowerPrefix = prefix.toLowerCase();
-      
+
       // 查找以该前缀开头的关键词
       final suggestions = history
           .where((item) => item.keyword.toLowerCase().startsWith(lowerPrefix))

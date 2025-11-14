@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easyfile/utils/path_security.dart';
 
 /// 增强的删除确认对话框
-/// 
+///
 /// 根据路径风险等级显示不同级别的警告：
 /// - Safe: 普通确认对话框
 /// - Warning: 显示警告信息
@@ -16,14 +16,17 @@ class EnhancedDeleteDialog {
   }) async {
     final fileName = path.split(RegExp(r'[/\\]')).last;
     final riskLevel = PathSecurity.getPathRiskLevel(path);
-    
+
     // 禁止和危险路径直接拒绝
-    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden ||
+        riskLevel == PathRiskLevel.danger) {
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('🛑 禁止删除'),
-          content: Text(PathSecurity.getPathRiskDescription(path, operation: '删除')),
+          content: Text(
+            PathSecurity.getPathRiskDescription(path, operation: '删除'),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -34,16 +37,16 @@ class EnhancedDeleteDialog {
       );
       return false;
     }
-    
+
     // 警告路径显示增强确认
     if (riskLevel == PathRiskLevel.warning) {
       return await _showWarningConfirmation(context, fileName, path) ?? false;
     }
-    
+
     // 普通文件显示标准确认
     return await _showNormalConfirmation(context, fileName) ?? false;
   }
-  
+
   /// 显示批量删除确认对话框
   static Future<bool> showBatchDeleteConfirmation({
     required BuildContext context,
@@ -52,12 +55,13 @@ class EnhancedDeleteDialog {
     int? folderCount,
   }) async {
     if (paths.isEmpty) return false;
-    
+
     // 检查是否包含受保护的路径
     for (final path in paths) {
       final riskLevel = PathSecurity.getPathRiskLevel(path);
-      
-      if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
+
+      if (riskLevel == PathRiskLevel.forbidden ||
+          riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(RegExp(r'[/\\]')).last;
         await showDialog(
           context: context,
@@ -69,7 +73,7 @@ class EnhancedDeleteDialog {
               '• 系统功能损坏\n'
               '• 应用无法运行\n'
               '• 数据永久丢失\n\n'
-              '为保护您的设备，此操作已被阻止。'
+              '为保护您的设备，此操作已被阻止。',
             ),
             actions: [
               TextButton(
@@ -82,31 +86,33 @@ class EnhancedDeleteDialog {
         return false;
       }
     }
-    
+
     // 检查是否包含警告路径
     final hasWarningPaths = paths.any((path) {
       final riskLevel = PathSecurity.getPathRiskLevel(path);
       return riskLevel == PathRiskLevel.warning;
     });
-    
+
     if (hasWarningPaths) {
       return await _showBatchWarningConfirmation(
-        context,
-        paths.length,
-        fileCount,
-        folderCount,
-      ) ?? false;
+            context,
+            paths.length,
+            fileCount,
+            folderCount,
+          ) ??
+          false;
     }
-    
+
     // 普通批量删除
     return await _showBatchNormalConfirmation(
-      context,
-      paths.length,
-      fileCount,
-      folderCount,
-    ) ?? false;
+          context,
+          paths.length,
+          fileCount,
+          folderCount,
+        ) ??
+        false;
   }
-  
+
   /// 普通文件删除确认
   static Future<bool?> _showNormalConfirmation(
     BuildContext context,
@@ -131,7 +137,7 @@ class EnhancedDeleteDialog {
       ),
     );
   }
-  
+
   /// 警告路径删除确认（需要额外确认）
   static Future<bool?> _showWarningConfirmation(
     BuildContext context,
@@ -143,7 +149,11 @@ class EnhancedDeleteDialog {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 28,
+            ),
             const SizedBox(width: 8),
             const Text('警告'),
           ],
@@ -174,7 +184,7 @@ class EnhancedDeleteDialog {
       ),
     );
   }
-  
+
   /// 批量普通删除确认
   static Future<bool?> _showBatchNormalConfirmation(
     BuildContext context,
@@ -185,7 +195,8 @@ class EnhancedDeleteDialog {
     String contentText;
     if (fileCount != null && folderCount != null) {
       if (folderCount > 0) {
-        contentText = '确定要删除选中的 $totalCount 项吗？\n'
+        contentText =
+            '确定要删除选中的 $totalCount 项吗？\n'
             '（$fileCount 个文件，$folderCount 个文件夹）\n\n'
             '文件夹将被递归删除。此操作不可恢复。';
       } else {
@@ -194,7 +205,7 @@ class EnhancedDeleteDialog {
     } else {
       contentText = '确定要删除选中的 $totalCount 项吗？\n\n此操作不可恢复。';
     }
-    
+
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -214,7 +225,7 @@ class EnhancedDeleteDialog {
       ),
     );
   }
-  
+
   /// 批量警告路径删除确认
   static Future<bool?> _showBatchWarningConfirmation(
     BuildContext context,
@@ -228,13 +239,17 @@ class EnhancedDeleteDialog {
     } else {
       itemsText = '$totalCount 项';
     }
-    
+
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.orange,
+              size: 28,
+            ),
             const SizedBox(width: 8),
             const Text('警告'),
           ],

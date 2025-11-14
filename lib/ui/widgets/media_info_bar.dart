@@ -6,7 +6,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
 
 /// 媒体文件信息栏组件
-/// 
+///
 /// 在预览页面显示视频/音频的详细信息
 /// - 视频：时长、分辨率、文件大小
 /// - 音频：时长、格式、文件大小
@@ -94,7 +94,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
@@ -111,14 +111,9 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: widget.isVideo 
-            ? Colors.blue.shade50 
-            : Colors.purple.shade50,
+        color: widget.isVideo ? Colors.blue.shade50 : Colors.purple.shade50,
         border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade300,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
         ),
       ),
       child: Column(
@@ -146,7 +141,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // 信息标签
           if (_isLoading)
             const Row(
@@ -172,7 +167,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
                     label: _formatDuration(_duration!),
                     color: widget.isVideo ? Colors.blue : Colors.purple,
                   ),
-                
+
                 // 分辨率（仅视频）
                 if (widget.isVideo && _resolution != null)
                   _InfoChip(
@@ -180,14 +175,14 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
                     label: _resolution!,
                     color: Colors.blue,
                   ),
-                
+
                 // 格式
                 _InfoChip(
                   icon: Icons.description,
                   label: _getFileFormat(),
                   color: widget.isVideo ? Colors.blue : Colors.purple,
                 ),
-                
+
                 // 文件大小
                 _InfoChip(
                   icon: Icons.storage,
@@ -221,10 +216,7 @@ class _InfoChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

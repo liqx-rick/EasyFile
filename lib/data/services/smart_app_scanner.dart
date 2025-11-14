@@ -33,7 +33,7 @@ class AppFolder {
       originalName: name,
       type: QuickAccessFolderType.appRoot,
     );
-    
+
     return QuickAccessFolder(
       id: '${DateTime.now().millisecondsSinceEpoch}_$name',
       path: path,
@@ -54,7 +54,7 @@ class AppFolder {
 /// 智能应用目录扫描服务
 class SmartAppScanner {
   final FolderAnalyzer _analyzer = FolderAnalyzer();
-  
+
   static const String _lastScanTimeKey = 'last_app_scan_time';
   static const String _scannedAppsKey = 'scanned_app_paths';
 
@@ -71,7 +71,7 @@ class SmartAppScanner {
   /// 增量扫描（检测自上次扫描后的变化）
   Future<List<AppFolder>> incrementalScan() async {
     logger.i('Starting incremental app scan');
-    
+
     final lastScanTime = await _getLastScanTime();
     if (lastScanTime == null) {
       logger.w('No previous scan time found, performing first-time scan');
@@ -81,7 +81,7 @@ class SmartAppScanner {
     // 只扫描 Tier1 应用
     final currentApps = await scanApps(AppDirConfigs.tier1Apps);
     final previousPaths = await _getScannedAppPaths();
-    
+
     // 找出新增的应用
     final newApps = currentApps
         .where((app) => !previousPaths.contains(app.path))
@@ -101,11 +101,8 @@ class SmartAppScanner {
   /// 用户主动扫描（Tier1 + Tier2）
   Future<List<AppFolder>> userInitiatedScan() async {
     logger.i('Starting user-initiated app scan (Tier1 + Tier2)');
-    final configs = [
-      ...AppDirConfigs.tier1Apps,
-      ...AppDirConfigs.tier2Apps,
-    ];
-    
+    final configs = [...AppDirConfigs.tier1Apps, ...AppDirConfigs.tier2Apps];
+
     final results = await scanApps(configs);
     await _saveLastScanTime();
     await _saveScannedApps(results);
@@ -126,24 +123,26 @@ class SmartAppScanner {
   /// 扫描应用目录
   Future<List<AppFolder>> scanApps(List<AppDirConfig> configs) async {
     final results = <AppFolder>[];
-    
+
     logger.i('Starting app scan with ${configs.length} configs');
-    
+
     for (final config in configs) {
       try {
         logger.d('Scanning ${config.name}...');
         // 尝试主路径
         var appFolder = await _tryPath(config, config.path);
-        
+
         // 如果主路径失败，尝试备选路径
         if (appFolder == null && config.alternativePaths.isNotEmpty) {
-          logger.d('Main path failed, trying ${config.alternativePaths.length} alternatives');
+          logger.d(
+            'Main path failed, trying ${config.alternativePaths.length} alternatives',
+          );
           for (final altPath in config.alternativePaths) {
             appFolder = await _tryPath(config, altPath);
             if (appFolder != null) break;
           }
         }
-        
+
         if (appFolder != null) {
           results.add(appFolder);
           logger.i('✓ Found app: ${config.name} at ${appFolder.path}');
@@ -154,7 +153,7 @@ class SmartAppScanner {
         logger.w('Error scanning app ${config.name}: $e');
       }
     }
-    
+
     logger.i('Scan completed: ${results.length} apps found');
     return results;
   }
@@ -162,12 +161,12 @@ class SmartAppScanner {
   /// 尝试扫描指定路径
   Future<AppFolder?> _tryPath(AppDirConfig config, String path) async {
     final dir = Directory(path);
-    
+
     if (!dir.existsSync()) {
       logger.d('Path does not exist: $path (${config.name})');
       return null;
     }
-    
+
     logger.d('Found path: $path (${config.name})');
 
     // 分析文件夹统计
@@ -197,10 +196,12 @@ class SmartAppScanner {
     // 条件1: 至少1个文件即可（用于测试和实际应用）
     final hasEnoughFiles = stats.totalFiles >= 1;
     final hasEnoughSize = stats.totalSizeMB >= 0.001; // 1KB即可
-    
+
     final shouldInclude = hasEnoughFiles || hasEnoughSize;
-    logger.d('Should include app: $shouldInclude (files: ${stats.totalFiles}, size: ${stats.totalSizeMB}MB)');
-    
+    logger.d(
+      'Should include app: $shouldInclude (files: ${stats.totalFiles}, size: ${stats.totalSizeMB}MB)',
+    );
+
     return shouldInclude;
   }
 
@@ -222,7 +223,7 @@ class SmartAppScanner {
       (c) => c.name.toLowerCase() == appName.toLowerCase(),
       orElse: () => throw Exception('App config not found: $appName'),
     );
-    
+
     final results = await scanApps([config]);
     return results.isNotEmpty ? results.first : null;
   }
@@ -233,18 +234,18 @@ class SmartAppScanner {
     if (!dir.existsSync()) {
       return false;
     }
-    
+
     return await _analyzer.hasEnoughContent(path, minFiles: 5, minSizeMB: 1.0);
   }
 
   /// 批量验证应用目录
   Future<Map<String, bool>> validateAppFolders(List<String> paths) async {
     final results = <String, bool>{};
-    
+
     for (final path in paths) {
       results[path] = await validateAppFolder(path);
     }
-    
+
     return results;
   }
 
@@ -254,10 +255,7 @@ class SmartAppScanner {
   Future<void> _saveLastScanTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _lastScanTimeKey,
-        DateTime.now().toIso8601String(),
-      );
+      await prefs.setString(_lastScanTimeKey, DateTime.now().toIso8601String());
     } catch (e) {
       logger.e('Failed to save last scan time: $e');
     }
@@ -313,7 +311,7 @@ class SmartAppScanner {
   Future<Map<String, dynamic>> getScanStatistics() async {
     final lastScanTime = await _getLastScanTime();
     final scannedPaths = await _getScannedAppPaths();
-    
+
     return {
       'lastScanTime': lastScanTime?.toIso8601String(),
       'scannedAppsCount': scannedPaths.length,

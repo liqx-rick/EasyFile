@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 /// 图片缩略图组件
-/// 
+///
 /// 异步加载图片文件并显示为缩略图，支持加载指示器和错误处理
 class ImageThumbnail extends StatelessWidget {
   final String imagePath;
@@ -60,11 +60,7 @@ class ImageThumbnail extends StatelessWidget {
             // 加载失败时显示默认图标
             return Container(
               color: Colors.grey[200],
-              child: Icon(
-                Icons.image,
-                color: Colors.grey[400],
-                size: size / 2,
-              ),
+              child: Icon(Icons.image, color: Colors.grey[400], size: size / 2),
             );
           },
         ),

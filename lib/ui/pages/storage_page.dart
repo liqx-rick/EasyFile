@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
@@ -23,7 +22,11 @@ class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
 
-  const StoragePage({super.key, required this.presenter, required this.viewModel});
+  const StoragePage({
+    super.key,
+    required this.presenter,
+    required this.viewModel,
+  });
 
   @override
   State<StoragePage> createState() => _StoragePageState();
@@ -34,25 +37,27 @@ class _StoragePageState extends State<StoragePage> {
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
   ViewMode _viewMode = ViewMode.list;
-  
+
   // 批量操作相关状态
   bool _isSelectionMode = false;
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
-  
+
   // 搜索历史
   List<String> _searchHistory = [];
   final TextEditingController _searchController = TextEditingController();
 
   List<FileItem> get _filteredFiles {
     if (_searchQuery.isEmpty) return _files;
-    
+
     // 如果启用子文件夹搜索
     if (_searchInSubfolders) {
       return _searchFilesRecursively(_currentPath, _searchQuery);
     }
-    
+
     // 仅在当前文件夹搜索
-    return _files.where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    return _files
+        .where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
   }
 
   bool _isLoading = true;
@@ -86,19 +91,19 @@ class _StoragePageState extends State<StoragePage> {
   List<FileItem> _searchFilesRecursively(String path, String query) {
     final List<FileItem> results = [];
     final searchLower = query.toLowerCase();
-    
+
     try {
       final directory = Directory(path);
       if (!directory.existsSync()) return results;
-      
+
       final entities = directory.listSync();
-      
+
       for (var entity in entities) {
         try {
           // 跳过隐藏文件
           final name = entity.path.split(Platform.pathSeparator).last;
           if (name.startsWith('.')) continue;
-          
+
           if (entity is Directory) {
             // 递归搜索子文件夹
             results.addAll(_searchFilesRecursively(entity.path, query));
@@ -116,7 +121,7 @@ class _StoragePageState extends State<StoragePage> {
     } catch (e) {
       logger.e('Recursive search error: $e');
     }
-    
+
     return results;
   }
 
@@ -136,22 +141,22 @@ class _StoragePageState extends State<StoragePage> {
   // 保存搜索历史
   Future<void> _saveSearchHistory(String query) async {
     if (query.trim().isEmpty) return;
-    
+
     try {
       // 移除已存在的相同项
       _searchHistory.remove(query);
-      
+
       // 添加到列表开头
       _searchHistory.insert(0, query);
-      
+
       // 只保留最近10条
       if (_searchHistory.length > 10) {
         _searchHistory = _searchHistory.sublist(0, 10);
       }
-      
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('storage_search_history', _searchHistory);
-      
+
       setState(() {});
     } catch (e) {
       logger.e('Failed to save search history: $e');
@@ -188,15 +193,21 @@ class _StoragePageState extends State<StoragePage> {
       return '根目录';
     }
 
-    final parts = _currentPath.split(Platform.pathSeparator).where((p) => p.isNotEmpty).toList();
-    final rootParts = _rootPath.split(Platform.pathSeparator).where((p) => p.isNotEmpty).toList();
+    final parts = _currentPath
+        .split(Platform.pathSeparator)
+        .where((p) => p.isNotEmpty)
+        .toList();
+    final rootParts = _rootPath
+        .split(Platform.pathSeparator)
+        .where((p) => p.isNotEmpty)
+        .toList();
 
     // 移除根路径部分
     final relativeParts = parts.sublist(rootParts.length);
 
     if (relativeParts.isEmpty) return '根目录';
     if (relativeParts.length == 1) return '根目录 > ${relativeParts[0]}';
-    
+
     // 多层时只显示"..."，节省空间给统计信息
     return '...';
   }
@@ -207,15 +218,15 @@ class _StoragePageState extends State<StoragePage> {
     final folderCount = _files.where((f) => f.isDirectory).length;
     final fileCount = _files.where((f) => !f.isDirectory).length;
     final totalCount = _files.length;
-    
+
     if (totalCount == 0) return '空文件夹';
-    
+
     // 如果在搜索模式，显示搜索结果数量
     if (_isSearchMode && _searchQuery.isNotEmpty) {
       final filteredCount = _filteredFiles.length;
       return '找到$filteredCount个 / 共$totalCount个项目';
     }
-    
+
     return '$totalCount个项目 ($folderCount个文件夹, $fileCount个文件)';
   }
 
@@ -224,12 +235,18 @@ class _StoragePageState extends State<StoragePage> {
     if (_currentPath == _rootPath) return;
 
     final separator = Platform.pathSeparator;
-    final parts = _currentPath.split(separator).where((p) => p.isNotEmpty).toList();
-    final rootParts = _rootPath.split(separator).where((p) => p.isNotEmpty).toList();
-    
+    final parts = _currentPath
+        .split(separator)
+        .where((p) => p.isNotEmpty)
+        .toList();
+    final rootParts = _rootPath
+        .split(separator)
+        .where((p) => p.isNotEmpty)
+        .toList();
+
     // 如果在根目录，不显示菜单
     if (parts.length <= rootParts.length) return;
-    
+
     final relativeParts = parts.sublist(rootParts.length);
     if (relativeParts.isEmpty) return;
 
@@ -258,14 +275,20 @@ class _StoragePageState extends State<StoragePage> {
           if (Platform.isWindows) {
             // Windows: 保留盘符
             final driveLetter = parts[0];
-            final pathComponents = [...parts.sublist(1, rootParts.length), ...relativeParts.sublist(0, index + 1)];
+            final pathComponents = [
+              ...parts.sublist(1, rootParts.length),
+              ...relativeParts.sublist(0, index + 1),
+            ];
             path = '$driveLetter$separator${pathComponents.join(separator)}';
           } else {
             // Unix-like: 前缀斜杠
-            final pathComponents = [...rootParts, ...relativeParts.sublist(0, index + 1)];
+            final pathComponents = [
+              ...rootParts,
+              ...relativeParts.sublist(0, index + 1),
+            ];
             path = separator + pathComponents.join(separator);
           }
-          
+
           return PopupMenuItem(
             value: path,
             height: 36, // 减小高度
@@ -309,7 +332,7 @@ class _StoragePageState extends State<StoragePage> {
     _loadStorageFiles();
     _loadSearchHistory();
   }
-  
+
   /// 加载视图模式偏好
   Future<void> _loadViewMode() async {
     try {
@@ -325,14 +348,14 @@ class _StoragePageState extends State<StoragePage> {
       logger.e('Failed to load view mode: $e');
     }
   }
-  
+
   /// 保存视图模式偏好
   Future<void> _saveViewMode() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        'storage_view_mode', 
-        _viewMode == ViewMode.grid ? 'grid' : 'list'
+        'storage_view_mode',
+        _viewMode == ViewMode.grid ? 'grid' : 'list',
       );
       logger.d('Saved view mode: $_viewMode');
     } catch (e) {
@@ -369,8 +392,12 @@ class _StoragePageState extends State<StoragePage> {
       if (directory.existsSync()) {
         final entities = directory
             .listSync()
-            .where((entity) =>
-                !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
+            .where(
+              (entity) => !entity.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('.'),
+            )
             .toList();
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
@@ -397,9 +424,9 @@ class _StoragePageState extends State<StoragePage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载失败: $e')));
       }
     }
   }
@@ -420,7 +447,7 @@ class _StoragePageState extends State<StoragePage> {
       });
       return;
     }
-    
+
     if (file.isDirectory) {
       // 在当前页面刷新并显示该文件夹内容
       _currentPath = file.path;
@@ -428,9 +455,7 @@ class _StoragePageState extends State<StoragePage> {
     } else {
       // 跳转到文件预览页
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => FilePreviewPage(file: file),
-        ),
+        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
       );
     }
   }
@@ -445,8 +470,12 @@ class _StoragePageState extends State<StoragePage> {
       if (directory.existsSync()) {
         final entities = directory
             .listSync()
-            .where((entity) =>
-                !entity.path.split(Platform.pathSeparator).last.startsWith('.'))
+            .where(
+              (entity) => !entity.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('.'),
+            )
             .toList();
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         files.sort((a, b) {
@@ -469,9 +498,9 @@ class _StoragePageState extends State<StoragePage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载失败: $e')));
       }
     }
   }
@@ -483,7 +512,7 @@ class _StoragePageState extends State<StoragePage> {
       itemBuilder: (context, index) {
         final file = _filteredFiles[index];
         final isSelected = _selectedItems.contains(file.path);
-        
+
         return InkWell(
           onTap: () => _onFileTap(file),
           onLongPress: () {
@@ -503,17 +532,20 @@ class _StoragePageState extends State<StoragePage> {
                   file: file,
                   showFullPath: _isSearchMode && _searchInSubfolders,
                   isFavorite: widget.viewModel.isFavoriteFile(file.path),
-                  onFavoriteToggle: file.isDirectory ? null : () async {
-                    final isFavorite = await widget.presenter.toggleFavoriteFile(file);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
+                  onFavoriteToggle: file.isDirectory
+                      ? null
+                      : () async {
+                          final isFavorite = await widget.presenter
+                              .toggleFavoriteFile(file);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        },
                   onTap: null, // 由外层InkWell处理
                   onLongPress: null, // 由外层InkWell处理
                 ),
@@ -573,7 +605,7 @@ class _StoragePageState extends State<StoragePage> {
     final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
     final isFavorite = widget.viewModel.isFavoriteFile(file.path);
     final isSelected = _selectedItems.contains(file.path);
-    
+
     return InkWell(
       onTap: () => _onFileTap(file),
       onLongPress: () {
@@ -587,12 +619,12 @@ class _StoragePageState extends State<StoragePage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected 
+          color: isSelected
               ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected 
+            color: isSelected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).dividerColor,
             width: isSelected ? 2 : 1,
@@ -602,32 +634,25 @@ class _StoragePageState extends State<StoragePage> {
           children: [
             // 主内容区域 - 使用Padding确保不被收藏按钮遮挡
             Padding(
-              padding: const EdgeInsets.only(top: 28, left: 4, right: 4, bottom: 4),
+              padding: const EdgeInsets.only(
+                top: 28,
+                left: 4,
+                right: 4,
+                bottom: 4,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // 文件图标或缩略图
                   if (isImage)
-                    ImageThumbnail(
-                      imagePath: file.path,
-                      size: 64,
-                    )
+                    ImageThumbnail(imagePath: file.path, size: 64)
                   else if (isVideo)
-                    RealVideoThumbnail(
-                      videoPath: file.path,
-                      size: 64,
-                    )
+                    RealVideoThumbnail(videoPath: file.path, size: 64)
                   else if (isAudio)
-                    AudioCoverWidget(
-                      audioPath: file.path,
-                      size: 64,
-                    )
+                    AudioCoverWidget(audioPath: file.path, size: 64)
                   else if (isDocument)
-                    DocumentIconWidget(
-                      fileName: file.name,
-                      size: 64,
-                    )
+                    DocumentIconWidget(fileName: file.name, size: 64)
                   else
                     Icon(
                       file.isDirectory ? Icons.folder : _getFileIcon(file),
@@ -654,10 +679,7 @@ class _StoragePageState extends State<StoragePage> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         FileUtils.formatFileSize(file.size),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
@@ -676,7 +698,8 @@ class _StoragePageState extends State<StoragePage> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () async {
-                      final isFavoriteNew = await widget.presenter.toggleFavoriteFile(file);
+                      final isFavoriteNew = await widget.presenter
+                          .toggleFavoriteFile(file);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -764,8 +787,6 @@ class _StoragePageState extends State<StoragePage> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -815,7 +836,9 @@ class _StoragePageState extends State<StoragePage> {
                               '${_getSimplifiedBreadcrumb()} · ${_getStatisticsText()}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -840,62 +863,79 @@ class _StoragePageState extends State<StoragePage> {
                       if (_selectedItems.length == _filteredFiles.length) {
                         _selectedItems.clear();
                       } else {
-                        _selectedItems = _filteredFiles.map((f) => f.path).toSet();
+                        _selectedItems = _filteredFiles
+                            .map((f) => f.path)
+                            .toSet();
                       }
                     });
                   },
-                  tooltip: _selectedItems.length == _filteredFiles.length ? '取消全选' : '全选',
+                  tooltip: _selectedItems.length == _filteredFiles.length
+                      ? '取消全选'
+                      : '全选',
                 ),
               ]
             : [
-          // 使用Row来控制按钮间距
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 返回上级按钮
-                if (_canNavigateUp(_currentPath))
-                  IconButton(
-                    icon: const Icon(Icons.arrow_upward, size: 22),
-                    onPressed: _navigateUp,
-                    tooltip: '返回上级',
-                    padding: EdgeInsets.zero,
-                    visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                // 使用Row来控制按钮间距
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 返回上级按钮
+                      if (_canNavigateUp(_currentPath))
+                        IconButton(
+                          icon: const Icon(Icons.arrow_upward, size: 22),
+                          onPressed: _navigateUp,
+                          tooltip: '返回上级',
+                          padding: EdgeInsets.zero,
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
+                        ),
+                      // 搜索按钮
+                      IconButton(
+                        icon: const Icon(Icons.search, size: 22),
+                        onPressed: () {
+                          setState(() {
+                            _isSearchMode = !_isSearchMode;
+                            if (!_isSearchMode) _searchQuery = '';
+                          });
+                        },
+                        tooltip: '搜索',
+                        padding: EdgeInsets.zero,
+                        visualDensity: const VisualDensity(
+                          horizontal: -4,
+                          vertical: -4,
+                        ),
+                      ),
+                      // 视图切换按钮
+                      IconButton(
+                        icon: Icon(
+                          _viewMode == ViewMode.list
+                              ? Icons.grid_view
+                              : Icons.list,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _viewMode = _viewMode == ViewMode.list
+                                ? ViewMode.grid
+                                : ViewMode.list;
+                          });
+                          _saveViewMode();
+                        },
+                        tooltip: _viewMode == ViewMode.list ? '网格视图' : '列表视图',
+                        padding: EdgeInsets.zero,
+                        visualDensity: const VisualDensity(
+                          horizontal: -4,
+                          vertical: -4,
+                        ),
+                      ),
+                    ],
                   ),
-                // 搜索按钮
-                IconButton(
-                  icon: const Icon(Icons.search, size: 22),
-                  onPressed: () {
-                    setState(() {
-                      _isSearchMode = !_isSearchMode;
-                      if (!_isSearchMode) _searchQuery = '';
-                    });
-                  },
-                  tooltip: '搜索',
-                  padding: EdgeInsets.zero,
-                  visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-                ),
-                // 视图切换按钮
-                IconButton(
-                  icon: Icon(
-                    _viewMode == ViewMode.list ? Icons.grid_view : Icons.list,
-                    size: 22,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _viewMode = _viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list;
-                    });
-                    _saveViewMode();
-                  },
-                  tooltip: _viewMode == ViewMode.list ? '网格视图' : '列表视图',
-                  padding: EdgeInsets.zero,
-                  visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
                 ),
               ],
-            ),
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -907,15 +947,24 @@ class _StoragePageState extends State<StoragePage> {
                   height: _isSearchMode ? 56 : 0,
                   child: _isSearchMode
                       ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: TextField(
                             controller: _searchController,
                             autofocus: true,
                             decoration: InputDecoration(
                               hintText: '搜索文件...',
                               hintStyle: const TextStyle(fontSize: 14),
-                              prefixIcon: Icon(Icons.search, color: Theme.of(context).primaryColor, size: 20),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: Theme.of(context).primaryColor,
+                                size: 20,
+                              ),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.close, size: 20),
                                 onPressed: () {
@@ -931,7 +980,10 @@ class _StoragePageState extends State<StoragePage> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                               filled: true,
                               fillColor: Theme.of(context).colorScheme.surface,
                             ),
@@ -954,34 +1006,60 @@ class _StoragePageState extends State<StoragePage> {
                 // 搜索历史
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  height: _isSearchMode && _searchQuery.isEmpty && _searchHistory.isNotEmpty ? 200 : 0,
-                  child: _isSearchMode && _searchQuery.isEmpty && _searchHistory.isNotEmpty
+                  height:
+                      _isSearchMode &&
+                          _searchQuery.isEmpty &&
+                          _searchHistory.isNotEmpty
+                      ? 200
+                      : 0,
+                  child:
+                      _isSearchMode &&
+                          _searchQuery.isEmpty &&
+                          _searchHistory.isNotEmpty
                       ? Container(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  8,
+                                  16,
+                                  4,
+                                ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       '最近搜索',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withOpacity(0.7),
                                       ),
                                     ),
                                     TextButton(
                                       onPressed: _clearSearchHistory,
                                       style: TextButton.styleFrom(
                                         minimumSize: Size.zero,
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      child: const Text('清除', style: TextStyle(fontSize: 12)),
+                                      child: const Text(
+                                        '清除',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -993,7 +1071,10 @@ class _StoragePageState extends State<StoragePage> {
                                     final query = _searchHistory[index];
                                     return ListTile(
                                       dense: true,
-                                      leading: const Icon(Icons.history, size: 18),
+                                      leading: const Icon(
+                                        Icons.history,
+                                        size: 18,
+                                      ),
                                       title: Text(
                                         query,
                                         style: const TextStyle(fontSize: 13),
@@ -1022,20 +1103,30 @@ class _StoragePageState extends State<StoragePage> {
                   height: _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
                   child: _isSearchMode && _searchQuery.isNotEmpty
                       ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: Row(
                             children: [
                               Text(
                                 '搜索范围:',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.7),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               ChoiceChip(
-                                label: const Text('当前文件夹', style: TextStyle(fontSize: 12)),
+                                label: const Text(
+                                  '当前文件夹',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                                 selected: !_searchInSubfolders,
                                 onSelected: (selected) {
                                   if (selected) {
@@ -1049,7 +1140,10 @@ class _StoragePageState extends State<StoragePage> {
                               ),
                               const SizedBox(width: 8),
                               ChoiceChip(
-                                label: const Text('包含子文件夹', style: TextStyle(fontSize: 12)),
+                                label: const Text(
+                                  '包含子文件夹',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                                 selected: _searchInSubfolders,
                                 onSelected: (selected) {
                                   if (selected) {
@@ -1068,7 +1162,9 @@ class _StoragePageState extends State<StoragePage> {
                                   '找到 ${_filteredFiles.length} 个结果',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -1099,7 +1195,7 @@ class _StoragePageState extends State<StoragePage> {
     int fileCount = 0;
     int folderCount = 0;
     int totalSize = 0;
-    
+
     for (final path in _selectedItems) {
       final entity = FileSystemEntity.typeSync(path);
       if (entity == FileSystemEntityType.directory) {
@@ -1113,12 +1209,12 @@ class _StoragePageState extends State<StoragePage> {
         }
       }
     }
-    
+
     // 判断是否只选中了文件（可以分享）
     final hasOnlyFiles = folderCount == 0 && fileCount > 0;
     // 判断是否只选中了一个项（可以重命名）
     final isSingleSelection = _selectedItems.length == 1;
-    
+
     return BottomAppBar(
       height: 56,
       child: Padding(
@@ -1130,7 +1226,7 @@ class _StoragePageState extends State<StoragePage> {
               child: Text(
                 _buildSelectionInfo(fileCount, folderCount, totalSize),
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
@@ -1143,7 +1239,10 @@ class _StoragePageState extends State<StoragePage> {
               IconButton(
                 icon: const Icon(Icons.copy),
                 padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
                 onPressed: _batchCopy,
                 tooltip: '复制',
               ),
@@ -1152,7 +1251,10 @@ class _StoragePageState extends State<StoragePage> {
               IconButton(
                 icon: const Icon(Icons.edit),
                 padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
                 onPressed: _batchRename,
                 tooltip: '重命名',
               ),
@@ -1161,7 +1263,10 @@ class _StoragePageState extends State<StoragePage> {
               IconButton(
                 icon: const Icon(Icons.share),
                 padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
                 onPressed: _batchShare,
                 tooltip: '分享',
               ),
@@ -1202,12 +1307,13 @@ class _StoragePageState extends State<StoragePage> {
   /// 批量删除
   void _batchDelete() async {
     if (_selectedItems.isEmpty) return;
-    
+
     // 🔒 安全检查：验证所有选中项是否允许删除
     for (final path in _selectedItems) {
       final riskLevel = PathSecurity.getPathRiskLevel(path);
-      
-      if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
+
+      if (riskLevel == PathRiskLevel.forbidden ||
+          riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(Platform.pathSeparator).last;
         showDialog(
           context: context,
@@ -1219,7 +1325,7 @@ class _StoragePageState extends State<StoragePage> {
               '• 系统功能损坏\n'
               '• 应用无法运行\n'
               '• 数据永久丢失\n\n'
-              '为保护您的设备，此操作已被阻止。'
+              '为保护您的设备，此操作已被阻止。',
             ),
             actions: [
               TextButton(
@@ -1232,7 +1338,7 @@ class _StoragePageState extends State<StoragePage> {
         logger.w('Delete blocked by UI: $path (Risk: ${riskLevel.name})');
         return;
       }
-      
+
       // 检查是否为系统关键文件夹
       final fileName = path.split(Platform.pathSeparator).last;
       if (PathSecurity.isSystemFolderName(fileName)) {
@@ -1243,7 +1349,7 @@ class _StoragePageState extends State<StoragePage> {
             content: Text(
               '"$fileName" 是系统重要文件夹！\n\n'
               '删除此文件夹会导致系统功能异常。\n\n'
-              '为保护您的设备，此操作已被阻止。'
+              '为保护您的设备，此操作已被阻止。',
             ),
             actions: [
               TextButton(
@@ -1257,7 +1363,7 @@ class _StoragePageState extends State<StoragePage> {
         return;
       }
     }
-    
+
     // 统计文件和文件夹数量
     int fileCount = 0;
     int folderCount = 0;
@@ -1269,7 +1375,7 @@ class _StoragePageState extends State<StoragePage> {
         fileCount++;
       }
     }
-    
+
     // 使用增强的删除确认对话框
     final confirmed = await EnhancedDeleteDialog.showBatchDeleteConfirmation(
       context: context,
@@ -1307,7 +1413,7 @@ class _StoragePageState extends State<StoragePage> {
     try {
       int successCount = 0;
       int failCount = 0;
-      
+
       for (final path in _selectedItems) {
         try {
           // 🔒 记录操作日志
@@ -1318,7 +1424,7 @@ class _StoragePageState extends State<StoragePage> {
             riskLevel: riskLevel,
             allowed: true,
           );
-          
+
           final entity = FileSystemEntity.typeSync(path);
           if (entity == FileSystemEntityType.directory) {
             await Directory(path).delete(recursive: true);
@@ -1331,19 +1437,19 @@ class _StoragePageState extends State<StoragePage> {
           failCount++;
         }
       }
-      
+
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
-        
+
         // 刷新文件列表
         await _loadFilesInPath(_currentPath);
-        
+
         // 退出多选模式
         setState(() {
           _isSelectionMode = false;
           _selectedItems.clear();
         });
-        
+
         // 显示结果提示
         if (failCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1366,10 +1472,7 @@ class _StoragePageState extends State<StoragePage> {
       if (mounted) {
         Navigator.pop(context); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('删除失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1378,12 +1481,13 @@ class _StoragePageState extends State<StoragePage> {
   /// 批量移动
   void _batchMove() async {
     if (_selectedItems.isEmpty) return;
-    
+
     // 🔒 安全检查：验证所有选中项是否允许移动
     for (final path in _selectedItems) {
       final riskLevel = PathSecurity.getPathRiskLevel(path);
-      
-      if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
+
+      if (riskLevel == PathRiskLevel.forbidden ||
+          riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(Platform.pathSeparator).last;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1395,7 +1499,7 @@ class _StoragePageState extends State<StoragePage> {
         logger.w('Move blocked by UI: $path (Risk: ${riskLevel.name})');
         return;
       }
-      
+
       // 检查是否为系统关键文件夹
       final fileName = path.split(Platform.pathSeparator).last;
       if (PathSecurity.isSystemFolderName(fileName)) {
@@ -1406,7 +1510,7 @@ class _StoragePageState extends State<StoragePage> {
             content: Text(
               '"$fileName" 是系统重要文件夹！\n\n'
               '移动此文件夹会导致系统功能异常。\n\n'
-              '为保护您的设备，此操作已被阻止。'
+              '为保护您的设备，此操作已被阻止。',
             ),
             actions: [
               TextButton(
@@ -1424,16 +1528,15 @@ class _StoragePageState extends State<StoragePage> {
     // 显示文件夹选择对话框
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => FolderPickerDialog(
-        currentPath: _currentPath,
-      ),
+      builder: (context) => FolderPickerDialog(currentPath: _currentPath),
     );
 
     if (destinationPath == null || !mounted) return;
-    
+
     // 🔒 验证目标路径安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
-    if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
+    if (targetRiskLevel == PathRiskLevel.forbidden ||
+        targetRiskLevel == PathRiskLevel.danger) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('目标位置不安全，无法移动文件'),
@@ -1447,7 +1550,7 @@ class _StoragePageState extends State<StoragePage> {
     // 检查是否要移动到子目录（会造成循环）
     for (final path in _selectedItems) {
       if (FileSystemEntity.typeSync(path) == FileSystemEntityType.directory) {
-        if (destinationPath.startsWith(path + Platform.pathSeparator) || 
+        if (destinationPath.startsWith(path + Platform.pathSeparator) ||
             destinationPath == path) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1487,13 +1590,14 @@ class _StoragePageState extends State<StoragePage> {
     try {
       int successCount = 0;
       int failCount = 0;
-      
+
       for (final path in _selectedItems) {
         try {
           final entity = FileSystemEntity.typeSync(path);
           final baseName = path.split(Platform.pathSeparator).last;
-          final targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
-          
+          final targetPath =
+              '$destinationPath${Platform.pathSeparator}$baseName';
+
           // 🔒 记录操作日志
           final riskLevel = PathSecurity.getPathRiskLevel(path);
           PathSecurity.logOperation(
@@ -1502,7 +1606,7 @@ class _StoragePageState extends State<StoragePage> {
             riskLevel: riskLevel,
             allowed: true,
           );
-          
+
           if (entity == FileSystemEntityType.directory) {
             await Directory(path).rename(targetPath);
           } else if (entity == FileSystemEntityType.file) {
@@ -1514,7 +1618,7 @@ class _StoragePageState extends State<StoragePage> {
           failCount++;
         }
       }
-      
+
       if (mounted) {
         Navigator.pop(context);
         await _loadFilesInPath(_currentPath);
@@ -1522,7 +1626,7 @@ class _StoragePageState extends State<StoragePage> {
           _isSelectionMode = false;
           _selectedItems.clear();
         });
-        
+
         if (failCount == 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1544,10 +1648,7 @@ class _StoragePageState extends State<StoragePage> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('移动失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1556,15 +1657,13 @@ class _StoragePageState extends State<StoragePage> {
   /// 批量复制
   void _batchCopy() async {
     if (_selectedItems.length != 1) return;
-    
+
     final sourcePath = _selectedItems.first;
-    
+
     // 显示文件夹选择对话框
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => FolderPickerDialog(
-        currentPath: _currentPath,
-      ),
+      builder: (context) => FolderPickerDialog(currentPath: _currentPath),
     );
 
     if (destinationPath == null || !mounted) return;
@@ -1597,14 +1696,14 @@ class _StoragePageState extends State<StoragePage> {
       final entity = FileSystemEntity.typeSync(sourcePath);
       final baseName = sourcePath.split(Platform.pathSeparator).last;
       final targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
-      
+
       if (entity == FileSystemEntityType.directory) {
         // 递归复制文件夹
         await _copyDirectory(Directory(sourcePath), Directory(targetPath));
       } else if (entity == FileSystemEntityType.file) {
         await File(sourcePath).copy(targetPath);
       }
-      
+
       if (mounted) {
         Navigator.pop(context);
         await _loadFilesInPath(_currentPath);
@@ -1612,22 +1711,16 @@ class _StoragePageState extends State<StoragePage> {
           _isSelectionMode = false;
           _selectedItems.clear();
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('复制成功'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('复制成功'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('复制失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1638,7 +1731,7 @@ class _StoragePageState extends State<StoragePage> {
     if (!await destination.exists()) {
       await destination.create(recursive: true);
     }
-    
+
     await for (final entity in source.list(recursive: false)) {
       if (entity is Directory) {
         final newDirectory = Directory(
@@ -1656,21 +1749,24 @@ class _StoragePageState extends State<StoragePage> {
   /// 批量重命名
   void _batchRename() async {
     if (_selectedItems.length != 1) return;
-    
+
     final sourcePath = _selectedItems.first;
     final entity = FileSystemEntity.typeSync(sourcePath);
     final currentName = sourcePath.split(Platform.pathSeparator).last;
     final isDirectory = entity == FileSystemEntityType.directory;
-    
+
     // 🔒 安全检查：验证是否允许重命名
     final riskLevel = PathSecurity.getPathRiskLevel(sourcePath);
-    
+
     // 禁止重命名系统关键目录
-    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden ||
+        riskLevel == PathRiskLevel.danger) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(PathSecurity.getOperationDeniedMessage(sourcePath, '重命名')),
+            content: Text(
+              PathSecurity.getOperationDeniedMessage(sourcePath, '重命名'),
+            ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -1679,7 +1775,7 @@ class _StoragePageState extends State<StoragePage> {
       logger.w('Rename blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
       return;
     }
-    
+
     // 检查是否为系统关键文件夹名称
     if (PathSecurity.isSystemFolderName(currentName)) {
       if (mounted) {
@@ -1693,7 +1789,7 @@ class _StoragePageState extends State<StoragePage> {
               '• 系统功能异常\n'
               '• 应用无法访问文件\n'
               '• 媒体库损坏\n\n'
-              '为保护您的设备，此操作已被阻止。'
+              '为保护您的设备，此操作已被阻止。',
             ),
             actions: [
               TextButton(
@@ -1707,9 +1803,11 @@ class _StoragePageState extends State<StoragePage> {
       logger.w('Rename blocked: "$currentName" is a system folder');
       return;
     }
-    
+
     // 显示重命名对话框
-    final TextEditingController controller = TextEditingController(text: currentName);
+    final TextEditingController controller = TextEditingController(
+      text: currentName,
+    );
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1773,12 +1871,17 @@ class _StoragePageState extends State<StoragePage> {
     );
 
     try {
-      final parentPath = sourcePath.substring(0, sourcePath.lastIndexOf(Platform.pathSeparator));
-      final targetPath = '$parentPath${Platform.pathSeparator}${newName.trim()}';
-      
+      final parentPath = sourcePath.substring(
+        0,
+        sourcePath.lastIndexOf(Platform.pathSeparator),
+      );
+      final targetPath =
+          '$parentPath${Platform.pathSeparator}${newName.trim()}';
+
       // 🔒 验证目标路径安全性
       final targetRiskLevel = PathSecurity.getPathRiskLevel(targetPath);
-      if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
+      if (targetRiskLevel == PathRiskLevel.forbidden ||
+          targetRiskLevel == PathRiskLevel.danger) {
         if (mounted) {
           Navigator.pop(context); // 关闭进度对话框
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1791,7 +1894,7 @@ class _StoragePageState extends State<StoragePage> {
         logger.w('Rename blocked: target path $targetPath is protected');
         return;
       }
-      
+
       // 🔒 记录操作日志
       PathSecurity.logOperation(
         operation: 'RENAME (UI)',
@@ -1799,13 +1902,13 @@ class _StoragePageState extends State<StoragePage> {
         riskLevel: riskLevel,
         allowed: true,
       );
-      
+
       if (entity == FileSystemEntityType.directory) {
         await Directory(sourcePath).rename(targetPath);
       } else if (entity == FileSystemEntityType.file) {
         await File(sourcePath).rename(targetPath);
       }
-      
+
       if (mounted) {
         Navigator.pop(context);
         await _loadFilesInPath(_currentPath);
@@ -1813,22 +1916,16 @@ class _StoragePageState extends State<StoragePage> {
           _isSelectionMode = false;
           _selectedItems.clear();
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('重命名成功'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('重命名成功'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('重命名失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1856,7 +1953,7 @@ class _StoragePageState extends State<StoragePage> {
     try {
       // 使用presenter批量分享
       final success = await widget.presenter.batchShareFiles(filePaths);
-      
+
       if (mounted) {
         if (success) {
           // 分享成功后退出多选模式
@@ -1877,10 +1974,7 @@ class _StoragePageState extends State<StoragePage> {
       logger.e('Failed to share files: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('分享失败：$e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('分享失败：$e'), backgroundColor: Colors.red),
         );
       }
     }

@@ -136,9 +136,11 @@ void setupLocator() {
     final recentFilesSource = locator<RecentFilesLocalSource>();
     final themeSource = locator<ThemeLocalSource>();
     final searchHistorySource = locator<SearchHistoryLocalSource>();
-    
-    logger.d('FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, searchHistorySource=$searchHistorySource');
-    
+
+    logger.d(
+      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, searchHistorySource=$searchHistorySource',
+    );
+
     return FilePresenter(
       repository: repository,
       viewModel: viewModel,
@@ -158,9 +160,11 @@ void setupLocator() {
     final userDetector = locator<UserFolderDetector>();
     final aliasService = locator<AliasRecommendationService>();
     final notificationService = locator<NewFolderNotificationService>();
-    
-    logger.d('QuickAccessPresenter dependencies: localSource=$localSource, viewModel=$viewModel');
-    
+
+    logger.d(
+      'QuickAccessPresenter dependencies: localSource=$localSource, viewModel=$viewModel',
+    );
+
     return QuickAccessPresenter(
       localSource: localSource,
       viewModel: viewModel,

@@ -35,43 +35,36 @@ class FileItemTile extends StatelessWidget {
     final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
     final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
     final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
-    
+
     return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      minVerticalPadding: 0,
       leading: isImage
-          ? ImageThumbnail(
-              imagePath: file.path,
-              size: 40,
-            )
+          ? ImageThumbnail(imagePath: file.path, size: 30)
           : isVideo
-              ? RealVideoThumbnail(
-                  videoPath: file.path,
-                  size: 40,
-                )
-              : isAudio
-                  ? AudioCoverWidget(
-                      audioPath: file.path,
-                      size: 40,
-                    )
-                  : isDocument
-                      ? DocumentIconWidgetRounded(
-                          fileName: file.name,
-                          size: 40,
-                        )
-                      : Icon(
-                          file.isDirectory ? Icons.folder : _getFileIcon(),
-                          color: file.isDirectory ? Colors.amber : _getFileColor(),
-                        ),
+          ? RealVideoThumbnail(videoPath: file.path, size: 30)
+          : isAudio
+          ? AudioCoverWidget(audioPath: file.path, size: 30)
+          : isDocument
+          ? DocumentIconWidgetRounded(fileName: file.name, size: 30)
+          : Icon(
+              file.isDirectory ? Icons.folder : _getFileIcon(),
+              color: file.isDirectory ? Colors.amber : _getFileColor(),
+              size: 30,
+            ),
       title: Text(
         file.name,
         style: TextStyle(
           fontWeight: file.isDirectory ? FontWeight.w500 : FontWeight.normal,
+          fontSize: 14,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: showFullPath
           ? SizedBox(
-              height: 32, // 固定高度避免溢出
+              height: 28,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -85,7 +78,9 @@ class FileItemTile extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    file.isDirectory ? '文件夹' : FileUtils.formatFileSize(file.size),
+                    file.isDirectory
+                        ? '文件夹'
+                        : FileUtils.formatFileSize(file.size),
                     style: const TextStyle(fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -97,9 +92,7 @@ class FileItemTile extends StatelessWidget {
               _buildSubtitleText(),
               style: TextStyle(
                 fontSize: 11,
-                color: showAccessTime
-                    ? Colors.grey[600]
-                    : Theme.of(context).textTheme.bodySmall?.color,
+                color: showAccessTime ? Colors.grey[600] : Colors.grey[500],
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -116,7 +109,7 @@ class FileItemTile extends StatelessWidget {
     if (file.isDirectory) {
       return const Icon(Icons.chevron_right);
     }
-    
+
     // 文件显示收藏按钮
     if (onFavoriteToggle != null) {
       return IconButton(
@@ -131,7 +124,7 @@ class FileItemTile extends StatelessWidget {
         constraints: const BoxConstraints(),
       );
     }
-    
+
     return null;
   }
 
@@ -218,8 +211,6 @@ class FileItemTile extends StatelessWidget {
         return Colors.grey;
     }
   }
-
-
 
   String _buildSubtitleText() {
     if (file.isDirectory) {

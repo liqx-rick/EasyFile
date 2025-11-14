@@ -25,8 +25,9 @@ class ThemeLocalSource {
       final file = File(filePath);
 
       if (!await file.exists()) {
-        logger
-            .d('Theme settings file does not exist, returning system default');
+        logger.d(
+          'Theme settings file does not exist, returning system default',
+        );
         return ThemeMode.system;
       }
 

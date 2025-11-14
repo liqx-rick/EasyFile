@@ -33,7 +33,9 @@ class FavoriteFilesLocalSource {
       final jsonList = json.decode(jsonString) as List<dynamic>;
 
       final favoriteFiles = jsonList
-          .map((json) => FavoriteFileItem.fromJson(json as Map<String, dynamic>))
+          .map(
+            (json) => FavoriteFileItem.fromJson(json as Map<String, dynamic>),
+          )
           .toList();
 
       logger.d('Loaded ${favoriteFiles.length} favorite files from storage');

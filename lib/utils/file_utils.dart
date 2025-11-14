@@ -8,13 +8,34 @@ class FileUtils {
   /// 判断文件是否为视频类型
   static bool isVideoFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    return ['mp4', 'avi', 'mkv', 'mov', 'flv', 'wmv', 'webm', '3gp', 'm4v'].contains(ext);
+    return [
+      'mp4',
+      'avi',
+      'mkv',
+      'mov',
+      'flv',
+      'wmv',
+      'webm',
+      '3gp',
+      'm4v',
+    ].contains(ext);
   }
 
   /// 判断文件是否为音频类型
   static bool isAudioFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    return ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma', 'opus', 'aiff', 'ape'].contains(ext);
+    return [
+      'mp3',
+      'wav',
+      'flac',
+      'aac',
+      'm4a',
+      'ogg',
+      'wma',
+      'opus',
+      'aiff',
+      'ape',
+    ].contains(ext);
   }
 
   /// 判断文件是否为PDF类型
@@ -44,7 +65,23 @@ class FileUtils {
   /// 判断文件是否为文本文件类型
   static bool isTextFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    return ['txt', 'log', 'md', 'json', 'xml', 'csv', 'html', 'css', 'js', 'dart', 'java', 'py', 'cpp', 'c', 'h'].contains(ext);
+    return [
+      'txt',
+      'log',
+      'md',
+      'json',
+      'xml',
+      'csv',
+      'html',
+      'css',
+      'js',
+      'dart',
+      'java',
+      'py',
+      'cpp',
+      'c',
+      'h',
+    ].contains(ext);
   }
 
   /// 判断文件是否为压缩文件类型
@@ -55,11 +92,14 @@ class FileUtils {
 
   /// 判断文件是否为文档类型（PDF, Word, Excel, PPT）
   static bool isDocumentFile(String fileName) {
-    return isPdfFile(fileName) || isWordFile(fileName) || isExcelFile(fileName) || isPowerPointFile(fileName);
+    return isPdfFile(fileName) ||
+        isWordFile(fileName) ||
+        isExcelFile(fileName) ||
+        isPowerPointFile(fileName);
   }
 
   /// 格式化文件大小
-  /// 
+  ///
   /// 将字节数转换为人类可读的文件大小格式
   static String formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';

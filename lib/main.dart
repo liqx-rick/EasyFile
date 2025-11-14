@@ -12,7 +12,7 @@ Future<void> main() async {
 
   // Initialize logger before other startup so DI logs go to file
   await logger.init();
-  
+
   // 记录进程启动
   final processId = DateTime.now().millisecondsSinceEpoch;
   logger.i('==========================================');
