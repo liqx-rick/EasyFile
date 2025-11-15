@@ -11,6 +11,7 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
@@ -979,11 +980,40 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 widget.categoryType == CategoryType.downloads))
           _buildFileTypeChips(),
 
-        // 文件列表或网格
+        // 文件列表或网格（非分组列表已迁移为 FileCollectionView 进行试点）
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _loadCategoryFiles(forceRefresh: true),
-            child: _isGridView ? _buildGridView() : _buildListView(),
+            child: _isGridView
+                ? _buildGridView()
+                : (_groupByDate ? _buildGroupedListView() : FileCollectionView(
+                    items: _filteredFiles,
+                    gridMode: false,
+                    padding: const EdgeInsets.symmetric(vertical: 0),
+                    itemBuilder: (file) => _buildListRow(file),
+                    onTap: (file) {
+                      // 点击行为与原来一致：在多选模式切换选中，否则预览
+                      if (_isSelectionMode) {
+                        setState(() {
+                          if (_selectedFiles.contains(file.path)) {
+                            _selectedFiles.remove(file.path);
+                          } else {
+                            _selectedFiles.add(file.path);
+                          }
+                        });
+                      } else {
+                        _previewFile(file);
+                      }
+                    },
+                    onLongPress: (file) {
+                      if (!_isSelectionMode) {
+                        setState(() {
+                          _isSelectionMode = true;
+                          _selectedFiles.add(file.path);
+                        });
+                      }
+                    },
+                  )),
           ),
         ),
       ],
@@ -1612,110 +1642,107 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       return _buildGroupedListView();
     }
 
-    // 否则显示普通列表
-    return ListView.builder(
-      itemCount: _filteredFiles.length,
-      itemBuilder: (context, index) {
-        final file = _filteredFiles[index];
-        final isSelected = _selectedFiles.contains(file.path);
-
-        return InkWell(
-          onTap: () {
-            if (_isSelectionMode) {
-              // 多选模式下，点击切换选中状态
-              setState(() {
-                if (isSelected) {
-                  _selectedFiles.remove(file.path);
-                } else {
-                  _selectedFiles.add(file.path);
-                }
-              });
-            } else {
-              // 正常模式下，点击预览文件
-              _previewFile(file);
-            }
+        // 否则显示普通列表
+        return ListView.builder(
+          itemCount: _filteredFiles.length,
+          itemBuilder: (context, index) {
+            final file = _filteredFiles[index];
+            return _buildListRow(file);
           },
-          onLongPress: () {
-            // 长按进入多选模式并选中当前文件
-            if (!_isSelectionMode) {
-              setState(() {
-                _isSelectionMode = true;
-                _selectedFiles.add(file.path);
-              });
-            }
-          },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 文件列表项（不显示收藏按钮）
-              Expanded(
-                child: FileItemTile(
-                  file: file,
-                  showFullPath: true,
-                  isFavorite: false, // 收藏按钮外置，这里不显示
-                  onFavoriteToggle: null, // 收藏按钮外置
-                  onTap: null, // 由外层InkWell处理
-                  onLongPress: null, // 由外层InkWell处理
-                ),
-              ),
-              // 收藏按钮（始终显示）
-              IconButton(
-                icon: Icon(
-                  widget.viewModel.isFavoriteFile(file.path)
-                      ? Icons.star
-                      : Icons.star_border,
-                  color: widget.viewModel.isFavoriteFile(file.path)
-                      ? Colors.amber
-                      : Colors.grey,
-                  size: 20,
-                ),
-                onPressed: () async {
-                  final isFavorite = await widget.presenter.toggleFavoriteFile(
-                    file,
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                },
-                tooltip: widget.viewModel.isFavoriteFile(file.path)
-                    ? '取消收藏'
-                    : '收藏',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              // 多选模式下显示复选框（在文件行末尾）
-              if (_isSelectionMode)
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  child: Checkbox(
-                    value: isSelected,
-                    onChanged: (checked) {
-                      setState(() {
-                        if (checked == true) {
-                          _selectedFiles.add(file.path);
-                        } else {
-                          _selectedFiles.remove(file.path);
-                        }
-                      });
-                    },
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: const VisualDensity(
-                      horizontal: -4,
-                      vertical: -4,
-                    ),
-                  ),
-                ),
-            ],
-          ),
         );
+  }
+
+  /// 构建单行列表项（用于 FileCollectionView 的 itemBuilder）
+  Widget _buildListRow(FileItem file) {
+    final isSelected = _selectedFiles.contains(file.path);
+
+    return InkWell(
+      onTap: () {
+        if (_isSelectionMode) {
+          setState(() {
+            if (isSelected) {
+              _selectedFiles.remove(file.path);
+            } else {
+              _selectedFiles.add(file.path);
+            }
+          });
+        } else {
+          _previewFile(file);
+        }
       },
+      onLongPress: () {
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+            _selectedFiles.add(file.path);
+          });
+        }
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: FileItemTile(
+              file: file,
+              showFullPath: true,
+              isFavorite: false,
+              onFavoriteToggle: null,
+              onTap: null,
+              onLongPress: null,
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              widget.viewModel.isFavoriteFile(file.path)
+                  ? Icons.star
+                  : Icons.star_border,
+              color: widget.viewModel.isFavoriteFile(file.path)
+                  ? Colors.amber
+                  : Colors.grey,
+              size: 20,
+            ),
+            onPressed: () async {
+              final isFavorite = await widget.presenter.toggleFavoriteFile(file);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+            tooltip: widget.viewModel.isFavoriteFile(file.path)
+                ? '取消收藏'
+                : '收藏',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          if (_isSelectionMode)
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (checked) {
+                  setState(() {
+                    if (checked == true) {
+                      _selectedFiles.add(file.path);
+                    } else {
+                      _selectedFiles.remove(file.path);
+                    }
+                  });
+                },
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
