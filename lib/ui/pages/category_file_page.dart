@@ -980,17 +980,21 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 widget.categoryType == CategoryType.downloads))
           _buildFileTypeChips(),
 
-        // 文件列表或网格（非分组列表已迁移为 FileCollectionView 进行试点）
+        // 文件列表或网格（已迁移到 FileCollectionView）
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _loadCategoryFiles(forceRefresh: true),
-            child: _isGridView
-                ? _buildGridView()
-                : (_groupByDate ? _buildGroupedListView() : FileCollectionView(
+            child: _groupByDate
+                ? _buildGroupedView()
+                : FileCollectionView(
                     items: _filteredFiles,
-                    gridMode: false,
-                    padding: const EdgeInsets.symmetric(vertical: 0),
-                    itemBuilder: (file) => _buildListRow(file),
+                    gridMode: _isGridView,
+                    padding: _isGridView
+                        ? const EdgeInsets.all(8)
+                        : const EdgeInsets.symmetric(vertical: 0),
+                    itemBuilder: (file) => _isGridView
+                        ? _buildGridItem(file)
+                        : _buildListRow(file),
                     onTap: (file) {
                       // 点击行为与原来一致：在多选模式切换选中，否则预览
                       if (_isSelectionMode) {
@@ -1013,7 +1017,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         });
                       }
                     },
-                  )),
+                  ),
           ),
         ),
       ],
@@ -1109,33 +1113,32 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   void _batchShare() async {
     if (_selectedFiles.isEmpty) return;
 
+    final messenger = ScaffoldMessenger.of(context);
     try {
       // 调用presenter批量分享
       final filePaths = _selectedFiles.toList();
       final success = await widget.presenter.batchShareFiles(filePaths);
 
-      if (mounted) {
-        if (success) {
-          // 分享成功后退出多选模式
-          setState(() {
-            _isSelectionMode = false;
-            _selectedFiles.clear();
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('分享失败，请检查是否有有效的文件'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('分享失败：$e'), backgroundColor: Colors.red),
+      if (!mounted) return;
+      if (success) {
+        // 分享成功后退出多选模式
+        setState(() {
+          _isSelectionMode = false;
+          _selectedFiles.clear();
+        });
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('分享失败，请检查是否有有效的文件'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('分享失败：$e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1182,6 +1185,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
 
+    // 预先捕获 UI 对象，避免跨 async gap 使用 BuildContext
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       // 调用presenter批量移动
       final filePaths = _selectedFiles.toList();
@@ -1190,47 +1197,47 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         destinationPath,
       );
 
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
 
-        // 统计成功和失败的数量
-        final successCount = results.values.where((v) => v).length;
-        final failCount = results.length - successCount;
+      // 统计成功和失败的数量
+      final successCount = results.values.where((v) => v).length;
+      final failCount = results.length - successCount;
 
-        // 刷新文件列表
-        await _loadCategoryFiles(forceRefresh: true);
+      // 刷新文件列表
+      await _loadCategoryFiles(forceRefresh: true);
 
-        // 退出多选模式
-        setState(() {
-          _isSelectionMode = false;
-          _selectedFiles.clear();
-        });
+      if (!mounted) return;
 
-        // 显示结果提示
-        if (failCount == 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('成功移动 $successCount 个文件'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('成功移动 $successCount 个文件，失败 $failCount 个'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
+      // 退出多选模式
+      setState(() {
+        _isSelectionMode = false;
+        _selectedFiles.clear();
+      });
+
+      // 显示结果提示
+      if (failCount == 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('成功移动 $successCount 个文件'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('成功移动 $successCount 个文件，失败 $failCount 个'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
+      messenger.showSnackBar(
+        SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1272,52 +1279,56 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
 
+    // 预先捕获 UI 对象，避免跨 async gap 使用 BuildContext
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       // 调用presenter批量删除
       final filePaths = _selectedFiles.toList();
       final results = await widget.presenter.batchDeleteFiles(filePaths);
 
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
 
-        // 统计成功和失败的数量
-        final successCount = results.values.where((v) => v).length;
-        final failCount = results.length - successCount;
+      // 统计成功和失败的数量
+      final successCount = results.values.where((v) => v).length;
+      final failCount = results.length - successCount;
 
-        // 刷新文件列表
-        await _loadCategoryFiles(forceRefresh: true);
+      // 刷新文件列表
+      await _loadCategoryFiles(forceRefresh: true);
 
-        // 退出多选模式
-        setState(() {
-          _isSelectionMode = false;
-          _selectedFiles.clear();
-        });
+      if (!mounted) return;
 
-        // 显示结果提示
-        if (failCount == 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('成功删除 $successCount 个文件'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('成功删除 $successCount 个文件，失败 $failCount 个'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
+      // 退出多选模式
+      setState(() {
+        _isSelectionMode = false;
+        _selectedFiles.clear();
+      });
+
+      // 显示结果提示
+      if (failCount == 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('成功删除 $successCount 个文件'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('成功删除 $successCount 个文件，失败 $failCount 个'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
+      messenger.showSnackBar(
+        SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1361,43 +1372,45 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
 
+    // 预先捕获 UI 对象，避免跨 async gap 使用 BuildContext
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       // 调用presenter复制文件
       final targetPath = path.join(destinationPath, path.basename(filePath));
       final success = await widget.presenter.copyFile(file, targetPath);
 
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
 
-        if (success) {
-          // 刷新文件列表
-          await _loadCategoryFiles(forceRefresh: true);
+      if (success) {
+        // 刷新文件列表
+        await _loadCategoryFiles(forceRefresh: true);
 
-          // 退出多选模式
-          setState(() {
-            _isSelectionMode = false;
-            _selectedFiles.clear();
-          });
+        // 退出多选模式
+        setState(() {
+          _isSelectionMode = false;
+          _selectedFiles.clear();
+        });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('复制成功'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('复制失败'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('复制成功'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('复制失败'), backgroundColor: Colors.red),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
+      messenger.showSnackBar(
+        SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1450,6 +1463,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
 
+    // 检查输入并防止无效调用
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     if (newName == currentName) return; // 名称没有改变
 
@@ -1477,43 +1491,45 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
 
+    // 预先捕获 UI 对象，避免跨 async gap 使用 BuildContext
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       // 调用presenter重命名文件
       final newFileName = newName.trim() + extension;
       final success = await widget.presenter.renameFile(file, newFileName);
 
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
 
-        if (success) {
-          // 刷新文件列表
-          await _loadCategoryFiles(forceRefresh: true);
+      if (success) {
+        // 刷新文件列表
+        await _loadCategoryFiles(forceRefresh: true);
 
-          // 退出多选模式
-          setState(() {
-            _isSelectionMode = false;
-            _selectedFiles.clear();
-          });
+        // 退出多选模式
+        setState(() {
+          _isSelectionMode = false;
+          _selectedFiles.clear();
+        });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('重命名成功'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('重命名失败'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // 关闭进度对话框
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('重命名成功'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('重命名失败'), backgroundColor: Colors.red),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      navigator.pop(); // 关闭进度对话框
+      messenger.showSnackBar(
+        SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1635,22 +1651,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     );
   }
 
-  /// 构建列表视图
-  Widget _buildListView() {
-    // 如果启用分组，显示分组列表
-    if (_groupByDate) {
-      return _buildGroupedListView();
-    }
-
-        // 否则显示普通列表
-        return ListView.builder(
-          itemCount: _filteredFiles.length,
-          itemBuilder: (context, index) {
-            final file = _filteredFiles[index];
-            return _buildListRow(file);
-          },
-        );
-  }
+  // 已迁移为 FileCollectionView 试点，旧的列表构建函数已移除。
 
   /// 构建单行列表项（用于 FileCollectionView 的 itemBuilder）
   Widget _buildListRow(FileItem file) {
@@ -1702,15 +1703,15 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               size: 20,
             ),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               final isFavorite = await widget.presenter.toggleFavoriteFile(file);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
             },
             tooltip: widget.viewModel.isFavoriteFile(file.path)
                 ? '取消收藏'
@@ -1746,196 +1747,99 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     );
   }
 
-  /// 构建按日期分组的列表视图
-  Widget _buildGroupedListView() {
+  /// 构建按日期分组的视图
+  Widget _buildGroupedView() {
     final groups = _groupedFiles;
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    final existingGroups = groupKeys
+    
+    // 构建 FileGroup 列表
+    final fileGroups = groupKeys
         .where((key) => groups.containsKey(key))
+        .map((key) {
+          return FileGroup(
+            key: key,
+            title: '$key（${groups[key]!.length} 个文件）',
+            items: groups[key]!,
+            isCollapsible: false, // 不使用折叠功能，保持与原来一致
+          );
+        })
         .toList();
 
-    return ListView.builder(
-      itemCount: existingGroups
-          .map((key) => groups[key]!.length + 1)
-          .fold<int>(0, (a, b) => a + b),
-      itemBuilder: (context, index) {
-        // 计算当前索引属于哪个分组
-        int currentIndex = index;
-        for (final groupKey in existingGroups) {
-          final groupFiles = groups[groupKey]!;
-          final groupItemCount = groupFiles.length + 1; // +1 for header
-
-          if (currentIndex == 0) {
-            // 分组标题
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
-              child: Row(
-                children: [
-                  Text(
-                    groupKey,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${groupFiles.length} 个文件',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else if (currentIndex < groupItemCount) {
-            // 分组中的文件项
-            final file = groupFiles[currentIndex - 1];
-            final isSelected = _selectedFiles.contains(file.path);
-
-            return InkWell(
-              onTap: () {
-                if (_isSelectionMode) {
-                  // 多选模式下，点击切换选中状态
+    return FileCollectionView(
+      groups: fileGroups,
+      gridMode: false,
+      padding: const EdgeInsets.symmetric(vertical: 0),
+      itemBuilder: (file) => Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 文件列表项（不显示收藏按钮）
+          Expanded(
+            child: FileItemTile(
+              file: file,
+              showFullPath: true,
+              isFavorite: false, // 收藏按钮外置，这里不显示
+              onFavoriteToggle: null, // 收藏按钮外置
+              onTap: null, // 由 FileCollectionView 处理
+              onLongPress: null, // 由 FileCollectionView 处理
+            ),
+          ),
+          // 收藏按钮（始终显示）
+          IconButton(
+            icon: Icon(
+              widget.viewModel.isFavoriteFile(file.path)
+                  ? Icons.star
+                  : Icons.star_border,
+              color: widget.viewModel.isFavoriteFile(file.path)
+                  ? Colors.amber
+                  : Colors.grey,
+              size: 20,
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final isFavorite = await widget.presenter.toggleFavoriteFile(file);
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+            tooltip: widget.viewModel.isFavoriteFile(file.path) ? '取消收藏' : '收藏',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          // 多选模式下显示复选框（在文件行末尾）
+          if (_isSelectionMode)
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              child: Checkbox(
+                value: _selectedFiles.contains(file.path),
+                onChanged: (checked) {
                   setState(() {
-                    if (isSelected) {
-                      _selectedFiles.remove(file.path);
-                    } else {
+                    if (checked == true) {
                       _selectedFiles.add(file.path);
+                    } else {
+                      _selectedFiles.remove(file.path);
                     }
                   });
-                } else {
-                  // 正常模式下，点击预览文件
-                  _previewFile(file);
-                }
-              },
-              onLongPress: () {
-                // 长按进入多选模式并选中当前文件
-                if (!_isSelectionMode) {
-                  setState(() {
-                    _isSelectionMode = true;
-                    _selectedFiles.add(file.path);
-                  });
-                }
-              },
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 文件列表项（不显示收藏按钮）
-                  Expanded(
-                    child: FileItemTile(
-                      file: file,
-                      showFullPath: true,
-                      isFavorite: false, // 收藏按钮外置，这里不显示
-                      onFavoriteToggle: null, // 收藏按钮外置
-                      onTap: null, // 由外层InkWell处理
-                      onLongPress: null, // 由外层InkWell处理
-                    ),
-                  ),
-                  // 收藏按钮（始终显示）
-                  IconButton(
-                    icon: Icon(
-                      widget.viewModel.isFavoriteFile(file.path)
-                          ? Icons.star
-                          : Icons.star_border,
-                      color: widget.viewModel.isFavoriteFile(file.path)
-                          ? Colors.amber
-                          : Colors.grey,
-                      size: 20,
-                    ),
-                    onPressed: () async {
-                      final isFavorite = await widget.presenter
-                          .toggleFavoriteFile(file);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
-                      }
-                    },
-                    tooltip: widget.viewModel.isFavoriteFile(file.path)
-                        ? '取消收藏'
-                        : '收藏',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  // 多选模式下显示复选框（在文件行末尾）
-                  if (_isSelectionMode)
-                    Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (checked) {
-                          setState(() {
-                            if (checked == true) {
-                              _selectedFiles.add(file.path);
-                            } else {
-                              _selectedFiles.remove(file.path);
-                            }
-                          });
-                        },
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
-                        ),
-                      ),
-                    ),
-                ],
+                },
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
               ),
-            );
-          } else {
-            currentIndex -= groupItemCount;
-          }
-        }
-
-        return const SizedBox.shrink();
-      },
-    );
-  }
-
-  /// 构建网格视图
-  Widget _buildGridView() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.85, // 调整为接近正方形，同时保证内容显示完整
+            ),
+        ],
       ),
-      itemCount: _filteredFiles.length,
-      itemBuilder: (context, index) {
-        final file = _filteredFiles[index];
-        return _buildGridItem(file);
-      },
-    );
-  }
-
-  /// 构建网格项
-  Widget _buildGridItem(FileItem file) {
-    final isImage = FileUtils.isImageFile(file.name);
-    final isVideo = FileUtils.isVideoFile(file.name);
-    final isAudio = FileUtils.isAudioFile(file.name);
-    final isDocument = FileUtils.isDocumentFile(file.name);
-    final isFavorite = widget.viewModel.isFavoriteFile(file.path);
-    final isSelected = _selectedFiles.contains(file.path);
-
-    return InkWell(
-      onTap: () {
+      onTap: (file) {
         if (_isSelectionMode) {
           // 多选模式下，点击切换选中状态
           setState(() {
-            if (isSelected) {
+            if (_selectedFiles.contains(file.path)) {
               _selectedFiles.remove(file.path);
             } else {
               _selectedFiles.add(file.path);
@@ -1946,7 +1850,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           _previewFile(file);
         }
       },
-      onLongPress: () {
+      onLongPress: (file) {
         // 长按进入多选模式并选中当前文件
         if (!_isSelectionMode) {
           setState(() {
@@ -1955,144 +1859,110 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           });
         }
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
+    );
+  }
+
+  /// 构建网格项（简化版本，由 FileCollectionView 处理选中和点击）
+  Widget _buildGridItem(FileItem file) {
+    final isImage = FileUtils.isImageFile(file.name);
+    final isVideo = FileUtils.isVideoFile(file.name);
+    final isAudio = FileUtils.isAudioFile(file.name);
+    final isDocument = FileUtils.isDocumentFile(file.name);
+    final isFavorite = widget.viewModel.isFavoriteFile(file.path);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).dividerColor,
+          width: 1,
         ),
-        child: Stack(
-          children: [
-            // 主内容区域
-            Padding(
-              padding: const EdgeInsets.only(
-                top: 28,
-                left: 4,
-                right: 4,
-                bottom: 4,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 缩略图或图标
-                  Expanded(
-                    child: Center(
-                      child: isImage
-                          ? ImageThumbnail(imagePath: file.path, size: 80)
-                          : isVideo
-                          ? RealVideoThumbnail(videoPath: file.path, size: 80)
-                          : isAudio
-                          ? AudioCoverWidget(audioPath: file.path, size: 64)
-                          : isDocument
-                          ? DocumentIconWidget(fileName: file.name, size: 64)
-                          : Icon(
-                              Icons.insert_drive_file,
-                              size: 48,
-                              color: Colors.grey[400],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // 文件名
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      file.name,
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // 文件大小
-                  Text(
-                    FileUtils.formatFileSize(file.size),
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-            // 多选模式下在左上角显示复选框
-            if (_isSelectionMode)
-              Positioned(
-                top: 4,
-                left: 4,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.95),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Transform.scale(
-                    scale: 0.9,
-                    child: Checkbox(
-                      value: isSelected,
-                      onChanged: (checked) {
-                        setState(() {
-                          if (checked == true) {
-                            _selectedFiles.add(file.path);
-                          } else {
-                            _selectedFiles.remove(file.path);
-                          }
-                        });
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: const VisualDensity(
-                        horizontal: -4,
-                        vertical: -4,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // 收藏按钮始终在右上角（多选模式下也显示）
-            Positioned(
-              top: 4,
+      ),
+      child: Stack(
+        children: [
+          // 主内容区域
+          Padding(
+            padding: const EdgeInsets.only(
+              top: 28,
+              left: 4,
               right: 4,
-              child: InkWell(
-                onTap: () async {
-                  final newIsFavorite = await widget.presenter
-                      .toggleFavoriteFile(file);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(newIsFavorite ? '已添加到收藏' : '已取消收藏'),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    shape: BoxShape.circle,
+              bottom: 4,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // 缩略图或图标
+                Expanded(
+                  child: Center(
+                    child: isImage
+                        ? ImageThumbnail(imagePath: file.path, size: 80)
+                        : isVideo
+                        ? RealVideoThumbnail(videoPath: file.path, size: 80)
+                        : isAudio
+                        ? AudioCoverWidget(audioPath: file.path, size: 64)
+                        : isDocument
+                        ? DocumentIconWidget(fileName: file.name, size: 64)
+                        : Icon(
+                            Icons.insert_drive_file,
+                            size: 48,
+                            color: Colors.grey[400],
+                          ),
                   ),
-                  child: Icon(
-                    isFavorite ? Icons.star : Icons.star_border,
-                    size: 18,
-                    color: isFavorite ? Colors.amber : Colors.grey,
+                ),
+                const SizedBox(height: 4),
+                // 文件名
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    file.name,
+                    style: const TextStyle(fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
+                ),
+                const SizedBox(height: 2),
+                // 文件大小
+                Text(
+                  FileUtils.formatFileSize(file.size),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          // 收藏按钮始终在右上角
+          Positioned(
+            top: 4,
+            right: 4,
+            child: InkWell(
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final newIsFavorite = await widget.presenter.toggleFavoriteFile(file);
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(newIsFavorite ? '已添加到收藏' : '已取消收藏'),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isFavorite ? Icons.star : Icons.star_border,
+                  size: 18,
+                  color: isFavorite ? Colors.amber : Colors.grey,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

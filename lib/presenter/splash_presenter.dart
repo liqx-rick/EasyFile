@@ -37,13 +37,13 @@ class SplashPresenter {
       viewModel.setInitializing(false);
       viewModel.setInitMessage('启动完成');
 
-      // 延迟2秒后跳转
-      await _scheduleNavigation(context);
+      // 延迟2秒后跳转（通过 onComplete 回调处理导航）
+      await _scheduleNavigation();
     } catch (e) {
       logger.e('SplashPresenter: Error during app initialization: $e');
       viewModel.setInitMessage('启动失败：$e');
       // 即使出错也要跳转，避免用户卡在启动页
-      await _scheduleNavigation(context);
+      await _scheduleNavigation();
     }
   }
 
@@ -185,15 +185,14 @@ class SplashPresenter {
     }
   }
 
-  /// 安排导航到主页面
-  Future<void> _scheduleNavigation(BuildContext context) async {
+  /// 安排导航到主页面（通过 onComplete 回调触发，由调用方处理具体导航）
+  Future<void> _scheduleNavigation() async {
     logger.d('SplashPresenter: Scheduling navigation to main page...');
 
     // 快速跳转到主页面，给用户简短的品牌展示时间
     _delayTimer = Timer(const Duration(milliseconds: 800), () {
-      if (context.mounted) {
-        _navigateToMainPage(context);
-      }
+      // 通过回调通知上层进行导航
+      onComplete?.call();
     });
   }
 

@@ -14,6 +14,7 @@ EasyFile 是一个现代化的文件管理器，采用 Material Design 设计语
 - **📋 文件操作** - 复制、移动、重命名、删除等完整操作
 - **🎨 美观UI** - Material Design 风格，深色/浅色主题支持
 - **📊 详细信息** - 文件大小、修改时间等详细信息显示
+- **🔲 灵活视图** - 统一的列表/网格视图切换，支持分组和选择模式
 
 ## 🚀 功能特性
 
@@ -23,6 +24,9 @@ EasyFile 是一个现代化的文件管理器，采用 Material Design 设计语
 - ✅ 文件类型图标显示（图片、文档、视频、音频等）
 - ✅ 路径导航和返回功能
 - ✅ 多平台路径支持（Android、iOS、Windows、macOS、Linux）
+- ✅ 列表/网格视图无缝切换
+- ✅ 支持分组显示（按日期、类型等）
+- ✅ 统一的选择模式和批量操作
 
 ### 智能搜索
 - ✅ 实时搜索文件名和扩展名
@@ -88,8 +92,11 @@ lib/
 └── ui/                     # 用户界面
     ├── pages/              # 页面
     │   ├── file_browser_page.dart
+    │   ├── category_file_page.dart
+    │   ├── storage_page.dart
     │   └── file_preview_page.dart
     └── widgets/            # 组件
+        ├── file_collection_view.dart   # 统一文件列表/网格组件
         ├── file_item_tile.dart
         ├── file_operation_sheet.dart
         ├── rename_dialog.dart

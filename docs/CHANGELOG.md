@@ -6,6 +6,78 @@
 
 ## [未发布]
 
+### Feature: FileCollectionView 统一组件 (2025-11-16)
+
+#### 🎯 新增功能
+- ✅ **FileCollectionView 组件**: 统一的文件集合渲染组件
+  - 支持列表/网格双模式切换
+  - 统一的选择模式和交互逻辑
+  - 内置分组功能支持
+  - 高性能懒加载渲染
+  - 可自定义 header 和 item builder
+  - 下拉刷新和滚动加载更多
+  - 完整的可访问性支持（Semantics）
+
+#### 🔧 组件特性
+- ✅ **SelectionController**: 统一的选择状态管理
+  - select/deselect/toggle 操作
+  - selectAll/clear 批量操作
+  - ValueNotifier 驱动的响应式更新
+  - 独立的选择状态跟踪
+- ✅ **FileGroup**: 支持文件分组
+  - 可折叠分组标题
+  - 自定义分组标题样式
+  - 初始展开/折叠状态控制
+- ✅ **灵活的布局配置**:
+  - gridMode 参数控制视图模式
+  - crossAxisCount 自定义网格列数
+  - 独立的 padding 配置
+  - cacheExtent 性能优化
+
+#### 📄 页面迁移
+- ✅ **StoragePage**: 存储管理页面迁移
+  - 替换 ~140 行重复代码
+  - 统一列表/网格切换逻辑
+  - SelectionController 集成
+- ✅ **FileBrowserPage**: 文件浏览页面迁移
+  - 替换 ~150 行重复代码
+  - 保持 QuickAccessSection 架构
+  - 删除未使用的导入和方法
+- ✅ **CategoryFilePage**: 分类页面完整迁移
+  - 网格视图迁移到 FileCollectionView
+  - 分组视图使用 FileGroup 功能
+  - 简化 ~170 行重复代码
+
+#### 🧪 测试覆盖
+- ✅ **组件测试**: `test/file_collection_view_test.dart`
+  - 基础渲染测试（列表/网格模式）
+  - 分组功能测试
+  - SelectionController 完整测试
+  - 6 个测试用例全部通过
+
+#### 📚 文档完善
+- ✅ **API 文档**: `lib/ui/widgets/FILE_COLLECTION_VIEW.md`
+  - 完整的 API 参考
+  - 使用示例和最佳实践
+  - 迁移指南
+- ✅ **README 更新**: 添加 FileCollectionView 特性说明
+- ✅ **CHANGELOG**: 详细的变更记录
+
+#### 🎨 代码质量改进
+- ✅ **重复代码清理**: 删除 ~460 行重复代码
+  - 移除旧的 _buildListView/_buildGridView 方法
+  - 简化 _buildGridItem 方法逻辑
+  - 统一选择状态处理
+- ✅ **架构优化**:
+  - 组件职责清晰分离
+  - 统一的交互模式
+  - 更好的可维护性
+
+#### 🚀 性能优化
+- ✅ **懒加载**: CustomScrollView 的高效渲染
+- ✅ **缓存扩展**: cacheExtent 参数优化滚动性能
+- ✅ **选择状态**: 使用 ValueNotifier 减少不必要的重建
+
 ### Stage 10: 数据迁移与测试 (2025-01-XX)
 
 #### 🔄 数据迁移系统
