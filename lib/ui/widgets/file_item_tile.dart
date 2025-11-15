@@ -16,6 +16,13 @@ class FileItemTile extends StatelessWidget {
   final bool showFullPath;
   final bool showAccessTime;
   final DateTime? accessTime;
+  // 可配置项（保持向后兼容的默认值）
+  final double leadingSize; // 缩略图或图标大小（像素）
+  final double titleFontSize;
+  final double subtitleFontSize;
+  final double favoriteIconSize;
+  final EdgeInsetsGeometry contentPaddingOverride;
+  final bool dense;
 
   const FileItemTile({
     super.key,
@@ -27,6 +34,12 @@ class FileItemTile extends StatelessWidget {
     this.showFullPath = false,
     this.showAccessTime = false,
     this.accessTime,
+    this.leadingSize = 30,
+    this.titleFontSize = 14,
+    this.subtitleFontSize = 11,
+    this.favoriteIconSize = 20,
+    this.contentPaddingOverride = const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+    this.dense = true,
   });
 
   @override
@@ -37,27 +50,27 @@ class FileItemTile extends StatelessWidget {
     final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
 
     return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      dense: dense,
+      contentPadding: contentPaddingOverride,
       minVerticalPadding: 0,
       leading: isImage
-          ? ImageThumbnail(imagePath: file.path, size: 30)
+          ? ImageThumbnail(imagePath: file.path, size: leadingSize)
           : isVideo
-          ? RealVideoThumbnail(videoPath: file.path, size: 30)
-          : isAudio
-          ? AudioCoverWidget(audioPath: file.path, size: 30)
-          : isDocument
-          ? DocumentIconWidgetRounded(fileName: file.name, size: 30)
-          : Icon(
-              file.isDirectory ? Icons.folder : _getFileIcon(),
-              color: file.isDirectory ? Colors.amber : _getFileColor(),
-              size: 30,
-            ),
+              ? RealVideoThumbnail(videoPath: file.path, size: leadingSize)
+              : isAudio
+                  ? AudioCoverWidget(audioPath: file.path, size: leadingSize)
+                  : isDocument
+                      ? DocumentIconWidgetRounded(fileName: file.name, size: leadingSize)
+                      : Icon(
+                          file.isDirectory ? Icons.folder : _getFileIcon(),
+                          color: file.isDirectory ? Colors.amber : _getFileColor(),
+                          size: leadingSize,
+                        ),
       title: Text(
         file.name,
         style: TextStyle(
           fontWeight: file.isDirectory ? FontWeight.w500 : FontWeight.normal,
-          fontSize: 14,
+          fontSize: titleFontSize,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -72,7 +85,7 @@ class FileItemTile extends StatelessWidget {
                   Expanded(
                     child: Text(
                       file.path,
-                      style: const TextStyle(fontSize: 11, color: Colors.blue),
+                      style: TextStyle(fontSize: subtitleFontSize, color: Colors.blue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -81,7 +94,7 @@ class FileItemTile extends StatelessWidget {
                     file.isDirectory
                         ? '文件夹'
                         : FileUtils.formatFileSize(file.size),
-                    style: const TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: subtitleFontSize),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -91,7 +104,7 @@ class FileItemTile extends StatelessWidget {
           : Text(
               _buildSubtitleText(),
               style: TextStyle(
-                fontSize: 11,
+                fontSize: subtitleFontSize,
                 color: showAccessTime ? Colors.grey[600] : Colors.grey[500],
               ),
               maxLines: 1,
@@ -116,7 +129,7 @@ class FileItemTile extends StatelessWidget {
         icon: Icon(
           isFavorite ? Icons.star : Icons.star_border,
           color: isFavorite ? Colors.amber : Colors.grey,
-          size: 20,
+          size: favoriteIconSize,
         ),
         onPressed: onFavoriteToggle,
         tooltip: isFavorite ? '取消收藏' : '收藏',
