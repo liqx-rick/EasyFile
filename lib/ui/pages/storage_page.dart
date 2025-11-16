@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/ui/widgets/file_item_tile.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
@@ -15,9 +19,6 @@ import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-enum ViewMode { list, grid }
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -37,15 +38,13 @@ class _StoragePageState extends State<StoragePage> {
   String _searchQuery = '';
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
-  ViewMode _viewMode = ViewMode.list;
 
   // 批量操作相关状态
   bool _isSelectionMode = false;
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
 
-  // 搜索历史
-  List<String> _searchHistory = [];
+  // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
 
   List<FileItem> get _filteredFiles {
@@ -127,56 +126,7 @@ class _StoragePageState extends State<StoragePage> {
     return results;
   }
 
-  // 加载搜索历史
-  Future<void> _loadSearchHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final history = prefs.getStringList('storage_search_history') ?? [];
-      setState(() {
-        _searchHistory = history;
-      });
-    } catch (e) {
-      logger.e('Failed to load search history: $e');
-    }
-  }
 
-  // 保存搜索历史
-  Future<void> _saveSearchHistory(String query) async {
-    if (query.trim().isEmpty) return;
-
-    try {
-      // 移除已存在的相同项
-      _searchHistory.remove(query);
-
-      // 添加到列表开头
-      _searchHistory.insert(0, query);
-
-      // 只保留最近10条
-      if (_searchHistory.length > 10) {
-        _searchHistory = _searchHistory.sublist(0, 10);
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('storage_search_history', _searchHistory);
-
-      setState(() {});
-    } catch (e) {
-      logger.e('Failed to save search history: $e');
-    }
-  }
-
-  // 清除搜索历史
-  Future<void> _clearSearchHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('storage_search_history');
-      setState(() {
-        _searchHistory.clear();
-      });
-    } catch (e) {
-      logger.e('Failed to clear search history: $e');
-    }
-  }
 
   // 获取当前文件夹名称
   String _getCurrentFolderName() {
@@ -334,9 +284,7 @@ class _StoragePageState extends State<StoragePage> {
     _selectionController = SelectionController();
     // 监听SelectionController变化并同步到_selectedItems
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
-    _loadViewMode();
     _loadStorageFiles();
-    _loadSearchHistory();
   }
 
   void _onSelectionChanged() {
@@ -349,35 +297,7 @@ class _StoragePageState extends State<StoragePage> {
     });
   }
 
-  /// 加载视图模式偏好
-  Future<void> _loadViewMode() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedMode = prefs.getString('storage_view_mode');
-      if (savedMode != null) {
-        setState(() {
-          _viewMode = savedMode == 'grid' ? ViewMode.grid : ViewMode.list;
-        });
-        logger.d('Loaded view mode: $_viewMode');
-      }
-    } catch (e) {
-      logger.e('Failed to load view mode: $e');
-    }
-  }
 
-  /// 保存视图模式偏好
-  Future<void> _saveViewMode() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'storage_view_mode',
-        _viewMode == ViewMode.grid ? 'grid' : 'list',
-      );
-      logger.d('Saved view mode: $_viewMode');
-    } catch (e) {
-      logger.e('Failed to save view mode: $e');
-    }
-  }
 
   @override
   void dispose() {
@@ -520,45 +440,32 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
+    final viewModeService = ViewModeService();
     return FileCollectionView(
       items: _filteredFiles,
-      gridMode: _viewMode == ViewMode.grid,
+      gridMode: viewModeService.isGridView,
+      padding: viewModeService.isGridView
+          ? const EdgeInsets.all(8)
+          : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
-      itemBuilder: _viewMode == ViewMode.grid ? (file) {
-        // 网格模式：使用自定义网格项
+      // 列表模式显示选项
+      showFullPath: _isSearchMode && _searchInSubfolders,
+      showFavoriteButton: true,
+      isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await widget.presenter.toggleFavoriteFile(file);
+      },
+      // 网格模式使用自定义构建器
+      itemBuilder: viewModeService.isGridView ? (file) {
         final isSelected = _selectionController.contains(file.path);
         return _buildGridItem(file, isSelected);
-      } : (file) {
-        // 列表模式：使用FileItemTile（由FileCollectionView包装）
-        return FileItemTile(
-          file: file,
-          showFullPath: _isSearchMode && _searchInSubfolders,
-          isFavorite: widget.viewModel.isFavoriteFile(file.path),
-          onFavoriteToggle: file.isDirectory
-              ? null
-              : () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final isFavorite = await widget.presenter
-                      .toggleFavoriteFile(file);
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(isFavorite ? '已添加到收藏' : '已取消收藏'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
-          onTap: null, // 由FileCollectionView处理
-          onLongPress: null, // 由FileCollectionView处理
-        );
-      },
+      } : null, // 列表模式使用默认实现
       onTap: (file) => _onFileTap(file),
       onLongPress: (file) {
         // 长按进入多选模式并选中当前项
         if (!_isSelectionMode) {
           setState(() {
             _isSelectionMode = true;
-            _selectionController.select(file.path);
             _selectedItems.add(file.path);
           });
         }
@@ -574,75 +481,76 @@ class _StoragePageState extends State<StoragePage> {
     final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
     final isFavorite = widget.viewModel.isFavoriteFile(file.path);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isSelected
-            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
+    return InkWell(
+      onTap: () => _onFileTap(file),
+      onLongPress: () {
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+            _selectionController.select(file.path);
+            _selectedItems.add(file.path);
+          });
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).dividerColor,
-          width: isSelected ? 2 : 1,
+              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            width: 2,  // 固定宽度，避免选中时溢出
+          ),
         ),
-      ),
-      child: Stack(
+        child: Stack(
         children: [
-          // 主内容区域 - 使用Padding确保不被收藏按钮遮挡
-          Padding(
-            padding: const EdgeInsets.only(
-              top: 28,
-              left: 4,
-              right: 4,
-              bottom: 4,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // 文件图标或缩略图
-                if (isImage)
-                  ImageThumbnail(imagePath: file.path, size: 64)
-                else if (isVideo)
-                  RealVideoThumbnail(videoPath: file.path, size: 64)
-                else if (isAudio)
-                  AudioCoverWidget(audioPath: file.path, size: 64)
-                else if (isDocument)
-                  DocumentIconWidget(fileName: file.name, size: 64)
-                else
-                  Icon(
-                    file.isDirectory ? Icons.folder : _getFileIcon(file),
-                    size: 48,
-                    color: file.isDirectory ? Colors.amber : Colors.blue,
-                  ),
-                const SizedBox(height: 8),
-                // 文件名
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Text(
-                      file.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+          // 主内容区域 - 图标在上，文件名和大小在下
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 文件图标或缩略图
+                  if (isImage)
+                    ImageThumbnail(imagePath: file.path, size: 64)
+                  else if (isVideo)
+                    RealVideoThumbnail(videoPath: file.path, size: 64)
+                  else if (isAudio)
+                    AudioCoverWidget(audioPath: file.path, size: 64)
+                  else if (isDocument)
+                    DocumentIconWidget(fileName: file.name, size: 64)
+                  else
+                    Icon(
+                      file.isDirectory ? Icons.folder : _getFileIcon(file),
+                      size: 48,
+                      color: file.isDirectory ? Colors.amber : Colors.blue,
                     ),
+                  const SizedBox(height: 8),
+                  // 文件名
+                  Text(
+                    file.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
                   ),
-                ),
-                // 文件大小
-                if (!file.isDirectory)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
+                  const SizedBox(height: 4),
+                  // 文件大小
+                  if (!file.isDirectory)
+                    Text(
                       FileUtils.formatFileSize(file.size),
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           // 收藏按钮（右上角）- 所有文件都显示
@@ -650,52 +558,67 @@ class _StoragePageState extends State<StoragePage> {
             Positioned(
               top: 2,
               right: 2,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final isFavoriteNew = await widget.presenter
-                        .toggleFavoriteFile(file);
-                    if (!mounted) return;
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                        duration: const Duration(seconds: 1),
+              child: Container(
+                width: 26,
+                height: 26,
+                child: Transform.scale(
+                  scale: 0.75,  // 与复选框使用相同的缩放比例
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final isFavoriteNew = await widget.presenter
+                            .toggleFavoriteFile(file);
+                        if (!mounted) return;
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          isFavorite ? Icons.star : Icons.star_border,
+                          color: isFavorite ? Colors.amber : Colors.grey,
+                        ),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      isFavorite ? Icons.star : Icons.star_border,
-                      size: 20,
-                      color: isFavorite ? Colors.amber : Colors.grey,
                     ),
                   ),
                 ),
               ),
             ),
-          // 多选模式下的Checkbox（左上角）
+          // 多选模式下的Checkbox（右下角）
           if (_isSelectionMode)
             Positioned(
-              top: 0,
-              left: 0,
-              child: Checkbox(
-                value: isSelected,
-                onChanged: (bool? value) {
-                  if (value == true) {
-                    _selectionController.select(file.path);
-                  } else {
-                    _selectionController.deselect(file.path);
-                  }
-                },
+              bottom: 2,
+              right: 2,
+              child: Container(
+                width: 26,
+                height: 26,
+                child: Transform.scale(
+                  scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+                  child: Checkbox(
+                    value: isSelected,
+                    onChanged: (bool? value) {
+                      if (value == true) {
+                        _selectionController.select(file.path);
+                      } else {
+                        _selectionController.deselect(file.path);
+                      }
+                    },
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
               ),
             ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   /// 获取文件图标
@@ -830,307 +753,148 @@ class _StoragePageState extends State<StoragePage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 返回上级按钮
-                      if (_canNavigateUp(_currentPath))
-                        IconButton(
-                          icon: const Icon(Icons.arrow_upward, size: 22),
-                          onPressed: _navigateUp,
-                          tooltip: '返回上级',
-                          padding: EdgeInsets.zero,
-                          visualDensity: const VisualDensity(
-                            horizontal: -4,
-                            vertical: -4,
-                          ),
-                        ),
-                      // 搜索按钮
-                      IconButton(
-                        icon: const Icon(Icons.search, size: 22),
-                        onPressed: () {
+                      // 使用统一的FileToolbar组件
+                      FileToolbar(
+                        showBackButton: _canNavigateUp(_currentPath),
+                        onBackPressed: _navigateUp,
+                        showSearchButton: true,
+                        onSearchPressed: () {
                           setState(() {
                             _isSearchMode = !_isSearchMode;
                             if (!_isSearchMode) _searchQuery = '';
                           });
                         },
-                        tooltip: '搜索',
-                        padding: EdgeInsets.zero,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
-                        ),
-                      ),
-                      // 视图切换按钮
-                      IconButton(
-                        icon: Icon(
-                          _viewMode == ViewMode.list
-                              ? Icons.grid_view
-                              : Icons.list,
-                          size: 22,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _viewMode = _viewMode == ViewMode.list
-                                ? ViewMode.grid
-                                : ViewMode.list;
-                          });
-                          _saveViewMode();
-                        },
-                        tooltip: _viewMode == ViewMode.list ? '网格视图' : '列表视图',
-                        padding: EdgeInsets.zero,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
-                        ),
+                        isSearchMode: _isSearchMode,
+                        iconSize: 22,
                       ),
                     ],
                   ),
                 ),
               ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // 搜索栏
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: _isSearchMode ? 56 : 0,
-                  child: _isSearchMode
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          child: TextField(
+      body: Consumer<ViewModeService>(
+          builder: (context, viewModeService, _) {
+            return _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      // 搜索栏（使用统一的FileSearchBar组件）
+                      if (_isSearchMode)
+                        Flexible(
+                          child: FileSearchBar(
                             controller: _searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText: '搜索文件...',
-                              hintStyle: const TextStyle(fontSize: 14),
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: Theme.of(context).primaryColor,
-                                size: 20,
-                              ),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.close, size: 20),
-                                onPressed: () {
-                                  setState(() {
-                                    _searchQuery = '';
-                                    _searchController.clear();
-                                    _isSearchMode = false;
-                                  });
-                                },
-                                tooltip: '清除搜索',
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              filled: true,
-                              fillColor: Theme.of(context).colorScheme.surface,
-                            ),
-                            style: const TextStyle(fontSize: 14),
-                            textInputAction: TextInputAction.search,
+                            hintText: '搜索文件...',
+                            onSearch: (query) async {
+                              if (query.isNotEmpty) {
+                                await SearchHistoryService().addSearch(query);
+                                setState(() {
+                                  _searchQuery = query;
+                                });
+                              }
+                            },
+                            onClose: () {
+                              setState(() {
+                                _searchQuery = '';
+                                _searchController.clear();
+                                _isSearchMode = false;
+                              });
+                            },
                             onChanged: (query) {
                               setState(() {
                                 _searchQuery = query;
                               });
                             },
-                            onSubmitted: (query) {
-                              if (query.trim().isNotEmpty) {
-                                _saveSearchHistory(query.trim());
-                              }
-                            },
                           ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                // 搜索历史
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height:
-                      _isSearchMode &&
-                          _searchQuery.isEmpty &&
-                          _searchHistory.isNotEmpty
-                      ? 200
-                      : 0,
-                  child:
-                      _isSearchMode &&
-                          _searchQuery.isEmpty &&
-                          _searchHistory.isNotEmpty
-                      ? Container(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  4,
+                        ),
+
+                      // 搜索范围选择器
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        height: _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
+                        child: _isSearchMode && _searchQuery.isNotEmpty
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
                                 ),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      '最近搜索',
+                                      '搜索范围:',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                            .withOpacity(0.7),
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface.withOpacity(0.7),
                                       ),
                                     ),
-                                    TextButton(
-                                      onPressed: _clearSearchHistory,
-                                      style: TextButton.styleFrom(
-                                        minimumSize: Size.zero,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: const Text(
-                                        '清除',
+                                    const SizedBox(width: 8),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        '当前文件夹',
                                         style: TextStyle(fontSize: 12),
                                       ),
+                                      selected: !_searchInSubfolders,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() {
+                                            _searchInSubfolders = false;
+                                          });
+                                        }
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
                                     ),
+                                    const SizedBox(width: 8),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        '包含子文件夹',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      selected: _searchInSubfolders,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() {
+                                            _searchInSubfolders = true;
+                                          });
+                                        }
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const Spacer(),
+                                    // 显示搜索结果数量
+                                    if (_searchQuery.isNotEmpty)
+                                      Text(
+                                        '找到 ${_filteredFiles.length} 个结果',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                   ],
                                 ),
-                              ),
-                              Expanded(
-                                child: ListView.builder(
-                                  itemCount: _searchHistory.length,
-                                  itemBuilder: (context, index) {
-                                    final query = _searchHistory[index];
-                                    return ListTile(
-                                      dense: true,
-                                      leading: const Icon(
-                                        Icons.history,
-                                        size: 18,
-                                      ),
-                                      title: Text(
-                                        query,
-                                        style: const TextStyle(fontSize: 13),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      onTap: () {
-                                        setState(() {
-                                          _searchQuery = query;
-                                          _searchController.text = query;
-                                        });
-                                        _saveSearchHistory(query);
-                                      },
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                // 搜索范围选择器
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
-                  child: _isSearchMode && _searchQuery.isNotEmpty
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
-                          ),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          child: Row(
-                            children: [
-                              Text(
-                                '搜索范围:',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface.withOpacity(0.7),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: const Text(
-                                  '当前文件夹',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                selected: !_searchInSubfolders,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _searchInSubfolders = false;
-                                    });
-                                  }
-                                },
-                                padding: EdgeInsets.zero,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: const Text(
-                                  '包含子文件夹',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                selected: _searchInSubfolders,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      _searchInSubfolders = true;
-                                    });
-                                  }
-                                },
-                                padding: EdgeInsets.zero,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const Spacer(),
-                              // 显示搜索结果数量
-                              if (_searchQuery.isNotEmpty)
-                                Text(
-                                  '找到 ${_filteredFiles.length} 个结果',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                // 文件列表
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadStorageFiles,
-                    child: _buildFileView(),
-                  ),
-                ),
-              ],
-            ),
+                              )
+                            : null,
+                      ),
+
+                      // 文件列表区域（占据剩余空间）
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: _loadStorageFiles,
+                          child: _buildFileView(),
+                        ),
+                      ),
+                    ],
+                  );
+          },
+        ),
       // 批量操作底部工具栏
       bottomNavigationBar: _isSelectionMode ? _buildSelectionBottomBar() : null,
     );
@@ -1225,6 +989,16 @@ class _StoragePageState extends State<StoragePage> {
               onPressed: _selectedItems.isEmpty ? null : _batchMove,
               tooltip: '移动',
             ),
+            // 批量收藏/取消收藏按钮（只有文件可以收藏）
+            if (hasOnlyFiles)
+              IconButton(
+                icon: Icon(_isAllSelectedFavorite() ? Icons.star : Icons.star_border),
+                onPressed: _batchToggleFavorite,
+                tooltip: _isAllSelectedFavorite() ? '取消收藏' : '添加收藏',
+                color: _isAllSelectedFavorite() ? Colors.amber : null,
+                padding: EdgeInsets.zero,
+                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+              ),
             // 删除按钮
             IconButton(
               icon: const Icon(Icons.delete),
@@ -1249,6 +1023,68 @@ class _StoragePageState extends State<StoragePage> {
       return '$info · ${FileUtils.formatFileSize(totalSize)}';
     }
     return info;
+  }
+
+  /// 检查选中的文件是否全部已收藏
+  bool _isAllSelectedFavorite() {
+    if (_selectedItems.isEmpty) return false;
+    return _selectedItems.every((path) => widget.viewModel.isFavoriteFile(path));
+  }
+
+  /// 批量添加/取消收藏
+  void _batchToggleFavorite() async {
+    if (_selectedItems.isEmpty) return;
+
+    final allFavorite = _isAllSelectedFavorite();
+    final action = allFavorite ? '取消收藏' : '添加到收藏';
+    
+    int successCount = 0;
+    int failCount = 0;
+
+    for (final path in _selectedItems) {
+      // 只处理文件，跳过文件夹
+      final entity = FileSystemEntity.typeSync(path);
+      if (entity != FileSystemEntityType.file) continue;
+
+      try {
+        final file = FileItem(
+          name: path.split(Platform.pathSeparator).last,
+          path: path,
+          size: File(path).lengthSync(),
+          modified: File(path).lastModifiedSync(),
+          isDirectory: false,
+        );
+
+        if (allFavorite) {
+          // 全部已收藏，则取消收藏
+          await widget.presenter.toggleFavoriteFile(file);
+          successCount++;
+        } else {
+          // 有未收藏的，则添加收藏
+          final isFav = widget.viewModel.isFavoriteFile(path);
+          if (!isFav) {
+            await widget.presenter.toggleFavoriteFile(file);
+            successCount++;
+          }
+        }
+      } catch (e) {
+        logger.e('Failed to toggle favorite: $path, error: $e');
+        failCount++;
+      }
+    }
+
+    if (mounted) {
+      final message = failCount > 0
+          ? '$action完成：成功 $successCount 个，失败 $failCount 个'
+          : '已${action} $successCount 个文件';
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   /// 批量删除

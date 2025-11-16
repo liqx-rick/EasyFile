@@ -16,6 +16,8 @@ class FileItemTile extends StatelessWidget {
   final bool showFullPath;
   final bool showAccessTime;
   final DateTime? accessTime;
+  final bool isSelected; // 是否处于选中状态
+  final bool showCheckbox; // 是否显示复选框
   // 可配置项（保持向后兼容的默认值）
   final double leadingSize; // 缩略图或图标大小（像素）
   final double titleFontSize;
@@ -34,6 +36,8 @@ class FileItemTile extends StatelessWidget {
     this.showFullPath = false,
     this.showAccessTime = false,
     this.accessTime,
+    this.isSelected = false,
+    this.showCheckbox = false,
     this.leadingSize = 30,
     this.titleFontSize = 14,
     this.subtitleFontSize = 11,
@@ -117,24 +121,96 @@ class FileItemTile extends StatelessWidget {
     );
   }
 
-  /// 构建trailing部分（收藏按钮 + 文件夹图标）
+  /// 构建trailing部分（收藏按钮 + 复选框，或文件夹图标）
   Widget? _buildTrailing() {
     if (file.isDirectory) {
+      // 文件夹显示右箭头（或复选框）
+      if (showCheckbox) {
+        return SizedBox(
+          width: 32,
+          child: Transform.scale(
+            scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+            child: Checkbox(
+              value: isSelected,
+              onChanged: onTap != null ? (_) => onTap!() : null,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        );
+      }
       return const Icon(Icons.chevron_right);
     }
 
-    // 文件显示收藏按钮
-    if (onFavoriteToggle != null) {
-      return IconButton(
-        icon: Icon(
-          isFavorite ? Icons.star : Icons.star_border,
-          color: isFavorite ? Colors.amber : Colors.grey,
-          size: favoriteIconSize,
+    // 文件：同时显示收藏按钮和复选框（如果在选择模式）
+    if (showCheckbox && onFavoriteToggle != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 收藏按钮
+          SizedBox(
+            width: 32,
+            child: Transform.scale(
+              scale: 0.75,  // 与复选框使用相同的缩放比例
+              child: IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.star : Icons.star_border,
+                  color: isFavorite ? Colors.amber : Colors.grey,
+                ),
+                onPressed: onFavoriteToggle,
+                tooltip: isFavorite ? '取消收藏' : '收藏',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ),
+          ),
+          // 复选框
+          SizedBox(
+            width: 32,
+            child: Transform.scale(
+              scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+              child: Checkbox(
+                value: isSelected,
+                onChanged: onTap != null ? (_) => onTap!() : null,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 仅显示复选框
+    if (showCheckbox) {
+      return SizedBox(
+        width: 32,
+        child: Transform.scale(
+          scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+          child: Checkbox(
+            value: isSelected,
+            onChanged: onTap != null ? (_) => onTap!() : null,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
-        onPressed: onFavoriteToggle,
-        tooltip: isFavorite ? '取消收藏' : '收藏',
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
+      );
+    }
+
+    // 仅显示收藏按钮
+    if (onFavoriteToggle != null) {
+      return SizedBox(
+        width: 32,
+        child: Transform.scale(
+          scale: 0.75,  // 与复选框使用相同的缩放比例
+          child: IconButton(
+            icon: Icon(
+              isFavorite ? Icons.star : Icons.star_border,
+              color: isFavorite ? Colors.amber : Colors.grey,
+            ),
+            onPressed: onFavoriteToggle,
+            tooltip: isFavorite ? '取消收藏' : '收藏',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ),
       );
     }
 

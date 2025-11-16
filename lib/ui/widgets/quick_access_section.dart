@@ -627,15 +627,18 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       case QuickAccessFolderType.system:
         // 根据路径判断系统文件夹类型
         final path = folder.path.toLowerCase();
-        if (path.contains('dcim') || path.contains('camera'))
+        if (path.contains('dcim') || path.contains('camera')) {
           return Icons.camera_alt;
+        }
         if (path.contains('download')) return Icons.download;
-        if (path.contains('picture') || path.contains('photo'))
+        if (path.contains('picture') || path.contains('photo')) {
           return Icons.photo;
+        }
         if (path.contains('document')) return Icons.description;
         if (path.contains('music')) return Icons.music_note;
-        if (path.contains('movie') || path.contains('video'))
+        if (path.contains('movie') || path.contains('video')) {
           return Icons.video_library;
+        }
         return Icons.folder_special;
 
       case QuickAccessFolderType.appRoot:

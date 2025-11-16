@@ -388,7 +388,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
   /// 单个首页卡片
   Widget _buildHomeCard(QuickAccessFolder folder, int index, double cardSize) {
-    return Container(
+    return SizedBox(
       width: cardSize,
       height: cardSize,
       child: Card(

@@ -211,6 +211,13 @@ class FileCollectionView extends StatelessWidget {
   final VoidCallback? onScrollNearEnd;
   final double? itemExtent;
   final double? cacheExtent;
+  // FileItemTile 显示选项
+  final bool showFullPath;
+  final bool showAccessTime;
+  final bool showFavoriteButton;
+  final bool Function(String)? isFavorite;
+  final Future<bool> Function(FileItem)? onFavoriteToggle;
+  final DateTime? Function(FileItem)? getAccessTime;
 
   const FileCollectionView({
     super.key,
@@ -221,7 +228,7 @@ class FileCollectionView extends StatelessWidget {
     this.groupHeaderBuilder,
     this.onTap,
     this.onLongPress,
-    this.padding = const EdgeInsets.symmetric(vertical: 8.0),
+    this.padding = const EdgeInsets.symmetric(vertical: 4.0),
     this.headerBuilder,
     this.stickyHeader = false,
     this.selectionController,
@@ -229,6 +236,12 @@ class FileCollectionView extends StatelessWidget {
     this.onScrollNearEnd,
     this.itemExtent,
     this.cacheExtent,
+    this.showFullPath = false,
+    this.showAccessTime = false,
+    this.showFavoriteButton = true,
+    this.isFavorite,
+    this.onFavoriteToggle,
+    this.getAccessTime,
   }) : assert(items != null || groups != null, 'Either items or groups must be provided');
 
   @override
@@ -317,14 +330,14 @@ class FileCollectionView extends StatelessWidget {
 
   Widget _buildGrid(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = width < 600 ? 2 : (width < 900 ? 3 : 4);
+    final crossAxisCount = width < 600 ? 3 : (width < 900 ? 4 : 5);
     return GridView.builder(
-      padding: padding as EdgeInsets?,
+      padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
-        childAspectRatio: 3,
+        childAspectRatio: 0.85, // 高度略大于宽度，适合垂直布局（图标在上，文字在下）
       ),
       itemCount: items!.length,
       itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
@@ -351,13 +364,66 @@ class FileCollectionView extends StatelessWidget {
   }
 
   Widget _buildItemWrapper(BuildContext context, FileItem item) {
-    Widget child = itemBuilder != null
-        ? itemBuilder!(item)
-        : FileItemTile(
-            file: item,
-            onTap: onTap == null ? null : () => onTap!(item),
-            onLongPress: onLongPress == null ? null : () => onLongPress!(item),
-          );
+    // 如果提供了自定义 itemBuilder，直接使用
+    if (itemBuilder != null) {
+      Widget child = itemBuilder!(item);
+      
+      // Add semantics for accessibility
+      child = Semantics(
+        label: item.isDirectory ? '文件夹: ${item.name}' : '文件: ${item.name}',
+        button: true,
+        enabled: true,
+        child: child,
+      );
+      
+      return child;
+    }
+
+    // 使用默认的 FileItemTile
+    // 只要传入了 selectionController 就表示处于选择模式（应该显示复选框）
+    final isSelectionMode = selectionController != null;
+    final isSelected = selectionController?.contains(item.path) ?? false;
+
+    Widget child = FileItemTile(
+      file: item,
+      showFullPath: showFullPath,
+      showAccessTime: showAccessTime,
+      accessTime: getAccessTime?.call(item),
+      isFavorite: isFavorite?.call(item.path) ?? false,
+      isSelected: isSelected,
+      showCheckbox: isSelectionMode,
+      onFavoriteToggle: showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
+          ? () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final isFav = await onFavoriteToggle!(item);
+              if (context.mounted) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              }
+            }
+          : null,
+      onTap: () {
+        if (isSelectionMode) {
+          selectionController!.toggle(item.path);
+        } else {
+          if (onTap != null) onTap!(item);
+        }
+      },
+      onLongPress: () {
+        if (selectionController != null) {
+          if (!isSelectionMode) {
+            selectionController!.select(item.path);
+          }
+          if (onLongPress != null) onLongPress!(item);
+        } else {
+          if (onLongPress != null) onLongPress!(item);
+        }
+      },
+    );
 
     // Add semantics for accessibility
     child = Semantics(
@@ -366,44 +432,6 @@ class FileCollectionView extends StatelessWidget {
       enabled: true,
       child: child,
     );
-
-    // If selectionController provided, handle tap/longPress to toggle selection
-    if (selectionController != null) {
-      return ValueListenableBuilder<Set<String>>(
-        valueListenable: selectionController!.selectedNotifier,
-        builder: (context, selected, _) {
-          final isSelected = selected.contains(item.path);
-
-          return InkWell(
-            onTap: () {
-              if (selectionController!.isSelecting) {
-                selectionController!.toggle(item.path);
-              } else {
-                if (onTap != null) onTap!(item);
-              }
-            },
-            onLongPress: () {
-              selectionController!.toggle(item.path);
-              if (onLongPress != null) onLongPress!(item);
-            },
-            child: Stack(
-              children: [
-                child,
-                if (isSelected)
-                  Positioned.fill(
-                    child: Container(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withOpacity(0.12),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      );
-    }
 
     return child;
   }
@@ -494,8 +522,17 @@ class _GroupSectionState extends State<_GroupSection> {
   }
 
   List<Widget> _buildGroupItems() {
-    return widget.group.items
-        .map((item) => widget.itemWrapper(context, item))
-        .toList();
+    final items = widget.group.items;
+    final widgets = <Widget>[];
+    
+    for (var i = 0; i < items.length; i++) {
+      widgets.add(widget.itemWrapper(context, items[i]));
+      // 在每个item后面添加分割线（最后一个除外）
+      if (i < items.length - 1) {
+        widgets.add(const Divider(height: 1));
+      }
+    }
+    
+    return widgets;
   }
 }

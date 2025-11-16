@@ -3,6 +3,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:easyfile/app.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/view_mode_service.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,11 @@ Future<void> main() async {
   logger.i('==========================================');
 
   setupLocator();
+  
+  // 初始化全局视图模式服务
+  await ViewModeService().initialize();
+  logger.i('ViewModeService initialized');
+  
   logger.i('Running EasyFile app');
 
   // 启动Flutter应用
