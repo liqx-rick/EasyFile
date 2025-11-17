@@ -21,9 +21,9 @@ class DataMigrationService {
     required FavoritesLocalSource favoritesSource,
     required QuickAccessLocalSource quickAccessSource,
     required FolderAnalyzer folderAnalyzer,
-  }) : _favoritesSource = favoritesSource,
-       _quickAccessSource = quickAccessSource,
-       _folderAnalyzer = folderAnalyzer;
+  })  : _favoritesSource = favoritesSource,
+        _quickAccessSource = quickAccessSource,
+        _folderAnalyzer = folderAnalyzer;
 
   /// 检查是否需要迁移
   Future<bool> needsMigration() async {

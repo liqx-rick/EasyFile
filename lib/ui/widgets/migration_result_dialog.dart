@@ -49,9 +49,7 @@ class MigrationResultDialog extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              ...result.errors
-                  .take(5)
-                  .map(
+              ...result.errors.take(5).map(
                     (error) => Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
@@ -70,7 +68,7 @@ class MigrationResultDialog extends StatelessWidget {
                     '... 还有 ${result.errors.length - 5} 个错误',
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -84,7 +82,7 @@ class MigrationResultDialog extends StatelessWidget {
                 '您的收藏已成功迁移到快捷访问功能。',
                 style: TextStyle(
                   fontSize: 12,
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -115,7 +113,7 @@ class MigrationResultDialog extends StatelessWidget {
           Text(
             '$label：',
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
             ),
           ),
           Text(

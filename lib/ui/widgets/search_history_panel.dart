@@ -123,8 +123,8 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
                 Text(
                   '最近搜索',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 TextButton.icon(
                   onPressed: _clearAllHistory,
@@ -161,8 +161,8 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
                 Text(
                   '热门搜索',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
               ],
             ),
@@ -216,7 +216,7 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.2),
+                  color: Colors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -233,7 +233,8 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
         ),
         deleteIcon: const Icon(Icons.close, size: 16),
         onDeleted: () => _deleteHistoryItem(item.keyword),
-        backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        backgroundColor:
+            colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),

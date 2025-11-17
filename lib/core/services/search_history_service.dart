@@ -3,9 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 全局搜索历史服务
 /// 管理所有页面共享的搜索历史记录
 class SearchHistoryService {
-  static final SearchHistoryService _instance = SearchHistoryService._internal();
+  static final SearchHistoryService _instance =
+      SearchHistoryService._internal();
   factory SearchHistoryService() => _instance;
-  
+
   SearchHistoryService._internal();
 
   static const String _searchHistoryKey = 'global_search_history';
@@ -32,10 +33,10 @@ class SearchHistoryService {
 
     // 移除已存在的相同记录
     _history.remove(keyword);
-    
+
     // 添加到列表开头
     _history.insert(0, keyword);
-    
+
     // 限制历史记录数量
     if (_history.length > _maxHistoryCount) {
       _history = _history.sublist(0, _maxHistoryCount);
@@ -65,11 +66,11 @@ class SearchHistoryService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final historyJson = prefs.getStringList(_searchHistoryKey);
-      
+
       if (historyJson != null) {
         _history = historyJson;
       }
-      
+
       _initialized = true;
     } catch (e) {
       _history = [];

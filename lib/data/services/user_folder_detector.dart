@@ -70,17 +70,17 @@ class UserFolderDetector {
 
   /// 排除目录：系统和应用目录不扫描
   static List<String> get _excludedPaths => [
-    '/storage/emulated/0/Android',
-    '/storage/emulated/0/.thumbnails',
-    '/storage/emulated/0/DCIM/.thumbnails',
-    '/storage/emulated/0/Alarms',
-    '/storage/emulated/0/Notifications',
-    '/storage/emulated/0/Ringtones',
-    '/storage/emulated/0/Podcasts',
-    // 添加所有应用目录路径
-    ...AppDirConfigs.allApps.map((app) => app.path),
-    ...AppDirConfigs.allApps.expand((app) => app.alternativePaths),
-  ];
+        '/storage/emulated/0/Android',
+        '/storage/emulated/0/.thumbnails',
+        '/storage/emulated/0/DCIM/.thumbnails',
+        '/storage/emulated/0/Alarms',
+        '/storage/emulated/0/Notifications',
+        '/storage/emulated/0/Ringtones',
+        '/storage/emulated/0/Podcasts',
+        // 添加所有应用目录路径
+        ...AppDirConfigs.allApps.map((app) => app.path),
+        ...AppDirConfigs.allApps.expand((app) => app.alternativePaths),
+      ];
 
   /// 检测用户自建目录
   Future<List<UserFolder>> detectUserFolders() async {

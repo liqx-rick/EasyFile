@@ -5,10 +5,10 @@ import 'package:easyfile/utils/file_utils.dart';
 
 /// 排序类型
 enum SortType {
-  name,          // 按名称排序
-  modifiedTime,  // 按修改时间排序
-  size,          // 按文件大小排序
-  fileType,      // 按文件类型排序
+  name, // 按名称排序
+  modifiedTime, // 按修改时间排序
+  size, // 按文件大小排序
+  fileType, // 按文件类型排序
 }
 
 /// 全局类别文件排序服务
@@ -16,7 +16,7 @@ enum SortType {
 class CategorySortService extends ChangeNotifier {
   static final CategorySortService _instance = CategorySortService._internal();
   factory CategorySortService() => _instance;
-  
+
   CategorySortService._internal();
 
   static const String _sortTypeKey = 'category_sort_type';
@@ -29,18 +29,18 @@ class CategorySortService extends ChangeNotifier {
   /// 初始化，从本地存储加载排序类型
   Future<void> initialize() async {
     if (_initialized) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedType = prefs.getString(_sortTypeKey);
-      
+
       if (savedType != null) {
         _sortType = SortType.values.firstWhere(
           (e) => e.toString() == savedType,
           orElse: () => SortType.modifiedTime,
         );
       }
-      
+
       _initialized = true;
       notifyListeners();
     } catch (e) {
@@ -61,7 +61,7 @@ class CategorySortService extends ChangeNotifier {
   /// 获取文件类型优先级（数字越小优先级越高）
   int _getFileTypePriority(FileItem file) {
     if (file.isDirectory) return 0; // 文件夹最优先
-    
+
     final fileName = file.name;
     if (FileUtils.isImageFile(fileName)) return 1;
     if (FileUtils.isVideoFile(fileName)) return 2;
@@ -83,7 +83,8 @@ class CategorySortService extends ChangeNotifier {
         return (a, b) => b.size.compareTo(a.size); // 大的在前
       case SortType.fileType:
         return (a, b) {
-          final typeComparison = _getFileTypePriority(a) - _getFileTypePriority(b);
+          final typeComparison =
+              _getFileTypePriority(a) - _getFileTypePriority(b);
           if (typeComparison != 0) return typeComparison;
           return a.name.compareTo(b.name); // 同类型按名称排序
         };

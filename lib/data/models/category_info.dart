@@ -49,120 +49,120 @@ class CategoryInfo {
 
   /// 获取所有支持的分类
   static List<CategoryInfo> get allCategories => [
-    // 图片
-    const CategoryInfo(
-      type: CategoryType.images,
-      name: '图片',
-      icon: Icons.image,
-      backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
-      iconColor: Color(0xFF1976D2), // 蓝色
-      extensions: [
-        'jpg',
-        'jpeg',
-        'png',
-        'gif',
-        'bmp',
-        'webp',
-        'svg',
-        'ico',
-        'tiff',
-        'tif',
-        'heic',
-        'heif',
-      ],
-    ),
+        // 图片
+        const CategoryInfo(
+          type: CategoryType.images,
+          name: '图片',
+          icon: Icons.image,
+          backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
+          iconColor: Color(0xFF1976D2), // 蓝色
+          extensions: [
+            'jpg',
+            'jpeg',
+            'png',
+            'gif',
+            'bmp',
+            'webp',
+            'svg',
+            'ico',
+            'tiff',
+            'tif',
+            'heic',
+            'heif',
+          ],
+        ),
 
-    // 文档
-    const CategoryInfo(
-      type: CategoryType.documents,
-      name: '文档',
-      icon: Icons.description,
-      backgroundColor: Color(0xFFF3E5F5), // 淡紫色
-      iconColor: Color(0xFF7B1FA2), // 紫色
-      extensions: [
-        'pdf',
-        'doc',
-        'docx',
-        'txt',
-        'rtf',
-        'xls',
-        'xlsx',
-        'ppt',
-        'pptx',
-        'odt',
-        'ods',
-        'odp',
-        'csv',
-        'md',
-      ],
-    ),
+        // 文档
+        const CategoryInfo(
+          type: CategoryType.documents,
+          name: '文档',
+          icon: Icons.description,
+          backgroundColor: Color(0xFFF3E5F5), // 淡紫色
+          iconColor: Color(0xFF7B1FA2), // 紫色
+          extensions: [
+            'pdf',
+            'doc',
+            'docx',
+            'txt',
+            'rtf',
+            'xls',
+            'xlsx',
+            'ppt',
+            'pptx',
+            'odt',
+            'ods',
+            'odp',
+            'csv',
+            'md',
+          ],
+        ),
 
-    // 音乐
-    const CategoryInfo(
-      type: CategoryType.music,
-      name: '音乐',
-      icon: Icons.music_note,
-      backgroundColor: Color(0xFFE8F5E8), // 淡绿色
-      iconColor: Color(0xFF388E3C), // 绿色
-      extensions: [
-        'mp3',
-        'wav',
-        'flac',
-        'm4a',
-        'aac',
-        'ogg',
-        'wma',
-        'opus',
-        'amr',
-        '3gp',
-      ],
-    ),
+        // 音乐
+        const CategoryInfo(
+          type: CategoryType.music,
+          name: '音乐',
+          icon: Icons.music_note,
+          backgroundColor: Color(0xFFE8F5E8), // 淡绿色
+          iconColor: Color(0xFF388E3C), // 绿色
+          extensions: [
+            'mp3',
+            'wav',
+            'flac',
+            'm4a',
+            'aac',
+            'ogg',
+            'wma',
+            'opus',
+            'amr',
+            '3gp',
+          ],
+        ),
 
-    // 视频
-    const CategoryInfo(
-      type: CategoryType.video,
-      name: '视频',
-      icon: Icons.video_library,
-      backgroundColor: Color(0xFFFFF3E0), // 淡橙色
-      iconColor: Color(0xFFF57C00), // 橙色
-      extensions: [
-        'mp4',
-        'avi',
-        'mov',
-        'wmv',
-        'flv',
-        'mkv',
-        'webm',
-        '3gp',
-        'rmvb',
-        'rm',
-        'asf',
-      ],
-    ),
+        // 视频
+        const CategoryInfo(
+          type: CategoryType.video,
+          name: '视频',
+          icon: Icons.video_library,
+          backgroundColor: Color(0xFFFFF3E0), // 淡橙色
+          iconColor: Color(0xFFF57C00), // 橙色
+          extensions: [
+            'mp4',
+            'avi',
+            'mov',
+            'wmv',
+            'flv',
+            'mkv',
+            'webm',
+            '3gp',
+            'rmvb',
+            'rm',
+            'asf',
+          ],
+        ),
 
-    // 下载
-    const CategoryInfo(
-      type: CategoryType.downloads,
-      name: '下载',
-      icon: Icons.download,
-      backgroundColor: Color(0xFFE1F5FE), // 淡青色
-      iconColor: Color(0xFF0277BD), // 深蓝色
-      extensions: [
-        'zip',
-        'rar',
-        '7z',
-        'tar',
-        'gz',
-        'apk',
-        'exe',
-        'msi',
-        'deb',
-        'rpm',
-        'dmg',
-        'pkg',
-      ],
-    ),
-  ];
+        // 下载
+        const CategoryInfo(
+          type: CategoryType.downloads,
+          name: '下载',
+          icon: Icons.download,
+          backgroundColor: Color(0xFFE1F5FE), // 淡青色
+          iconColor: Color(0xFF0277BD), // 深蓝色
+          extensions: [
+            'zip',
+            'rar',
+            '7z',
+            'tar',
+            'gz',
+            'apk',
+            'exe',
+            'msi',
+            'deb',
+            'rpm',
+            'dmg',
+            'pkg',
+          ],
+        ),
+      ];
 
   /// 根据文件扩展名获取分类
   static CategoryType? getCategoryByExtension(String extension) {

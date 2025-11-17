@@ -308,9 +308,8 @@ class QuickAccessLocalSource {
       final existingPaths = folders.map((f) => f.path).toSet();
 
       // 只添加不存在的文件夹
-      final foldersToAdd = newFolders
-          .where((f) => !existingPaths.contains(f.path))
-          .toList();
+      final foldersToAdd =
+          newFolders.where((f) => !existingPaths.contains(f.path)).toList();
 
       if (foldersToAdd.isEmpty) {
         logger.w('All folders already exist');
@@ -583,9 +582,8 @@ class QuickAccessLocalSource {
 
       final updatedFolder = folders[index].copyWith(
         homeDisplayOrder: order,
-        isAddedToQuickAccess: order != null
-            ? true
-            : folders[index].isAddedToQuickAccess,
+        isAddedToQuickAccess:
+            order != null ? true : folders[index].isAddedToQuickAccess,
       );
 
       folders[index] = updatedFolder;
@@ -627,11 +625,12 @@ class QuickAccessLocalSource {
     try {
       final folders = await getAllFolders();
       final homeFolders =
-          folders.where((f) => f.homeDisplayOrder != null).toList()..sort(
-            (a, b) => (a.homeDisplayOrder ?? 999).compareTo(
-              b.homeDisplayOrder ?? 999,
-            ),
-          );
+          folders.where((f) => f.homeDisplayOrder != null).toList()
+            ..sort(
+              (a, b) => (a.homeDisplayOrder ?? 999).compareTo(
+                b.homeDisplayOrder ?? 999,
+              ),
+            );
 
       return homeFolders;
     } catch (e, stackTrace) {

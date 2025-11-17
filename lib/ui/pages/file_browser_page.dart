@@ -61,7 +61,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   // 收藏Tab的搜索和过滤状态
   bool _favoriteSearchMode = false;
   String _favoriteSearchQuery = '';
-  final TextEditingController _favoriteSearchController = TextEditingController();
+  final TextEditingController _favoriteSearchController =
+      TextEditingController();
   final FocusNode _favoriteSearchFocusNode = FocusNode();
 
   @override
@@ -272,18 +273,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     logger.d('Previewing file: ${file.path}');
     Navigator.of(context)
         .push<bool>(
-          MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-        )
+      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+    )
         .then((refresh) async {
-          if (refresh == true) {
-            // 返回后主动刷新主界面文件列表
-            if (viewModel.currentTab == TabView.recent) {
-              await presenter.loadRecentFiles();
-            } else {
-              await presenter.loadFiles(viewModel.currentPath);
-            }
-          }
-        });
+      if (refresh == true) {
+        // 返回后主动刷新主界面文件列表
+        if (viewModel.currentTab == TabView.recent) {
+          await presenter.loadRecentFiles();
+        } else {
+          await presenter.loadFiles(viewModel.currentPath);
+        }
+      }
+    });
   }
 
   bool _canNavigateUp(String currentPath) {
@@ -444,8 +445,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   color: isSelected && isClickable
                       ? Theme.of(context).colorScheme.primary
                       : (isSelected && !isClickable
-                            ? Theme.of(context).colorScheme.tertiary
-                            : Theme.of(context).colorScheme.onSurfaceVariant),
+                          ? Theme.of(context).colorScheme.tertiary
+                          : Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -463,13 +464,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         // 遍历所有快速访问文件夹，查找当前路径所属的根文件夹
         for (final folder in quickAccessViewModel!.folders) {
           // 检查当前路径是否等于或在该快速访问文件夹内
-          if (vm.currentPath == folder.path || 
+          if (vm.currentPath == folder.path ||
               vm.currentPath.startsWith(folder.path + Platform.pathSeparator)) {
             // 限制名称长度为7个字符，确保工具栏有足够空间
             final displayName = folder.displayName;
             final maxLength = 7;
-            final truncatedName = displayName.length > maxLength 
-                ? '${displayName.substring(0, 4)}...' 
+            final truncatedName = displayName.length > maxLength
+                ? '${displayName.substring(0, 4)}...'
                 : displayName;
             return '浏览 - $truncatedName';
           }
@@ -480,15 +481,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final pathSegments = vm.currentPath.split(Platform.pathSeparator);
       final folderName = pathSegments.last.isEmpty
           ? (pathSegments.length > 1
-                ? pathSegments[pathSegments.length - 2]
-                : '')
+              ? pathSegments[pathSegments.length - 2]
+              : '')
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
         // 进一步限制长度，确保工具栏有足够空间
         final maxLength = 7;
-        final truncatedName = folderName.length > maxLength 
-            ? '${folderName.substring(0, 4)}...' 
+        final truncatedName = folderName.length > maxLength
+            ? '${folderName.substring(0, 4)}...'
             : folderName;
         return '浏览 - $truncatedName';
       }
@@ -503,7 +504,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 应用搜索过滤
     if (_favoriteSearchMode && _favoriteSearchQuery.isNotEmpty) {
       result = files.where((file) {
-        return file.name.toLowerCase().contains(_favoriteSearchQuery.toLowerCase());
+        return file.name
+            .toLowerCase()
+            .contains(_favoriteSearchQuery.toLowerCase());
       }).toList();
     }
 
@@ -608,19 +611,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Widget _buildFavoriteGroupedView(List<FileItem> files) {
     final groups = _groupFavoriteFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    
+
     final fileGroups = groupKeys
         .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
         .map((key) {
-          final count = groups[key]!.length;
-          return FileGroup(
-            key: key,
-            title: '$key ($count 个文件)',
-            items: groups[key]!,
-            isCollapsible: false,
-          );
-        })
-        .toList();
+      final count = groups[key]!.length;
+      return FileGroup(
+        key: key,
+        title: '$key ($count 个文件)',
+        items: groups[key]!,
+        isCollapsible: false,
+      );
+    }).toList();
 
     return FileCollectionView(
       groups: fileGroups,
@@ -635,10 +637,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: ViewModeService().isGridView ? (file) {
-        final isSelected = _selectionController.contains(file.path);
-        return _buildGridItem(file, viewModel, isSelected);
-      } : null,
+      itemBuilder: ViewModeService().isGridView
+          ? (file) {
+              final isSelected = _selectionController.contains(file.path);
+              return _buildGridItem(file, viewModel, isSelected);
+            }
+          : null,
       onTap: (file) => _onFileTap(file, viewModel),
       onLongPress: (file) {
         if (!_isSelectionMode) {
@@ -654,19 +658,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Widget _buildBrowseGroupedView(List<FileItem> files) {
     final groups = _groupBrowseFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    
+
     final fileGroups = groupKeys
         .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
         .map((key) {
-          final count = groups[key]!.length;
-          return FileGroup(
-            key: key,
-            title: '$key ($count 个文件)',
-            items: groups[key]!,
-            isCollapsible: false,
-          );
-        })
-        .toList();
+      final count = groups[key]!.length;
+      return FileGroup(
+        key: key,
+        title: '$key ($count 个文件)',
+        items: groups[key]!,
+        isCollapsible: false,
+      );
+    }).toList();
 
     return FileCollectionView(
       groups: fileGroups,
@@ -681,10 +684,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: ViewModeService().isGridView ? (file) {
-        final isSelected = _selectionController.contains(file.path);
-        return _buildGridItem(file, viewModel, isSelected);
-      } : null,
+      itemBuilder: ViewModeService().isGridView
+          ? (file) {
+              final isSelected = _selectionController.contains(file.path);
+              return _buildGridItem(file, viewModel, isSelected);
+            }
+          : null,
       onTap: (file) => _onFileTap(file, viewModel),
       onLongPress: (file) {
         if (!_isSelectionMode) {
@@ -706,55 +711,55 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            ListTile(
-              leading: const Icon(Icons.sort_by_alpha),
-              title: const Text('按名称排序'),
-              trailing: sortService.sortType == SortType.name
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.name);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.access_time),
-              title: const Text('按修改时间排序'),
-              trailing: sortService.sortType == SortType.modifiedTime
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.modifiedTime);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storage),
-              title: const Text('按文件大小排序'),
-              trailing: sortService.sortType == SortType.size
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.size);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.category),
-              title: const Text('按文件类型排序'),
-              trailing: sortService.sortType == SortType.fileType
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.fileType);
-                setState(() {}); // 刷新列表
-              },
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha),
+                title: const Text('按名称排序'),
+                trailing: sortService.sortType == SortType.name
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.name);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: const Text('按修改时间排序'),
+                trailing: sortService.sortType == SortType.modifiedTime
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.modifiedTime);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.storage),
+                title: const Text('按文件大小排序'),
+                trailing: sortService.sortType == SortType.size
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.size);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.category),
+                title: const Text('按文件类型排序'),
+                trailing: sortService.sortType == SortType.fileType
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.fileType);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -771,55 +776,55 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            ListTile(
-              leading: const Icon(Icons.sort_by_alpha),
-              title: const Text('按名称排序'),
-              trailing: sortService.sortType == SortType.name
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.name);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.access_time),
-              title: const Text('按修改时间排序'),
-              trailing: sortService.sortType == SortType.modifiedTime
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.modifiedTime);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storage),
-              title: const Text('按文件大小排序'),
-              trailing: sortService.sortType == SortType.size
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.size);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.category),
-              title: const Text('按文件类型排序'),
-              trailing: sortService.sortType == SortType.fileType
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.fileType);
-                setState(() {}); // 刷新列表
-              },
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha),
+                title: const Text('按名称排序'),
+                trailing: sortService.sortType == SortType.name
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.name);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: const Text('按修改时间排序'),
+                trailing: sortService.sortType == SortType.modifiedTime
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.modifiedTime);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.storage),
+                title: const Text('按文件大小排序'),
+                trailing: sortService.sortType == SortType.size
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.size);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.category),
+                title: const Text('按文件类型排序'),
+                trailing: sortService.sortType == SortType.fileType
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.fileType);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -894,10 +899,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 构建列表/网格视图（使用FileCollectionView）
   Widget _buildFileView(FileViewModel vm) {
     final viewModeService = ViewModeService();
-    
+
     // 收藏Tab和浏览Tab需要应用排序
     var displayFiles = vm.files;
-    
+
     if (vm.currentTab == TabView.favorite) {
       // 收藏Tab：应用过滤和排序
       displayFiles = _getFilteredFavoriteFiles(vm.files);
@@ -923,7 +928,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
       // 列表模式显示选项
-      showFullPath: vm.isSearchMode || (vm.currentTab == TabView.favorite && _favoriteSearchMode),
+      showFullPath: vm.isSearchMode ||
+          (vm.currentTab == TabView.favorite && _favoriteSearchMode),
       showAccessTime: vm.currentTab == TabView.recent,
       getAccessTime: (file) => file.accessedAt,
       showFavoriteButton: true,
@@ -932,10 +938,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         return await presenter.toggleFavoriteFile(file);
       },
       // 网格模式使用自定义构建器
-      itemBuilder: viewModeService.isGridView ? (file) {
-        final isSelected = _selectionController.contains(file.path);
-        return _buildGridItem(file, vm, isSelected);
-      } : null, // 列表模式使用默认实现
+      itemBuilder: viewModeService.isGridView
+          ? (file) {
+              final isSelected = _selectionController.contains(file.path);
+              return _buildGridItem(file, vm, isSelected);
+            }
+          : null, // 列表模式使用默认实现
       onTap: (file) => _onFileTap(file, vm),
       onLongPress: (file) {
         // 长按进入多选模式并选中当前项
@@ -969,140 +977,147 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       child: Container(
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).dividerColor,
-            width: 2,  // 固定宽度，避免选中时溢出
+            width: 2, // 固定宽度，避免选中时溢出
           ),
         ),
         child: Stack(
-        children: [
-          // 主内容区域 - 图标在上，文件名和大小在下
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 4),
-                  // 文件图标或缩略图
-                  if (isImage)
-                    ImageThumbnail(imagePath: file.path, size: 64)
-                  else if (isVideo)
-                    RealVideoThumbnail(videoPath: file.path, size: 64)
-                  else if (isAudio)
-                    AudioCoverWidget(audioPath: file.path, size: 64)
-                  else if (isDocument)
-                    DocumentIconWidget(fileName: file.name, size: 64)
-                  else
-                    Icon(
-                      file.isDirectory ? Icons.folder : Icons.insert_drive_file,
-                      size: 48,
-                      color: file.isDirectory ? Colors.amber : Colors.blue,
+          children: [
+            // 主内容区域 - 图标在上，文件名和大小在下
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 4),
+                    // 文件图标或缩略图
+                    if (isImage)
+                      ImageThumbnail(imagePath: file.path, size: 64)
+                    else if (isVideo)
+                      RealVideoThumbnail(videoPath: file.path, size: 64)
+                    else if (isAudio)
+                      AudioCoverWidget(audioPath: file.path, size: 64)
+                    else if (isDocument)
+                      DocumentIconWidget(fileName: file.name, size: 64)
+                    else
+                      Icon(
+                        file.isDirectory
+                            ? Icons.folder
+                            : Icons.insert_drive_file,
+                        size: 48,
+                        color: file.isDirectory ? Colors.amber : Colors.blue,
+                      ),
+                    const SizedBox(height: 6),
+                    // 文件名
+                    Flexible(
+                      child: Text(
+                        file.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
-                  const SizedBox(height: 6),
-                  // 文件名
-                  Flexible(
-                    child: Text(
-                      file.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // 文件大小或访问时间
-                  if (vm.currentTab == TabView.recent && file.accessedAt != null)
-                    Text(
-                      TimeFormatter.formatRelativeTime(file.accessedAt!),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else if (!file.isDirectory)
-                    Text(
-                      FileUtils.formatFileSize(file.size),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  const SizedBox(height: 4),
-                ],
+                    const SizedBox(height: 2),
+                    // 文件大小或访问时间
+                    if (vm.currentTab == TabView.recent &&
+                        file.accessedAt != null)
+                      Text(
+                        TimeFormatter.formatRelativeTime(file.accessedAt!),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else if (!file.isDirectory)
+                      Text(
+                        FileUtils.formatFileSize(file.size),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    const SizedBox(height: 4),
+                  ],
+                ),
               ),
             ),
-          ),
-          // 收藏按钮（右上角）- 非文件夹才显示
-          if (!file.isDirectory)
-            Positioned(
-              top: 2,
-              right: 2,
-              child: Container(
-                width: 26,
-                height: 26,
-                child: Transform.scale(
-                  scale: 0.75,  // 与复选框使用相同的缩放比例
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        final isFavoriteNew = await presenter.toggleFavoriteFile(file);
-                        if (!mounted) return;
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                            duration: const Duration(seconds: 1),
+            // 收藏按钮（右上角）- 非文件夹才显示
+            if (!file.isDirectory)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: Transform.scale(
+                    scale: 0.75, // 与复选框使用相同的缩放比例
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final isFavoriteNew =
+                              await presenter.toggleFavoriteFile(file);
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            isFavorite ? Icons.star : Icons.star_border,
+                            color: isFavorite ? Colors.amber : Colors.grey,
                           ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          isFavorite ? Icons.star : Icons.star_border,
-                          color: isFavorite ? Colors.amber : Colors.grey,
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          // 多选模式下的Checkbox（右下角）
-          if (_isSelectionMode)
-            Positioned(
-              bottom: 2,
-              right: 2,
-              child: Container(
-                width: 26,
-                height: 26,
-                child: Transform.scale(
-                  scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
-                  child: Checkbox(
-                    value: isSelected,
-                    onChanged: (bool? value) {
-                      if (value == true) {
-                        _selectionController.select(file.path);
-                      } else {
-                        _selectionController.deselect(file.path);
-                      }
-                    },
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            // 多选模式下的Checkbox（右下角）
+            if (_isSelectionMode)
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: Transform.scale(
+                    scale: 0.75, // 缩放到18px，与收藏按钮大小一致
+                    child: Checkbox(
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        if (value == true) {
+                          _selectionController.select(file.path);
+                        } else {
+                          _selectionController.deselect(file.path);
+                        }
+                      },
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 
   /// 构建网格项（用于网格视图）
@@ -1257,141 +1272,153 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 return Column(
                   children: [
                     // 上半部分固定区域 - 在搜索模式下隐藏，避免溢出
-                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) && 
-                        !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
+                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
+                        !(vm.currentTab == TabView.favorite &&
+                            _favoriteSearchMode))
                       ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxHeight: constraints.maxWidth > constraints.maxHeight
-                              ? constraints.maxHeight * 0.35  // 横屏：35%
-                              : constraints.maxHeight * 0.5,  // 竖屏：50%
+                          maxHeight:
+                              constraints.maxWidth > constraints.maxHeight
+                                  ? constraints.maxHeight * 0.35 // 横屏：35%
+                                  : constraints.maxHeight * 0.5, // 竖屏：50%
                         ),
                         child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 分类导航区（快速入口）
-                            CategoryNavBar(
-                              presenter: presenter,
-                              viewModel: vm,
-                              onCardSizeCalculated: (size) {
-                                if (mounted && _categoryCardSize != size) {
-                                  setState(() {
-                                    _categoryCardSize = size;
-                                  });
-                                }
-                              },
-                            ),
-                            const Divider(height: 1),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 分类导航区（快速入口）
+                              CategoryNavBar(
+                                presenter: presenter,
+                                viewModel: vm,
+                                onCardSizeCalculated: (size) {
+                                  if (mounted && _categoryCardSize != size) {
+                                    setState(() {
+                                      _categoryCardSize = size;
+                                    });
+                                  }
+                                },
+                              ),
+                              const Divider(height: 1),
 
-                            // 快速访问区域（新）
-                            QuickAccessSection(
-                              quickAccessViewModel: quickAccessViewModel!,
-                              quickAccessPresenter: quickAccessPresenter!,
-                              fileViewModel: vm,
-                              filePresenter: presenter,
-                              categoryCardSize: _categoryCardSize,
-                            ),
-                            const Divider(height: 1),
-                          ],
+                              // 快速访问区域（新）
+                              QuickAccessSection(
+                                quickAccessViewModel: quickAccessViewModel!,
+                                quickAccessPresenter: quickAccessPresenter!,
+                                fileViewModel: vm,
+                                filePresenter: presenter,
+                                categoryCardSize: _categoryCardSize,
+                              ),
+                              const Divider(height: 1),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
                     // Tab 切换栏和工具按钮 - 在搜索模式下隐藏
-                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) && 
-                        !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
+                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
+                        !(vm.currentTab == TabView.favorite &&
+                            _favoriteSearchMode))
                       Container(
                         height: 32, // 固定高度
                         color: colorScheme.surface,
                         padding: const EdgeInsets.only(right: 4),
                         child: Row(
-                        children: [
-                          // Tab 切换 - 居左对齐
-                          _buildTabButton(
-                            context,
-                            '最近',
-                            TabView.recent,
-                            vm.currentTab == TabView.recent,
-                            onTap: () {
-                              viewModel.setCurrentTab(TabView.recent);
-                              presenter.loadRecentFiles();
-                            },
-                            count: vm.currentTab == TabView.recent
-                                ? vm.files.length
-                                : null,
-                          ),
-                          // 分割线
-                          Container(
-                            width: 1,
-                            height: 20,
-                            color: theme.dividerColor,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                          ),
-                          // 收藏 Tab
-                          _buildTabButton(
-                            context,
-                            '收藏',
-                            TabView.favorite,
-                            vm.currentTab == TabView.favorite,
-                            onTap: () {
-                              viewModel.setCurrentTab(TabView.favorite);
-                              presenter.loadFavoriteFiles();
-                            },
-                            count: vm.currentTab == TabView.favorite
-                                ? vm.files.length
-                                : null,
-                          ),
-                          // 分割线和文件浏览Tab - 仅在browse模式下显示
-                          if (vm.currentTab == TabView.browse) ...[
+                          children: [
+                            // Tab 切换 - 居左对齐
+                            _buildTabButton(
+                              context,
+                              '最近',
+                              TabView.recent,
+                              vm.currentTab == TabView.recent,
+                              onTap: () {
+                                viewModel.setCurrentTab(TabView.recent);
+                                presenter.loadRecentFiles();
+                              },
+                              count: vm.currentTab == TabView.recent
+                                  ? vm.files.length
+                                  : null,
+                            ),
+                            // 分割线
                             Container(
                               width: 1,
                               height: 20,
                               color: theme.dividerColor,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
                             ),
+                            // 收藏 Tab
                             _buildTabButton(
                               context,
-                              _getBrowseTabLabel(vm),
-                              TabView.browse,
-                              vm.currentTab == TabView.browse,
-                              onTap: null, // 文件浏览 Tab 不可点击，只能通过收藏夹激活
-                              count: null, // 不显示数量，避免与下方标签栏重复
+                              '收藏',
+                              TabView.favorite,
+                              vm.currentTab == TabView.favorite,
+                              onTap: () {
+                                viewModel.setCurrentTab(TabView.favorite);
+                                presenter.loadFavoriteFiles();
+                              },
+                              count: vm.currentTab == TabView.favorite
+                                  ? vm.files.length
+                                  : null,
+                            ),
+                            // 分割线和文件浏览Tab - 仅在browse模式下显示
+                            if (vm.currentTab == TabView.browse) ...[
+                              Container(
+                                width: 1,
+                                height: 20,
+                                color: theme.dividerColor,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                              ),
+                              _buildTabButton(
+                                context,
+                                _getBrowseTabLabel(vm),
+                                TabView.browse,
+                                vm.currentTab == TabView.browse,
+                                onTap: null, // 文件浏览 Tab 不可点击，只能通过收藏夹激活
+                                count: null, // 不显示数量，避免与下方标签栏重复
+                              ),
+                            ],
+                            // 占位空间
+                            const Spacer(),
+                            // 工具按钮组（使用统一的FileToolbar组件）
+                            FileToolbar(
+                              showBackButton: vm.currentTab == TabView.browse &&
+                                  vm.currentPath.isNotEmpty &&
+                                  _canNavigateUp(vm.currentPath),
+                              onBackPressed: () => presenter.navigateUp(),
+                              showSearchButton:
+                                  vm.currentTab == TabView.browse ||
+                                      vm.currentTab == TabView.favorite,
+                              onSearchPressed: () {
+                                if (vm.currentTab == TabView.browse) {
+                                  presenter.toggleSearch();
+                                } else if (vm.currentTab == TabView.favorite) {
+                                  setState(() {
+                                    _favoriteSearchMode = !_favoriteSearchMode;
+                                    if (!_favoriteSearchMode) {
+                                      _favoriteSearchQuery = '';
+                                      _favoriteSearchController.clear();
+                                    }
+                                  });
+                                }
+                              },
+                              isSearchMode: vm.currentTab == TabView.browse
+                                  ? vm.isSearchMode
+                                  : _favoriteSearchMode,
+                              showSortButton:
+                                  vm.currentTab == TabView.favorite ||
+                                      vm.currentTab == TabView.browse,
+                              onSortPressed: vm.currentTab == TabView.favorite
+                                  ? _showFavoriteSortOptions
+                                  : _showBrowseSortOptions,
+                              showGroupButton:
+                                  vm.currentTab == TabView.favorite ||
+                                      vm.currentTab == TabView.browse,
+                              onGroupToggle: () => setState(() {}),
+                              iconSize: 18,
                             ),
                           ],
-                          // 占位空间
-                          const Spacer(),
-                          // 工具按钮组（使用统一的FileToolbar组件）
-                          FileToolbar(
-                            showBackButton: vm.currentTab == TabView.browse &&
-                                vm.currentPath.isNotEmpty &&
-                                _canNavigateUp(vm.currentPath),
-                            onBackPressed: () => presenter.navigateUp(),
-                            showSearchButton: vm.currentTab == TabView.browse || vm.currentTab == TabView.favorite,
-                            onSearchPressed: () {
-                              if (vm.currentTab == TabView.browse) {
-                                presenter.toggleSearch();
-                              } else if (vm.currentTab == TabView.favorite) {
-                                setState(() {
-                                  _favoriteSearchMode = !_favoriteSearchMode;
-                                  if (!_favoriteSearchMode) {
-                                    _favoriteSearchQuery = '';
-                                    _favoriteSearchController.clear();
-                                  }
-                                });
-                              }
-                            },
-                            isSearchMode: vm.currentTab == TabView.browse ? vm.isSearchMode : _favoriteSearchMode,
-                            showSortButton: vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
-                            onSortPressed: vm.currentTab == TabView.favorite 
-                                ? _showFavoriteSortOptions 
-                                : _showBrowseSortOptions,
-                            showGroupButton: vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
-                            onGroupToggle: () => setState(() {}),
-                            iconSize: 18,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
 
                     // 浏览Tab的搜索栏
                     if (vm.currentTab == TabView.browse && vm.isSearchMode)
@@ -1411,7 +1438,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
 
                     // 收藏Tab的搜索栏
-                    if (vm.currentTab == TabView.favorite && _favoriteSearchMode)
+                    if (vm.currentTab == TabView.favorite &&
+                        _favoriteSearchMode)
                       FileSearchBar(
                         controller: _favoriteSearchController,
                         focusNode: _favoriteSearchFocusNode,
@@ -1467,9 +1495,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               },
             ),
             // 批量操作底部工具栏
-            bottomNavigationBar: _isSelectionMode
-                ? _buildSelectionBottomBar()
-                : null,
+            bottomNavigationBar:
+                _isSelectionMode ? _buildSelectionBottomBar() : null,
           );
         },
       ),
@@ -1482,10 +1509,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return SelectionBottomBar(
       selectedPaths: _selectedItems,
       isAllFavorite: batchService.isAllSelectedFavorite(_selectedItems),
-      onCopy: () => batchService.batchCopy(_selectedItems, viewModel.currentPath),
+      onCopy: () =>
+          batchService.batchCopy(_selectedItems, viewModel.currentPath),
       onRename: () => batchService.batchRename(_selectedItems),
       onShare: () => batchService.batchShare(_selectedItems),
-      onMove: () => batchService.batchMove(_selectedItems, viewModel.currentPath),
+      onMove: () =>
+          batchService.batchMove(_selectedItems, viewModel.currentPath),
       onToggleFavorite: () => batchService.batchToggleFavorite(_selectedItems),
       onDelete: () => batchService.batchDelete(_selectedItems),
     );

@@ -39,9 +39,8 @@ class FavoriteFileItem {
           : null,
       accessCount: json['accessCount'] as int? ?? 0,
       userNote: json['userNote'] as String?,
-      tags: json['tags'] != null
-          ? List<String>.from(json['tags'] as List)
-          : null,
+      tags:
+          json['tags'] != null ? List<String>.from(json['tags'] as List) : null,
     );
   }
 

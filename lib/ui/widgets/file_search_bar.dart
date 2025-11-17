@@ -3,7 +3,7 @@ import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 文件搜索栏组件（使用Stack浮动显示搜索历史）
-/// 
+///
 /// 搜索历史面板使用Stack浮动在搜索栏下方，不会影响Column布局
 class FileSearchBar extends StatefulWidget {
   final TextEditingController controller;
@@ -13,6 +13,7 @@ class FileSearchBar extends StatefulWidget {
   final Function(String) onSearch;
   final VoidCallback onClose;
   final Function(String)? onChanged;
+
   /// 是否显示搜索历史（默认true）
   final bool showHistory;
 
@@ -68,13 +69,15 @@ class _FileSearchBarState extends State<FileSearchBar> {
   }
 
   void _onFocusChanged() async {
-    logger.d('FileSearchBar: Focus changed - hasFocus: ${widget.focusNode?.hasFocus}');
+    logger.d(
+        'FileSearchBar: Focus changed - hasFocus: ${widget.focusNode?.hasFocus}');
     if (widget.focusNode?.hasFocus == true) {
       // 获得焦点时重新加载历史（确保显示最新的搜索记录）
       await _loadHistory();
-      
+
       if (widget.controller.text.isEmpty && _history.isNotEmpty) {
-        logger.d('FileSearchBar: Showing history overlay with ${_history.length} items');
+        logger.d(
+            'FileSearchBar: Showing history overlay with ${_history.length} items');
         _showHistoryOverlay();
       }
     } else {
@@ -89,7 +92,7 @@ class _FileSearchBarState extends State<FileSearchBar> {
       setState(() {
         _hasText = hasText;
       });
-      
+
       // 输入内容时隐藏历史，清空时显示历史
       if (hasText) {
         _removeOverlay();
@@ -100,7 +103,8 @@ class _FileSearchBarState extends State<FileSearchBar> {
   }
 
   void _showHistoryOverlay() {
-    if (_overlayEntry != null || !widget.showHistory || _history.isEmpty) return;
+    if (_overlayEntry != null || !widget.showHistory || _history.isEmpty)
+      return;
 
     _overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
@@ -131,7 +135,10 @@ class _FileSearchBarState extends State<FileSearchBar> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.7),
                           ),
                         ),
                         TextButton(
@@ -142,10 +149,12 @@ class _FileSearchBarState extends State<FileSearchBar> {
                           },
                           style: TextButton.styleFrom(
                             minimumSize: Size.zero,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text('清除', style: TextStyle(fontSize: 12)),
+                          child:
+                              const Text('清除', style: TextStyle(fontSize: 12)),
                         ),
                       ],
                     ),
@@ -171,7 +180,8 @@ class _FileSearchBarState extends State<FileSearchBar> {
                             _removeOverlay();
                             _onSubmit(keyword);
                           },
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 0),
                           minVerticalPadding: 4,
                         );
                       },
@@ -228,9 +238,8 @@ class _FileSearchBarState extends State<FileSearchBar> {
             ),
             suffixIcon: IconButton(
               icon: Icon(_hasText ? Icons.clear : Icons.close, size: 20),
-              onPressed: _hasText 
-                  ? () => widget.controller.clear()
-                  : widget.onClose,
+              onPressed:
+                  _hasText ? () => widget.controller.clear() : widget.onClose,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               tooltip: _hasText ? '清除' : '关闭',
@@ -241,7 +250,8 @@ class _FileSearchBarState extends State<FileSearchBar> {
             ),
             filled: true,
             fillColor: colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             isDense: true,
           ),
           onSubmitted: _onSubmit,

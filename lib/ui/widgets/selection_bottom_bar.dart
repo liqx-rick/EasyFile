@@ -4,7 +4,7 @@ import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 批量选择操作底部工具栏
-/// 
+///
 /// 提供文件/文件夹的批量操作功能，包括：
 /// - 复制（单个）
 /// - 重命名（单个）
@@ -15,25 +15,25 @@ import 'package:easyfile/core/logger.dart';
 class SelectionBottomBar extends StatelessWidget {
   /// 选中项的路径集合
   final Set<String> selectedPaths;
-  
+
   /// 是否所有选中的文件都已收藏
   final bool isAllFavorite;
-  
+
   /// 复制操作回调（单个项目）
   final VoidCallback? onCopy;
-  
+
   /// 重命名操作回调（单个项目）
   final VoidCallback? onRename;
-  
+
   /// 分享操作回调（仅文件）
   final VoidCallback? onShare;
-  
+
   /// 移动操作回调
   final VoidCallback? onMove;
-  
+
   /// 收藏/取消收藏操作回调（仅文件）
   final VoidCallback? onToggleFavorite;
-  
+
   /// 删除操作回调
   final VoidCallback? onDelete;
 
@@ -86,7 +86,7 @@ class SelectionBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final stats = _calculateStats();
     final hasSelection = selectedPaths.isNotEmpty;
-    
+
     return BottomAppBar(
       height: 56,
       child: Padding(
@@ -96,9 +96,7 @@ class SelectionBottomBar extends StatelessWidget {
             // 显示选中信息
             Expanded(
               child: Text(
-                hasSelection 
-                    ? _buildSelectionInfo(stats)
-                    : '请选择文件或文件夹',
+                hasSelection ? _buildSelectionInfo(stats) : '请选择文件或文件夹',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -108,12 +106,13 @@ class SelectionBottomBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            
+
             // 操作按钮 - 始终显示，通过启用/禁用控制
             // 复制按钮（单个文件/文件夹）
             IconButton(
               icon: const Icon(Icons.copy),
-              onPressed: stats.isSingleSelection && onCopy != null ? onCopy : null,
+              onPressed:
+                  stats.isSingleSelection && onCopy != null ? onCopy : null,
               tooltip: '复制',
               color: stats.isSingleSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
@@ -122,11 +121,12 @@ class SelectionBottomBar extends StatelessWidget {
                 vertical: -4,
               ),
             ),
-            
+
             // 重命名按钮（单个文件/文件夹）
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: stats.isSingleSelection && onRename != null ? onRename : null,
+              onPressed:
+                  stats.isSingleSelection && onRename != null ? onRename : null,
               tooltip: '重命名',
               color: stats.isSingleSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
@@ -135,7 +135,7 @@ class SelectionBottomBar extends StatelessWidget {
                 vertical: -4,
               ),
             ),
-            
+
             // 分享按钮（只有文件可以分享）
             if (onShare != null)
               IconButton(
@@ -149,7 +149,7 @@ class SelectionBottomBar extends StatelessWidget {
                   vertical: -4,
                 ),
               ),
-            
+
             // 移动按钮
             IconButton(
               icon: const Icon(Icons.drive_file_move),
@@ -159,13 +159,14 @@ class SelectionBottomBar extends StatelessWidget {
               padding: EdgeInsets.zero,
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             ),
-            
+
             // 批量收藏/取消收藏按钮（只有文件可以收藏）
             IconButton(
               icon: Icon(isAllFavorite ? Icons.star : Icons.star_border),
-              onPressed: stats.hasOnlyFiles && hasSelection && onToggleFavorite != null 
-                  ? onToggleFavorite 
-                  : null,
+              onPressed:
+                  stats.hasOnlyFiles && hasSelection && onToggleFavorite != null
+                      ? onToggleFavorite
+                      : null,
               tooltip: isAllFavorite ? '取消收藏' : '添加收藏',
               color: stats.hasOnlyFiles && hasSelection
                   ? (isAllFavorite ? Colors.amber : null)
@@ -173,7 +174,7 @@ class SelectionBottomBar extends StatelessWidget {
               padding: EdgeInsets.zero,
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             ),
-            
+
             // 删除按钮
             IconButton(
               icon: const Icon(Icons.delete),

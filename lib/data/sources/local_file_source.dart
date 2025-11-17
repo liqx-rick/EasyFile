@@ -412,13 +412,10 @@ class LocalFileRepository implements FileRepository {
 
       final queryLower = query.toLowerCase();
       final matchingEntities = allEntities.where((entity) {
-        final fileName = entity.path
-            .split(Platform.pathSeparator)
-            .last
-            .toLowerCase();
-        final fileExtension = fileName.contains('.')
-            ? fileName.split('.').last
-            : '';
+        final fileName =
+            entity.path.split(Platform.pathSeparator).last.toLowerCase();
+        final fileExtension =
+            fileName.contains('.') ? fileName.split('.').last : '';
 
         // 搜索文件名或扩展名
         return fileName.contains(queryLower) ||
@@ -426,9 +423,8 @@ class LocalFileRepository implements FileRepository {
       }).toList();
 
       logger.d('Found ${matchingEntities.length} matching entities');
-      final files = matchingEntities
-          .map((e) => FileItem.fromEntity(e))
-          .toList();
+      final files =
+          matchingEntities.map((e) => FileItem.fromEntity(e)).toList();
 
       // 按类型排序：文件夹在前，文件在后，然后按名称排序
       files.sort((a, b) {

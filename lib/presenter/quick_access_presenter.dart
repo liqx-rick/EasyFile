@@ -25,12 +25,12 @@ class QuickAccessPresenter {
     required UserFolderDetector userDetector,
     required AliasRecommendationService aliasService,
     required NewFolderNotificationService notificationService,
-  }) : _localSource = localSource,
-       _viewModel = viewModel,
-       _appScanner = appScanner,
-       _userDetector = userDetector,
-       _aliasService = aliasService,
-       _notificationService = notificationService;
+  })  : _localSource = localSource,
+        _viewModel = viewModel,
+        _appScanner = appScanner,
+        _userDetector = userDetector,
+        _aliasService = aliasService,
+        _notificationService = notificationService;
 
   /// 加载所有快速访问文件夹
   Future<void> loadQuickAccessFolders() async {
@@ -186,9 +186,8 @@ class QuickAccessPresenter {
 
       if (newFolders.isNotEmpty) {
         // 转换为 QuickAccessFolder 然后通知用户
-        final quickAccessFolders = newFolders
-            .map((f) => f.toQuickAccessFolder())
-            .toList();
+        final quickAccessFolders =
+            newFolders.map((f) => f.toQuickAccessFolder()).toList();
         _notificationService.addNewFolders(quickAccessFolders);
       }
 
@@ -216,9 +215,8 @@ class QuickAccessPresenter {
       final appFolders = await _appScanner.incrementalScan();
       logger.i('Incremental scan found ${appFolders.length} app folders');
 
-      final scannedFolders = appFolders
-          .map((f) => f.toQuickAccessFolder())
-          .toList();
+      final scannedFolders =
+          appFolders.map((f) => f.toQuickAccessFolder()).toList();
       final counts = _countFolderTypes(scannedFolders);
 
       int newlyAdded = 0;
@@ -441,9 +439,8 @@ class QuickAccessPresenter {
       final userFolders = await _userDetector.detectUserFolders();
       logger.i('Detected ${userFolders.length} user folders');
 
-      final scannedFolders = userFolders
-          .map((f) => f.toQuickAccessFolder())
-          .toList();
+      final scannedFolders =
+          userFolders.map((f) => f.toQuickAccessFolder()).toList();
       final counts = _countFolderTypes(scannedFolders);
 
       int newlyAdded = 0;
@@ -541,19 +538,19 @@ class QuickAccessPresenter {
             '/storage/emulated/0/Download',
           ]
         : Platform.isWindows
-        ? () {
-            final userProfile = Platform.environment['USERPROFILE'];
-            return userProfile != null
-                ? [
-                    '$userProfile\\Documents',
-                    '$userProfile\\Downloads',
-                    '$userProfile\\Pictures',
-                    '$userProfile\\Music',
-                    '$userProfile\\Videos',
-                  ]
-                : <String>[];
-          }()
-        : [];
+            ? () {
+                final userProfile = Platform.environment['USERPROFILE'];
+                return userProfile != null
+                    ? [
+                        '$userProfile\\Documents',
+                        '$userProfile\\Downloads',
+                        '$userProfile\\Pictures',
+                        '$userProfile\\Music',
+                        '$userProfile\\Videos',
+                      ]
+                    : <String>[];
+              }()
+            : [];
 
     for (final path in systemPaths) {
       final dir = Directory(path);
@@ -653,9 +650,8 @@ class QuickAccessPresenter {
   /// 获取应用根目录及其子目录的映射
   Map<String, List<QuickAccessFolder>> getAppFolderHierarchy() {
     final folders = _viewModel.folders;
-    final appRoots = folders
-        .where((f) => f.type == QuickAccessFolderType.appRoot)
-        .toList();
+    final appRoots =
+        folders.where((f) => f.type == QuickAccessFolderType.appRoot).toList();
     final appSubfolders = folders
         .where((f) => f.type == QuickAccessFolderType.appSubfolder)
         .toList();

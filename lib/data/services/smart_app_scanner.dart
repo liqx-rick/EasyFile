@@ -83,9 +83,8 @@ class SmartAppScanner {
     final previousPaths = await _getScannedAppPaths();
 
     // 找出新增的应用
-    final newApps = currentApps
-        .where((app) => !previousPaths.contains(app.path))
-        .toList();
+    final newApps =
+        currentApps.where((app) => !previousPaths.contains(app.path)).toList();
 
     if (newApps.isNotEmpty) {
       await _saveLastScanTime();

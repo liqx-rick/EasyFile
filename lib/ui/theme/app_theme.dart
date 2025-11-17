@@ -16,155 +16,157 @@ class AppTheme {
 
   /// 浅色主题
   static ThemeData get lightTheme => ThemeData(
-    useMaterial3: true,
-    colorSchemeSeed: primarySeedColor,
-    brightness: Brightness.light,
+        useMaterial3: true,
+        colorSchemeSeed: primarySeedColor,
+        brightness: Brightness.light,
 
-    // 文本主题
-    textTheme: const TextTheme(
-      // 标题
-      headlineLarge: TextStyle(
-        fontSize: fontSizeH1,
-        fontWeight: FontWeight.bold,
-      ),
-      headlineMedium: TextStyle(
-        fontSize: fontSizeH2,
-        fontWeight: FontWeight.bold,
-      ),
-      headlineSmall: TextStyle(
-        fontSize: fontSizeH3,
-        fontWeight: FontWeight.bold,
-      ),
-      // 正文
-      bodyLarge: TextStyle(fontSize: fontSizeBodyLarge),
-      bodyMedium: TextStyle(fontSize: fontSizeBodyMedium),
-      bodySmall: TextStyle(fontSize: fontSizeBodySmall),
-      // 辅助文本
-      labelLarge: TextStyle(
-        fontSize: fontSizeBodyMedium,
-        fontWeight: FontWeight.w500,
-      ),
-      labelMedium: TextStyle(
-        fontSize: fontSizeBodySmall,
-        fontWeight: FontWeight.w500,
-      ),
-      labelSmall: TextStyle(
-        fontSize: fontSizeCaption,
-        fontWeight: FontWeight.w500,
-      ),
-      // 标题样式
-      titleLarge: TextStyle(fontSize: fontSizeH2, fontWeight: FontWeight.w600),
-      titleMedium: TextStyle(
-        fontSize: fontSizeBodyLarge,
-        fontWeight: FontWeight.w500,
-      ),
-      titleSmall: TextStyle(
-        fontSize: fontSizeBodyMedium,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
+        // 文本主题
+        textTheme: const TextTheme(
+          // 标题
+          headlineLarge: TextStyle(
+            fontSize: fontSizeH1,
+            fontWeight: FontWeight.bold,
+          ),
+          headlineMedium: TextStyle(
+            fontSize: fontSizeH2,
+            fontWeight: FontWeight.bold,
+          ),
+          headlineSmall: TextStyle(
+            fontSize: fontSizeH3,
+            fontWeight: FontWeight.bold,
+          ),
+          // 正文
+          bodyLarge: TextStyle(fontSize: fontSizeBodyLarge),
+          bodyMedium: TextStyle(fontSize: fontSizeBodyMedium),
+          bodySmall: TextStyle(fontSize: fontSizeBodySmall),
+          // 辅助文本
+          labelLarge: TextStyle(
+            fontSize: fontSizeBodyMedium,
+            fontWeight: FontWeight.w500,
+          ),
+          labelMedium: TextStyle(
+            fontSize: fontSizeBodySmall,
+            fontWeight: FontWeight.w500,
+          ),
+          labelSmall: TextStyle(
+            fontSize: fontSizeCaption,
+            fontWeight: FontWeight.w500,
+          ),
+          // 标题样式
+          titleLarge:
+              TextStyle(fontSize: fontSizeH2, fontWeight: FontWeight.w600),
+          titleMedium: TextStyle(
+            fontSize: fontSizeBodyLarge,
+            fontWeight: FontWeight.w500,
+          ),
+          titleSmall: TextStyle(
+            fontSize: fontSizeBodyMedium,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
 
-    // AppBar 主题
-    appBarTheme: const AppBarTheme(
-      centerTitle: false,
-      elevation: 0,
-      scrolledUnderElevation: 1,
-    ),
+        // AppBar 主题
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+          scrolledUnderElevation: 1,
+        ),
 
-    // Card 主题
-    cardTheme: CardThemeData(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
+        // Card 主题
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
 
-    // FloatingActionButton 主题
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      elevation: 4,
-    ),
+        // FloatingActionButton 主题
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          elevation: 4,
+        ),
 
-    // ListTile 主题
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    ),
+        // ListTile 主题
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
 
-    // Divider 主题
-    dividerTheme: const DividerThemeData(thickness: 1, space: 1),
-  );
+        // Divider 主题
+        dividerTheme: const DividerThemeData(thickness: 1, space: 1),
+      );
 
   /// 深色主题
   static ThemeData get darkTheme => ThemeData(
-    useMaterial3: true,
-    colorSchemeSeed: primarySeedColor,
-    brightness: Brightness.dark,
+        useMaterial3: true,
+        colorSchemeSeed: primarySeedColor,
+        brightness: Brightness.dark,
 
-    // 文本主题
-    textTheme: const TextTheme(
-      // 标题
-      headlineLarge: TextStyle(
-        fontSize: fontSizeH1,
-        fontWeight: FontWeight.bold,
-      ),
-      headlineMedium: TextStyle(
-        fontSize: fontSizeH2,
-        fontWeight: FontWeight.bold,
-      ),
-      headlineSmall: TextStyle(
-        fontSize: fontSizeH3,
-        fontWeight: FontWeight.bold,
-      ),
-      // 正文
-      bodyLarge: TextStyle(fontSize: fontSizeBodyLarge),
-      bodyMedium: TextStyle(fontSize: fontSizeBodyMedium),
-      bodySmall: TextStyle(fontSize: fontSizeBodySmall),
-      // 辅助文本
-      labelLarge: TextStyle(
-        fontSize: fontSizeBodyMedium,
-        fontWeight: FontWeight.w500,
-      ),
-      labelMedium: TextStyle(
-        fontSize: fontSizeBodySmall,
-        fontWeight: FontWeight.w500,
-      ),
-      labelSmall: TextStyle(
-        fontSize: fontSizeCaption,
-        fontWeight: FontWeight.w500,
-      ),
-      // 标题样式
-      titleLarge: TextStyle(fontSize: fontSizeH2, fontWeight: FontWeight.w600),
-      titleMedium: TextStyle(
-        fontSize: fontSizeBodyLarge,
-        fontWeight: FontWeight.w500,
-      ),
-      titleSmall: TextStyle(
-        fontSize: fontSizeBodyMedium,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
+        // 文本主题
+        textTheme: const TextTheme(
+          // 标题
+          headlineLarge: TextStyle(
+            fontSize: fontSizeH1,
+            fontWeight: FontWeight.bold,
+          ),
+          headlineMedium: TextStyle(
+            fontSize: fontSizeH2,
+            fontWeight: FontWeight.bold,
+          ),
+          headlineSmall: TextStyle(
+            fontSize: fontSizeH3,
+            fontWeight: FontWeight.bold,
+          ),
+          // 正文
+          bodyLarge: TextStyle(fontSize: fontSizeBodyLarge),
+          bodyMedium: TextStyle(fontSize: fontSizeBodyMedium),
+          bodySmall: TextStyle(fontSize: fontSizeBodySmall),
+          // 辅助文本
+          labelLarge: TextStyle(
+            fontSize: fontSizeBodyMedium,
+            fontWeight: FontWeight.w500,
+          ),
+          labelMedium: TextStyle(
+            fontSize: fontSizeBodySmall,
+            fontWeight: FontWeight.w500,
+          ),
+          labelSmall: TextStyle(
+            fontSize: fontSizeCaption,
+            fontWeight: FontWeight.w500,
+          ),
+          // 标题样式
+          titleLarge:
+              TextStyle(fontSize: fontSizeH2, fontWeight: FontWeight.w600),
+          titleMedium: TextStyle(
+            fontSize: fontSizeBodyLarge,
+            fontWeight: FontWeight.w500,
+          ),
+          titleSmall: TextStyle(
+            fontSize: fontSizeBodyMedium,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
 
-    // AppBar 主题
-    appBarTheme: const AppBarTheme(
-      centerTitle: false,
-      elevation: 0,
-      scrolledUnderElevation: 1,
-    ),
+        // AppBar 主题
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+          scrolledUnderElevation: 1,
+        ),
 
-    // Card 主题
-    cardTheme: CardThemeData(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
+        // Card 主题
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
 
-    // FloatingActionButton 主题
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      elevation: 4,
-    ),
+        // FloatingActionButton 主题
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          elevation: 4,
+        ),
 
-    // ListTile 主题
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    ),
+        // ListTile 主题
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
 
-    // Divider 主题
-    dividerTheme: const DividerThemeData(thickness: 1, space: 1),
-  );
+        // Divider 主题
+        dividerTheme: const DividerThemeData(thickness: 1, space: 1),
+      );
 }

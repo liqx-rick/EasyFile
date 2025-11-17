@@ -83,8 +83,8 @@ class RecentFilesLocalSource {
 
       if (existingIndex != -1) {
         // 更新已存在的文件（增加访问次数和更新时间）
-        recentFiles[existingIndex] = recentFiles[existingIndex]
-            .copyWithAccess();
+        recentFiles[existingIndex] =
+            recentFiles[existingIndex].copyWithAccess();
         logger.d('Updated existing recent file: ${recentFile.name}');
       } else {
         // 添加新文件

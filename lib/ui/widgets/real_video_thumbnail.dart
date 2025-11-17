@@ -176,7 +176,10 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.4)
+                  ],
                 ),
               ),
             ),
@@ -186,7 +189,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -208,7 +211,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.8),
+                    color: Colors.black.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(

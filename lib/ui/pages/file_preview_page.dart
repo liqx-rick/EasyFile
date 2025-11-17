@@ -578,38 +578,38 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(_error!),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isLoading = true;
-                        _error = null;
-                      });
-                      _loadFileContent();
-                    },
-                    child: const Text('重试'),
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(_error!),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _isLoading = true;
+                            _error = null;
+                          });
+                          _loadFileContent();
+                        },
+                        child: const Text('重试'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )
-          : _isImageFile(widget.file.name)
-          ? _buildImagePreview()
-          : _isVideoFile(widget.file.name)
-          ? _buildVideoPreview()
-          : _isAudioFile(widget.file.name)
-          ? _buildAudioPreview()
-          : FileUtils.isPdfFile(widget.file.name)
-          ? _buildPdfViewer()
-          : FileUtils.isDocumentFile(widget.file.name)
-          ? _buildDocumentInfo()
-          : _buildTextPreview(),
+                )
+              : _isImageFile(widget.file.name)
+                  ? _buildImagePreview()
+                  : _isVideoFile(widget.file.name)
+                      ? _buildVideoPreview()
+                      : _isAudioFile(widget.file.name)
+                          ? _buildAudioPreview()
+                          : FileUtils.isPdfFile(widget.file.name)
+                              ? _buildPdfViewer()
+                              : FileUtils.isDocumentFile(widget.file.name)
+                                  ? _buildDocumentInfo()
+                                  : _buildTextPreview(),
     );
   }
 

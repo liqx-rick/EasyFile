@@ -195,8 +195,7 @@ class EnhancedDeleteDialog {
     String contentText;
     if (fileCount != null && folderCount != null) {
       if (folderCount > 0) {
-        contentText =
-            '确定要删除选中的 $totalCount 项吗？\n'
+        contentText = '确定要删除选中的 $totalCount 项吗？\n'
             '（$fileCount 个文件，$folderCount 个文件夹）\n\n'
             '文件夹将被递归删除。此操作不可恢复。';
       } else {

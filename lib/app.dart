@@ -115,7 +115,7 @@ class _AppNavigatorState extends State<AppNavigator>
       // 检查是否从后台恢复
       final isRestoringFromBackground =
           await platform.invokeMethod<bool>('isRestoringFromBackground') ??
-          false;
+              false;
 
       logger.i(
         'App initialization - Restoring from background: $isRestoringFromBackground',
@@ -170,9 +170,8 @@ class _AppNavigatorState extends State<AppNavigator>
     super.didChangeAppLifecycleState(state);
 
     if (_processStartTime != null) {
-      final timeSinceStart = DateTime.now()
-          .difference(_processStartTime!)
-          .inSeconds;
+      final timeSinceStart =
+          DateTime.now().difference(_processStartTime!).inSeconds;
       logger.i('App lifecycle: $state (${timeSinceStart}s since start)');
     }
 

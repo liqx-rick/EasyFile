@@ -222,7 +222,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 width: 200,
                 height: 200,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -253,9 +253,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       activeTrackColor: Colors.white,
-                      inactiveTrackColor: Colors.white.withOpacity(0.3),
+                      inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
                       thumbColor: Colors.white,
-                      overlayColor: Colors.white.withOpacity(0.2),
+                      overlayColor: Colors.white.withValues(alpha: 0.2),
                       trackHeight: 4,
                     ),
                     child: Slider(

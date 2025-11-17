@@ -11,7 +11,7 @@ import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 批量操作服务
-/// 
+///
 /// 提供文件/文件夹的批量操作功能，包括：
 /// - 批量收藏/取消收藏
 /// - 批量删除
@@ -86,10 +86,10 @@ class BatchOperationsService {
 
     final message = failCount > 0
         ? '$action完成：成功 $successCount 个，失败 $failCount 个'
-        : '已${action} $successCount 个文件';
+        : '已$action $successCount 个文件';
 
     _showSnackBar(message);
-    
+
     // 操作完成后退出选择模式
     onExitSelectionMode();
   }
@@ -519,17 +519,24 @@ class BatchOperationsService {
       var targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
 
       // 如果目标路径已存在，自动重命名
-      if (FileSystemEntity.typeSync(targetPath) != FileSystemEntityType.notFound) {
+      if (FileSystemEntity.typeSync(targetPath) !=
+          FileSystemEntityType.notFound) {
         final sourceDir = Directory(sourcePath).parent.path;
         if (sourceDir == destinationPath) {
           // 复制到相同目录，自动重命名
-          final ext = baseName.contains('.') ? baseName.substring(baseName.lastIndexOf('.')) : '';
-          final nameWithoutExt = ext.isNotEmpty ? baseName.substring(0, baseName.lastIndexOf('.')) : baseName;
+          final ext = baseName.contains('.')
+              ? baseName.substring(baseName.lastIndexOf('.'))
+              : '';
+          final nameWithoutExt = ext.isNotEmpty
+              ? baseName.substring(0, baseName.lastIndexOf('.'))
+              : baseName;
           var counter = 1;
           do {
-            targetPath = '$destinationPath${Platform.pathSeparator}${nameWithoutExt}_副本$counter$ext';
+            targetPath =
+                '$destinationPath${Platform.pathSeparator}${nameWithoutExt}_副本$counter$ext';
             counter++;
-          } while (FileSystemEntity.typeSync(targetPath) != FileSystemEntityType.notFound);
+          } while (FileSystemEntity.typeSync(targetPath) !=
+              FileSystemEntityType.notFound);
         } else {
           // 不同目录，提示已存在
           if (!_isMounted) return;
@@ -716,7 +723,8 @@ class BatchOperationsService {
           '$parentPath${Platform.pathSeparator}${newName.trim()}';
 
       // 检查目标文件名是否已存在
-      if (FileSystemEntity.typeSync(targetPath) != FileSystemEntityType.notFound) {
+      if (FileSystemEntity.typeSync(targetPath) !=
+          FileSystemEntityType.notFound) {
         if (!_isMounted) return;
         navigator.pop(); // 关闭进度对话框
         messenger.showSnackBar(

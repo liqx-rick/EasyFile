@@ -138,8 +138,7 @@ class QuickAccessFolder {
           : null,
       accessCount: (json['accessCount'] as int?) ?? 0,
       pinned: (json['pinned'] as bool?) ?? false, // 保留用于迁移
-      isAddedToQuickAccess:
-          (json['isAddedToQuickAccess'] as bool?) ??
+      isAddedToQuickAccess: (json['isAddedToQuickAccess'] as bool?) ??
           (json['pinned'] as bool?) ??
           true, // 迁移：旧数据默认已加入
       isHidden: (json['isHidden'] as bool?) ?? false,

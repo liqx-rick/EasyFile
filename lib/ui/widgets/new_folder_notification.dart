@@ -178,9 +178,8 @@ class _NewFolderNotificationDialogState
 
   @override
   Widget build(BuildContext context) {
-    final selectedFolders = widget.folders
-        .where((f) => _selectedPaths.contains(f.path))
-        .toList();
+    final selectedFolders =
+        widget.folders.where((f) => _selectedPaths.contains(f.path)).toList();
 
     return AlertDialog(
       title: Row(

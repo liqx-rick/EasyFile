@@ -139,31 +139,32 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _folders.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.folder_open, size: 48, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('此文件夹中没有子文件夹'),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _folders.length,
-                      itemBuilder: (context, index) {
-                        final folder = _folders[index];
-                        return ListTile(
-                          leading: const Icon(
-                            Icons.folder,
-                            color: Colors.amber,
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.folder_open,
+                                  size: 48, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text('此文件夹中没有子文件夹'),
+                            ],
                           ),
-                          title: Text(folder.name),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _navigateToFolder(folder.path),
-                        );
-                      },
-                    ),
+                        )
+                      : ListView.builder(
+                          itemCount: _folders.length,
+                          itemBuilder: (context, index) {
+                            final folder = _folders[index];
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.folder,
+                                color: Colors.amber,
+                              ),
+                              title: Text(folder.name),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _navigateToFolder(folder.path),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

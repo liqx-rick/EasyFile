@@ -50,13 +50,12 @@ class CategoryNavBar extends StatelessWidget {
         final cardWidth = (availableWidth - totalSpacingWidth) / crossAxisCount;
 
         // 根据卡片大小调整间距
-        final actualSpacing = cardWidth < 60
-            ? minSpacing
-            : (cardWidth < 70 ? 11.0 : maxSpacing);
+        final actualSpacing =
+            cardWidth < 60 ? minSpacing : (cardWidth < 70 ? 11.0 : maxSpacing);
 
         final actualCardWidth =
             (availableWidth - (crossAxisCount - 1) * actualSpacing) /
-            crossAxisCount;
+                crossAxisCount;
         final cardHeight = actualCardWidth;
 
         // Notify parent of the calculated card size
@@ -118,7 +117,7 @@ class CategoryNavBar extends StatelessWidget {
             color: adjustedBgColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: adjustedIconColor.withOpacity(0.3),
+              color: adjustedIconColor.withValues(alpha: 0.3),
               width: 0.5,
             ),
           ),
@@ -132,7 +131,7 @@ class CategoryNavBar extends StatelessWidget {
                 child: Container(
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
-                    color: adjustedIconColor.withOpacity(0.15),
+                    color: adjustedIconColor.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -152,10 +151,10 @@ class CategoryNavBar extends StatelessWidget {
                   child: Text(
                     category.name,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: adjustedIconColor,
-                      fontSize: fontSize,
-                    ),
+                          fontWeight: FontWeight.w500,
+                          color: adjustedIconColor,
+                          fontSize: fontSize,
+                        ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -219,9 +218,9 @@ class CategoryNavBarHorizontal extends StatelessWidget {
             child: Text(
               '快速入口',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
             ),
           ),
           const SizedBox(height: 8),
@@ -267,9 +266,9 @@ class CategoryNavBarHorizontal extends StatelessWidget {
                 Text(
                   category.name,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: category.iconColor,
-                  ),
+                        fontWeight: FontWeight.w500,
+                        color: category.iconColor,
+                      ),
                   textAlign: TextAlign.center,
                 ),
               ],

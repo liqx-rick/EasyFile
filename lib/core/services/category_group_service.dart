@@ -4,9 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 全局类别文件分组服务
 /// 管理所有类别页面的分组状态，一次设置，所有页面同步
 class CategoryGroupService extends ChangeNotifier {
-  static final CategoryGroupService _instance = CategoryGroupService._internal();
+  static final CategoryGroupService _instance =
+      CategoryGroupService._internal();
   factory CategoryGroupService() => _instance;
-  
+
   CategoryGroupService._internal();
 
   static const String _groupEnabledKey = 'category_group_enabled';
@@ -19,11 +20,11 @@ class CategoryGroupService extends ChangeNotifier {
   /// 初始化，从本地存储加载分组状态
   Future<void> initialize() async {
     if (_initialized) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       _groupEnabled = prefs.getBool(_groupEnabledKey) ?? false;
-      
+
       _initialized = true;
       notifyListeners();
     } catch (e) {

@@ -81,7 +81,7 @@ class FileToolbar extends StatelessWidget {
               minHeight: 24,
             ),
           ),
-        
+
         // 搜索按钮
         if (showSearchButton)
           IconButton(

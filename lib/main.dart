@@ -24,17 +24,17 @@ Future<void> main() async {
   logger.i('==========================================');
 
   setupLocator();
-  
+
   // 初始化全局服务
   await ViewModeService().initialize();
   logger.i('ViewModeService initialized');
-  
+
   await CategorySortService().initialize();
   logger.i('CategorySortService initialized');
-  
+
   await CategoryGroupService().initialize();
   logger.i('CategoryGroupService initialized');
-  
+
   logger.i('Running EasyFile app');
 
   // 启动Flutter应用

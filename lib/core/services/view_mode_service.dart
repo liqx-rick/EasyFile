@@ -7,7 +7,7 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 class ViewModeService extends ChangeNotifier {
   static final ViewModeService _instance = ViewModeService._internal();
   factory ViewModeService() => _instance;
-  
+
   ViewModeService._internal();
 
   static const String _viewModeKey = 'global_view_mode';
@@ -26,15 +26,15 @@ class ViewModeService extends ChangeNotifier {
   /// 初始化，从本地存储加载视图模式
   Future<void> initialize() async {
     if (_initialized) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedMode = prefs.getString(_viewModeKey);
-      
+
       if (savedMode != null) {
         _viewMode = savedMode == 'grid' ? ViewMode.grid : ViewMode.list;
       }
-      
+
       _initialized = true;
       notifyListeners();
     } catch (e) {

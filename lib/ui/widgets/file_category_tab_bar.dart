@@ -69,7 +69,7 @@ class FileCategoryTabBar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textColor = isSelected
         ? colorScheme.primary
-        : colorScheme.onSurface.withOpacity(0.6);
+        : colorScheme.onSurface.withValues(alpha: 0.6);
 
     return GestureDetector(
       onTap: () => onCategoryChanged(category),

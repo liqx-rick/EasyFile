@@ -109,55 +109,55 @@ class _StoragePageState extends State<StoragePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            ListTile(
-              leading: const Icon(Icons.sort_by_alpha),
-              title: const Text('按名称排序'),
-              trailing: sortService.sortType == SortType.name
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.name);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.access_time),
-              title: const Text('按修改时间排序'),
-              trailing: sortService.sortType == SortType.modifiedTime
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.modifiedTime);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storage),
-              title: const Text('按文件大小排序'),
-              trailing: sortService.sortType == SortType.size
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.size);
-                setState(() {}); // 刷新列表
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.category),
-              title: const Text('按文件类型排序'),
-              trailing: sortService.sortType == SortType.fileType
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.fileType);
-                setState(() {}); // 刷新列表
-              },
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha),
+                title: const Text('按名称排序'),
+                trailing: sortService.sortType == SortType.name
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.name);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: const Text('按修改时间排序'),
+                trailing: sortService.sortType == SortType.modifiedTime
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.modifiedTime);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.storage),
+                title: const Text('按文件大小排序'),
+                trailing: sortService.sortType == SortType.size
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.size);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.category),
+                title: const Text('按文件类型排序'),
+                trailing: sortService.sortType == SortType.fileType
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.fileType);
+                  setState(() {}); // 刷新列表
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -648,7 +648,10 @@ class _StoragePageState extends State<StoragePage> {
       child: Container(
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -711,7 +714,7 @@ class _StoragePageState extends State<StoragePage> {
               Positioned(
                 top: 2,
                 right: 2,
-                child: Container(
+                child: SizedBox(
                   width: 26,
                   height: 26,
                   child: Transform.scale(
@@ -749,7 +752,7 @@ class _StoragePageState extends State<StoragePage> {
               Positioned(
                 bottom: 2,
                 right: 2,
-                child: Container(
+                child: SizedBox(
                   width: 26,
                   height: 26,
                   child: Transform.scale(
@@ -865,7 +868,7 @@ class _StoragePageState extends State<StoragePage> {
                                 fontSize: 12,
                                 color: Theme.of(
                                   context,
-                                ).colorScheme.onSurface.withOpacity(0.6),
+                                ).colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -908,7 +911,7 @@ class _StoragePageState extends State<StoragePage> {
                     children: [
                       // 使用统一的FileToolbar组件
                       Container(
-                        color: Colors.red.withOpacity(0.3), // 半透明红色背景
+                        color: Colors.red.withValues(alpha: 0.3), // 半透明红色背景
                         child: FileToolbar(
                           showBackButton: _canNavigateUp(_currentPath),
                           onBackPressed: _navigateUp,
@@ -986,7 +989,10 @@ class _StoragePageState extends State<StoragePage> {
                                       fontSize: 13,
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.onSurface.withOpacity(0.7),
+                                      )
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.7),
                                     ),
                                   ),
                                   const SizedBox(width: 8),

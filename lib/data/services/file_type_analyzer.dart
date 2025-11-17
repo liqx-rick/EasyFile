@@ -24,11 +24,10 @@ class FileTypeStats {
 
   /// 获取需要显示的分类列表（数量>0，按数量排序）
   List<FileCategory> getVisibleCategories({int maxCount = 6}) {
-    final visibleCategories =
-        counts.entries
-            .where((entry) => entry.key != FileCategory.all && entry.value > 0)
-            .toList()
-          ..sort((a, b) => b.value.compareTo(a.value)); // 按数量降序
+    final visibleCategories = counts.entries
+        .where((entry) => entry.key != FileCategory.all && entry.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value)); // 按数量降序
 
     return visibleCategories.take(maxCount).map((e) => e.key).toList();
   }

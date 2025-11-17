@@ -789,7 +789,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
-          color: categoryInfo.backgroundColor.withOpacity(0.3),
+          color: categoryInfo.backgroundColor.withValues(alpha: 0.3),
           child: Row(
             children: [
               Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
@@ -883,12 +883,16 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     final storagePath = '/storage/emulated/0';
     return SelectionBottomBar(
       selectedPaths: _selectionController.selected,
-      isAllFavorite: batchService.isAllSelectedFavorite(_selectionController.selected),
-      onCopy: () => batchService.batchCopy(_selectionController.selected, storagePath),
+      isAllFavorite:
+          batchService.isAllSelectedFavorite(_selectionController.selected),
+      onCopy: () =>
+          batchService.batchCopy(_selectionController.selected, storagePath),
       onRename: () => batchService.batchRename(_selectionController.selected),
       onShare: () => batchService.batchShare(_selectionController.selected),
-      onMove: () => batchService.batchMove(_selectionController.selected, storagePath),
-      onToggleFavorite: () => batchService.batchToggleFavorite(_selectionController.selected),
+      onMove: () =>
+          batchService.batchMove(_selectionController.selected, storagePath),
+      onToggleFavorite: () =>
+          batchService.batchToggleFavorite(_selectionController.selected),
       onDelete: () => batchService.batchDelete(_selectionController.selected),
     );
   }
@@ -930,7 +934,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withOpacity(0.3),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
           ),
         ),
       ),
@@ -951,7 +955,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             labelPadding: EdgeInsets.zero,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-            selectedColor: categoryInfo.iconColor.withOpacity(0.2),
+            selectedColor: categoryInfo.iconColor.withValues(alpha: 0.2),
             backgroundColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest,
@@ -984,7 +988,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withOpacity(0.3),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
           ),
         ),
       ),
@@ -1005,7 +1009,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             labelPadding: EdgeInsets.zero,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-            selectedColor: categoryInfo.iconColor.withOpacity(0.2),
+            selectedColor: categoryInfo.iconColor.withValues(alpha: 0.2),
             backgroundColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest,
@@ -1112,7 +1116,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       child: Container(
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -1174,7 +1181,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               Positioned(
                 top: 2,
                 right: 2,
-                child: Container(
+                child: SizedBox(
                   width: 26,
                   height: 26,
                   child: Transform.scale(
@@ -1212,7 +1219,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               Positioned(
                 bottom: 2,
                 right: 2,
-                child: Container(
+                child: SizedBox(
                   width: 26,
                   height: 26,
                   child: Transform.scale(
@@ -1261,55 +1268,55 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            ListTile(
-              leading: const Icon(Icons.sort_by_alpha),
-              title: const Text('按名称排序'),
-              trailing: sortService.sortType == SortType.name
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.name);
-                _applySorting();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.access_time),
-              title: const Text('按修改时间排序'),
-              trailing: sortService.sortType == SortType.modifiedTime
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.modifiedTime);
-                _applySorting();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storage),
-              title: const Text('按文件大小排序'),
-              trailing: sortService.sortType == SortType.size
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.size);
-                _applySorting();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.category),
-              title: const Text('按文件类型排序'),
-              trailing: sortService.sortType == SortType.fileType
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                sortService.setSortType(SortType.fileType);
-                _applySorting();
-              },
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha),
+                title: const Text('按名称排序'),
+                trailing: sortService.sortType == SortType.name
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.name);
+                  _applySorting();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: const Text('按修改时间排序'),
+                trailing: sortService.sortType == SortType.modifiedTime
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.modifiedTime);
+                  _applySorting();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.storage),
+                title: const Text('按文件大小排序'),
+                trailing: sortService.sortType == SortType.size
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.size);
+                  _applySorting();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.category),
+                title: const Text('按文件类型排序'),
+                trailing: sortService.sortType == SortType.fileType
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  sortService.setSortType(SortType.fileType);
+                  _applySorting();
+                },
+              ),
+            ],
           ),
         ),
       ),

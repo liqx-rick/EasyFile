@@ -42,7 +42,8 @@ class FileItemTile extends StatelessWidget {
     this.titleFontSize = 14,
     this.subtitleFontSize = 11,
     this.favoriteIconSize = 20,
-    this.contentPaddingOverride = const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+    this.contentPaddingOverride =
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
     this.dense = true,
   });
 
@@ -64,10 +65,12 @@ class FileItemTile extends StatelessWidget {
               : isAudio
                   ? AudioCoverWidget(audioPath: file.path, size: leadingSize)
                   : isDocument
-                      ? DocumentIconWidgetRounded(fileName: file.name, size: leadingSize)
+                      ? DocumentIconWidgetRounded(
+                          fileName: file.name, size: leadingSize)
                       : Icon(
                           file.isDirectory ? Icons.folder : _getFileIcon(),
-                          color: file.isDirectory ? Colors.amber : _getFileColor(),
+                          color:
+                              file.isDirectory ? Colors.amber : _getFileColor(),
                           size: leadingSize,
                         ),
       title: Text(
@@ -89,7 +92,8 @@ class FileItemTile extends StatelessWidget {
                   Expanded(
                     child: Text(
                       file.path,
-                      style: TextStyle(fontSize: subtitleFontSize, color: Colors.blue),
+                      style: TextStyle(
+                          fontSize: subtitleFontSize, color: Colors.blue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -129,7 +133,7 @@ class FileItemTile extends StatelessWidget {
         return SizedBox(
           width: 32,
           child: Transform.scale(
-            scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+            scale: 0.75, // 缩放到18px，与收藏按钮大小一致
             child: Checkbox(
               value: isSelected,
               onChanged: onTap != null ? (_) => onTap!() : null,
@@ -150,7 +154,7 @@ class FileItemTile extends StatelessWidget {
           SizedBox(
             width: 32,
             child: Transform.scale(
-              scale: 0.75,  // 与复选框使用相同的缩放比例
+              scale: 0.75, // 与复选框使用相同的缩放比例
               child: IconButton(
                 icon: Icon(
                   isFavorite ? Icons.star : Icons.star_border,
@@ -167,7 +171,7 @@ class FileItemTile extends StatelessWidget {
           SizedBox(
             width: 32,
             child: Transform.scale(
-              scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+              scale: 0.75, // 缩放到18px，与收藏按钮大小一致
               child: Checkbox(
                 value: isSelected,
                 onChanged: onTap != null ? (_) => onTap!() : null,
@@ -184,7 +188,7 @@ class FileItemTile extends StatelessWidget {
       return SizedBox(
         width: 32,
         child: Transform.scale(
-          scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+          scale: 0.75, // 缩放到18px，与收藏按钮大小一致
           child: Checkbox(
             value: isSelected,
             onChanged: onTap != null ? (_) => onTap!() : null,
@@ -199,7 +203,7 @@ class FileItemTile extends StatelessWidget {
       return SizedBox(
         width: 32,
         child: Transform.scale(
-          scale: 0.75,  // 与复选框使用相同的缩放比例
+          scale: 0.75, // 与复选框使用相同的缩放比例
           child: IconButton(
             icon: Icon(
               isFavorite ? Icons.star : Icons.star_border,

@@ -337,8 +337,8 @@ class _FavoritesManagePageState extends State<FavoritesManagePage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _defaultDirectories.isEmpty
-          ? _buildEmptyState()
-          : _buildDirectoriesList(),
+              ? _buildEmptyState()
+              : _buildDirectoriesList(),
     );
   }
 

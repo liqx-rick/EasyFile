@@ -113,12 +113,12 @@ class FilePresenter {
   Future<void> searchFiles(String query) async {
     logger.i('FilePresenter.searchFiles called with query: $query');
     logger.i('Current path for search: ${viewModel.currentPath}');
-    
+
     if (viewModel.currentPath.isEmpty) {
       logger.w('Cannot search: currentPath is empty');
       return;
     }
-    
+
     viewModel.setLoading(true);
     viewModel.setSearchMode(true);
     viewModel.setSearchQuery(query);

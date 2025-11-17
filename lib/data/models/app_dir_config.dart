@@ -343,10 +343,10 @@ class AppDirConfigs {
 
   /// 获取所有应用配置
   static List<AppDirConfig> get allApps => [
-    ...tier1Apps,
-    ...tier2Apps,
-    ...tier3Apps,
-  ];
+        ...tier1Apps,
+        ...tier2Apps,
+        ...tier3Apps,
+      ];
 
   /// 根据优先级获取应用配置
   static List<AppDirConfig> getAppsByPriority(int priority) {
@@ -358,7 +358,7 @@ class AppDirConfigs {
 
   /// 获取中高优先级应用
   static List<AppDirConfig> get mediumHighPriorityApps => [
-    ...tier1Apps,
-    ...tier2Apps,
-  ];
+        ...tier1Apps,
+        ...tier2Apps,
+      ];
 }

@@ -102,8 +102,7 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       }
     }
 
-    final sorted = [...widget.viewModel.favorites]
-      ..sort((a, b) {
+    final sorted = [...widget.viewModel.favorites]..sort((a, b) {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
@@ -123,9 +122,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Theme.of(context).dividerColor.withOpacity(0),
-                  Theme.of(context).dividerColor.withOpacity(0.5),
-                  Theme.of(context).dividerColor.withOpacity(0),
+                  Theme.of(context).dividerColor.withValues(alpha: 0),
+                  Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  Theme.of(context).dividerColor.withValues(alpha: 0),
                 ],
               ),
             ),
@@ -155,10 +154,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         decoration: BoxDecoration(
           color: Theme.of(
             context,
-          ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -171,52 +170,59 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 ),
               )
             : _totalSpace == null || _freeSpace == null
-            ? Center(
-                child: Text(
-                  '存储空间',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                  ),
-                ),
-              )
-            : Stack(
-                children: [
-                  // 底部居中："存储空间"文字（粗体）
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 6,
+                ? Center(
                     child: Text(
                       '存储空间',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        height: 1.0,
-                      ),
-                      textAlign: TextAlign.center,
+                            fontSize: 10,
+                            color: Theme.of(
+                              context,
+                            )
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.6),
+                          ),
                     ),
-                  ),
-                  // 右上角：已用/总容量
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: Text(
-                      _formatStorageText(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 8,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        height: 1.0,
+                  )
+                : Stack(
+                    children: [
+                      // 底部居中："存储空间"文字（粗体）
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 6,
+                        child: Text(
+                          '存储空间',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.0,
+                                  ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                      maxLines: 1,
-                    ),
+                      // 右上角：已用/总容量
+                      Positioned(
+                        right: 4,
+                        top: 4,
+                        child: Text(
+                          _formatStorageText(),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontSize: 8,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    height: 1.0,
+                                  ),
+                          maxLines: 1,
+                        ),
+                      ),
+                      // 中间：圆形进度条
+                      Center(child: _buildCircularStorageIndicator(context)),
+                    ],
                   ),
-                  // 中间：圆形进度条
-                  Center(child: _buildCircularStorageIndicator(context)),
-                ],
-              ),
       ),
     );
   }
@@ -376,25 +382,29 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         borderRadius: BorderRadius.circular(12),
         elevation: isSelected ? 4 : 1,
         shadowColor: isSelected
-            ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
-            : Colors.black.withOpacity(0.1),
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+            : Colors.black.withValues(alpha: 0.1),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  : Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.2),
               width: 1,
             ),
           ),
           child: InkWell(
             onTap: () => _onFavoriteTap(favorite, context),
             borderRadius: BorderRadius.circular(12),
-            splashColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+            splashColor:
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
             highlightColor: Theme.of(
               context,
-            ).colorScheme.primary.withOpacity(0.1),
+            ).colorScheme.primary.withValues(alpha: 0.1),
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 4.0,
@@ -411,15 +421,14 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                   Text(
                     favorite.name,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      fontSize: 11,
-                      height: 1.1,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontSize: 11,
+                          height: 1.1,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
@@ -438,10 +447,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       decoration: BoxDecoration(
         color: Theme.of(
           context,
-        ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -462,11 +471,11 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               Text(
                 '更多',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 11,
-                  height: 1.1,
-                ),
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      height: 1.1,
+                    ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -523,8 +532,8 @@ class _FavoritesSectionState extends State<FavoritesSection> {
       final directory = Directory(favorite.path);
       if (!directory.existsSync()) {
         if (mounted) {
-            final messenger = ScaffoldMessenger.of(context);
-            final shouldRemove = await showDialog<bool>(
+          final messenger = ScaffoldMessenger.of(context);
+          final shouldRemove = await showDialog<bool>(
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: const Text('目录不存在'),
@@ -547,17 +556,17 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               ],
             ),
           );
-            if (shouldRemove == true) {
-              final success = await widget.presenter.removeFavorite(favorite.id);
-              if (!mounted) return;
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败',
-                  ),
+          if (shouldRemove == true) {
+            final success = await widget.presenter.removeFavorite(favorite.id);
+            if (!mounted) return;
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败',
                 ),
-              );
-            }
+              ),
+            );
+          }
         }
       } else {
         widget.presenter.loadFiles(favorite.path, isRootNavigation: true);
@@ -736,20 +745,20 @@ class _FavoritesSectionState extends State<FavoritesSection> {
           ),
           ElevatedButton(
             onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                Navigator.of(context).pop();
-                final success = await widget.presenter.removeFavorite(
-                  favorite.id,
-                );
-                if (!mounted) return;
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success ? '已移除收藏夹"${favorite.name}"' : '移除失败',
-                    ),
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.of(context).pop();
+              final success = await widget.presenter.removeFavorite(
+                favorite.id,
+              );
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    success ? '已移除收藏夹"${favorite.name}"' : '移除失败',
                   ),
-                );
-              },
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,

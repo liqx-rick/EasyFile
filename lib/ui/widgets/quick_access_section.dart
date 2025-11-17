@@ -105,11 +105,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final folders = widget.quickAccessViewModel.folders;
 
     // 筛选用户定制的首页展示文件夹
-    final userCustomizedHomeFolders =
-        folders.where((f) => f.homeDisplayOrder != null).toList()..sort(
-          (a, b) =>
-              (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999),
-        );
+    final userCustomizedHomeFolders = folders
+        .where((f) => f.homeDisplayOrder != null)
+        .toList()
+      ..sort(
+        (a, b) =>
+            (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999),
+      );
 
     List<QuickAccessFolder> displayFoldersForHome;
 
@@ -118,10 +120,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       displayFoldersForHome = userCustomizedHomeFolders;
     } else {
       // 用户未定制，从系统目录中按优先级选择最重要的4个
-      final systemFolders = folders
-          .where((f) => f.type == QuickAccessFolderType.system)
-          .toList();
-      
+      final systemFolders =
+          folders.where((f) => f.type == QuickAccessFolderType.system).toList();
+
       if (systemFolders.length <= 4) {
         displayFoldersForHome = systemFolders;
       } else {
@@ -137,9 +138,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             if (path.contains('movie') || path.contains('video')) return 6;
             return 99; // 其他
           }
+
           return getPriority(a).compareTo(getPriority(b));
         });
-        
+
         // 选择优先级最高的前4个
         displayFoldersForHome = systemFolders.take(4).toList();
       }
