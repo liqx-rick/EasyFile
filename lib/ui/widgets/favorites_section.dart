@@ -522,8 +522,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
     try {
       final directory = Directory(favorite.path);
       if (!directory.existsSync()) {
-        if (context.mounted) {
-          final shouldRemove = await showDialog<bool>(
+        if (mounted) {
+            final messenger = ScaffoldMessenger.of(context);
+            final shouldRemove = await showDialog<bool>(
             context: context,
             builder: (dialogContext) => AlertDialog(
               title: const Text('目录不存在'),
@@ -546,10 +547,10 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               ],
             ),
           );
-          if (shouldRemove == true) {
-            final success = await widget.presenter.removeFavorite(favorite.id);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+            if (shouldRemove == true) {
+              final success = await widget.presenter.removeFavorite(favorite.id);
+              if (!mounted) return;
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     success ? '已移除失效的收藏夹"${favorite.name}"' : '移除收藏夹失败',
@@ -557,7 +558,6 @@ class _FavoritesSectionState extends State<FavoritesSection> {
                 ),
               );
             }
-          }
         }
       } else {
         widget.presenter.loadFiles(favorite.path, isRootNavigation: true);
@@ -587,18 +587,18 @@ class _FavoritesSectionState extends State<FavoritesSection> {
               ),
               title: Text(favorite.pinned ? '取消置顶' : '置顶'),
               onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.of(context).pop();
                 final updated = favorite.copyWith(pinned: !favorite.pinned);
                 final success = await widget.presenter.updateFavorite(updated);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        success ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败',
-                      ),
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success ? (updated.pinned ? '已置顶' : '已取消置顶') : '操作失败',
                     ),
-                  );
-                }
+                  ),
+                );
               },
             ),
             ListTile(
@@ -700,18 +700,18 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isNotEmpty && newName != favorite.name) {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.of(context).pop();
                 final updatedFavorite = favorite.copyWith(name: newName);
                 final success = await widget.presenter.updateFavorite(
                   updatedFavorite,
                 );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(success ? '已重命名为"$newName"' : '重命名失败'),
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(success ? '已重命名为"$newName"' : '重命名失败'),
+                  ),
+                );
               } else {
                 Navigator.of(context).pop();
               }
@@ -736,20 +736,20 @@ class _FavoritesSectionState extends State<FavoritesSection> {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.of(context).pop();
-              final success = await widget.presenter.removeFavorite(
-                favorite.id,
-              );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.of(context).pop();
+                final success = await widget.presenter.removeFavorite(
+                  favorite.id,
+                );
+                if (!mounted) return;
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       success ? '已移除收藏夹"${favorite.name}"' : '移除失败',
                     ),
                   ),
                 );
-              }
-            },
+              },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,

@@ -668,53 +668,53 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       ),
     );
 
+    // 预先捕获 navigator 和 messenger
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final extractor = MediaInfoExtractor();
       final info = _isVideoFile(widget.file.name)
           ? await extractor.extractVideoInfo(widget.file.path)
           : await extractor.extractAudioInfo(widget.file.path);
 
-      if (context.mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
+      if (!mounted) return;
+      navigator.pop(); // 关闭加载对话框
 
-        // 显示详细信息
-        showDialog(
-          context: context,
-          builder: (context) => Dialog(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-              child: Column(
-                children: [
-                  AppBar(
-                    title: const Text('详细信息'),
-                    automaticallyImplyLeading: false,
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                  Expanded(
-                    child: DetailedMediaInfoView(
-                      info: info,
-                      isVideo: _isVideoFile(widget.file.name),
+      // 显示详细信息
+      showDialog(
+        context: this.context,
+        builder: (context) => Dialog(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+            child: Column(
+              children: [
+                AppBar(
+                  title: const Text('详细信息'),
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
+                  ],
+                ),
+                Expanded(
+                  child: DetailedMediaInfoView(
+                    info: info,
+                    isVideo: _isVideoFile(widget.file.name),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        );
-      }
+        ),
+      );
     } catch (e) {
       logger.e('Error loading detailed media info: $e');
-      if (context.mounted) {
-        Navigator.of(context).pop(); // 关闭加载对话框
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('加载详细信息失败: $e')));
-      }
+      if (!mounted) return;
+      navigator.pop(); // 关闭加载对话框
+      messenger.showSnackBar(SnackBar(content: Text('加载详细信息失败: $e')));
     }
   }
 

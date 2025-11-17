@@ -16,6 +16,15 @@ class FileItemTile extends StatelessWidget {
   final bool showFullPath;
   final bool showAccessTime;
   final DateTime? accessTime;
+  final bool isSelected; // 是否处于选中状态
+  final bool showCheckbox; // 是否显示复选框
+  // 可配置项（保持向后兼容的默认值）
+  final double leadingSize; // 缩略图或图标大小（像素）
+  final double titleFontSize;
+  final double subtitleFontSize;
+  final double favoriteIconSize;
+  final EdgeInsetsGeometry contentPaddingOverride;
+  final bool dense;
 
   const FileItemTile({
     super.key,
@@ -27,6 +36,14 @@ class FileItemTile extends StatelessWidget {
     this.showFullPath = false,
     this.showAccessTime = false,
     this.accessTime,
+    this.isSelected = false,
+    this.showCheckbox = false,
+    this.leadingSize = 30,
+    this.titleFontSize = 14,
+    this.subtitleFontSize = 11,
+    this.favoriteIconSize = 20,
+    this.contentPaddingOverride = const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+    this.dense = true,
   });
 
   @override
@@ -37,27 +54,27 @@ class FileItemTile extends StatelessWidget {
     final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
 
     return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      dense: dense,
+      contentPadding: contentPaddingOverride,
       minVerticalPadding: 0,
       leading: isImage
-          ? ImageThumbnail(imagePath: file.path, size: 30)
+          ? ImageThumbnail(imagePath: file.path, size: leadingSize)
           : isVideo
-          ? RealVideoThumbnail(videoPath: file.path, size: 30)
-          : isAudio
-          ? AudioCoverWidget(audioPath: file.path, size: 30)
-          : isDocument
-          ? DocumentIconWidgetRounded(fileName: file.name, size: 30)
-          : Icon(
-              file.isDirectory ? Icons.folder : _getFileIcon(),
-              color: file.isDirectory ? Colors.amber : _getFileColor(),
-              size: 30,
-            ),
+              ? RealVideoThumbnail(videoPath: file.path, size: leadingSize)
+              : isAudio
+                  ? AudioCoverWidget(audioPath: file.path, size: leadingSize)
+                  : isDocument
+                      ? DocumentIconWidgetRounded(fileName: file.name, size: leadingSize)
+                      : Icon(
+                          file.isDirectory ? Icons.folder : _getFileIcon(),
+                          color: file.isDirectory ? Colors.amber : _getFileColor(),
+                          size: leadingSize,
+                        ),
       title: Text(
         file.name,
         style: TextStyle(
           fontWeight: file.isDirectory ? FontWeight.w500 : FontWeight.normal,
-          fontSize: 14,
+          fontSize: titleFontSize,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -72,7 +89,7 @@ class FileItemTile extends StatelessWidget {
                   Expanded(
                     child: Text(
                       file.path,
-                      style: const TextStyle(fontSize: 11, color: Colors.blue),
+                      style: TextStyle(fontSize: subtitleFontSize, color: Colors.blue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -81,7 +98,7 @@ class FileItemTile extends StatelessWidget {
                     file.isDirectory
                         ? '文件夹'
                         : FileUtils.formatFileSize(file.size),
-                    style: const TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: subtitleFontSize),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -91,7 +108,7 @@ class FileItemTile extends StatelessWidget {
           : Text(
               _buildSubtitleText(),
               style: TextStyle(
-                fontSize: 11,
+                fontSize: subtitleFontSize,
                 color: showAccessTime ? Colors.grey[600] : Colors.grey[500],
               ),
               maxLines: 1,
@@ -104,24 +121,96 @@ class FileItemTile extends StatelessWidget {
     );
   }
 
-  /// 构建trailing部分（收藏按钮 + 文件夹图标）
+  /// 构建trailing部分（收藏按钮 + 复选框，或文件夹图标）
   Widget? _buildTrailing() {
     if (file.isDirectory) {
+      // 文件夹显示右箭头（或复选框）
+      if (showCheckbox) {
+        return SizedBox(
+          width: 32,
+          child: Transform.scale(
+            scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+            child: Checkbox(
+              value: isSelected,
+              onChanged: onTap != null ? (_) => onTap!() : null,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        );
+      }
       return const Icon(Icons.chevron_right);
     }
 
-    // 文件显示收藏按钮
-    if (onFavoriteToggle != null) {
-      return IconButton(
-        icon: Icon(
-          isFavorite ? Icons.star : Icons.star_border,
-          color: isFavorite ? Colors.amber : Colors.grey,
-          size: 20,
+    // 文件：同时显示收藏按钮和复选框（如果在选择模式）
+    if (showCheckbox && onFavoriteToggle != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 收藏按钮
+          SizedBox(
+            width: 32,
+            child: Transform.scale(
+              scale: 0.75,  // 与复选框使用相同的缩放比例
+              child: IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.star : Icons.star_border,
+                  color: isFavorite ? Colors.amber : Colors.grey,
+                ),
+                onPressed: onFavoriteToggle,
+                tooltip: isFavorite ? '取消收藏' : '收藏',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ),
+          ),
+          // 复选框
+          SizedBox(
+            width: 32,
+            child: Transform.scale(
+              scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+              child: Checkbox(
+                value: isSelected,
+                onChanged: onTap != null ? (_) => onTap!() : null,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 仅显示复选框
+    if (showCheckbox) {
+      return SizedBox(
+        width: 32,
+        child: Transform.scale(
+          scale: 0.75,  // 缩放到18px，与收藏按钮大小一致
+          child: Checkbox(
+            value: isSelected,
+            onChanged: onTap != null ? (_) => onTap!() : null,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
-        onPressed: onFavoriteToggle,
-        tooltip: isFavorite ? '取消收藏' : '收藏',
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
+      );
+    }
+
+    // 仅显示收藏按钮
+    if (onFavoriteToggle != null) {
+      return SizedBox(
+        width: 32,
+        child: Transform.scale(
+          scale: 0.75,  // 与复选框使用相同的缩放比例
+          child: IconButton(
+            icon: Icon(
+              isFavorite ? Icons.star : Icons.star_border,
+              color: isFavorite ? Colors.amber : Colors.grey,
+            ),
+            onPressed: onFavoriteToggle,
+            tooltip: isFavorite ? '取消收藏' : '收藏',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ),
       );
     }
 

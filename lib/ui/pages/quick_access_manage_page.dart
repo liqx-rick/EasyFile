@@ -388,7 +388,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
   /// 单个首页卡片
   Widget _buildHomeCard(QuickAccessFolder folder, int index, double cardSize) {
-    return Container(
+    return SizedBox(
       width: cardSize,
       height: cardSize,
       child: Card(
@@ -433,13 +433,15 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 right: 2,
                 child: InkWell(
                   onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     final success = await widget.presenter.setHomeDisplayOrder(
                       folder.id,
                       null,
                     );
-                    if (mounted) {
-                      _showSnackBar(success ? '已移出首页' : '操作失败');
-                    }
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(success ? '已移出首页' : '操作失败')),
+                    );
                   },
                   child: Container(
                     padding: const EdgeInsets.all(0.5),
@@ -528,13 +530,15 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           IconButton(
             icon: const Icon(Icons.close, color: Colors.red),
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               final success = await widget.presenter.setHomeDisplayOrder(
                 folder.id,
                 null,
               );
-              if (mounted) {
-                _showSnackBar(success ? '已移出首页' : '操作失败');
-              }
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(content: Text(success ? '已移出首页' : '操作失败')),
+              );
             },
             tooltip: '移出首页',
           ),
@@ -1046,6 +1050,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     ScanResult? result;
     String actionName = '';
 
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       switch (action) {
         case 'incremental':
@@ -1066,14 +1072,16 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           break;
       }
 
-      if (result != null && mounted) {
+      if (result != null) {
+        if (!mounted) return;
         _showScanResultDialog(actionName, result);
       }
     } catch (e) {
       logger.e('Scan action failed: $e');
-      if (mounted) {
-        _showSnackBar('$actionName失败: $e');
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('$actionName失败: $e')),
+      );
     }
   }
 
@@ -1081,6 +1089,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     String action,
     QuickAccessFolder folder,
   ) async {
+    final messenger = ScaffoldMessenger.of(context);
     switch (action) {
       case 'add_to_home':
         await _handleAddToHome(folder);
@@ -1091,16 +1100,14 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           folder.id,
           null,
         );
-        if (mounted) {
-          _showSnackBar(success ? '已移出首页展示' : '操作失败');
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text(success ? '已移出首页展示' : '操作失败')));
         break;
 
       case 'add_to_qa':
         final success = await widget.presenter.addToQuickAccess(folder.id);
-        if (mounted) {
-          _showSnackBar(success ? '已加入快速访问' : '操作失败');
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text(success ? '已加入快速访问' : '操作失败')));
         break;
 
       case 'remove_from_qa':
@@ -1119,6 +1126,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
   /// 处理加入首页（检查7项限制）
   Future<void> _handleAddToHome(QuickAccessFolder folder) async {
+    final messenger = ScaffoldMessenger.of(context);
     final homeFolders = await widget.presenter.getHomeFolders();
 
     if (homeFolders.length >= 7) {
@@ -1133,9 +1141,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         folder.id,
         order,
       );
-      if (mounted) {
-        _showSnackBar(success ? '已加入首页展示' : '操作失败');
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(success ? SnackBar(content: Text('已加入首页展示')) : SnackBar(content: Text('操作失败')));
     }
   }
 
@@ -1289,17 +1296,20 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             onPressed: () async {
               final alias = controller.text.trim();
               // 只有完全清空才设为null，其他情况（包括推荐别名）都保存
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final success = await widget.presenter.setUserAlias(
                 folder.id,
                 alias.isEmpty ? null : alias,
               );
 
-              if (mounted) {
-                Navigator.of(context).pop();
-                _showSnackBar(success ? '别名已更新' : '更新失败');
-                if (success) {
-                  await _loadData();
-                }
+              if (!mounted) return;
+              navigator.pop();
+              messenger.showSnackBar(
+                SnackBar(content: Text(success ? '别名已更新' : '更新失败')),
+              );
+              if (success) {
+                await _loadData();
               }
             },
             child: const Text('保存'),
@@ -1332,6 +1342,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
           FilledButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               int successCount = 0;
               for (final folder in selectedFolders) {
                 final success = await widget.presenter.addToQuickAccess(
@@ -1339,14 +1351,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 );
                 if (success) successCount++;
               }
-              if (mounted) {
-                Navigator.of(context).pop();
-                setState(() {
-                  _isEditMode = false;
-                  _selectedIds.clear();
-                });
-                _showSnackBar('已加入 $successCount 个目录');
-              }
+              if (!mounted) return;
+              navigator.pop();
+              setState(() {
+                _isEditMode = false;
+                _selectedIds.clear();
+              });
+              messenger.showSnackBar(SnackBar(content: Text('已加入 $successCount 个目录')));
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.green),
             child: const Text('加入'),
@@ -1381,17 +1392,18 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
           FilledButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final count = await widget.presenter.batchRemoveFolders(
                 selectedFolders.map((f) => f.id).toList(),
               );
-              if (mounted) {
-                Navigator.of(context).pop();
-                setState(() {
-                  _isEditMode = false;
-                  _selectedIds.clear();
-                });
-                _showSnackBar('已移出 $count 个目录');
-              }
+              if (!mounted) return;
+              navigator.pop();
+              setState(() {
+                _isEditMode = false;
+                _selectedIds.clear();
+              });
+              messenger.showSnackBar(SnackBar(content: Text('已移出 $count 个目录')));
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('移出'),
@@ -1423,13 +1435,14 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
           FilledButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final success = await widget.presenter.removeFromQuickAccess(
                 folder.id,
               );
-              if (mounted) {
-                Navigator.of(context).pop();
-                _showSnackBar(success ? '已移出快速访问' : '操作失败');
-              }
+              if (!mounted) return;
+              navigator.pop();
+              messenger.showSnackBar(SnackBar(content: Text(success ? '已移出快速访问' : '操作失败')));
             },
             child: const Text('移出'),
           ),
@@ -1454,11 +1467,12 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
           FilledButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final success = await widget.presenter.hideFolder(folder.id);
-              if (mounted) {
-                Navigator.of(context).pop();
-                _showSnackBar(success ? '已忽略' : '操作失败');
-              }
+              if (!mounted) return;
+              navigator.pop();
+              messenger.showSnackBar(SnackBar(content: Text(success ? '已忽略' : '操作失败')));
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('忽略'),
@@ -1531,12 +1545,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                       }
                       orderMap[newFolder.id] = order; // 添加新项
 
+                      final messenger = ScaffoldMessenger.of(context);
+                      final navigator = Navigator.of(context);
                       final success = await widget.presenter
                           .updateHomeDisplayOrders(orderMap);
-                      if (mounted) {
-                        Navigator.of(context).pop();
-                        _showSnackBar(success ? '已替换并加入首页' : '操作失败');
-                      }
+                      if (!mounted) return;
+                      navigator.pop();
+                      messenger.showSnackBar(SnackBar(content: Text(success ? '已替换并加入首页' : '操作失败')));
                     },
               child: const Text('确认替换'),
             ),

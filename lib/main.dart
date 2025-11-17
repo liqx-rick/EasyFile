@@ -3,6 +3,9 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:easyfile/app.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/category_group_service.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +24,17 @@ Future<void> main() async {
   logger.i('==========================================');
 
   setupLocator();
+  
+  // 初始化全局服务
+  await ViewModeService().initialize();
+  logger.i('ViewModeService initialized');
+  
+  await CategorySortService().initialize();
+  logger.i('CategorySortService initialized');
+  
+  await CategoryGroupService().initialize();
+  logger.i('CategoryGroupService initialized');
+  
   logger.i('Running EasyFile app');
 
   // 启动Flutter应用
