@@ -117,15 +117,30 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       // 用户已定制过首页，使用用户定制的
       displayFoldersForHome = userCustomizedHomeFolders;
     } else {
-      // 用户未定制，从系统目录中随机选择4个
+      // 用户未定制，从系统目录中按优先级选择最重要的4个
       final systemFolders = folders
           .where((f) => f.type == QuickAccessFolderType.system)
           .toList();
+      
       if (systemFolders.length <= 4) {
         displayFoldersForHome = systemFolders;
       } else {
-        // 随机打乱并取前4个
-        systemFolders.shuffle();
+        // 按优先级排序：下载 > DCIM/相机 > 图片 > 文档 > 音乐 > 视频 > 其他
+        systemFolders.sort((a, b) {
+          int getPriority(QuickAccessFolder folder) {
+            final path = folder.path.toLowerCase();
+            if (path.contains('download')) return 1;
+            if (path.contains('dcim') || path.contains('camera')) return 2;
+            if (path.contains('picture') || path.contains('photo')) return 3;
+            if (path.contains('document')) return 4;
+            if (path.contains('music')) return 5;
+            if (path.contains('movie') || path.contains('video')) return 6;
+            return 99; // 其他
+          }
+          return getPriority(a).compareTo(getPriority(b));
+        });
+        
+        // 选择优先级最高的前4个
         displayFoldersForHome = systemFolders.take(4).toList();
       }
     }

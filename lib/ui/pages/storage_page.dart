@@ -780,31 +780,29 @@ class _StoragePageState extends State<StoragePage> {
                     children: [
                       // 搜索栏（使用统一的FileSearchBar组件）
                       if (_isSearchMode)
-                        Flexible(
-                          child: FileSearchBar(
-                            controller: _searchController,
-                            hintText: '搜索文件...',
-                            onSearch: (query) async {
-                              if (query.isNotEmpty) {
-                                await SearchHistoryService().addSearch(query);
-                                setState(() {
-                                  _searchQuery = query;
-                                });
-                              }
-                            },
-                            onClose: () {
-                              setState(() {
-                                _searchQuery = '';
-                                _searchController.clear();
-                                _isSearchMode = false;
-                              });
-                            },
-                            onChanged: (query) {
+                        FileSearchBar(
+                          controller: _searchController,
+                          hintText: '搜索文件...',
+                          onSearch: (query) async {
+                            if (query.isNotEmpty) {
+                              await SearchHistoryService().addSearch(query);
                               setState(() {
                                 _searchQuery = query;
                               });
-                            },
-                          ),
+                            }
+                          },
+                          onClose: () {
+                            setState(() {
+                              _searchQuery = '';
+                              _searchController.clear();
+                              _isSearchMode = false;
+                            });
+                          },
+                          onChanged: (query) {
+                            setState(() {
+                              _searchQuery = query;
+                            });
+                          },
                         ),
 
                       // 搜索范围选择器

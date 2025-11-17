@@ -701,31 +701,29 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           children: [
             // 搜索框（使用统一的FileSearchBar组件）
             if (_isSearchMode)
-              Flexible(
-                child: FileSearchBar(
-                  controller: _searchController,
-                  hintText: '搜索${categoryInfo.name}...',
-                  onSearch: (query) async {
-                    if (query.isNotEmpty) {
-                      await SearchHistoryService().addSearch(query);
-                      setState(() {
-                        _searchQuery = query;
-                      });
-                    }
-                  },
-                  onClose: () {
-                    setState(() {
-                      _searchQuery = '';
-                      _searchController.clear();
-                      _isSearchMode = false;
-                    });
-                  },
-                  onChanged: (query) {
+              FileSearchBar(
+                controller: _searchController,
+                hintText: '搜索${categoryInfo.name}...',
+                onSearch: (query) async {
+                  if (query.isNotEmpty) {
+                    await SearchHistoryService().addSearch(query);
                     setState(() {
                       _searchQuery = query;
                     });
-                  },
-                ),
+                  }
+                },
+                onClose: () {
+                  setState(() {
+                    _searchQuery = '';
+                    _searchController.clear();
+                    _isSearchMode = false;
+                  });
+                },
+                onChanged: (query) {
+                  setState(() {
+                    _searchQuery = query;
+                  });
+                },
               ),
 
             // 主体内容

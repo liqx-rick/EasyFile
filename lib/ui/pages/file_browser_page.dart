@@ -903,12 +903,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                 return Column(
                   children: [
-                    // 上半部分固定区域 - 限制最大高度避免过度占用空间
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * 0.5, // 最多占屏幕高度的50%
-                      ),
-                      child: SingleChildScrollView(
+                    // 上半部分固定区域 - 搜索模式下隐藏，避免溢出
+                    if (!vm.isSearchMode)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: constraints.maxWidth > constraints.maxHeight
+                              ? constraints.maxHeight * 0.35  // 横屏：35%
+                              : constraints.maxHeight * 0.5,  // 竖屏：50%
+                        ),
+                        child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -940,11 +943,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
                     ),
 
-                    // Tab 切换栏和工具按钮
-                    Container(
-                      color: colorScheme.surface,
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Row(
+                    // Tab 切换栏和工具按钮 - 搜索模式下也隐藏
+                    if (!vm.isSearchMode)
+                      Container(
+                        height: 32, // 固定高度
+                        color: colorScheme.surface,
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Row(
                         children: [
                           // Tab 切换 - 居左对齐
                           _buildTabButton(
@@ -1017,22 +1022,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                     // 搜索栏（使用统一的FileSearchBar组件）
                     if (vm.isSearchMode)
-                      Flexible(
-                        child: FileSearchBar(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          hintText: '搜索文件...',
-                          onSearch: (query) async {
-                            if (query.isNotEmpty) {
-                              await SearchHistoryService().addSearch(query);
-                              presenter.searchFiles(query);
-                            }
-                          },
-                          onClose: () {
-                            _searchController.clear();
-                            presenter.clearSearch();
-                          },
-                        ),
+                      FileSearchBar(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        hintText: '搜索文件...',
+                        onSearch: (query) async {
+                          if (query.isNotEmpty) {
+                            await SearchHistoryService().addSearch(query);
+                            presenter.searchFiles(query);
+                          }
+                        },
+                        onClose: () {
+                          _searchController.clear();
+                          presenter.clearSearch();
+                        },
                       ),
 
                     // 文件类型筛选Tab栏（仅在浏览模式显示）
