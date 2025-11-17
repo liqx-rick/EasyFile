@@ -7,6 +7,8 @@ import 'package:path/path.dart' as path;
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -247,9 +249,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // 分组相关
-  bool _groupByDate = false;
-
   // 文件类型筛选
   DocumentFileType _documentTypeFilter = DocumentFileType.all;
   DownloadFileType _downloadTypeFilter = DownloadFileType.all;
@@ -350,7 +349,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     // 监听SelectionController变化并同步状态
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
     categoryInfo = CategoryInfo.getInfoByType(widget.categoryType)!;
-    _loadGroupPreference();
     _loadFileTypeFilter();
     _loadCategoryFiles();
   }
@@ -375,31 +373,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     super.dispose();
   }
 
-  /// 加载分组偏好
-  Future<void> _loadGroupPreference() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'category_group_by_date_${widget.categoryType.name}';
-      final savedGroup = prefs.getBool(key) ?? false;
 
-      setState(() {
-        _groupByDate = savedGroup;
-      });
-    } catch (e) {
-      logger.e('Failed to load group preference: $e');
-    }
-  }
-
-  /// 保存分组偏好
-  Future<void> _saveGroupPreference() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'category_group_by_date_${widget.categoryType.name}';
-      await prefs.setBool(key, _groupByDate);
-    } catch (e) {
-      logger.e('Failed to save group preference: $e');
-    }
-  }
 
   /// 加载文件类型筛选偏好
   Future<void> _loadFileTypeFilter() async {
@@ -534,6 +508,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (cached.isNotEmpty) {
         setState(() {
           _files = cached;
+          // 应用全局排序设置
+          _files.sort(CategorySortService().getComparator());
           _isLoading = false;
           _errorMessage = '';
         });
@@ -573,6 +549,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // Step 3: 更新UI和缓存
       setState(() {
         _files = files;
+        // 应用全局排序设置
+        _files.sort(CategorySortService().getComparator());
         _isLoading = false;
         _loadingProgress = '';
       });
@@ -597,8 +575,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<FileViewModel>.value(
       value: widget.viewModel,
-      child: Consumer<ViewModeService>(
-        builder: (context, viewModeService, _) {
+      child: Consumer2<ViewModeService, CategoryGroupService>(
+        builder: (context, viewModeService, groupService, _) {
           return Scaffold(
         appBar: AppBar(
           leading: _isSelectionMode
@@ -697,32 +675,29 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                               icon: const Icon(Icons.sort, size: 22),
                               onPressed: _showSortOptions,
                               tooltip: '排序',
-                              padding: EdgeInsets.zero,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
                               constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 32,
+                                minWidth: 36,
+                                minHeight: 36,
                               ),
                             ),
-                            // 分组切换按钮（仅在非搜索模式下显示）
-                            if (!_isSearchMode)
-                              IconButton(
-                                icon: Icon(
-                                  _groupByDate ? Icons.view_list : Icons.view_agenda,
-                                  size: 22,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _groupByDate = !_groupByDate;
-                                  });
-                                  _saveGroupPreference();
-                                },
-                                tooltip: _groupByDate ? '取消分组' : '按日期分组',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 32,
-                                  minHeight: 32,
-                                ),
+                            // 分组切换按钮
+                            IconButton(
+                              icon: Icon(
+                                CategoryGroupService().isGroupEnabled ? Icons.view_list : Icons.view_agenda,
+                                size: 22,
                               ),
+                              onPressed: () {
+                                CategoryGroupService().toggleGroup();
+                                setState(() {}); // 触发界面刷新
+                              },
+                              tooltip: CategoryGroupService().isGroupEnabled ? '取消分组' : '按日期分组',
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                            ),
                           ],
                           iconSize: 22,
                         ),
@@ -906,7 +881,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           child: RefreshIndicator(
             onRefresh: () => _loadCategoryFiles(forceRefresh: true),
             // 启用分组时（无论列表还是网格模式）都使用分组视图
-            child: _groupByDate
+            child: CategoryGroupService().isGroupEnabled
                 ? _buildGroupedView()
                 : FileCollectionView(
                     items: _filteredFiles,
@@ -1857,6 +1832,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   /// 显示排序选项
   void _showSortOptions() {
+    final sortService = CategorySortService();
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -1866,25 +1842,37 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             ListTile(
               leading: const Icon(Icons.sort_by_alpha),
               title: const Text('按名称排序'),
+              trailing: sortService.sortType == SortType.name
+                  ? const Icon(Icons.check)
+                  : null,
               onTap: () {
                 Navigator.pop(context);
-                _sortFiles((a, b) => a.name.compareTo(b.name));
+                sortService.setSortType(SortType.name);
+                _applySorting();
               },
             ),
             ListTile(
               leading: const Icon(Icons.access_time),
               title: const Text('按修改时间排序'),
+              trailing: sortService.sortType == SortType.modifiedTime
+                  ? const Icon(Icons.check)
+                  : null,
               onTap: () {
                 Navigator.pop(context);
-                _sortFiles((a, b) => b.modified.compareTo(a.modified));
+                sortService.setSortType(SortType.modifiedTime);
+                _applySorting();
               },
             ),
             ListTile(
               leading: const Icon(Icons.storage),
               title: const Text('按文件大小排序'),
+              trailing: sortService.sortType == SortType.size
+                  ? const Icon(Icons.check)
+                  : null,
               onTap: () {
                 Navigator.pop(context);
-                _sortFiles((a, b) => b.size.compareTo(a.size));
+                sortService.setSortType(SortType.size);
+                _applySorting();
               },
             ),
           ],
@@ -1893,10 +1881,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     );
   }
 
-  /// 排序文件
-  void _sortFiles(int Function(FileItem, FileItem) compare) {
+  /// 应用排序
+  void _applySorting() {
     setState(() {
-      _files.sort(compare);
+      _files.sort(CategorySortService().getComparator());
     });
   }
 

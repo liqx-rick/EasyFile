@@ -48,6 +48,8 @@ class FileToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 返回上级按钮
         if (showBackButton)
@@ -56,9 +58,9 @@ class FileToolbar extends StatelessWidget {
             onPressed: onBackPressed,
             tooltip: backTooltip,
             padding: EdgeInsets.zero,
-            constraints: BoxConstraints(
-              minWidth: iconSize + 12,
-              minHeight: iconSize + 12,
+            constraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
             ),
           ),
         
@@ -69,9 +71,9 @@ class FileToolbar extends StatelessWidget {
             onPressed: onSearchPressed,
             tooltip: isSearchMode ? '退出搜索' : '搜索',
             padding: EdgeInsets.zero,
-            constraints: BoxConstraints(
-              minWidth: iconSize + 12,
-              minHeight: iconSize + 12,
+            constraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
             ),
           ),
 
@@ -96,9 +98,9 @@ class FileToolbar extends StatelessWidget {
                 },
                 tooltip: isGridView ? '列表视图' : '网格视图',
                 padding: EdgeInsets.zero,
-                constraints: BoxConstraints(
-                  minWidth: iconSize + 12,
-                  minHeight: iconSize + 12,
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
                 ),
               );
             },

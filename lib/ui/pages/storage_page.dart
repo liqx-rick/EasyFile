@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -47,8 +49,108 @@ class _StoragePageState extends State<StoragePage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  /// 获取排序后的文件列表
+  List<FileItem> _getSortedFiles(List<FileItem> files) {
+    final result = List<FileItem>.from(files);
+    final sortService = CategorySortService();
+    result.sort(sortService.getComparator());
+    return result;
+  }
+
+  /// 获取日期分组后的文件
+  Map<String, List<FileItem>> _groupFilesByDate(List<FileItem> files) {
+    final Map<String, List<FileItem>> groups = {
+      '今天': [],
+      '昨天': [],
+      '本周': [],
+      '本月': [],
+      '更早': [],
+    };
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
+    final thisMonthStart = DateTime(now.year, now.month, 1);
+
+    for (final file in files) {
+      final fileDate = DateTime(
+        file.modified.year,
+        file.modified.month,
+        file.modified.day,
+      );
+
+      if (fileDate.isAtSameMomentAs(today)) {
+        groups['今天']!.add(file);
+      } else if (fileDate.isAtSameMomentAs(yesterday)) {
+        groups['昨天']!.add(file);
+      } else if (fileDate.isAfter(thisWeekStart) || fileDate.isAtSameMomentAs(thisWeekStart)) {
+        groups['本周']!.add(file);
+      } else if (fileDate.isAfter(thisMonthStart) || fileDate.isAtSameMomentAs(thisMonthStart)) {
+        groups['本月']!.add(file);
+      } else {
+        groups['更早']!.add(file);
+      }
+    }
+
+    // 移除空分组
+    groups.removeWhere((key, value) => value.isEmpty);
+    return groups;
+  }
+
+  /// 显示排序选项菜单
+  void _showSortOptions() {
+    final sortService = CategorySortService();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('按名称排序'),
+              trailing: sortService.sortType == SortType.name
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.name);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time),
+              title: const Text('按修改时间排序'),
+              trailing: sortService.sortType == SortType.modifiedTime
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.modifiedTime);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storage),
+              title: const Text('按文件大小排序'),
+              trailing: sortService.sortType == SortType.size
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.size);
+                setState(() {}); // 刷新列表
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<FileItem> get _filteredFiles {
-    if (_searchQuery.isEmpty) return _files;
+    if (_searchQuery.isEmpty) return _getSortedFiles(_files);
 
     // 如果启用子文件夹搜索
     if (_searchInSubfolders) {
@@ -56,9 +158,10 @@ class _StoragePageState extends State<StoragePage> {
     }
 
     // 仅在当前文件夹搜索
-    return _files
+    final filtered = _files
         .where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
+    return _getSortedFiles(filtered);
   }
 
   bool _isLoading = true;
@@ -340,12 +443,9 @@ class _StoragePageState extends State<StoragePage> {
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
 
-        // 按类型排序：文件夹在前，文件在后
-        files.sort((a, b) {
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+        // 使用CategorySortService进行排序
+        final sortService = CategorySortService();
+        files.sort(sortService.getComparator());
 
         setState(() {
           _files = files;
@@ -414,11 +514,9 @@ class _StoragePageState extends State<StoragePage> {
             )
             .toList();
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
-        files.sort((a, b) {
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+        // 使用CategorySortService进行排序
+        final sortService = CategorySortService();
+        files.sort(sortService.getComparator());
         setState(() {
           _files = files;
           _isLoading = false;
@@ -442,6 +540,48 @@ class _StoragePageState extends State<StoragePage> {
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
     final viewModeService = ViewModeService();
+    final groupService = CategoryGroupService();
+    
+    // 根据是否启用分组来决定显示方式
+    if (groupService.isGroupEnabled) {
+      final groupMap = _groupFilesByDate(_filteredFiles);
+      final groups = groupMap.entries.map((entry) {
+        return FileGroup(
+          key: entry.key,
+          title: entry.key,
+          items: entry.value,
+        );
+      }).toList();
+      
+      return FileCollectionView(
+        groups: groups,
+        gridMode: viewModeService.isGridView,
+        padding: viewModeService.isGridView
+            ? const EdgeInsets.all(8)
+            : const EdgeInsets.symmetric(vertical: 0),
+        selectionController: _isSelectionMode ? _selectionController : null,
+        showFullPath: _isSearchMode && _searchInSubfolders,
+        showFavoriteButton: true,
+        isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
+        onFavoriteToggle: (file) async {
+          return await widget.presenter.toggleFavoriteFile(file);
+        },
+        itemBuilder: viewModeService.isGridView ? (file) {
+          final isSelected = _selectionController.contains(file.path);
+          return _buildGridItem(file, isSelected);
+        } : null,
+        onTap: (file) => _onFileTap(file),
+        onLongPress: (file) {
+          if (!_isSelectionMode) {
+            setState(() {
+              _isSelectionMode = true;
+              _selectedItems.add(file.path);
+            });
+          }
+        },
+      );
+    }
+    
     return FileCollectionView(
       items: _filteredFiles,
       gridMode: viewModeService.isGridView,
@@ -766,6 +906,43 @@ class _StoragePageState extends State<StoragePage> {
                           });
                         },
                         isSearchMode: _isSearchMode,
+                        extraActions: [
+                          // 排序按钮
+                          IconButton(
+                            icon: const Icon(Icons.sort),
+                            iconSize: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 24,
+                              minHeight: 24,
+                            ),
+                            onPressed: _showSortOptions,
+                            tooltip: '排序',
+                          ),
+                          // 分组按钮
+                          Consumer<CategoryGroupService>(
+                            builder: (context, groupService, _) {
+                              return IconButton(
+                                icon: Icon(
+                                  groupService.isGroupEnabled
+                                      ? Icons.view_module
+                                      : Icons.view_module_outlined,
+                                ),
+                                iconSize: 18,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
+                                onPressed: () {
+                                  groupService.toggleGroup();
+                                  setState(() {}); // 刷新视图
+                                },
+                                tooltip: groupService.isGroupEnabled ? '取消分组' : '按日期分组',
+                              );
+                            },
+                          ),
+                        ],
                         iconSize: 22,
                       ),
                     ],

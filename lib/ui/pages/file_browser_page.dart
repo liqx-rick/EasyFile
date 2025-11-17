@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
@@ -57,6 +59,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  // 收藏Tab的搜索和过滤状态
+  bool _favoriteSearchMode = false;
+  String _favoriteSearchQuery = '';
+  final TextEditingController _favoriteSearchController = TextEditingController();
+  final FocusNode _favoriteSearchFocusNode = FocusNode();
+
   @override
   bool get wantKeepAlive => true; // 保持状态不被销毁
 
@@ -99,6 +107,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _favoriteSearchController.dispose();
+    _favoriteSearchFocusNode.dispose();
     _selectionController.dispose();
     super.dispose();
   }
@@ -456,12 +466,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           // 检查当前路径是否等于或在该快速访问文件夹内
           if (vm.currentPath == folder.path || 
               vm.currentPath.startsWith(folder.path + Platform.pathSeparator)) {
-            // 限制名称长度，防止溢出（最多8个字符）
+            // 限制名称长度为7个字符，确保工具栏有足够空间
             final displayName = folder.displayName;
-            final truncatedName = displayName.length > 8 
-                ? '${displayName.substring(0, 8)}...' 
+            final maxLength = 7;
+            final truncatedName = displayName.length > maxLength 
+                ? '${displayName.substring(0, 4)}...' 
                 : displayName;
-            return '文件浏览 - $truncatedName';
+            return '浏览 - $truncatedName';
           }
         }
       }
@@ -475,14 +486,315 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
-        // 同样限制长度
-        final truncatedName = folderName.length > 8 
-            ? '${folderName.substring(0, 8)}...' 
+        // 进一步限制长度，确保工具栏有足够空间
+        final maxLength = 7;
+        final truncatedName = folderName.length > maxLength 
+            ? '${folderName.substring(0, 4)}...' 
             : folderName;
-        return '文件浏览 - $truncatedName';
+        return '浏览 - $truncatedName';
       }
     }
-    return '文件浏览';
+    return '浏览';
+  }
+
+  /// 获取过滤和排序后的收藏文件列表
+  List<FileItem> _getFilteredFavoriteFiles(List<FileItem> files) {
+    var result = files;
+
+    // 应用搜索过滤
+    if (_favoriteSearchMode && _favoriteSearchQuery.isNotEmpty) {
+      result = files.where((file) {
+        return file.name.toLowerCase().contains(_favoriteSearchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // 应用排序
+    final sortService = CategorySortService();
+    result.sort(sortService.getComparator());
+
+    return result;
+  }
+
+  /// 获取排序后的浏览文件列表
+  List<FileItem> _getSortedBrowseFiles(List<FileItem> files) {
+    final result = List<FileItem>.from(files);
+    final sortService = CategorySortService();
+    result.sort(sortService.getComparator());
+    return result;
+  }
+
+  /// 获取收藏文件的日期分组
+  Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
+    final Map<String, List<FileItem>> groups = {
+      '今天': [],
+      '昨天': [],
+      '本周': [],
+      '本月': [],
+      '更早': [],
+    };
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
+    final thisMonthStart = DateTime(now.year, now.month, 1);
+
+    for (final file in files) {
+      final fileDate = DateTime(
+        file.modified.year,
+        file.modified.month,
+        file.modified.day,
+      );
+
+      if (fileDate.isAtSameMomentAs(today)) {
+        groups['今天']!.add(file);
+      } else if (fileDate.isAtSameMomentAs(yesterday)) {
+        groups['昨天']!.add(file);
+      } else if (fileDate.isAfter(thisWeekStart) ||
+          fileDate.isAtSameMomentAs(thisWeekStart)) {
+        groups['本周']!.add(file);
+      } else if (fileDate.isAfter(thisMonthStart) ||
+          fileDate.isAtSameMomentAs(thisMonthStart)) {
+        groups['本月']!.add(file);
+      } else {
+        groups['更早']!.add(file);
+      }
+    }
+
+    return groups;
+  }
+
+  /// 获取浏览文件的日期分组
+  Map<String, List<FileItem>> _groupBrowseFilesByDate(List<FileItem> files) {
+    final Map<String, List<FileItem>> groups = {
+      '今天': [],
+      '昨天': [],
+      '本周': [],
+      '本月': [],
+      '更早': [],
+    };
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
+    final thisMonthStart = DateTime(now.year, now.month, 1);
+
+    for (final file in files) {
+      final fileDate = DateTime(
+        file.modified.year,
+        file.modified.month,
+        file.modified.day,
+      );
+
+      if (fileDate.isAtSameMomentAs(today)) {
+        groups['今天']!.add(file);
+      } else if (fileDate.isAtSameMomentAs(yesterday)) {
+        groups['昨天']!.add(file);
+      } else if (fileDate.isAfter(thisWeekStart) ||
+          fileDate.isAtSameMomentAs(thisWeekStart)) {
+        groups['本周']!.add(file);
+      } else if (fileDate.isAfter(thisMonthStart) ||
+          fileDate.isAtSameMomentAs(thisMonthStart)) {
+        groups['本月']!.add(file);
+      } else {
+        groups['更早']!.add(file);
+      }
+    }
+
+    return groups;
+  }
+
+  /// 构建收藏Tab的分组视图
+  Widget _buildFavoriteGroupedView(List<FileItem> files) {
+    final groups = _groupFavoriteFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    
+    final fileGroups = groupKeys
+        .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
+        .map((key) {
+          return FileGroup(
+            key: key,
+            title: key,
+            items: groups[key]!,
+            isCollapsible: false,
+          );
+        })
+        .toList();
+
+    return FileCollectionView(
+      groups: fileGroups,
+      gridMode: ViewModeService().isGridView,
+      padding: ViewModeService().isGridView
+          ? const EdgeInsets.symmetric(vertical: 4)
+          : const EdgeInsets.symmetric(vertical: 0),
+      selectionController: _isSelectionMode ? _selectionController : null,
+      showFullPath: _favoriteSearchMode,
+      showFavoriteButton: true,
+      isFavorite: (path) => viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await presenter.toggleFavoriteFile(file);
+      },
+      itemBuilder: ViewModeService().isGridView ? (file) {
+        final isSelected = _selectionController.contains(file.path);
+        return _buildGridItem(file, viewModel, isSelected);
+      } : null,
+      onTap: (file) => _onFileTap(file, viewModel),
+      onLongPress: (file) {
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+          });
+        }
+      },
+    );
+  }
+
+  /// 构建浏览Tab的分组视图
+  Widget _buildBrowseGroupedView(List<FileItem> files) {
+    final groups = _groupBrowseFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    
+    final fileGroups = groupKeys
+        .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
+        .map((key) {
+          return FileGroup(
+            key: key,
+            title: key,
+            items: groups[key]!,
+            isCollapsible: false,
+          );
+        })
+        .toList();
+
+    return FileCollectionView(
+      groups: fileGroups,
+      gridMode: ViewModeService().isGridView,
+      padding: ViewModeService().isGridView
+          ? const EdgeInsets.symmetric(vertical: 4)
+          : const EdgeInsets.symmetric(vertical: 0),
+      selectionController: _isSelectionMode ? _selectionController : null,
+      showFullPath: viewModel.isSearchMode,
+      showFavoriteButton: true,
+      isFavorite: (path) => viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await presenter.toggleFavoriteFile(file);
+      },
+      itemBuilder: ViewModeService().isGridView ? (file) {
+        final isSelected = _selectionController.contains(file.path);
+        return _buildGridItem(file, viewModel, isSelected);
+      } : null,
+      onTap: (file) => _onFileTap(file, viewModel),
+      onLongPress: (file) {
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+          });
+        }
+      },
+    );
+  }
+
+  /// 显示排序选项（收藏Tab）
+  void _showFavoriteSortOptions() {
+    final sortService = CategorySortService();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('按名称排序'),
+              trailing: sortService.sortType == SortType.name
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.name);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time),
+              title: const Text('按修改时间排序'),
+              trailing: sortService.sortType == SortType.modifiedTime
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.modifiedTime);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storage),
+              title: const Text('按文件大小排序'),
+              trailing: sortService.sortType == SortType.size
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.size);
+                setState(() {}); // 刷新列表
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示排序选项（浏览Tab）
+  void _showBrowseSortOptions() {
+    final sortService = CategorySortService();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('按名称排序'),
+              trailing: sortService.sortType == SortType.name
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.name);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time),
+              title: const Text('按修改时间排序'),
+              trailing: sortService.sortType == SortType.modifiedTime
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.modifiedTime);
+                setState(() {}); // 刷新列表
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storage),
+              title: const Text('按文件大小排序'),
+              trailing: sortService.sortType == SortType.size
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.size);
+                setState(() {}); // 刷新列表
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 构建文件列表视图
@@ -553,15 +865,36 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 构建列表/网格视图（使用FileCollectionView）
   Widget _buildFileView(FileViewModel vm) {
     final viewModeService = ViewModeService();
+    
+    // 收藏Tab和浏览Tab需要应用排序
+    var displayFiles = vm.files;
+    
+    if (vm.currentTab == TabView.favorite) {
+      // 收藏Tab：应用过滤和排序
+      displayFiles = _getFilteredFavoriteFiles(vm.files);
+    } else if (vm.currentTab == TabView.browse) {
+      // 浏览Tab：应用排序
+      displayFiles = _getSortedBrowseFiles(vm.files);
+    }
+
+    // 收藏Tab或浏览Tab启用分组时使用分组视图
+    if (CategoryGroupService().isGroupEnabled) {
+      if (vm.currentTab == TabView.favorite) {
+        return _buildFavoriteGroupedView(displayFiles);
+      } else if (vm.currentTab == TabView.browse) {
+        return _buildBrowseGroupedView(displayFiles);
+      }
+    }
+
     return FileCollectionView(
-      items: vm.files,
+      items: displayFiles,
       gridMode: viewModeService.isGridView,
       padding: viewModeService.isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
       // 列表模式显示选项
-      showFullPath: vm.isSearchMode,
+      showFullPath: vm.isSearchMode || (vm.currentTab == TabView.favorite && _favoriteSearchMode),
       showAccessTime: vm.currentTab == TabView.recent,
       getAccessTime: (file) => file.accessedAt,
       showFavoriteButton: true,
@@ -890,8 +1223,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                 return Column(
                   children: [
-                    // 上半部分固定区域 - 搜索模式下隐藏，避免溢出
-                    if (!vm.isSearchMode)
+                    // 上半部分固定区域 - 在搜索模式下隐藏，避免溢出
+                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) && 
+                        !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
                       ConstrainedBox(
                         constraints: BoxConstraints(
                           maxHeight: constraints.maxWidth > constraints.maxHeight
@@ -930,8 +1264,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
                     ),
 
-                    // Tab 切换栏和工具按钮 - 搜索模式下也隐藏
-                    if (!vm.isSearchMode)
+                    // Tab 切换栏和工具按钮 - 在搜索模式下隐藏
+                    if (!(vm.currentTab == TabView.browse && vm.isSearchMode) && 
+                        !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
                       Container(
                         height: 32, // 固定高度
                         color: colorScheme.surface,
@@ -998,17 +1333,63 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                 vm.currentPath.isNotEmpty &&
                                 _canNavigateUp(vm.currentPath),
                             onBackPressed: () => presenter.navigateUp(),
-                            showSearchButton: vm.currentTab == TabView.browse,
-                            onSearchPressed: () => presenter.toggleSearch(),
-                            isSearchMode: vm.isSearchMode,
-                            iconSize: 20,
+                            showSearchButton: vm.currentTab == TabView.browse || vm.currentTab == TabView.favorite,
+                            onSearchPressed: () {
+                              if (vm.currentTab == TabView.browse) {
+                                presenter.toggleSearch();
+                              } else if (vm.currentTab == TabView.favorite) {
+                                setState(() {
+                                  _favoriteSearchMode = !_favoriteSearchMode;
+                                  if (!_favoriteSearchMode) {
+                                    _favoriteSearchQuery = '';
+                                    _favoriteSearchController.clear();
+                                  }
+                                });
+                              }
+                            },
+                            isSearchMode: vm.currentTab == TabView.browse ? vm.isSearchMode : _favoriteSearchMode,
+                            extraActions: [
+                              // 排序按钮（收藏Tab和浏览Tab）
+                              if (vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse)
+                                IconButton(
+                                  icon: const Icon(Icons.sort, size: 18),
+                                  onPressed: vm.currentTab == TabView.favorite 
+                                      ? _showFavoriteSortOptions 
+                                      : _showBrowseSortOptions,
+                                  tooltip: '排序',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 24,
+                                    minHeight: 24,
+                                  ),
+                                ),
+                              // 分组按钮（收藏Tab和浏览Tab）
+                              if (vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse)
+                                IconButton(
+                                  icon: Icon(
+                                    CategoryGroupService().isGroupEnabled ? Icons.view_list : Icons.view_agenda,
+                                    size: 18,
+                                  ),
+                                  onPressed: () {
+                                    CategoryGroupService().toggleGroup();
+                                    setState(() {});
+                                  },
+                                  tooltip: CategoryGroupService().isGroupEnabled ? '取消分组' : '按日期分组',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 24,
+                                    minHeight: 24,
+                                  ),
+                                ),
+                            ],
+                            iconSize: 18,
                           ),
                         ],
                       ),
                     ),
 
-                    // 搜索栏（使用统一的FileSearchBar组件）
-                    if (vm.isSearchMode)
+                    // 浏览Tab的搜索栏
+                    if (vm.currentTab == TabView.browse && vm.isSearchMode)
                       FileSearchBar(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
@@ -1021,6 +1402,31 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         onClose: () {
                           _searchController.clear();
                           presenter.clearSearch();
+                        },
+                      ),
+
+                    // 收藏Tab的搜索栏
+                    if (vm.currentTab == TabView.favorite && _favoriteSearchMode)
+                      FileSearchBar(
+                        controller: _favoriteSearchController,
+                        focusNode: _favoriteSearchFocusNode,
+                        hintText: '搜索收藏的文件...',
+                        onSearch: (query) async {
+                          setState(() {
+                            _favoriteSearchQuery = query;
+                          });
+                        },
+                        onClose: () {
+                          setState(() {
+                            _favoriteSearchQuery = '';
+                            _favoriteSearchController.clear();
+                            _favoriteSearchMode = false;
+                          });
+                        },
+                        onChanged: (query) {
+                          setState(() {
+                            _favoriteSearchQuery = query;
+                          });
                         },
                       ),
 

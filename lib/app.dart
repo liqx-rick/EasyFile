@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/ui/pages/file_browser_page.dart';
 import 'package:easyfile/ui/pages/splash_page.dart';
 import 'package:easyfile/ui/theme/app_theme.dart';
@@ -30,6 +32,12 @@ class EasyFileApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<ViewModeService>.value(
           value: ViewModeService(),
+        ),
+        ChangeNotifierProvider<CategorySortService>.value(
+          value: CategorySortService(),
+        ),
+        ChangeNotifierProvider<CategoryGroupService>.value(
+          value: CategoryGroupService(),
         ),
       ],
       child: Consumer<FileViewModel>(
