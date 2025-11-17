@@ -242,13 +242,14 @@ class FileCollectionView extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.getAccessTime,
-  }) : assert(items != null || groups != null, 'Either items or groups must be provided');
+  }) : assert(items != null || groups != null,
+            'Either items or groups must be provided');
 
   @override
   Widget build(BuildContext context) {
-    final hasContent = (items != null && items!.isNotEmpty) || 
-                       (groups != null && groups!.isNotEmpty);
-    
+    final hasContent = (items != null && items!.isNotEmpty) ||
+        (groups != null && groups!.isNotEmpty);
+
     if (!hasContent) {
       return Center(
         child: Padding(
@@ -261,7 +262,7 @@ class FileCollectionView extends StatelessWidget {
       );
     }
 
-    Widget content = groups != null 
+    Widget content = groups != null
         ? _buildGroupedView(context)
         : (gridMode ? _buildGrid(context) : _buildList(context));
 
@@ -309,10 +310,11 @@ class FileCollectionView extends StatelessWidget {
 
   Widget _buildList(BuildContext context) {
     final controller = onScrollNearEnd != null ? ScrollController() : null;
-    
+
     if (controller != null) {
       controller.addListener(() {
-        if (controller.position.pixels >= controller.position.maxScrollExtent - 200) {
+        if (controller.position.pixels >=
+            controller.position.maxScrollExtent - 200) {
           onScrollNearEnd!();
         }
       });
@@ -367,7 +369,7 @@ class FileCollectionView extends StatelessWidget {
     // 如果提供了自定义 itemBuilder，直接使用
     if (itemBuilder != null) {
       Widget child = itemBuilder!(item);
-      
+
       // Add semantics for accessibility
       child = Semantics(
         label: item.isDirectory ? '文件夹: ${item.name}' : '文件: ${item.name}',
@@ -375,7 +377,7 @@ class FileCollectionView extends StatelessWidget {
         enabled: true,
         child: child,
       );
-      
+
       return child;
     }
 
@@ -392,20 +394,21 @@ class FileCollectionView extends StatelessWidget {
       isFavorite: isFavorite?.call(item.path) ?? false,
       isSelected: isSelected,
       showCheckbox: isSelectionMode,
-      onFavoriteToggle: showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
-          ? () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final isFav = await onFavoriteToggle!(item);
-              if (context.mounted) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
-            }
-          : null,
+      onFavoriteToggle:
+          showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
+              ? () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final isFav = await onFavoriteToggle!(item);
+                  if (context.mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                }
+              : null,
       onTap: () {
         if (isSelectionMode) {
           selectionController!.toggle(item.path);
@@ -510,12 +513,6 @@ class _GroupSectionState extends State<_GroupSection> {
                   ),
             ),
           ),
-          Text(
-            '${widget.group.items.length}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
         ],
       ),
     );
@@ -523,7 +520,7 @@ class _GroupSectionState extends State<_GroupSection> {
 
   List<Widget> _buildGroupItems() {
     final items = widget.group.items;
-    
+
     if (widget.gridMode) {
       // 网格模式：使用 GridView
       return [
@@ -548,7 +545,7 @@ class _GroupSectionState extends State<_GroupSection> {
     } else {
       // 列表模式：保持原有实现
       final widgets = <Widget>[];
-      
+
       for (var i = 0; i < items.length; i++) {
         widgets.add(widget.itemWrapper(context, items[i]));
         // 在每个item后面添加分割线（最后一个除外）
@@ -556,7 +553,7 @@ class _GroupSectionState extends State<_GroupSection> {
           widgets.add(const Divider(height: 1));
         }
       }
-      
+
       return widgets;
     }
   }

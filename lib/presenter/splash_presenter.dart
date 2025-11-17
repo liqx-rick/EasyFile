@@ -196,14 +196,6 @@ class SplashPresenter {
     });
   }
 
-  /// 导航到主页面
-  void _navigateToMainPage(BuildContext context) {
-    logger.i('SplashPresenter: Navigating to FileBrowserPage');
-
-    // 调用完成回调来切换页面，而不是使用路由导航
-    onComplete?.call();
-  }
-
   /// 清理资源
   void dispose() {
     logger.d('SplashPresenter: Disposing resources...');

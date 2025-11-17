@@ -19,6 +19,7 @@ class FolderPickerDialog extends StatefulWidget {
 
 class _FolderPickerDialogState extends State<FolderPickerDialog> {
   String _currentPath = '';
+  String _rootPath = ''; // 记录起始根目录
   List<FileItem> _folders = [];
   bool _isLoading = true;
 
@@ -26,6 +27,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
   void initState() {
     super.initState();
     _currentPath = widget.currentPath;
+    _rootPath = widget.currentPath; // 保存起始路径作为根路径
     _loadFolders();
   }
 
@@ -85,7 +87,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
 
   Future<void> _navigateUp() async {
     final parentPath = Directory(_currentPath).parent.path;
-    if (parentPath != _currentPath) {
+    // 不允许向上超出根路径
+    if (parentPath != _currentPath && parentPath.startsWith(_rootPath)) {
       await _navigateToFolder(parentPath);
     }
   }
@@ -102,21 +105,23 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
             // 当前路径显示
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(8),
+              height: 48, // 固定高度
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Row(
                 children: [
-                  if (_currentPath != '/' && _currentPath.isNotEmpty) ...[
+                  // 返回按钮区域（固定宽度）
+                  if (_currentPath != _rootPath)
                     IconButton(
                       icon: const Icon(Icons.arrow_back, size: 20),
                       onPressed: _navigateUp,
                       tooltip: '返回上级',
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+                    )
+                  else
+                    const SizedBox(width: 48), // 占位保持对齐
                   Expanded(
                     child: Text(
                       _getDisplayPath(),

@@ -15,16 +15,15 @@ import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
-import 'package:easyfile/utils/path_security.dart';
-import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
 import 'package:easyfile/ui/widgets/file_category_tab_bar.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/services/batch_operations_service.dart';
 
-import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
@@ -613,9 +612,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final fileGroups = groupKeys
         .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
         .map((key) {
+          final count = groups[key]!.length;
           return FileGroup(
             key: key,
-            title: key,
+            title: '$key ($count 个文件)',
             items: groups[key]!,
             isCollapsible: false,
           );
@@ -658,9 +658,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final fileGroups = groupKeys
         .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
         .map((key) {
+          final count = groups[key]!.length;
           return FileGroup(
             key: key,
-            title: key,
+            title: '$key ($count 个文件)',
             items: groups[key]!,
             isCollapsible: false,
           );
@@ -701,9 +702,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             ListTile(
               leading: const Icon(Icons.sort_by_alpha),
               title: const Text('按名称排序'),
@@ -740,7 +742,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 setState(() {}); // 刷新列表
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.category),
+              title: const Text('按文件类型排序'),
+              trailing: sortService.sortType == SortType.fileType
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.fileType);
+                setState(() {}); // 刷新列表
+              },
+            ),
           ],
+          ),
         ),
       ),
     );
@@ -752,9 +767,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             ListTile(
               leading: const Icon(Icons.sort_by_alpha),
               title: const Text('按名称排序'),
@@ -791,7 +807,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 setState(() {}); // 刷新列表
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.category),
+              title: const Text('按文件类型排序'),
+              trailing: sortService.sortType == SortType.fileType
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                sortService.setSortType(SortType.fileType);
+                setState(() {}); // 刷新列表
+              },
+            ),
           ],
+          ),
         ),
       ),
     );
@@ -957,9 +986,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  const SizedBox(height: 4),
                   // 文件图标或缩略图
                   if (isImage)
                     ImageThumbnail(imagePath: file.path, size: 64)
@@ -975,16 +1005,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       size: 48,
                       color: file.isDirectory ? Colors.amber : Colors.blue,
                     ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   // 文件名
-                  Text(
-                    file.name,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                  Flexible(
+                    child: Text(
+                      file.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   // 文件大小或访问时间
                   if (vm.currentTab == TabView.recent && file.accessedAt != null)
                     Text(
@@ -1001,6 +1033,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                     ),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
@@ -1348,40 +1381,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               }
                             },
                             isSearchMode: vm.currentTab == TabView.browse ? vm.isSearchMode : _favoriteSearchMode,
-                            extraActions: [
-                              // 排序按钮（收藏Tab和浏览Tab）
-                              if (vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse)
-                                IconButton(
-                                  icon: const Icon(Icons.sort, size: 18),
-                                  onPressed: vm.currentTab == TabView.favorite 
-                                      ? _showFavoriteSortOptions 
-                                      : _showBrowseSortOptions,
-                                  tooltip: '排序',
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 24,
-                                    minHeight: 24,
-                                  ),
-                                ),
-                              // 分组按钮（收藏Tab和浏览Tab）
-                              if (vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse)
-                                IconButton(
-                                  icon: Icon(
-                                    CategoryGroupService().isGroupEnabled ? Icons.view_list : Icons.view_agenda,
-                                    size: 18,
-                                  ),
-                                  onPressed: () {
-                                    CategoryGroupService().toggleGroup();
-                                    setState(() {});
-                                  },
-                                  tooltip: CategoryGroupService().isGroupEnabled ? '取消分组' : '按日期分组',
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 24,
-                                    minHeight: 24,
-                                  ),
-                                ),
-                            ],
+                            showSortButton: vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+                            onSortPressed: vm.currentTab == TabView.favorite 
+                                ? _showFavoriteSortOptions 
+                                : _showBrowseSortOptions,
+                            showGroupButton: vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+                            onGroupToggle: () => setState(() {}),
                             iconSize: 18,
                           ),
                         ],
@@ -1473,897 +1478,38 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建批量选择底部工具栏
   Widget _buildSelectionBottomBar() {
-    // 统计选中的文件和文件夹数量
-    int fileCount = 0;
-    int folderCount = 0;
-    int totalSize = 0;
-
-    for (final path in _selectedItems) {
-      final entity = FileSystemEntity.typeSync(path);
-      if (entity == FileSystemEntityType.directory) {
-        folderCount++;
-      } else if (entity == FileSystemEntityType.file) {
-        fileCount++;
-        try {
-          totalSize += File(path).lengthSync();
-        } catch (e) {
-          logger.w('Failed to get file size: $path');
-        }
-      }
-    }
-
-    // 判断是否只选中了文件（可以分享）
-    final hasOnlyFiles = folderCount == 0 && fileCount > 0;
-    // 判断是否只选中了一个项（可以重命名）
-    final isSingleSelection = _selectedItems.length == 1;
-
-    return BottomAppBar(
-      height: 56,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            // 显示选中信息
-            Expanded(
-              child: Text(
-                _buildSelectionInfo(fileCount, folderCount, totalSize),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // 操作按钮 - 紧凑排列
-            // 复制按钮（单个文件/文件夹）
-            if (isSingleSelection)
-              IconButton(
-                icon: const Icon(Icons.copy),
-                onPressed: _batchCopy,
-                tooltip: '复制',
-                padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
-                ),
-              ),
-            // 重命名按钮（单个文件/文件夹）
-            if (isSingleSelection)
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: _batchRename,
-                tooltip: '重命名',
-                padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
-                ),
-              ),
-            // 分享按钮（只有文件可以分享）
-            if (hasOnlyFiles)
-              IconButton(
-                icon: const Icon(Icons.share),
-                onPressed: _batchShare,
-                tooltip: '分享',
-                padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
-                ),
-              ),
-            // 移动按钮
-            IconButton(
-              icon: const Icon(Icons.drive_file_move),
-              onPressed: _selectedItems.isEmpty ? null : _batchMove,
-              tooltip: '移动',
-              padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-            ),
-            // 批量收藏/取消收藏按钮（只有文件可以收藏）
-            if (hasOnlyFiles)
-              IconButton(
-                icon: Icon(_isAllSelectedFavorite() ? Icons.star : Icons.star_border),
-                onPressed: _batchToggleFavorite,
-                tooltip: _isAllSelectedFavorite() ? '取消收藏' : '添加收藏',
-                color: _isAllSelectedFavorite() ? Colors.amber : null,
-                padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-              ),
-            // 删除按钮
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _selectedItems.isEmpty ? null : _batchDelete,
-              tooltip: '删除',
-              padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-            ),
-          ],
-        ),
-      ),
+    final batchService = _getBatchOperationsService();
+    return SelectionBottomBar(
+      selectedPaths: _selectedItems,
+      isAllFavorite: batchService.isAllSelectedFavorite(_selectedItems),
+      onCopy: () => batchService.batchCopy(_selectedItems, viewModel.currentPath),
+      onRename: () => batchService.batchRename(_selectedItems),
+      onShare: () => batchService.batchShare(_selectedItems),
+      onMove: () => batchService.batchMove(_selectedItems, viewModel.currentPath),
+      onToggleFavorite: () => batchService.batchToggleFavorite(_selectedItems),
+      onDelete: () => batchService.batchDelete(_selectedItems),
     );
   }
 
-  /// 构建选中信息文本
-  String _buildSelectionInfo(int fileCount, int folderCount, int totalSize) {
-    final parts = <String>[];
-    if (fileCount > 0) parts.add('$fileCount 个文件');
-    if (folderCount > 0) parts.add('$folderCount 个文件夹');
-    final info = parts.join('，');
-    if (totalSize > 0) {
-      return '$info · ${FileUtils.formatFileSize(totalSize)}';
-    }
-    return info;
-  }
-
-  /// 检查选中的文件是否全部已收藏
-  bool _isAllSelectedFavorite() {
-    if (_selectedItems.isEmpty) return false;
-    return _selectedItems.every((path) => viewModel.isFavoriteFile(path));
-  }
-
-  /// 批量添加/取消收藏
-  void _batchToggleFavorite() async {
-    if (_selectedItems.isEmpty) return;
-
-    final allFavorite = _isAllSelectedFavorite();
-    final action = allFavorite ? '取消收藏' : '添加到收藏';
-    
-    int successCount = 0;
-    int failCount = 0;
-
-    for (final path in _selectedItems) {
-      // 只处理文件，跳过文件夹
-      final entity = FileSystemEntity.typeSync(path);
-      if (entity != FileSystemEntityType.file) continue;
-
-      try {
-        final file = FileItem(
-          name: path.split(Platform.pathSeparator).last,
-          path: path,
-          size: File(path).lengthSync(),
-          modified: File(path).lastModifiedSync(),
-          isDirectory: false,
-        );
-
-        if (allFavorite) {
-          // 全部已收藏，则取消收藏
-          await presenter.toggleFavoriteFile(file);
-          successCount++;
-        } else {
-          // 有未收藏的，则添加收藏
-          final isFav = viewModel.isFavoriteFile(path);
-          if (!isFav) {
-            await presenter.toggleFavoriteFile(file);
-            successCount++;
-          }
-        }
-      } catch (e) {
-        logger.e('Failed to toggle favorite: $path, error: $e');
-        failCount++;
-      }
-    }
-
-    if (mounted) {
-      final message = failCount > 0
-          ? '$action完成：成功 $successCount 个，失败 $failCount 个'
-          : '已${action} $successCount 个文件';
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  /// 批量删除
-  void _batchDelete() async {
-    if (_selectedItems.isEmpty) return;
-
-    // 🔒 安全检查：验证所有选中项是否允许删除
-    for (final path in _selectedItems) {
-      final riskLevel = PathSecurity.getPathRiskLevel(path);
-
-      if (riskLevel == PathRiskLevel.forbidden ||
-          riskLevel == PathRiskLevel.danger) {
-        final fileName = path.split(Platform.pathSeparator).last;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('🛑 禁止删除'),
-            content: Text(
-              '选中的文件包含受保护的系统目录 "$fileName"！\n\n'
-              '删除系统目录会导致：\n'
-              '• 系统功能损坏\n'
-              '• 应用无法运行\n'
-              '• 数据永久丢失\n\n'
-              '为保护您的设备，此操作已被阻止。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我知道了'),
-              ),
-            ],
-          ),
-        );
-        logger.w('Delete blocked by UI: $path (Risk: ${riskLevel.name})');
-        return;
-      }
-
-      // 检查是否为系统关键文件夹
-      final fileName = path.split(Platform.pathSeparator).last;
-      if (PathSecurity.isSystemFolderName(fileName)) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('🔒 禁止删除'),
-            content: Text(
-              '"$fileName" 是系统重要文件夹！\n\n'
-              '删除此文件夹会导致系统功能异常。\n\n'
-              '为保护您的设备，此操作已被阻止。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我知道了'),
-              ),
-            ],
-          ),
-        );
-        logger.w('Delete blocked: "$fileName" is a system folder');
-        return;
-      }
-    }
-
-    // 统计文件和文件夹数量
-    int fileCount = 0;
-    int folderCount = 0;
-    for (final path in _selectedItems) {
-      final entity = FileSystemEntity.typeSync(path);
-      if (entity == FileSystemEntityType.directory) {
-        folderCount++;
-      } else if (entity == FileSystemEntityType.file) {
-        fileCount++;
-      }
-    }
-
-    // 预先捕获 messenger，避免在 await 后使用 BuildContext
-    final messenger = ScaffoldMessenger.of(context);
-
-    // 使用增强的删除确认对话框
-    final confirmed = await EnhancedDeleteDialog.showBatchDeleteConfirmation(
+  /// 获取批量操作服务实例
+  BatchOperationsService _getBatchOperationsService() {
+    return BatchOperationsService(
       context: context,
-      paths: _selectedItems.toList(),
-      fileCount: fileCount,
-      folderCount: folderCount,
-    );
-
-    if (!confirmed || !mounted) return;
-
-    // 显示进度
-    final navigator = Navigator.of(context);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在删除...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      int successCount = 0;
-      int failCount = 0;
-
-      for (final path in _selectedItems) {
-        try {
-          // 🔒 记录操作日志
-          final riskLevel = PathSecurity.getPathRiskLevel(path);
-          PathSecurity.logOperation(
-            operation: 'DELETE (UI)',
-            path: path,
-            riskLevel: riskLevel,
-            allowed: true,
-          );
-
-          final entity = FileSystemEntity.typeSync(path);
-          if (entity == FileSystemEntityType.directory) {
-            await Directory(path).delete(recursive: true);
-          } else if (entity == FileSystemEntityType.file) {
-            await File(path).delete();
-          }
-          successCount++;
-        } catch (e) {
-          logger.e('Failed to delete: $path, error: $e');
-          failCount++;
+      viewModel: viewModel,
+      presenter: presenter,
+      onRefresh: () async {
+        if (viewModel.currentTab == TabView.browse) {
+          await presenter.loadFiles(viewModel.currentPath);
+        } else if (viewModel.currentTab == TabView.favorite) {
+          await presenter.loadFavoriteFiles();
         }
-      }
-
-      if (mounted) {
-        navigator.pop(); // 关闭进度对话框
-
-        // 刷新文件列表
-        await presenter.loadFiles(viewModel.currentPath);
-
-        // 退出多选模式
+      },
+      onExitSelectionMode: () {
         setState(() {
           _isSelectionMode = false;
           _selectedItems.clear();
         });
-
-        // 显示结果提示
-        if (failCount == 0) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('成功删除 $successCount 项'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('成功删除 $successCount 项，失败 $failCount 项'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        navigator.pop(); // 关闭进度对话框
-        messenger.showSnackBar(
-          SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  /// 批量移动
-  void _batchMove() async {
-    if (_selectedItems.isEmpty) return;
-
-    // 🔒 安全检查：验证所有选中项是否允许移动
-    for (final path in _selectedItems) {
-      final riskLevel = PathSecurity.getPathRiskLevel(path);
-
-      if (riskLevel == PathRiskLevel.forbidden ||
-          riskLevel == PathRiskLevel.danger) {
-        final fileName = path.split(Platform.pathSeparator).last;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('无法移动 "$fileName"：这是受保护的系统目录'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        logger.w('Move blocked by UI: $path (Risk: ${riskLevel.name})');
-        return;
-      }
-
-      // 检查是否为系统关键文件夹
-      final fileName = path.split(Platform.pathSeparator).last;
-      if (PathSecurity.isSystemFolderName(fileName)) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('🔒 禁止移动'),
-            content: Text(
-              '"$fileName" 是系统重要文件夹！\n\n'
-              '移动此文件夹会导致系统功能异常。\n\n'
-              '为保护您的设备，此操作已被阻止。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我知道了'),
-              ),
-            ],
-          ),
-        );
-        logger.w('Move blocked: "$fileName" is a system folder');
-        return;
-      }
-    }
-
-    // 预先捕获 messenger，避免在 await 后使用 BuildContext
-    final messenger = ScaffoldMessenger.of(context);
-
-    // 显示文件夹选择对话框
-    final destinationPath = await showDialog<String>(
-      context: context,
-      builder: (context) =>
-          FolderPickerDialog(currentPath: viewModel.currentPath),
+      },
     );
-
-    if (destinationPath == null || !mounted) return;
-
-    // 🔒 验证目标路径安全性
-    final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
-    if (targetRiskLevel == PathRiskLevel.forbidden ||
-        targetRiskLevel == PathRiskLevel.danger) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('目标位置不安全，无法移动文件'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      logger.w('Move blocked: target path $destinationPath is protected');
-      return;
-    }
-
-    // 检查是否要移动到子目录（会造成循环）
-    for (final path in _selectedItems) {
-      if (FileSystemEntity.typeSync(path) == FileSystemEntityType.directory) {
-          if (destinationPath.startsWith(path + Platform.pathSeparator) ||
-            destinationPath == path) {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('不能将文件夹移动到自己的子目录中'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-      }
-    }
-
-    // 显示进度
-    final navigator = Navigator.of(context);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在移动...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      int successCount = 0;
-      int failCount = 0;
-
-      for (final path in _selectedItems) {
-        try {
-          final entity = FileSystemEntity.typeSync(path);
-          final baseName = path.split(Platform.pathSeparator).last;
-          final targetPath =
-              '$destinationPath${Platform.pathSeparator}$baseName';
-
-          // 🔒 记录操作日志
-          final riskLevel = PathSecurity.getPathRiskLevel(path);
-          PathSecurity.logOperation(
-            operation: 'MOVE (UI)',
-            path: '$path -> $targetPath',
-            riskLevel: riskLevel,
-            allowed: true,
-          );
-
-          if (entity == FileSystemEntityType.directory) {
-            await Directory(path).rename(targetPath);
-          } else if (entity == FileSystemEntityType.file) {
-            await File(path).rename(targetPath);
-          }
-          successCount++;
-        } catch (e) {
-          logger.e('Failed to move: $path, error: $e');
-          failCount++;
-        }
-      }
-
-      if (mounted) {
-                          navigator.pop(); // 关闭进度对话框
-
-        // 刷新文件列表
-        await presenter.loadFiles(viewModel.currentPath);
-
-        // 退出多选模式
-        setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
-        });
-
-        // 显示结果提示
-        if (failCount == 0) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('成功移动 $successCount 项'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('成功移动 $successCount 项，失败 $failCount 项'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-                          navigator.pop(); // 关闭进度对话框
-        messenger.showSnackBar(
-          SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  /// 批量复制
-  void _batchCopy() async {
-    if (_selectedItems.length != 1) return;
-
-    final sourcePath = _selectedItems.first;
-
-    // 预先捕获 messenger 和 navigator，避免在 await 后使用 BuildContext
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
-    // 显示文件夹选择对话框
-    final destinationPath = await showDialog<String>(
-      context: context,
-      builder: (context) =>
-          FolderPickerDialog(currentPath: viewModel.currentPath),
-    );
-
-    if (destinationPath == null || !mounted) return;
-
-    // 显示进度
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在复制...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final entity = FileSystemEntity.typeSync(sourcePath);
-      final baseName = sourcePath.split(Platform.pathSeparator).last;
-      final targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
-
-      if (entity == FileSystemEntityType.directory) {
-        // 递归复制文件夹
-        await _copyDirectory(Directory(sourcePath), Directory(targetPath));
-      } else if (entity == FileSystemEntityType.file) {
-        await File(sourcePath).copy(targetPath);
-      }
-
-      if (mounted) {
-        navigator.pop(); // 关闭进度对话框
-
-        // 刷新文件列表
-        await presenter.loadFiles(viewModel.currentPath);
-
-        // 退出多选模式
-        setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
-        });
-
-        messenger.showSnackBar(
-          const SnackBar(content: Text('复制成功'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        navigator.pop(); // 关闭进度对话框
-        messenger.showSnackBar(
-          SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  /// 递归复制文件夹
-  Future<void> _copyDirectory(Directory source, Directory destination) async {
-    if (!await destination.exists()) {
-      await destination.create(recursive: true);
-    }
-
-    await for (final entity in source.list(recursive: false)) {
-      if (entity is Directory) {
-        final newDirectory = Directory(
-          '${destination.path}${Platform.pathSeparator}${entity.path.split(Platform.pathSeparator).last}',
-        );
-        await _copyDirectory(entity, newDirectory);
-      } else if (entity is File) {
-        await entity.copy(
-          '${destination.path}${Platform.pathSeparator}${entity.path.split(Platform.pathSeparator).last}',
-        );
-      }
-    }
-  }
-
-  /// 批量重命名
-  void _batchRename() async {
-    if (_selectedItems.length != 1) return;
-
-    final sourcePath = _selectedItems.first;
-    final entity = FileSystemEntity.typeSync(sourcePath);
-    final currentName = sourcePath.split(Platform.pathSeparator).last;
-    final isDirectory = entity == FileSystemEntityType.directory;
-
-    // 🔒 安全检查：验证是否允许重命名
-    final riskLevel = PathSecurity.getPathRiskLevel(sourcePath);
-
-    // 禁止重命名系统关键目录
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              PathSecurity.getOperationDeniedMessage(sourcePath, '重命名'),
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      logger.w('Rename blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
-      return;
-    }
-
-    // 检查是否为系统关键文件夹名称
-    if (PathSecurity.isSystemFolderName(currentName)) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('🔒 禁止重命名'),
-            content: Text(
-              '"$currentName" 是系统重要文件夹！\n\n'
-              '重命名此文件夹会导致：\n'
-              '• 系统功能异常\n'
-              '• 应用无法访问文件\n'
-              '• 媒体库损坏\n\n'
-              '为保护您的设备，此操作已被阻止。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我知道了'),
-              ),
-            ],
-          ),
-        );
-      }
-      logger.w('Rename blocked: "$currentName" is a system folder');
-      return;
-    }
-
-    // 显示重命名对话框
-    final TextEditingController controller = TextEditingController(
-      text: currentName,
-    );
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isDirectory ? '重命名文件夹' : '重命名文件'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: '新名称', hintText: '请输入新名称'),
-          onSubmitted: (value) {
-            if (value.isNotEmpty) {
-              Navigator.pop(context, value);
-            }
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) {
-                Navigator.pop(context, value);
-              }
-            },
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-
-    if (newName == null || newName.trim().isEmpty || !mounted) return;
-    if (newName == currentName) return; // 名称没有改变
-
-    // 显示进度
-    // 预先捕获 messenger 和 navigator
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在重命名...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final parentPath = sourcePath.substring(
-        0,
-        sourcePath.lastIndexOf(Platform.pathSeparator),
-      );
-      final targetPath =
-          '$parentPath${Platform.pathSeparator}${newName.trim()}';
-
-      // 🔒 验证目标路径安全性
-      final targetRiskLevel = PathSecurity.getPathRiskLevel(targetPath);
-      if (targetRiskLevel == PathRiskLevel.forbidden ||
-          targetRiskLevel == PathRiskLevel.danger) {
-        if (mounted) {
-          Navigator.pop(context); // 关闭进度对话框
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('重命名失败：目标路径不安全'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        logger.w('Rename blocked: target path $targetPath is protected');
-        return;
-      }
-
-      // 🔒 记录操作日志
-      PathSecurity.logOperation(
-        operation: 'RENAME (UI)',
-        path: '$sourcePath -> $targetPath',
-        riskLevel: riskLevel,
-        allowed: true,
-      );
-
-      if (entity == FileSystemEntityType.directory) {
-        await Directory(sourcePath).rename(targetPath);
-      } else if (entity == FileSystemEntityType.file) {
-        await File(sourcePath).rename(targetPath);
-      }
-
-      if (mounted) {
-        navigator.pop(); // 关闭进度对话框
-
-        // 刷新文件列表
-        await presenter.loadFiles(viewModel.currentPath);
-
-        // 退出多选模式
-        setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
-        });
-
-        messenger.showSnackBar(
-          const SnackBar(content: Text('重命名成功'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        navigator.pop(context); // 关闭进度对话框
-        messenger.showSnackBar(
-          SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  /// 批量分享
-  void _batchShare() async {
-    if (_selectedItems.isEmpty) return;
-
-    // 只分享文件，过滤掉文件夹
-    final filePaths = _selectedItems.where((path) {
-      return FileSystemEntity.typeSync(path) == FileSystemEntityType.file;
-    }).toList();
-
-    if (filePaths.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('请选择至少一个文件进行分享'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // 预先捕获 messenger
-    final messenger = ScaffoldMessenger.of(context);
-
-    try {
-      // 使用presenter批量分享
-      final success = await presenter.batchShareFiles(filePaths);
-
-      if (mounted) {
-        if (success) {
-          // 分享成功后退出多选模式
-          setState(() {
-            _isSelectionMode = false;
-            _selectedItems.clear();
-          });
-        } else {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('分享失败，请检查是否有有效的文件'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      logger.e('Failed to share files: $e');
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('分享失败：$e'), backgroundColor: Colors.red),
-        );
-      }
-    }
   }
 }
