@@ -7,7 +7,6 @@ import 'package:path/path.dart' as path;
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -246,6 +245,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   bool _isSearchMode = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   // 分组相关
   bool _groupByDate = false;
@@ -369,6 +369,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _selectionController.selectedNotifier.removeListener(_onSelectionChanged);
     _selectionController.dispose();
     super.dispose();
@@ -703,10 +704,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             if (_isSearchMode)
               FileSearchBar(
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 hintText: '搜索${categoryInfo.name}...',
                 onSearch: (query) async {
                   if (query.isNotEmpty) {
-                    await SearchHistoryService().addSearch(query);
                     setState(() {
                       _searchQuery = query;
                     });

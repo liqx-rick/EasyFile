@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -46,6 +45,7 @@ class _StoragePageState extends State<StoragePage> {
 
   // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<FileItem> get _filteredFiles {
     if (_searchQuery.isEmpty) return _files;
@@ -302,6 +302,7 @@ class _StoragePageState extends State<StoragePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _selectionController.dispose();
     super.dispose();
   }
@@ -782,10 +783,10 @@ class _StoragePageState extends State<StoragePage> {
                       if (_isSearchMode)
                         FileSearchBar(
                           controller: _searchController,
+                          focusNode: _searchFocusNode,
                           hintText: '搜索文件...',
                           onSearch: (query) async {
                             if (query.isNotEmpty) {
-                              await SearchHistoryService().addSearch(query);
                               setState(() {
                                 _searchQuery = query;
                               });

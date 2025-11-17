@@ -931,8 +931,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     // 更新访问时间
     widget.quickAccessPresenter.updateAccessInfo(folder.path);
 
-    // 导航到文件夹
-    widget.filePresenter.navigateToFolder(folder.path);
+    // 导航到文件夹（标记为根导航，以便正确设置rootPath）
+    widget.filePresenter.loadFiles(folder.path, isRootNavigation: true);
 
     // 切换到浏览Tab
     widget.fileViewModel.setCurrentTab(TabView.browse);

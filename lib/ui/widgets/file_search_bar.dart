@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
+import 'package:easyfile/core/logger.dart';
 
 /// 文件搜索栏组件（使用Stack浮动显示搜索历史）
 /// 
@@ -56,7 +57,9 @@ class _FileSearchBarState extends State<FileSearchBar> {
 
   Future<void> _loadHistory() async {
     if (!widget.showHistory) return;
+    logger.d('FileSearchBar: Loading search history...');
     final history = await SearchHistoryService().getHistory();
+    logger.d('FileSearchBar: Loaded ${history.length} history items');
     if (mounted) {
       setState(() {
         _history = history;
@@ -64,11 +67,16 @@ class _FileSearchBarState extends State<FileSearchBar> {
     }
   }
 
-  void _onFocusChanged() {
-    if (widget.focusNode?.hasFocus == true && 
-        widget.controller.text.isEmpty && 
-        _history.isNotEmpty) {
-      _showHistoryOverlay();
+  void _onFocusChanged() async {
+    logger.d('FileSearchBar: Focus changed - hasFocus: ${widget.focusNode?.hasFocus}');
+    if (widget.focusNode?.hasFocus == true) {
+      // 获得焦点时重新加载历史（确保显示最新的搜索记录）
+      await _loadHistory();
+      
+      if (widget.controller.text.isEmpty && _history.isNotEmpty) {
+        logger.d('FileSearchBar: Showing history overlay with ${_history.length} items');
+        _showHistoryOverlay();
+      }
     } else {
       _removeOverlay();
     }
@@ -187,6 +195,7 @@ class _FileSearchBarState extends State<FileSearchBar> {
 
   Future<void> _onSubmit(String value) async {
     if (value.trim().isNotEmpty) {
+      logger.d('FileSearchBar: Submitting search: $value');
       await SearchHistoryService().addSearch(value);
       await _loadHistory();
       _removeOverlay();

@@ -7,9 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
@@ -287,18 +285,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return false;
     }
 
-    // 🔑 关键1：检查当前路径是否是快速访问文件夹的根目录
-    // 如果当前路径在快速访问列表中，说明是根目录，不应该显示返回按钮
-    if (quickAccessViewModel != null) {
-      final isQuickAccessRoot = quickAccessViewModel!.folders.any(
-        (folder) => folder.path == currentPath,
-      );
-      if (isQuickAccessRoot) {
-        return false;
-      }
-    }
-
-    // 🔑 关键2：检查当前目录的上一级是否是 Android 系统根目录
+    // 🔑 检查当前目录的上一级是否是 Android 系统根目录
     if (Platform.isAndroid) {
       final parentPath = currentPath.substring(
         0,
@@ -1028,7 +1015,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         hintText: '搜索文件...',
                         onSearch: (query) async {
                           if (query.isNotEmpty) {
-                            await SearchHistoryService().addSearch(query);
                             presenter.searchFiles(query);
                           }
                         },
