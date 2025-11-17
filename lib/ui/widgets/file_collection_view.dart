@@ -523,16 +523,41 @@ class _GroupSectionState extends State<_GroupSection> {
 
   List<Widget> _buildGroupItems() {
     final items = widget.group.items;
-    final widgets = <Widget>[];
     
-    for (var i = 0; i < items.length; i++) {
-      widgets.add(widget.itemWrapper(context, items[i]));
-      // 在每个item后面添加分割线（最后一个除外）
-      if (i < items.length - 1) {
-        widgets.add(const Divider(height: 1));
+    if (widget.gridMode) {
+      // 网格模式：使用 GridView
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.6, // 调整为0.6，给予更多垂直空间
+            ),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              return widget.itemWrapper(context, items[index]);
+            },
+          ),
+        ),
+      ];
+    } else {
+      // 列表模式：保持原有实现
+      final widgets = <Widget>[];
+      
+      for (var i = 0; i < items.length; i++) {
+        widgets.add(widget.itemWrapper(context, items[i]));
+        // 在每个item后面添加分割线（最后一个除外）
+        if (i < items.length - 1) {
+          widgets.add(const Divider(height: 1));
+        }
       }
+      
+      return widgets;
     }
-    
-    return widgets;
   }
 }

@@ -691,6 +691,39 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                             });
                           },
                           isSearchMode: _isSearchMode,
+                          extraActions: [
+                            // 排序按钮
+                            IconButton(
+                              icon: const Icon(Icons.sort, size: 22),
+                              onPressed: _showSortOptions,
+                              tooltip: '排序',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                            ),
+                            // 分组切换按钮（仅在非搜索模式下显示）
+                            if (!_isSearchMode)
+                              IconButton(
+                                icon: Icon(
+                                  _groupByDate ? Icons.view_list : Icons.view_agenda,
+                                  size: 22,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _groupByDate = !_groupByDate;
+                                  });
+                                  _saveGroupPreference();
+                                },
+                                tooltip: _groupByDate ? '取消分组' : '按日期分组',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                              ),
+                          ],
                           iconSize: 22,
                         ),
                       ],
@@ -858,54 +891,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 _formatTotalSize(),
                 style: TextStyle(color: categoryInfo.iconColor, fontSize: 12),
               ),
-              const SizedBox(width: 8),
-              // 分组切换按钮（仅在列表模式下显示）
-              if (!ViewModeService().isGridView && !_isSearchMode)
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _groupByDate = !_groupByDate;
-                    });
-                    _saveGroupPreference();
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      _groupByDate ? Icons.view_list : Icons.view_agenda,
-                      size: 18,
-                      color: categoryInfo.iconColor,
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
-              // 排序按钮
-              InkWell(
-                onTap: _showSortOptions,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.sort,
-                    size: 18,
-                    color: categoryInfo.iconColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // 刷新按钮
-              InkWell(
-                onTap: () => _loadCategoryFiles(forceRefresh: true),
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.refresh,
-                    size: 18,
-                    color: categoryInfo.iconColor,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -920,8 +905,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _loadCategoryFiles(forceRefresh: true),
-            // 网格模式下忽略分组设置，列表模式下根据_groupByDate决定是否分组
-            child: (!ViewModeService().isGridView && _groupByDate)
+            // 启用分组时（无论列表还是网格模式）都使用分组视图
+            child: _groupByDate
                 ? _buildGroupedView()
                 : FileCollectionView(
                     items: _filteredFiles,
@@ -1671,8 +1656,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
     return FileCollectionView(
       groups: fileGroups,
-      gridMode: false,
-      padding: const EdgeInsets.symmetric(vertical: 0),
+      gridMode: ViewModeService().isGridView,
+      padding: ViewModeService().isGridView
+          ? const EdgeInsets.symmetric(vertical: 4)
+          : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
       // 显示选项
       showFullPath: _isSearchMode,  // 只在搜索模式下显示完整路径
@@ -1681,6 +1668,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       onFavoriteToggle: (file) async {
         return await widget.presenter.toggleFavoriteFile(file);
       },
+      // 网格模式使用自定义构建器
+      itemBuilder: ViewModeService().isGridView ? (file) {
+        final isSelected = _selectionController.contains(file.path);
+        return _buildGridItem(file, isSelected);
+      } : null, // 列表模式使用默认实现
       onTap: (file) {
         if (!_isSelectionMode) {
           _previewFile(file);
