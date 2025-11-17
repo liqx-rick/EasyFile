@@ -19,6 +19,7 @@ import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/utils/android_test_file_creator.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -903,6 +904,41 @@ class _StoragePageState extends State<StoragePage> {
                 ),
               ]
             : [
+                // 测试按钮（仅Android）
+                if (Platform.isAndroid)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.science, size: 20),
+                    tooltip: '测试工具',
+                    onSelected: (value) async {
+                      if (value == 'create') {
+                        await _createTestFiles();
+                      } else if (value == 'cleanup') {
+                        await _cleanupTestFiles();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'create',
+                        child: Row(
+                          children: [
+                            Icon(Icons.create_new_folder, size: 18),
+                            SizedBox(width: 8),
+                            Text('创建测试文件'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'cleanup',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_sweep, size: 18),
+                            SizedBox(width: 8),
+                            Text('清理测试文件'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 // 使用Row来控制按钮间距
                 Padding(
                   padding: const EdgeInsets.only(right: 4),
@@ -910,25 +946,22 @@ class _StoragePageState extends State<StoragePage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // 使用统一的FileToolbar组件
-                      Container(
-                        color: Colors.red.withValues(alpha: 0.3), // 半透明红色背景
-                        child: FileToolbar(
-                          showBackButton: _canNavigateUp(_currentPath),
-                          onBackPressed: _navigateUp,
-                          showSearchButton: true,
-                          onSearchPressed: () {
-                            setState(() {
-                              _isSearchMode = !_isSearchMode;
-                              if (!_isSearchMode) _searchQuery = '';
-                            });
-                          },
-                          isSearchMode: _isSearchMode,
-                          showSortButton: true,
-                          onSortPressed: _showSortOptions,
-                          showGroupButton: true,
-                          onGroupToggle: () => setState(() {}),
-                          iconSize: 22,
-                        ),
+                      FileToolbar(
+                        showBackButton: _canNavigateUp(_currentPath),
+                        onBackPressed: _navigateUp,
+                        showSearchButton: true,
+                        onSearchPressed: () {
+                          setState(() {
+                            _isSearchMode = !_isSearchMode;
+                            if (!_isSearchMode) _searchQuery = '';
+                          });
+                        },
+                        isSearchMode: _isSearchMode,
+                        showSortButton: true,
+                        onSortPressed: _showSortOptions,
+                        showGroupButton: true,
+                        onGroupToggle: () => setState(() {}),
+                        iconSize: 22,
                       ),
                     ],
                   ),
@@ -1095,5 +1128,120 @@ class _StoragePageState extends State<StoragePage> {
         });
       },
     );
+  }
+
+  /// 创建测试文件
+  Future<void> _createTestFiles() async {
+    // 显示加载对话框
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('正在创建测试文件...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await AndroidTestFileCreator.createTestStructure();
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 关闭加载对话框
+
+      // 刷新文件列表
+      await _loadStorageFiles();
+
+      // 显示成功提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ 测试文件创建成功！'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 关闭加载对话框
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ 创建失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// 清理测试文件
+  Future<void> _cleanupTestFiles() async {
+    // 显示确认对话框
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认删除'),
+        content: const Text('确定要删除所有测试文件吗？此操作不可恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('正在清理测试文件...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await AndroidTestFileCreator.cleanupTestFiles();
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 关闭加载对话框
+
+      // 刷新文件列表
+      await _loadStorageFiles();
+
+      // 显示成功提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ 测试文件已清理！'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 关闭加载对话框
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ 清理失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

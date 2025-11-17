@@ -902,62 +902,156 @@ class FilePresenter {
     return existingPaths;
   }
 
-  /// 获取常见扫描路径
+  /// 已知的系统文件夹名称（避免重复扫描）
+  static const List<String> _knownSystemFolders = [
+    'DCIM',
+    'Pictures',
+    'Music',
+    'Movies',
+    'Videos',
+    'Documents',
+    'Download',
+    'Downloads',
+    'Desktop',
+  ];
+
+  /// 应该排除的文件夹（系统/应用数据）
+  static const List<String> _excludedFolders = [
+    'Android', // Android应用数据
+    '.thumbnails', // 缩略图缓存
+    '.cache', // 缓存
+    '.trash', // 回收站
+    'Alarms', // 系统铃声
+    'Notifications', // 通知音
+    'Ringtones', // 铃声
+    'Podcasts', // 播客
+    'lost+found', // Android系统目录
+  ];
+
+  /// 获取常见扫描路径（混合策略：系统目录 + 用户自定义文件夹）
   Future<List<String>> _getCommonScanPaths() async {
     final paths = <String>[];
 
     try {
-      if (Platform.isWindows) {
-        final userProfile = Platform.environment['USERPROFILE'];
-        if (userProfile != null) {
-          paths.addAll([
-            '$userProfile\\Documents',
-            '$userProfile\\Pictures',
-            '$userProfile\\Music',
-            '$userProfile\\Videos',
-            '$userProfile\\Desktop',
-            '$userProfile\\Downloads',
-          ]);
-        }
-      } else if (Platform.isAndroid) {
-        paths.addAll([
-          '/storage/emulated/0/DCIM',
-          '/storage/emulated/0/Pictures',
-          '/storage/emulated/0/Music',
-          '/storage/emulated/0/Movies',
-          '/storage/emulated/0/Documents',
-          '/storage/emulated/0/Download',
-          '/sdcard/DCIM',
-          '/sdcard/Pictures',
-          '/sdcard/Music',
-          '/sdcard/Movies',
-        ]);
-      } else {
-        final home = Platform.environment['HOME'];
-        if (home != null) {
-          paths.addAll([
-            '$home/Documents',
-            '$home/Pictures',
-            '$home/Music',
-            '$home/Videos',
-            '$home/Desktop',
-            '$home/Downloads',
-          ]);
-        }
-      }
+      // 阶段1: 添加系统预定义目录（已知的高价值路径）
+      final systemPaths = await _getSystemPaths();
+      paths.addAll(systemPaths);
+      logger.d('System paths: ${systemPaths.length}');
+
+      // 阶段2: 发现用户自定义文件夹（根目录第一层扫描）
+      final discoveredPaths = await _discoverUserFolders();
+      paths.addAll(discoveredPaths);
+      logger.d('Discovered user folders: ${discoveredPaths.length}');
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
 
-    // 过滤存在的路径
+    // 去重并过滤存在的路径
     final existingPaths = <String>[];
+    final seen = <String>{};
     for (final path in paths) {
-      if (Directory(path).existsSync()) {
+      if (!seen.contains(path) && Directory(path).existsSync()) {
         existingPaths.add(path);
+        seen.add(path);
       }
     }
 
+    logger.i('Total scan paths: ${existingPaths.length}');
     return existingPaths;
+  }
+
+  /// 获取系统预定义目录
+  Future<List<String>> _getSystemPaths() async {
+    final paths = <String>[];
+
+    if (Platform.isWindows) {
+      final userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null) {
+        paths.addAll([
+          '$userProfile\\Documents',
+          '$userProfile\\Pictures',
+          '$userProfile\\Music',
+          '$userProfile\\Videos',
+          '$userProfile\\Desktop',
+          '$userProfile\\Downloads',
+        ]);
+      }
+    } else if (Platform.isAndroid) {
+      paths.addAll([
+        '/storage/emulated/0/DCIM',
+        '/storage/emulated/0/Pictures',
+        '/storage/emulated/0/Music',
+        '/storage/emulated/0/Movies',
+        '/storage/emulated/0/Documents',
+        '/storage/emulated/0/Download',
+      ]);
+    } else {
+      final home = Platform.environment['HOME'];
+      if (home != null) {
+        paths.addAll([
+          '$home/Documents',
+          '$home/Pictures',
+          '$home/Music',
+          '$home/Videos',
+          '$home/Desktop',
+          '$home/Downloads',
+        ]);
+      }
+    }
+
+    return paths;
+  }
+
+  /// 发现存储根目录下的用户自定义文件夹
+  Future<List<String>> _discoverUserFolders() async {
+    final discovered = <String>[];
+
+    try {
+      // 确定扫描根目录
+      String? rootPath;
+      if (Platform.isAndroid) {
+        rootPath = '/storage/emulated/0';
+      } else if (Platform.isWindows) {
+        rootPath = Platform.environment['USERPROFILE'];
+      } else {
+        rootPath = Platform.environment['HOME'];
+      }
+
+      if (rootPath == null || !Directory(rootPath).existsSync()) {
+        logger.w('Root path not found or not exists');
+        return discovered;
+      }
+
+      logger.d('Discovering user folders in: $rootPath');
+
+      // 扫描根目录第一层（只扫描一层，不递归）
+      final entities = Directory(rootPath).listSync(followLinks: false);
+
+      for (final entity in entities) {
+        if (entity is! Directory) continue;
+
+        final folderName = path.basename(entity.path);
+
+        // 跳过隐藏文件夹
+        if (folderName.startsWith('.')) continue;
+
+        // 跳过已知系统目录（避免重复）
+        if (_knownSystemFolders.contains(folderName)) continue;
+
+        // 跳过应用/系统数据目录
+        if (_excludedFolders.contains(folderName)) continue;
+
+        // 这是用户自定义文件夹，添加到列表
+        discovered.add(entity.path);
+        logger.d('Found user folder: ${entity.path}');
+      }
+
+      logger.i('Discovered ${discovered.length} user-defined folders');
+    } catch (e) {
+      logger.w('Error discovering user folders: $e');
+    }
+
+    return discovered;
   }
 
   /// 在指定路径中扫描分类文件
@@ -973,8 +1067,8 @@ class FilePresenter {
         return files;
       }
 
-      // 递归扫描，但限制深度避免性能问题
-      await _scanDirectory(directory, categoryInfo, files, 0, 3);
+      // 递归扫描，限制深度为5层
+      await _scanDirectory(directory, categoryInfo, files, 0, 5);
     } catch (e) {
       logger.w('Error scanning category in path $path: $e');
     }
@@ -995,10 +1089,15 @@ class FilePresenter {
     }
 
     try {
-      final entities = directory.listSync();
+      final entities = directory.listSync(followLinks: false);
 
       for (final entity in entities) {
         try {
+          final name = path.basename(entity.path);
+
+          // 跳过隐藏文件/文件夹
+          if (name.startsWith('.')) continue;
+
           if (entity is File) {
             // 检查文件是否属于该分类
             final extension = path.extension(entity.path).toLowerCase();
@@ -1010,6 +1109,9 @@ class FilePresenter {
               }
             }
           } else if (entity is Directory) {
+            // 跳过应用/系统数据目录
+            if (_excludedFolders.contains(name)) continue;
+
             // 递归扫描子目录
             await _scanDirectory(
               entity,
