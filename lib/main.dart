@@ -6,6 +6,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +14,7 @@ Future<void> main() async {
   // 保持native splash显示，直到Flutter应用完全准备好
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Initialize logger before other startup so DI logs go to file
+  // Initialize logger before oth方案二er startup so DI logs go to file
   await logger.init();
 
   // 记录进程启动
@@ -34,6 +35,9 @@ Future<void> main() async {
 
   await CategoryGroupService().initialize();
   logger.i('CategoryGroupService initialized');
+
+  await PageSettingsService().initialize();
+  logger.i('PageSettingsService initialized');
 
   logger.i('Running EasyFile app');
 

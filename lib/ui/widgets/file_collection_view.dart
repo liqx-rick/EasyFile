@@ -330,16 +330,34 @@ class FileCollectionView extends StatelessWidget {
     );
   }
 
-  Widget _buildGrid(BuildContext context) {
+  /// 计算网格视图的列数
+  /// 
+  /// 根据屏幕宽度和最小卡片宽度动态计算列数，确保：
+  /// - 最小卡片宽度为 110px，保证可读性
+  /// - 列数限制在 3-6 列之间
+  /// - 考虑水平内边距和间距
+  int _calculateCrossAxisCount(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = width < 600 ? 3 : (width < 900 ? 4 : 5);
+    const minCardWidth = 110.0; // 最小卡片宽度
+    const spacing = 8.0;
+    final horizontalPadding = (padding as EdgeInsets?)?.horizontal ?? 16.0;
+    final availableWidth = width - horizontalPadding;
+    
+    // 计算能容纳的列数，限制在3-6列之间
+    int crossAxisCount = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+    return crossAxisCount.clamp(3, 6);
+  }
+
+  Widget _buildGrid(BuildContext context) {
+    final crossAxisCount = _calculateCrossAxisCount(context);
+    
     return GridView.builder(
       padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 0.85, // 高度略大于宽度，适合垂直布局（图标在上，文字在下）
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.75, // 高度更大，为文件名和大小提供更多空间
       ),
       itemCount: items!.length,
       itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
@@ -522,18 +540,27 @@ class _GroupSectionState extends State<_GroupSection> {
     final items = widget.group.items;
 
     if (widget.gridMode) {
-      // 网格模式：使用 GridView
+      // 网格模式：使用动态响应式 GridView
+      // 注意：这里需要从父 widget 传入的 itemWrapper 来构建，所以直接计算列数
+      final width = MediaQuery.sizeOf(context).width;
+      const minCardWidth = 110.0;
+      const spacing = 8.0;
+      const horizontalPadding = 16.0;
+      final availableWidth = width - horizontalPadding;
+      int crossAxisCount = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+      crossAxisCount = crossAxisCount.clamp(3, 6);
+      
       return [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
           child: GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 0.6, // 调整为0.6，给予更多垂直空间
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.75, // 与非分组模式保持一致
             ),
             itemCount: items.length,
             itemBuilder: (context, index) {

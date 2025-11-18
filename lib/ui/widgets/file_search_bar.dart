@@ -103,8 +103,9 @@ class _FileSearchBarState extends State<FileSearchBar> {
   }
 
   void _showHistoryOverlay() {
-    if (_overlayEntry != null || !widget.showHistory || _history.isEmpty)
+    if (_overlayEntry != null || !widget.showHistory || _history.isEmpty) {
       return;
+    }
 
     _overlayEntry = OverlayEntry(
       builder: (context) => Positioned(

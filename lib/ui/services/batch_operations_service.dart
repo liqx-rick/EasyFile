@@ -450,18 +450,18 @@ class BatchOperationsService {
 
   /// 批量复制
   Future<void> batchCopy(Set<String> selectedItems, String currentPath) async {
-    if (selectedItems.length != 1) return;
+    if (selectedItems.isEmpty) return;
 
-    final sourcePath = selectedItems.first;
-
-    // 🔒 安全检查：验证源文件是否允许复制
-    final riskLevel = PathSecurity.getPathRiskLevel(sourcePath);
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
-      final fileName = sourcePath.split(Platform.pathSeparator).last;
-      _showErrorSnackBar('无法复制 "$fileName"：这是受保护的系统目录');
-      logger.w('Copy blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
-      return;
+    // 🔒 安全检查：验证所有源文件是否允许复制
+    for (final sourcePath in selectedItems) {
+      final riskLevel = PathSecurity.getPathRiskLevel(sourcePath);
+      if (riskLevel == PathRiskLevel.forbidden ||
+          riskLevel == PathRiskLevel.danger) {
+        final fileName = sourcePath.split(Platform.pathSeparator).last;
+        _showErrorSnackBar('无法复制 "$fileName"：这是受保护的系统目录');
+        logger.w('Copy blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
+        return;
+      }
     }
 
     // 显示文件夹选择对话框
@@ -495,16 +495,16 @@ class BatchOperationsService {
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false,
-        child: const Center(
+        child: Center(
           child: Card(
             child: Padding(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在复制...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('正在复制 ${selectedItems.length} 项...'),
                 ],
               ),
             ),
@@ -513,49 +513,59 @@ class BatchOperationsService {
       ),
     );
 
+    int successCount = 0;
+    int failCount = 0;
+    final List<String> failedItems = [];
+
     try {
-      final entity = FileSystemEntity.typeSync(sourcePath);
-      final baseName = sourcePath.split(Platform.pathSeparator).last;
-      var targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
+      for (final sourcePath in selectedItems) {
+        try {
+          final entity = FileSystemEntity.typeSync(sourcePath);
+          final baseName = sourcePath.split(Platform.pathSeparator).last;
+          var targetPath = '$destinationPath${Platform.pathSeparator}$baseName';
 
-      // 如果目标路径已存在，自动重命名
-      if (FileSystemEntity.typeSync(targetPath) !=
-          FileSystemEntityType.notFound) {
-        final sourceDir = Directory(sourcePath).parent.path;
-        if (sourceDir == destinationPath) {
-          // 复制到相同目录，自动重命名
-          final ext = baseName.contains('.')
-              ? baseName.substring(baseName.lastIndexOf('.'))
-              : '';
-          final nameWithoutExt = ext.isNotEmpty
-              ? baseName.substring(0, baseName.lastIndexOf('.'))
-              : baseName;
-          var counter = 1;
-          do {
-            targetPath =
-                '$destinationPath${Platform.pathSeparator}${nameWithoutExt}_副本$counter$ext';
-            counter++;
-          } while (FileSystemEntity.typeSync(targetPath) !=
-              FileSystemEntityType.notFound);
-        } else {
-          // 不同目录，提示已存在
-          if (!_isMounted) return;
-          navigator.pop();
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('目标位置已存在同名文件：$baseName'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
+          // 如果目标路径已存在，自动重命名
+          if (FileSystemEntity.typeSync(targetPath) !=
+              FileSystemEntityType.notFound) {
+            final sourceDir = Directory(sourcePath).parent.path;
+            if (sourceDir == destinationPath) {
+              // 复制到相同目录，自动重命名
+              final ext = baseName.contains('.')
+                  ? baseName.substring(baseName.lastIndexOf('.'))
+                  : '';
+              final nameWithoutExt = ext.isNotEmpty
+                  ? baseName.substring(0, baseName.lastIndexOf('.'))
+                  : baseName;
+              var counter = 1;
+              do {
+                targetPath =
+                    '$destinationPath${Platform.pathSeparator}${nameWithoutExt}_副本$counter$ext';
+                counter++;
+              } while (FileSystemEntity.typeSync(targetPath) !=
+                  FileSystemEntityType.notFound);
+            } else {
+              // 不同目录且已存在，跳过
+              failedItems.add(baseName);
+              failCount++;
+              logger.w('File already exists: $targetPath');
+              continue;
+            }
+          }
+
+          if (entity == FileSystemEntityType.directory) {
+            // 递归复制文件夹
+            await _copyDirectory(Directory(sourcePath), Directory(targetPath));
+          } else if (entity == FileSystemEntityType.file) {
+            await File(sourcePath).copy(targetPath);
+          }
+
+          successCount++;
+        } catch (e) {
+          final baseName = sourcePath.split(Platform.pathSeparator).last;
+          failedItems.add(baseName);
+          failCount++;
+          logger.e('Failed to copy $sourcePath: $e');
         }
-      }
-
-      if (entity == FileSystemEntityType.directory) {
-        // 递归复制文件夹
-        await _copyDirectory(Directory(sourcePath), Directory(targetPath));
-      } else if (entity == FileSystemEntityType.file) {
-        await File(sourcePath).copy(targetPath);
       }
 
       if (!_isMounted) return;
@@ -563,9 +573,25 @@ class BatchOperationsService {
       onRefresh();
       onExitSelectionMode();
 
-      messenger.showSnackBar(
-        const SnackBar(content: Text('复制成功'), backgroundColor: Colors.green),
-      );
+      // 显示结果
+      if (failCount == 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('成功复制 $successCount 项'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '复制完成：成功 $successCount 项，失败 $failCount 项${failedItems.isNotEmpty ? "\n失败项: ${failedItems.take(3).join(", ")}${failedItems.length > 3 ? "..." : ""}" : ""}',
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } catch (e) {
       if (!_isMounted) return;
       navigator.pop();

@@ -687,10 +687,14 @@ class FilePresenter {
 
       // 从本地数据源加载收藏文件列表
       final favoriteFiles = await favoriteFilesSource.getFavoriteFiles();
+      logger.d('Loaded ${favoriteFiles.length} favorite files from storage');
       viewModel.setFavoriteFiles(favoriteFiles);
 
       // 将收藏文件转换为FileItem列表以便在UI中显示
       final fileItems = <FileItem>[];
+      int existingCount = 0;
+      int missingCount = 0;
+      
       for (final favoriteFile in favoriteFiles) {
         try {
           final file = File(favoriteFile.filePath);
@@ -703,7 +707,9 @@ class FilePresenter {
               isDirectory: false,
             );
             fileItems.add(fileItem);
+            existingCount++;
           } else {
+            missingCount++;
             logger.w(
               'Favorite file no longer exists: ${favoriteFile.filePath}',
             );
@@ -718,7 +724,7 @@ class FilePresenter {
       viewModel.setFiles(fileItems);
       viewModel.setLoading(false);
 
-      logger.i('Loaded ${fileItems.length} favorite files for display');
+      logger.i('Loaded ${fileItems.length} favorite files for display (existing: $existingCount, missing: $missingCount)');
     } catch (e) {
       logger.e('Error loading favorite files: $e');
       viewModel.setLoading(false);
@@ -730,6 +736,7 @@ class FilePresenter {
     logger.i('FilePresenter.toggleFavoriteFile called for: ${file.path}');
     try {
       final isFavorite = viewModel.isFavoriteFile(file.path);
+      final isInFavoriteTab = viewModel.currentTab == TabView.favorite;
 
       if (isFavorite) {
         // 取消收藏
@@ -737,6 +744,13 @@ class FilePresenter {
         if (success) {
           viewModel.removeFavoriteFile(file.path);
           logger.i('File removed from favorites: ${file.path}');
+          
+          // 如果当前在收藏Tab，立即重新加载收藏列表以更新UI
+          if (isInFavoriteTab) {
+            logger.d('Currently in favorite tab, reloading favorite files');
+            await loadFavoriteFiles();
+          }
+          
           return false;
         }
       } else {
@@ -749,6 +763,13 @@ class FilePresenter {
         if (success) {
           viewModel.addFavoriteFile(favoriteFile);
           logger.i('File added to favorites: ${file.path}');
+          
+          // 如果当前在收藏Tab，立即重新加载收藏列表以更新UI
+          if (isInFavoriteTab) {
+            logger.d('Currently in favorite tab, reloading favorite files');
+            await loadFavoriteFiles();
+          }
+          
           return true;
         }
       }
@@ -1067,8 +1088,19 @@ class FilePresenter {
         return files;
       }
 
+      // 下载分类：接受所有文件类型
+      // 其他分类：按扩展名过滤
+      final acceptAllTypes = categoryInfo.type == CategoryType.downloads;
+
       // 递归扫描，限制深度为5层
-      await _scanDirectory(directory, categoryInfo, files, 0, 5);
+      await _scanDirectory(
+        directory,
+        categoryInfo,
+        files,
+        0,
+        5,
+        acceptAllTypes: acceptAllTypes,
+      );
     } catch (e) {
       logger.w('Error scanning category in path $path: $e');
     }
@@ -1082,16 +1114,16 @@ class FilePresenter {
     CategoryInfo categoryInfo,
     List<FileItem> files,
     int currentDepth,
-    int maxDepth,
-  ) async {
+    int maxDepth, {
+    bool acceptAllTypes = false,
+  }) async {
     if (currentDepth >= maxDepth) {
       return;
     }
 
     try {
-      final entities = directory.listSync(followLinks: false);
-
-      for (final entity in entities) {
+      // 使用异步list()替代同步listSync()，避免阻塞UI
+      await for (final entity in directory.list(followLinks: false)) {
         try {
           final name = path.basename(entity.path);
 
@@ -1099,13 +1131,19 @@ class FilePresenter {
           if (name.startsWith('.')) continue;
 
           if (entity is File) {
-            // 检查文件是否属于该分类
-            final extension = path.extension(entity.path).toLowerCase();
-            if (extension.isNotEmpty) {
-              final cleanExtension = extension.substring(1); // 移除点号
-              if (categoryInfo.extensions.contains(cleanExtension)) {
-                final fileItem = FileItem.fromEntity(entity);
-                files.add(fileItem);
+            // 下载分类：接受所有文件
+            if (acceptAllTypes) {
+              final fileItem = FileItem.fromEntity(entity);
+              files.add(fileItem);
+            } else {
+              // 其他分类：检查文件扩展名
+              final extension = path.extension(entity.path).toLowerCase();
+              if (extension.isNotEmpty) {
+                final cleanExtension = extension.substring(1); // 移除点号
+                if (categoryInfo.extensions.contains(cleanExtension)) {
+                  final fileItem = FileItem.fromEntity(entity);
+                  files.add(fileItem);
+                }
               }
             }
           } else if (entity is Directory) {
@@ -1119,6 +1157,7 @@ class FilePresenter {
               files,
               currentDepth + 1,
               maxDepth,
+              acceptAllTypes: acceptAllTypes,
             );
           }
         } catch (e) {

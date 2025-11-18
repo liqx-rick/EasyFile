@@ -78,6 +78,7 @@ class SelectionBottomBar extends StatelessWidget {
       folderCount: folderCount,
       totalSize: totalSize,
       hasOnlyFiles: folderCount == 0 && fileCount > 0,
+      hasFiles: fileCount > 0, // 有文件（不管是否有文件夹）
       isSingleSelection: selectedPaths.length == 1,
     );
   }
@@ -108,13 +109,12 @@ class SelectionBottomBar extends StatelessWidget {
             ),
 
             // 操作按钮 - 始终显示，通过启用/禁用控制
-            // 复制按钮（单个文件/文件夹）
+            // 复制按钮（支持多选）
             IconButton(
               icon: const Icon(Icons.copy),
-              onPressed:
-                  stats.isSingleSelection && onCopy != null ? onCopy : null,
+              onPressed: hasSelection && onCopy != null ? onCopy : null,
               tooltip: '复制',
-              color: stats.isSingleSelection ? null : Colors.grey,
+              color: hasSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
               visualDensity: const VisualDensity(
                 horizontal: -4,
@@ -160,15 +160,15 @@ class SelectionBottomBar extends StatelessWidget {
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             ),
 
-            // 批量收藏/取消收藏按钮（只有文件可以收藏）
+            // 批量收藏/取消收藏按钮（只要有文件即可用，自动忽略文件夹）
             IconButton(
               icon: Icon(isAllFavorite ? Icons.star : Icons.star_border),
               onPressed:
-                  stats.hasOnlyFiles && hasSelection && onToggleFavorite != null
+                  stats.hasFiles && hasSelection && onToggleFavorite != null
                       ? onToggleFavorite
                       : null,
               tooltip: isAllFavorite ? '取消收藏' : '添加收藏',
-              color: stats.hasOnlyFiles && hasSelection
+              color: stats.hasFiles && hasSelection
                   ? (isAllFavorite ? Colors.amber : null)
                   : Colors.grey,
               padding: EdgeInsets.zero,
@@ -208,7 +208,8 @@ class _SelectionStats {
   final int fileCount;
   final int folderCount;
   final int totalSize;
-  final bool hasOnlyFiles;
+  final bool hasOnlyFiles; // 只有文件，没有文件夹
+  final bool hasFiles; // 有文件（不管是否有文件夹）
   final bool isSingleSelection;
 
   _SelectionStats({
@@ -216,6 +217,7 @@ class _SelectionStats {
     required this.folderCount,
     required this.totalSize,
     required this.hasOnlyFiles,
+    required this.hasFiles,
     required this.isSingleSelection,
   });
 }

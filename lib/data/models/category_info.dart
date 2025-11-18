@@ -147,20 +147,7 @@ class CategoryInfo {
           icon: Icons.download,
           backgroundColor: Color(0xFFE1F5FE), // 淡青色
           iconColor: Color(0xFF0277BD), // 深蓝色
-          extensions: [
-            'zip',
-            'rar',
-            '7z',
-            'tar',
-            'gz',
-            'apk',
-            'exe',
-            'msi',
-            'deb',
-            'rpm',
-            'dmg',
-            'pkg',
-          ],
+          extensions: [], // 空数组表示接受所有文件类型
         ),
       ];
 

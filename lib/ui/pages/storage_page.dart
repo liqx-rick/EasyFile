@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -52,9 +52,45 @@ class _StoragePageState extends State<StoragePage> {
   /// 获取排序后的文件列表
   List<FileItem> _getSortedFiles(List<FileItem> files) {
     final result = List<FileItem>.from(files);
-    final sortService = CategorySortService();
-    result.sort(sortService.getComparator());
+    final sortType = PageSettingsService().getSortType(PageId.storage);
+    final comparator = _getComparatorForSortType(sortType);
+    result.sort(comparator);
     return result;
+  }
+
+  /// 根据排序类型获取比较器
+  Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
+    switch (sortType) {
+      case SortType.name:
+        return (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      case SortType.modifiedTime:
+        return (a, b) => b.modified.compareTo(a.modified);
+      case SortType.size:
+        return (a, b) => b.size.compareTo(a.size);
+      case SortType.fileType:
+        return (a, b) {
+          // 获取文件扩展名
+          String getExt(String name) {
+            final lastDot = name.lastIndexOf('.');
+            if (lastDot == -1 || lastDot == name.length - 1) return '';
+            return name.substring(lastDot + 1).toLowerCase();
+          }
+          
+          final extA = getExt(a.name);
+          final extB = getExt(b.name);
+          
+          // 没有扩展名的排在后面
+          if (extA.isEmpty && extB.isNotEmpty) return 1;
+          if (extA.isNotEmpty && extB.isEmpty) return -1;
+          
+          // 按扩展名排序
+          final extCompare = extA.compareTo(extB);
+          if (extCompare != 0) return extCompare;
+          
+          // 扩展名相同时按名称排序
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        };
+    }
   }
 
   /// 获取日期分组后的文件
@@ -102,7 +138,7 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 显示排序选项菜单
   void _showSortOptions() {
-    final sortService = CategorySortService();
+    final currentSortType = PageSettingsService().getSortType(PageId.storage);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -113,48 +149,48 @@ class _StoragePageState extends State<StoragePage> {
               ListTile(
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
-                trailing: sortService.sortType == SortType.name
+                trailing: currentSortType == SortType.name
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.name);
+                  PageSettingsService().setSortType(PageId.storage, SortType.name);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
-                trailing: sortService.sortType == SortType.modifiedTime
+                trailing: currentSortType == SortType.modifiedTime
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.modifiedTime);
+                  PageSettingsService().setSortType(PageId.storage, SortType.modifiedTime);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
-                trailing: sortService.sortType == SortType.size
+                trailing: currentSortType == SortType.size
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.size);
+                  PageSettingsService().setSortType(PageId.storage, SortType.size);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
-                trailing: sortService.sortType == SortType.fileType
+                trailing: currentSortType == SortType.fileType
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.fileType);
+                  PageSettingsService().setSortType(PageId.storage, SortType.fileType);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -451,9 +487,10 @@ class _StoragePageState extends State<StoragePage> {
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
 
-        // 使用CategorySortService进行排序
-        final sortService = CategorySortService();
-        files.sort(sortService.getComparator());
+        // 使用页面级排序设置
+        final sortType = PageSettingsService().getSortType(PageId.storage);
+        final comparator = _getComparatorForSortType(sortType);
+        files.sort(comparator);
 
         setState(() {
           _files = files;
@@ -522,9 +559,10 @@ class _StoragePageState extends State<StoragePage> {
             )
             .toList();
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
-        // 使用CategorySortService进行排序
-        final sortService = CategorySortService();
-        files.sort(sortService.getComparator());
+        // 使用页面级排序设置
+        final sortType = PageSettingsService().getSortType(PageId.storage);
+        final comparator = _getComparatorForSortType(sortType);
+        files.sort(comparator);
         setState(() {
           _files = files;
           _isLoading = false;
@@ -547,11 +585,11 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
-    final viewModeService = ViewModeService();
-    final groupService = CategoryGroupService();
+    final isGridView = PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
+    final isGroupEnabled = PageSettingsService().getGroupEnabled(PageId.storage);
 
     // 根据是否启用分组来决定显示方式
-    if (groupService.isGroupEnabled) {
+    if (isGroupEnabled) {
       final groupMap = _groupFilesByDate(_filteredFiles);
       final groups = groupMap.entries.map((entry) {
         final count = entry.value.length;
@@ -564,8 +602,8 @@ class _StoragePageState extends State<StoragePage> {
 
       return FileCollectionView(
         groups: groups,
-        gridMode: viewModeService.isGridView,
-        padding: viewModeService.isGridView
+        gridMode: isGridView,
+        padding: isGridView
             ? const EdgeInsets.all(8)
             : const EdgeInsets.symmetric(vertical: 0),
         selectionController: _isSelectionMode ? _selectionController : null,
@@ -575,7 +613,7 @@ class _StoragePageState extends State<StoragePage> {
         onFavoriteToggle: (file) async {
           return await widget.presenter.toggleFavoriteFile(file);
         },
-        itemBuilder: viewModeService.isGridView
+        itemBuilder: isGridView
             ? (file) {
                 final isSelected = _selectionController.contains(file.path);
                 return _buildGridItem(file, isSelected);
@@ -586,7 +624,7 @@ class _StoragePageState extends State<StoragePage> {
           if (!_isSelectionMode) {
             setState(() {
               _isSelectionMode = true;
-              _selectedItems.add(file.path);
+              _selectionController.select(file.path);
             });
           }
         },
@@ -595,8 +633,8 @@ class _StoragePageState extends State<StoragePage> {
 
     return FileCollectionView(
       items: _filteredFiles,
-      gridMode: viewModeService.isGridView,
-      padding: viewModeService.isGridView
+      gridMode: isGridView,
+      padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
@@ -608,7 +646,7 @@ class _StoragePageState extends State<StoragePage> {
         return await widget.presenter.toggleFavoriteFile(file);
       },
       // 网格模式使用自定义构建器
-      itemBuilder: viewModeService.isGridView
+      itemBuilder: isGridView
           ? (file) {
               final isSelected = _selectionController.contains(file.path);
               return _buildGridItem(file, isSelected);
@@ -642,7 +680,6 @@ class _StoragePageState extends State<StoragePage> {
           setState(() {
             _isSelectionMode = true;
             _selectionController.select(file.path);
-            _selectedItems.add(file.path);
           });
         }
       },
@@ -710,8 +747,8 @@ class _StoragePageState extends State<StoragePage> {
                 ),
               ),
             ),
-            // 收藏按钮（右上角）- 所有文件都显示
-            if (!file.isDirectory)
+            // 收藏按钮（右上角）- 仅在已收藏时显示
+            if (!file.isDirectory && isFavorite)
               Positioned(
                 top: 2,
                 right: 2,
@@ -738,9 +775,9 @@ class _StoragePageState extends State<StoragePage> {
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            isFavorite ? Icons.star : Icons.star_border,
-                            color: isFavorite ? Colors.amber : Colors.grey,
+                          child: const Icon(
+                            Icons.star,
+                            color: Colors.amber,
                           ),
                         ),
                       ),
@@ -947,6 +984,7 @@ class _StoragePageState extends State<StoragePage> {
                     children: [
                       // 使用统一的FileToolbar组件
                       FileToolbar(
+                        pageId: PageId.storage,
                         showBackButton: _canNavigateUp(_currentPath),
                         onBackPressed: _navigateUp,
                         showSearchButton: true,
@@ -968,8 +1006,8 @@ class _StoragePageState extends State<StoragePage> {
                 ),
               ],
       ),
-      body: Consumer<ViewModeService>(
-        builder: (context, viewModeService, _) {
+      body: Consumer<PageSettingsService>(
+        builder: (context, pageSettingsService, _) {
           return _isLoading
               ? const Center(child: CircularProgressIndicator())
               : Column(

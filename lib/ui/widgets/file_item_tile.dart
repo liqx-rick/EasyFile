@@ -150,23 +150,24 @@ class FileItemTile extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 收藏按钮
-          SizedBox(
-            width: 32,
-            child: Transform.scale(
-              scale: 0.75, // 与复选框使用相同的缩放比例
-              child: IconButton(
-                icon: Icon(
-                  isFavorite ? Icons.star : Icons.star_border,
-                  color: isFavorite ? Colors.amber : Colors.grey,
+          // 收藏按钮 - 仅在已收藏时显示
+          if (isFavorite)
+            SizedBox(
+              width: 32,
+              child: Transform.scale(
+                scale: 0.75, // 与复选框使用相同的缩放比例
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                  ),
+                  onPressed: onFavoriteToggle,
+                  tooltip: '取消收藏',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
-                onPressed: onFavoriteToggle,
-                tooltip: isFavorite ? '取消收藏' : '收藏',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ),
-          ),
           // 复选框
           SizedBox(
             width: 32,
@@ -198,19 +199,19 @@ class FileItemTile extends StatelessWidget {
       );
     }
 
-    // 仅显示收藏按钮
-    if (onFavoriteToggle != null) {
+    // 仅显示收藏按钮 - 只在已收藏时显示
+    if (onFavoriteToggle != null && isFavorite) {
       return SizedBox(
         width: 32,
         child: Transform.scale(
           scale: 0.75, // 与复选框使用相同的缩放比例
           child: IconButton(
-            icon: Icon(
-              isFavorite ? Icons.star : Icons.star_border,
-              color: isFavorite ? Colors.amber : Colors.grey,
+            icon: const Icon(
+              Icons.star,
+              color: Colors.amber,
             ),
             onPressed: onFavoriteToggle,
-            tooltip: isFavorite ? '取消收藏' : '收藏',
+            tooltip: '取消收藏',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),

@@ -6,12 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/core/services/permission_service.dart';
+import 'package:easyfile/core/services/first_scan_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
+import 'package:easyfile/ui/pages/settings_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
@@ -22,6 +25,8 @@ import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/scan_progress_overlay.dart';
+import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
@@ -48,6 +53,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   QuickAccessViewModel? quickAccessViewModel;
   bool _hasCheckedRestore = false; // 标记是否已经检查过恢复
   double _categoryCardSize = 0.0; // 存储分类卡片尺寸
+
+  // 权限和扫描相关状态
+  late PermissionService _permissionService;
+  bool _isScanning = false;
+  PermissionState _permissionState = PermissionState.unknown;
+  bool _isFirstScan = false;
 
   // 批量操作相关状态
   bool _isSelectionMode = false;
@@ -89,8 +100,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       quickAccessPresenter = locator<QuickAccessPresenter>();
       logger.d('QuickAccessPresenter obtained: $quickAccessPresenter');
 
+      _permissionService = locator<PermissionService>();
+      logger.d('PermissionService obtained: $_permissionService');
+
       // 延迟初始化应用程序数据，先显示UI - 这个优化保留
-      Future.microtask(() => _initializeApp());
+      Future.microtask(() => _initializeAppWithPermission());
 
       // 只在首次初始化时检查是否需要恢复文件预览
       if (!_hasCheckedRestore) {
@@ -127,6 +141,36 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     logger.d('FileBrowserPage: App lifecycle changed to $state');
+    
+    // 当应用从后台恢复时，重新检查权限状态
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissionAfterResume();
+    }
+  }
+
+  /// 应用恢复时检查权限（用户可能从设置页面授权返回）
+  /// 
+  /// 当应用从后台恢复到前台时，如果之前没有权限，重新检查权限状态。
+  /// 这允许用户在系统设置中授权后，返回应用时自动初始化。
+  Future<void> _checkPermissionAfterResume() async {
+    // 如果当前是无权限状态，重新检查
+    if (_permissionState != PermissionState.granted) {
+      logger.i('App resumed, rechecking permission...');
+      final newState = await _permissionService.checkPermission();
+      
+      if (newState.isGranted && newState != _permissionState) {
+        // 权限状态改变为已授权，开始初始化
+        logger.i('Permission granted after resume, initializing...');
+        setState(() {
+          _permissionState = newState;
+        });
+        await _initializeApp();
+      } else if (newState != _permissionState) {
+        setState(() {
+          _permissionState = newState;
+        });
+      }
+    }
   }
 
   /// 检查并恢复文件预览
@@ -169,7 +213,45 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     });
   }
 
+  /// 初始化应用程序数据（带权限检查）
+  /// 
+  /// 该方法是应用启动时的入口点，会：
+  /// 1. 检查文件系统访问权限
+  /// 2. 初始化UI主题（无论是否有权限）
+  /// 3. 如果有权限，进行完整的应用初始化
+  /// 4. 如果没有权限，显示权限提示横幅但不阻塞页面显示
+  Future<void> _initializeAppWithPermission() async {
+    logger.i('Initializing app with permission check...');
+
+    try {
+      // 先检查权限状态
+      final permissionState = await _permissionService.checkPermission();
+      setState(() {
+        _permissionState = permissionState;
+      });
+
+      // 无论是否有权限，都初始化UI（不阻塞显示）
+      await presenter.initializeTheme();
+      
+      if (permissionState.isGranted) {
+        // 权限已授予，开始扫描和初始化
+        await _initializeApp();
+      } else {
+        // 没有权限，显示权限提示框，但不阻塞页面显示
+        logger.i('Permission not granted, showing permission banner');
+      }
+    } catch (e) {
+      logger.e('Error during app initialization with permission: $e');
+    }
+  }
+
   /// 初始化应用程序数据
+  /// 
+  /// 该方法执行以下任务：
+  /// 1. 并行初始化收藏夹、收藏文件和主题
+  /// 2. 加载快速访问文件夹
+  /// 3. 检查是否需要首次深度扫描，如果需要则执行扫描并显示进度
+  /// 4. 加载初始目录
   Future<void> _initializeApp() async {
     logger.i('Initializing app data...');
 
@@ -181,14 +263,119 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         presenter.initializeTheme(),
       ]);
 
-      // 最后加载初始目录（根据保存的状态恢复）
+      // 初始化快速访问（加载已有的快速访问目录）
+      if (quickAccessPresenter != null) {
+        await quickAccessPresenter!.loadQuickAccessFolders();
+        
+        // 检查是否需要执行首次深度扫描
+        final needsScan = await FirstScanService().needsFirstScan();
+        logger.i('First scan needed: $needsScan');
+        
+        if (needsScan) {
+          logger.i('Performing first-time deep scan...');
+          
+          // 显示首次扫描进度
+          setState(() {
+            _isScanning = true;
+            _isFirstScan = true;
+          });
+          
+          final scanResult = await quickAccessPresenter!.performFirstTimeScan();
+          logger.i('First-time scan completed: ${scanResult.totalFound} folders found, ${scanResult.newlyAdded} added');
+          
+          // 标记首次扫描已完成
+          await FirstScanService().markScanCompleted();
+          
+          // 显示扫描完成提示
+          if (mounted && scanResult.totalFound > 0) {
+            final String message;
+            // 根据扫描结果构建消息：
+            // - 如果有系统或应用目录，显示详细统计
+            // - 否则只显示总数
+            if (scanResult.systemCount > 0 || scanResult.appRootCount > 0) {
+              // 显示详细统计
+              final parts = <String>[];
+              if (scanResult.systemCount > 0) parts.add('${scanResult.systemCount} 个系统目录');
+              if (scanResult.appRootCount > 0) parts.add('${scanResult.appRootCount} 个应用目录');
+              if (scanResult.userCustomCount > 0) parts.add('${scanResult.userCustomCount} 个用户目录');
+              message = '文件管理器首次初始化完成：${parts.join('、')}';
+            } else {
+              message = '文件管理器首次初始化完成，发现 ${scanResult.totalFound} 个目录';
+            }
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          
+          // 清除首次扫描标志
+          if (mounted) {
+            setState(() {
+              _isScanning = false;
+              _isFirstScan = false;
+            });
+          }
+        } else {
+          logger.i('First scan not needed, skipping...');
+        }
+      }
+
+      // 加载初始目录
       await _loadInitialDirectory();
 
       logger.i('App initialization completed');
     } catch (e) {
       logger.e('Error during app initialization: $e');
+      setState(() {
+        _isScanning = false;
+        _isFirstScan = false;
+      });
       // 即使初始化失败，也要尝试加载目录
       await _loadInitialDirectory();
+    }
+  }
+
+  /// 请求权限并重新初始化
+  Future<void> _requestPermissionAndInit() async {
+    logger.i('Requesting permission and re-initializing...');
+
+    final permissionState = await _permissionService.requestPermission();
+    setState(() {
+      _permissionState = permissionState;
+    });
+
+    if (permissionState.isGranted) {
+      // 权限授予成功，开始初始化
+      await _initializeApp();
+    } else if (permissionState.isPermanentlyDenied) {
+      // 永久拒绝，引导用户去设置
+      logger.w('Permission permanently denied');
+    } else {
+      // 拒绝，保持空状态
+      logger.w('Permission denied');
     }
   }
 
@@ -339,6 +526,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       case 'theme':
         presenter.toggleTheme();
         break;
+      case 'settings':
+        _navigateToSettings();
+        break;
       case 'manage_quick_access':
         _navigateToQuickAccessManagePage();
         break;
@@ -361,6 +551,37 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           child: Text('一个简单易用的跨平台文件管理器'),
         ),
       ],
+    );
+  }
+
+  /// 根据当前Tab获取对应的PageId
+  PageId _getPageIdForCurrentTab(TabView tab) {
+    switch (tab) {
+      case TabView.recent:
+        return PageId.homeRecent;
+      case TabView.favorite:
+        return PageId.homeFavorite;
+      case TabView.browse:
+        return PageId.homeBrowse;
+    }
+  }
+
+  /// 获取当前页面是否为网格视图
+  /// 获取当前页面是否启用分组
+  bool _isGroupEnabledForCurrentTab() {
+    final pageId = _getPageIdForCurrentTab(
+        Provider.of<FileViewModel>(context, listen: false).currentTab);
+    // Recent Tab固定分组
+    if (pageId == PageId.homeRecent) return true;
+    return PageSettingsService().getGroupEnabled(pageId);
+  }
+
+  /// 导航到设置页面
+  void _navigateToSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const SettingsPage(),
+      ),
     );
   }
 
@@ -466,13 +687,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           // 检查当前路径是否等于或在该快速访问文件夹内
           if (vm.currentPath == folder.path ||
               vm.currentPath.startsWith(folder.path + Platform.pathSeparator)) {
-            // 限制名称长度为7个字符，确保工具栏有足够空间
+            // 限制名称长度为12个字符
             final displayName = folder.displayName;
-            final maxLength = 7;
+            final maxLength = 12;
             final truncatedName = displayName.length > maxLength
-                ? '${displayName.substring(0, 4)}...'
+                ? '${displayName.substring(0, 9)}...'
                 : displayName;
-            return '浏览 - $truncatedName';
+            return truncatedName;
           }
         }
       }
@@ -486,12 +707,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
-        // 进一步限制长度，确保工具栏有足够空间
-        final maxLength = 7;
+        // 限制长度为12个字符
+        final maxLength = 12;
         final truncatedName = folderName.length > maxLength
-            ? '${folderName.substring(0, 4)}...'
+            ? '${folderName.substring(0, 9)}...'
             : folderName;
-        return '浏览 - $truncatedName';
+        return truncatedName;
       }
     }
     return '浏览';
@@ -510,9 +731,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       }).toList();
     }
 
-    // 应用排序
-    final sortService = CategorySortService();
-    result.sort(sortService.getComparator());
+    // 应用页面级排序
+    final sortType = PageSettingsService().getSortType(PageId.homeFavorite);
+    final comparator = _getComparatorForSortType(sortType);
+    result.sort(comparator);
 
     return result;
   }
@@ -520,9 +742,45 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 获取排序后的浏览文件列表
   List<FileItem> _getSortedBrowseFiles(List<FileItem> files) {
     final result = List<FileItem>.from(files);
-    final sortService = CategorySortService();
-    result.sort(sortService.getComparator());
+    final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
+    final comparator = _getComparatorForSortType(sortType);
+    result.sort(comparator);
     return result;
+  }
+
+  /// 根据排序类型获取比较器
+  Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
+    switch (sortType) {
+      case SortType.name:
+        return (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      case SortType.modifiedTime:
+        return (a, b) => b.modified.compareTo(a.modified);
+      case SortType.size:
+        return (a, b) => b.size.compareTo(a.size);
+      case SortType.fileType:
+        return (a, b) {
+          // 获取文件扩展名
+          String getExt(String name) {
+            final lastDot = name.lastIndexOf('.');
+            if (lastDot == -1 || lastDot == name.length - 1) return '';
+            return name.substring(lastDot + 1).toLowerCase();
+          }
+          
+          final extA = getExt(a.name);
+          final extB = getExt(b.name);
+          
+          // 没有扩展名的排在后面
+          if (extA.isEmpty && extB.isNotEmpty) return 1;
+          if (extA.isNotEmpty && extB.isEmpty) return -1;
+          
+          // 按扩展名排序
+          final extCompare = extA.compareTo(extB);
+          if (extCompare != 0) return extCompare;
+          
+          // 扩展名相同时按名称排序
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        };
+    }
   }
 
   /// 获取收藏文件的日期分组
@@ -607,8 +865,47 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return groups;
   }
 
+  /// 获取最近文件的时间分组（基于访问时间）
+  Map<String, List<FileItem>> _groupRecentFilesByDate(List<FileItem> files) {
+    final Map<String, List<FileItem>> groups = {
+      '今天': [],
+      '昨天': [],
+      '本周': [],
+      '更早': [],
+    };
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
+
+    for (final file in files) {
+      // 使用访问时间进行分组
+      final accessTime = file.accessedAt ?? file.modified;
+      final fileDate = DateTime(
+        accessTime.year,
+        accessTime.month,
+        accessTime.day,
+      );
+
+      if (fileDate.isAtSameMomentAs(today)) {
+        groups['今天']!.add(file);
+      } else if (fileDate.isAtSameMomentAs(yesterday)) {
+        groups['昨天']!.add(file);
+      } else if (fileDate.isAfter(thisWeekStart) ||
+          fileDate.isAtSameMomentAs(thisWeekStart)) {
+        groups['本周']!.add(file);
+      } else {
+        groups['更早']!.add(file);
+      }
+    }
+
+    return groups;
+  }
+
   /// 构建收藏Tab的分组视图
   Widget _buildFavoriteGroupedView(List<FileItem> files) {
+    final isGridView = PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
     final groups = _groupFavoriteFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
 
@@ -626,8 +923,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     return FileCollectionView(
       groups: fileGroups,
-      gridMode: ViewModeService().isGridView,
-      padding: ViewModeService().isGridView
+      gridMode: isGridView,
+      padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
@@ -637,7 +934,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: ViewModeService().isGridView
+      itemBuilder: isGridView
           ? (file) {
               final isSelected = _selectionController.contains(file.path);
               return _buildGridItem(file, viewModel, isSelected);
@@ -648,6 +945,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         if (!_isSelectionMode) {
           setState(() {
             _isSelectionMode = true;
+            _selectionController.select(file.path);
           });
         }
       },
@@ -656,6 +954,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建浏览Tab的分组视图
   Widget _buildBrowseGroupedView(List<FileItem> files) {
+    final isGridView = PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
     final groups = _groupBrowseFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
 
@@ -673,8 +972,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     return FileCollectionView(
       groups: fileGroups,
-      gridMode: ViewModeService().isGridView,
-      padding: ViewModeService().isGridView
+      gridMode: isGridView,
+      padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
@@ -684,7 +983,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: ViewModeService().isGridView
+      itemBuilder: isGridView
           ? (file) {
               final isSelected = _selectionController.contains(file.path);
               return _buildGridItem(file, viewModel, isSelected);
@@ -695,6 +994,57 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         if (!_isSelectionMode) {
           setState(() {
             _isSelectionMode = true;
+            _selectionController.select(file.path);
+          });
+        }
+      },
+    );
+  }
+
+  /// 构建最近Tab的分组视图
+  Widget _buildRecentGroupedView(List<FileItem> files) {
+    final isGridView = PageSettingsService().getViewMode(PageId.homeRecent) == ViewMode.grid;
+    final groups = _groupRecentFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '更早'];
+
+    final fileGroups = groupKeys
+        .where((key) => groups.containsKey(key) && groups[key]!.isNotEmpty)
+        .map((key) {
+      final count = groups[key]!.length;
+      return FileGroup(
+        key: key,
+        title: '$key ($count 个文件)',
+        items: groups[key]!,
+        isCollapsible: false,
+      );
+    }).toList();
+
+    return FileCollectionView(
+      groups: fileGroups,
+      gridMode: isGridView,
+      padding: isGridView
+          ? const EdgeInsets.symmetric(vertical: 4)
+          : const EdgeInsets.symmetric(vertical: 0),
+      selectionController: _isSelectionMode ? _selectionController : null,
+      showAccessTime: true,
+      getAccessTime: (file) => file.accessedAt,
+      showFavoriteButton: true,
+      isFavorite: (path) => viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await presenter.toggleFavoriteFile(file);
+      },
+      itemBuilder: isGridView
+          ? (file) {
+              final isSelected = _selectionController.contains(file.path);
+              return _buildGridItem(file, viewModel, isSelected);
+            }
+          : null,
+      onTap: (file) => _onFileTap(file, viewModel),
+      onLongPress: (file) {
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+            _selectionController.select(file.path);
           });
         }
       },
@@ -703,7 +1053,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 显示排序选项（收藏Tab）
   void _showFavoriteSortOptions() {
-    final sortService = CategorySortService();
+    final currentSortType = PageSettingsService().getSortType(PageId.homeFavorite);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -714,48 +1064,48 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               ListTile(
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
-                trailing: sortService.sortType == SortType.name
+                trailing: currentSortType == SortType.name
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.name);
+                  PageSettingsService().setSortType(PageId.homeFavorite, SortType.name);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
-                trailing: sortService.sortType == SortType.modifiedTime
+                trailing: currentSortType == SortType.modifiedTime
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.modifiedTime);
+                  PageSettingsService().setSortType(PageId.homeFavorite, SortType.modifiedTime);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
-                trailing: sortService.sortType == SortType.size
+                trailing: currentSortType == SortType.size
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.size);
+                  PageSettingsService().setSortType(PageId.homeFavorite, SortType.size);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
-                trailing: sortService.sortType == SortType.fileType
+                trailing: currentSortType == SortType.fileType
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.fileType);
+                  PageSettingsService().setSortType(PageId.homeFavorite, SortType.fileType);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -768,7 +1118,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 显示排序选项（浏览Tab）
   void _showBrowseSortOptions() {
-    final sortService = CategorySortService();
+    final currentSortType = PageSettingsService().getSortType(PageId.homeBrowse);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -779,48 +1129,48 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               ListTile(
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
-                trailing: sortService.sortType == SortType.name
+                trailing: currentSortType == SortType.name
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.name);
+                  PageSettingsService().setSortType(PageId.homeBrowse, SortType.name);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
-                trailing: sortService.sortType == SortType.modifiedTime
+                trailing: currentSortType == SortType.modifiedTime
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.modifiedTime);
+                  PageSettingsService().setSortType(PageId.homeBrowse, SortType.modifiedTime);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
-                trailing: sortService.sortType == SortType.size
+                trailing: currentSortType == SortType.size
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.size);
+                  PageSettingsService().setSortType(PageId.homeBrowse, SortType.size);
                   setState(() {}); // 刷新列表
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
-                trailing: sortService.sortType == SortType.fileType
+                trailing: currentSortType == SortType.fileType
                     ? const Icon(Icons.check)
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  sortService.setSortType(SortType.fileType);
+                  PageSettingsService().setSortType(PageId.homeBrowse, SortType.fileType);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -898,7 +1248,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建列表/网格视图（使用FileCollectionView）
   Widget _buildFileView(FileViewModel vm) {
-    final viewModeService = ViewModeService();
+    final pageId = _getPageIdForCurrentTab(vm.currentTab);
+    final isGridView = PageSettingsService().getViewMode(pageId) == ViewMode.grid;
+    final isGroupEnabled = _isGroupEnabledForCurrentTab();
 
     // 收藏Tab和浏览Tab需要应用排序
     var displayFiles = vm.files;
@@ -911,8 +1263,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       displayFiles = _getSortedBrowseFiles(vm.files);
     }
 
-    // 收藏Tab或浏览Tab启用分组时使用分组视图
-    if (CategoryGroupService().isGroupEnabled) {
+    // 最近Tab始终使用时间分组显示
+    if (vm.currentTab == TabView.recent) {
+      return _buildRecentGroupedView(displayFiles);
+    }
+
+    // 收藏Tab、浏览Tab启用分组时使用分组视图
+    if (isGroupEnabled) {
       if (vm.currentTab == TabView.favorite) {
         return _buildFavoriteGroupedView(displayFiles);
       } else if (vm.currentTab == TabView.browse) {
@@ -922,8 +1279,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     return FileCollectionView(
       items: displayFiles,
-      gridMode: viewModeService.isGridView,
-      padding: viewModeService.isGridView
+      gridMode: isGridView,
+      padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _isSelectionMode ? _selectionController : null,
@@ -938,7 +1295,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         return await presenter.toggleFavoriteFile(file);
       },
       // 网格模式使用自定义构建器
-      itemBuilder: viewModeService.isGridView
+      itemBuilder: isGridView
           ? (file) {
               final isSelected = _selectionController.contains(file.path);
               return _buildGridItem(file, vm, isSelected);
@@ -950,6 +1307,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         if (!_isSelectionMode) {
           setState(() {
             _isSelectionMode = true;
+            _selectionController.select(file.path);
           });
         }
       },
@@ -1052,8 +1410,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 ),
               ),
             ),
-            // 收藏按钮（右上角）- 非文件夹才显示
-            if (!file.isDirectory)
+            // 收藏按钮（右上角）- 仅在已收藏时显示
+            if (!file.isDirectory && isFavorite)
               Positioned(
                 top: 2,
                 right: 2,
@@ -1080,9 +1438,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            isFavorite ? Icons.star : Icons.star_border,
-                            color: isFavorite ? Colors.amber : Colors.grey,
+                          child: const Icon(
+                            Icons.star,
+                            color: Colors.amber,
                           ),
                         ),
                       ),
@@ -1165,8 +1523,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           value: locator<NewFolderNotificationService>(),
         ),
       ],
-      child: Consumer3<FileViewModel, QuickAccessViewModel, ViewModeService>(
-        builder: (context, vm, quickVm, viewModeService, _) {
+      child: Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
+        builder: (context, vm, quickVm, pageSettingsService, _) {
           if (vm.isLoading) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
@@ -1239,6 +1597,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           ),
                           const PopupMenuDivider(),
                           const PopupMenuItem(
+                            value: 'settings',
+                            child: Row(
+                              children: [
+                                Icon(Icons.settings),
+                                SizedBox(width: 8),
+                                Text('设置'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
                             value: 'manage_quick_access',
                             child: Row(
                               children: [
@@ -1269,7 +1638,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 final theme = Theme.of(context);
                 final colorScheme = theme.colorScheme;
 
-                return Column(
+                return Stack(
+                  children: [
+                    Column(
                   children: [
                     // 上半部分固定区域 - 在搜索模式下隐藏，避免溢出
                     if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
@@ -1334,9 +1705,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                 viewModel.setCurrentTab(TabView.recent);
                                 presenter.loadRecentFiles();
                               },
-                              count: vm.currentTab == TabView.recent
-                                  ? vm.files.length
-                                  : null,
                             ),
                             // 分割线
                             Container(
@@ -1381,6 +1749,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             const Spacer(),
                             // 工具按钮组（使用统一的FileToolbar组件）
                             FileToolbar(
+                              pageId: _getPageIdForCurrentTab(vm.currentTab),
                               showBackButton: vm.currentTab == TabView.browse &&
                                   vm.currentPath.isNotEmpty &&
                                   _canNavigateUp(vm.currentPath),
@@ -1489,6 +1858,32 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         },
                         child: _buildFileList(vm),
                       ),
+                    ),
+                  ],
+                ),
+
+                    // 权限提示横幅（在顶部显示）
+                    if (_permissionState == PermissionState.denied ||
+                        _permissionState == PermissionState.permanentlyDenied)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: PermissionBanner(
+                          onTap: () async {
+                            if (_permissionState == PermissionState.permanentlyDenied) {
+                              await _permissionService.openAppSettings();
+                            } else {
+                              await _requestPermissionAndInit();
+                            }
+                          },
+                        ),
+                      ),
+
+                    // 扫描进度Overlay
+                    ScanProgressOverlay(
+                      isScanning: _isScanning,
+                      isFirstScan: _isFirstScan,
                     ),
                   ],
                 );

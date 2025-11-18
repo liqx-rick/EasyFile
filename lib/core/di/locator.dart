@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -70,6 +71,11 @@ void setupLocator() {
   });
 
   // Services
+  locator.registerLazySingleton<PermissionService>(() {
+    logger.d('Creating PermissionService');
+    return PermissionService();
+  });
+
   locator.registerLazySingleton<FolderAnalyzer>(() {
     logger.d('Creating FolderAnalyzer');
     return FolderAnalyzer();

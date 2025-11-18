@@ -32,6 +32,8 @@ class QuickAccessPresenter {
         _aliasService = aliasService,
         _notificationService = notificationService;
 
+  // ==================== 核心CRUD操作 ====================
+
   /// 加载所有快速访问文件夹
   Future<void> loadQuickAccessFolders() async {
     logger.i('QuickAccessPresenter.loadQuickAccessFolders called');
@@ -140,37 +142,13 @@ class QuickAccessPresenter {
     }
   }
 
-  /// 执行首次应用扫描（Tier1）
+  // ==================== 扫描功能 ====================
+
+  /// 执行首次扫描（直接使用深度扫描获取所有目录）
   Future<ScanResult> performFirstTimeScan() async {
-    logger.i('QuickAccessPresenter.performFirstTimeScan called');
-    _viewModel.setScanning(true);
-
-    try {
-      final newFolders = await _appScanner.firstTimeScan();
-      logger.i('First-time scan found ${newFolders.length} folders');
-
-      // 批量添加新发现的文件夹
-      int addedCount = 0;
-      for (final folder in newFolders) {
-        final added = await _localSource.addFolder(
-          folder.toQuickAccessFolder(),
-        );
-        if (added) addedCount++;
-      }
-
-      await loadQuickAccessFolders();
-
-      return ScanResult(
-        totalFound: newFolders.length,
-        newlyAdded: addedCount,
-        alreadyExists: newFolders.length - addedCount,
-      );
-    } catch (e, stackTrace) {
-      logger.e('Error performing first-time scan: $e\n$stackTrace');
-      return ScanResult(totalFound: 0, newlyAdded: 0, alreadyExists: 0);
-    } finally {
-      _viewModel.setScanning(false);
-    }
+    logger.i('QuickAccessPresenter.performFirstTimeScan called - using deep scan');
+    // 首次扫描直接使用深度扫描，一次性获取所有目录
+    return await performDeepScan();
   }
 
   /// 执行增量扫描（带通知）

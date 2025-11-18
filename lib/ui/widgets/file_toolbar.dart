@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 文件管理工具栏
 /// 统一的工具栏组件，包含返回、搜索、排序、分组、视图切换等功能
@@ -44,6 +47,9 @@ class FileToolbar extends StatelessWidget {
   /// 额外的工具按钮（显示在所有按钮之前）
   final List<Widget>? extraActions;
 
+  /// 页面ID（用于页面级设置，如果为null则使用全局设置）
+  final PageId? pageId;
+
   const FileToolbar({
     super.key,
     this.showBackButton = false,
@@ -59,6 +65,7 @@ class FileToolbar extends StatelessWidget {
     this.showViewModeToggle = true,
     this.iconSize = 20,
     this.extraActions,
+    this.pageId,
   });
 
   @override
@@ -116,10 +123,16 @@ class FileToolbar extends StatelessWidget {
         // 分组按钮
         if (showGroupButton)
           ListenableBuilder(
-            listenable: CategoryGroupService(),
+            listenable: pageId != null
+                ? PageSettingsService()
+                : CategoryGroupService(),
             builder: (context, _) {
-              final groupService = CategoryGroupService();
-              final isGroupEnabled = groupService.isGroupEnabled;
+              final bool isGroupEnabled;
+              if (pageId != null) {
+                isGroupEnabled = PageSettingsService().getGroupEnabled(pageId!);
+              } else {
+                isGroupEnabled = CategoryGroupService().isGroupEnabled;
+              }
 
               return IconButton(
                 icon: Icon(
@@ -127,7 +140,11 @@ class FileToolbar extends StatelessWidget {
                   size: iconSize,
                 ),
                 onPressed: () {
-                  groupService.toggleGroup();
+                  if (pageId != null) {
+                    PageSettingsService().toggleGroupEnabled(pageId!);
+                  } else {
+                    CategoryGroupService().toggleGroup();
+                  }
                   onGroupToggle?.call();
                 },
                 tooltip: isGroupEnabled ? '取消分组' : '按日期分组',
@@ -144,10 +161,16 @@ class FileToolbar extends StatelessWidget {
         // 视图模式切换按钮
         if (showViewModeToggle)
           ListenableBuilder(
-            listenable: ViewModeService(),
+            listenable:
+                pageId != null ? PageSettingsService() : ViewModeService(),
             builder: (context, _) {
-              final viewModeService = ViewModeService();
-              final isGridView = viewModeService.isGridView;
+              final bool isGridView;
+              if (pageId != null) {
+                isGridView =
+                    PageSettingsService().getViewMode(pageId!) == ViewMode.grid;
+              } else {
+                isGridView = ViewModeService().isGridView;
+              }
 
               return IconButton(
                 icon: Icon(
@@ -155,7 +178,11 @@ class FileToolbar extends StatelessWidget {
                   size: iconSize,
                 ),
                 onPressed: () {
-                  viewModeService.toggleViewMode();
+                  if (pageId != null) {
+                    PageSettingsService().toggleViewMode(pageId!);
+                  } else {
+                    ViewModeService().toggleViewMode();
+                  }
                 },
                 tooltip: isGridView ? '列表视图' : '网格视图',
                 padding: EdgeInsets.zero,

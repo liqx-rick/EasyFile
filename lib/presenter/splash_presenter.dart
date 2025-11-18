@@ -62,35 +62,54 @@ class SplashPresenter {
     await _performAdditionalInit();
   }
 
-  /// 检查应用权限
+  /// 检查应用权限（只在首次启动且权限未授予时请求）
+  /// 
+  /// 该方法会：
+  /// 1. 检查所有必需权限的状态
+  /// 2. 如果所有权限已授予，直接返回
+  /// 3. 只在权限处于未决定状态时请求，避免重复请求
   Future<void> _checkPermissions() async {
     try {
-      logger.d('SplashPresenter: Checking permissions...');
-      viewModel.setInitMessage('检查应用权限...');
+      logger.d('SplashPresenter: Requesting permissions...');
+      viewModel.setInitMessage('请求应用权限...');
 
-      // 检查存储权限
+      // 检查所有权限状态
+      final manageStorageStatus = await Permission.manageExternalStorage.status;
       final storageStatus = await Permission.storage.status;
-      if (storageStatus.isDenied) {
-        logger.i(
-          'SplashPresenter: Storage permission is denied, requesting...',
-        );
-        await Permission.storage.request();
-      }
-
-      // 检查媒体权限（Android 13+）
       final photosStatus = await Permission.photos.status;
-      if (photosStatus.isDenied) {
-        await Permission.photos.request();
-      }
       final videosStatus = await Permission.videos.status;
-      if (videosStatus.isDenied) {
-        await Permission.videos.request();
+      
+      // 如果所有权限已授予，直接返回（避免重复弹窗）
+      if (manageStorageStatus.isGranted ||
+          (storageStatus.isGranted && photosStatus.isGranted && videosStatus.isGranted)) {
+        logger.i('SplashPresenter: All permissions already granted, skipping requests');
+        return;
+      }
+      
+      // 只在首次启动（未决定状态）时请求权限
+      // 已授予或永久拒绝的权限不再请求
+      if (manageStorageStatus.isDenied && !manageStorageStatus.isPermanentlyDenied) {
+        logger.i('SplashPresenter: Requesting MANAGE_EXTERNAL_STORAGE...');
+        Permission.manageExternalStorage.request();
       }
 
-      logger.d('SplashPresenter: Permission check completed');
+      if (storageStatus.isDenied && !storageStatus.isPermanentlyDenied) {
+        logger.i('SplashPresenter: Requesting storage permission...');
+        Permission.storage.request();
+      }
+
+      // 请求媒体访问权限（Android 13+）
+      if (photosStatus.isDenied && !photosStatus.isPermanentlyDenied) {
+        Permission.photos.request();
+      }
+      if (videosStatus.isDenied && !videosStatus.isPermanentlyDenied) {
+        Permission.videos.request();
+      }
+
+      logger.d('SplashPresenter: Permission requests sent');
     } catch (e) {
-      logger.w('SplashPresenter: Error checking permissions: $e');
-      // 权限检查失败不阻塞启动
+      logger.w('SplashPresenter: Error requesting permissions: $e');
+      // 权限请求失败不阻塞启动
     }
   }
 
@@ -99,9 +118,6 @@ class SplashPresenter {
     try {
       logger.d('SplashPresenter: Preloading theme configuration...');
       viewModel.setInitMessage('加载主题配置...');
-
-      // 移除延迟，直接完成主题预加载
-      // await Future.delayed(const Duration(milliseconds: 300));
 
       logger.d('SplashPresenter: Theme preload completed');
     } catch (e) {
@@ -117,9 +133,6 @@ class SplashPresenter {
 
       // 记录应用启动事件
       logger.i('EasyFile application started at ${DateTime.now()}');
-
-      // 移除延迟，直接完成日志初始化
-      // await Future.delayed(const Duration(milliseconds: 200));
     } catch (e) {
       logger.w('SplashPresenter: Error initializing logging: $e');
     }

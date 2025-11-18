@@ -144,7 +144,10 @@ class FileViewModel extends ChangeNotifier {
   }
 
   void setFiles(List<FileItem> files) {
-    logger.d('Setting files list: ${files.length} items');
+    logger.d('Setting files list: ${files.length} items for tab: $_currentTab');
+    if (files.isNotEmpty) {
+      logger.d('First 3 files: ${files.take(3).map((f) => f.name).join(", ")}');
+    }
     _allFiles = files;
     _applyFilters();
   }
@@ -152,6 +155,7 @@ class FileViewModel extends ChangeNotifier {
   /// 应用筛选条件
   void _applyFilters() {
     _files = _fileTypeAnalyzer.filterByCategory(_allFiles, _selectedCategory);
+    logger.d('After filters applied: ${_files.length} items (from ${_allFiles.length} total)');
     notifyListeners();
   }
 
@@ -249,6 +253,7 @@ class FileViewModel extends ChangeNotifier {
   void setFavoriteFiles(List<FavoriteFileItem> favoriteFiles) {
     logger.d('Setting favorite files list: ${favoriteFiles.length} items');
     _favoriteFiles = _sortedFavoriteFiles(favoriteFiles);
+    logger.d('Favorite files after sorting: ${_favoriteFiles.map((f) => f.filePath).join(", ")}');
     notifyListeners();
   }
 
@@ -257,13 +262,19 @@ class FileViewModel extends ChangeNotifier {
     if (!_favoriteFiles.any((f) => f.filePath == favoriteFile.filePath)) {
       _favoriteFiles.add(favoriteFile);
       _favoriteFiles = _sortedFavoriteFiles(_favoriteFiles);
+      logger.i('Favorite file added. Total count: ${_favoriteFiles.length}');
       notifyListeners();
+    } else {
+      logger.w('Favorite file already exists: ${favoriteFile.filePath}');
     }
   }
 
   void removeFavoriteFile(String filePath) {
     logger.d('Removing favorite file: $filePath');
+    final beforeCount = _favoriteFiles.length;
     _favoriteFiles.removeWhere((f) => f.filePath == filePath);
+    final afterCount = _favoriteFiles.length;
+    logger.i('Favorite file removed. Count: $beforeCount -> $afterCount');
     notifyListeners();
   }
 

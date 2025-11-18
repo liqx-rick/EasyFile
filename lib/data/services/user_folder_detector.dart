@@ -68,6 +68,21 @@ class UserFolderDetector {
     '/storage/emulated/0/Documents', // 文档目录
   ];
 
+  /// 系统默认目录列表
+  static const List<String> systemFolders = [
+    '/storage/emulated/0/DCIM',
+    '/storage/emulated/0/Pictures',
+    '/storage/emulated/0/Download',
+    '/storage/emulated/0/Documents',
+    '/storage/emulated/0/Music',
+    '/storage/emulated/0/Movies',
+    '/storage/emulated/0/Podcasts',
+    '/storage/emulated/0/Audiobooks',
+    '/storage/emulated/0/Ringtones',
+    '/storage/emulated/0/Alarms',
+    '/storage/emulated/0/Notifications',
+  ];
+
   /// 排除目录：系统和应用目录不扫描
   static List<String> get _excludedPaths => [
         '/storage/emulated/0/Android',
@@ -148,6 +163,7 @@ class UserFolderDetector {
     return results;
   }
 
+  /// 获取系统目录（不过滤，直接检查存在性）
   /// 增量检测新文件夹（只检测自上次扫描后新创建的）
   Future<List<UserFolder>> detectNewFolders() async {
     logger.i('Starting incremental new folder detection');

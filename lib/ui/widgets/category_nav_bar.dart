@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/category_file_page.dart';
@@ -111,7 +111,20 @@ class CategoryNavBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => _onCategoryTap(context, category),
+        onTap: () async {
+          // 触觉反馈
+          HapticFeedback.lightImpact();
+          // 立即跳转，不显示SnackBar
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => CategoryFilePage(
+                categoryType: category.type,
+                presenter: presenter,
+                viewModel: viewModel,
+              ),
+            ),
+          );
+        },
         child: Container(
           decoration: BoxDecoration(
             color: adjustedBgColor,
@@ -180,22 +193,6 @@ class CategoryNavBar extends StatelessWidget {
     final hsl = HSLColor.fromColor(iconColor);
     // 使用低亮度和低饱和度的背景色
     return hsl.withLightness(0.15).withSaturation(0.3).toColor();
-  }
-
-  /// 处理分类点击
-  void _onCategoryTap(BuildContext context, CategoryInfo category) {
-    logger.i('Category tapped: ${category.name} (${category.type})');
-
-    // 直接导航到分类聚合视图页面
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => CategoryFilePage(
-          categoryType: category.type,
-          presenter: presenter,
-          viewModel: viewModel,
-        ),
-      ),
-    );
   }
 }
 
