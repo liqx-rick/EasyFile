@@ -428,7 +428,7 @@ class FileCollectionView extends StatelessWidget {
       return child;
     }
 
-    final isSelectionMode = selectionController != null;
+    final isSelectionMode = selectionController?.isSelectionMode ?? false;
     final isSelected = selectionController?.contains(item.path) ?? false;
 
     // 网格模式且启用统一组件

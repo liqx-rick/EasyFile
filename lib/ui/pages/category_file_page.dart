@@ -881,9 +881,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     padding: _isGridView
                         ? const EdgeInsets.all(8)
                         : const EdgeInsets.symmetric(vertical: 0),
-                    selectionController: _selectionController.isSelectionMode
-                        ? _selectionController
-                        : null,
+                    selectionController: _selectionController,
                     // 列表模式显示选项
                     showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
                     showFavoriteButton: true,
@@ -1121,9 +1119,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _selectionController.isSelectionMode
-          ? _selectionController
-          : null,
+      selectionController: _selectionController,
       // 显示选项
       showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
       showFavoriteButton: true,
