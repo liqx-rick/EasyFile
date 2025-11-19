@@ -123,9 +123,8 @@ class FileToolbar extends StatelessWidget {
         // 分组按钮
         if (showGroupButton)
           ListenableBuilder(
-            listenable: pageId != null
-                ? PageSettingsService()
-                : CategoryGroupService(),
+            listenable:
+                pageId != null ? PageSettingsService() : CategoryGroupService(),
             builder: (context, _) {
               final bool isGroupEnabled;
               if (pageId != null) {

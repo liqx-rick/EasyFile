@@ -154,7 +154,8 @@ class EmptyStatePermission extends StatelessWidget {
         Icon(
           icon,
           size: 16,
-          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+          color:
+              Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -162,8 +163,10 @@ class EmptyStatePermission extends StatelessWidget {
             text,
             style: TextStyle(
               fontSize: 13,
-              color:
-                  Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withOpacity(0.8),
             ),
           ),
         ),

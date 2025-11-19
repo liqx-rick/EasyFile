@@ -14,7 +14,11 @@ Future<void> main() async {
   // 保持native splash显示，直到Flutter应用完全准备好
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Initialize logger before oth方案二er startup so DI logs go to file
+  // 配置图片缓存，限制内存使用
+  PaintingBinding.instance.imageCache.maximumSize = 100; // 最多缓存100张图片
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50MB
+
+  // Initialize logger before other startup so DI logs go to file
   await logger.init();
 
   // 记录进程启动

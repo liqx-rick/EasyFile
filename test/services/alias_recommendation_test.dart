@@ -61,7 +61,7 @@ void main() {
         originalName: 'MyPhotos',
         stats: stats,
       );
-      
+
       expect(alias, contains('图片'));
     });
 

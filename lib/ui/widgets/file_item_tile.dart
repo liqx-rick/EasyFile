@@ -164,7 +164,8 @@ class FileItemTile extends StatelessWidget {
                   onPressed: onFavoriteToggle,
                   tooltip: '取消收藏',
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ),
             ),

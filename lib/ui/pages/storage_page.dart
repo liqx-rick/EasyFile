@@ -75,18 +75,18 @@ class _StoragePageState extends State<StoragePage> {
             if (lastDot == -1 || lastDot == name.length - 1) return '';
             return name.substring(lastDot + 1).toLowerCase();
           }
-          
+
           final extA = getExt(a.name);
           final extB = getExt(b.name);
-          
+
           // 没有扩展名的排在后面
           if (extA.isEmpty && extB.isNotEmpty) return 1;
           if (extA.isNotEmpty && extB.isEmpty) return -1;
-          
+
           // 按扩展名排序
           final extCompare = extA.compareTo(extB);
           if (extCompare != 0) return extCompare;
-          
+
           // 扩展名相同时按名称排序
           return a.name.toLowerCase().compareTo(b.name.toLowerCase());
         };
@@ -154,7 +154,8 @@ class _StoragePageState extends State<StoragePage> {
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(PageId.storage, SortType.name);
+                  PageSettingsService()
+                      .setSortType(PageId.storage, SortType.name);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -166,7 +167,8 @@ class _StoragePageState extends State<StoragePage> {
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(PageId.storage, SortType.modifiedTime);
+                  PageSettingsService()
+                      .setSortType(PageId.storage, SortType.modifiedTime);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -178,7 +180,8 @@ class _StoragePageState extends State<StoragePage> {
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(PageId.storage, SortType.size);
+                  PageSettingsService()
+                      .setSortType(PageId.storage, SortType.size);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -190,7 +193,8 @@ class _StoragePageState extends State<StoragePage> {
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(PageId.storage, SortType.fileType);
+                  PageSettingsService()
+                      .setSortType(PageId.storage, SortType.fileType);
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -585,8 +589,10 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
-    final isGridView = PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
-    final isGroupEnabled = PageSettingsService().getGroupEnabled(PageId.storage);
+    final isGridView =
+        PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
+    final isGroupEnabled =
+        PageSettingsService().getGroupEnabled(PageId.storage);
 
     // 根据是否启用分组来决定显示方式
     if (isGroupEnabled) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/core/logger.dart';
 
 /// Data model for a file group with collapsible support.
 ///
@@ -331,7 +332,7 @@ class FileCollectionView extends StatelessWidget {
   }
 
   /// 计算网格视图的列数
-  /// 
+  ///
   /// 根据屏幕宽度和最小卡片宽度动态计算列数，确保：
   /// - 最小卡片宽度为 110px，保证可读性
   /// - 列数限制在 3-6 列之间
@@ -342,17 +343,22 @@ class FileCollectionView extends StatelessWidget {
     const spacing = 8.0;
     final horizontalPadding = (padding as EdgeInsets?)?.horizontal ?? 16.0;
     final availableWidth = width - horizontalPadding;
-    
+
     // 计算能容纳的列数，限制在3-6列之间
-    int crossAxisCount = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+    int crossAxisCount =
+        ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
     return crossAxisCount.clamp(3, 6);
   }
 
   Widget _buildGrid(BuildContext context) {
     final crossAxisCount = _calculateCrossAxisCount(context);
-    
+
     return GridView.builder(
       padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
+      // 禁用自动保持 widget，减少内存占用
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      addSemanticIndexes: false,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 12,
@@ -365,21 +371,15 @@ class FileCollectionView extends StatelessWidget {
   }
 
   Widget _buildGroupedView(BuildContext context) {
-    return ListView.builder(
-      padding: padding as EdgeInsets?,
-      itemCount: groups!.length,
-      itemBuilder: (context, groupIndex) {
-        final group = groups![groupIndex];
-        return _GroupSection(
-          group: group,
-          gridMode: gridMode,
-          headerBuilder: groupHeaderBuilder,
-          itemBuilder: itemBuilder,
-          itemWrapper: _buildItemWrapper,
-          onTap: onTap,
-          onLongPress: onLongPress,
-        );
-      },
+    // 使用 CustomScrollView + Slivers 实现真正的懒加载
+    // 关键：添加 key 确保 gridMode 切换时重建 widget，触发 dispose
+    return _GroupedSliverView(
+      key: ValueKey('grouped_${gridMode ? 'grid' : 'list'}'),
+      groups: groups!,
+      gridMode: gridMode,
+      groupHeaderBuilder: groupHeaderBuilder,
+      itemWrapper: _buildItemWrapper,
+      crossAxisCount: _calculateCrossAxisCount(context),
     );
   }
 
@@ -458,56 +458,133 @@ class FileCollectionView extends StatelessWidget {
   }
 }
 
-/// Internal widget to render a collapsible group section.
-class _GroupSection extends StatefulWidget {
-  final FileGroup group;
-  final bool gridMode;
-  final Widget Function(BuildContext, FileGroup)? headerBuilder;
-  final Widget Function(FileItem)? itemBuilder;
-  final Widget Function(BuildContext, FileItem) itemWrapper;
-  final void Function(FileItem)? onTap;
-  final void Function(FileItem)? onLongPress;
+// ============================================================================
+// Sliver 组件：实现真正的懒加载
+// ============================================================================
 
-  const _GroupSection({
-    required this.group,
+/// 分组 Sliver 视图的容器 - 管理所有分组的展开/收起状态
+class _GroupedSliverView extends StatefulWidget {
+  final List<FileGroup> groups;
+  final bool gridMode;
+  final Widget Function(BuildContext, FileGroup)? groupHeaderBuilder;
+  final Widget Function(BuildContext, FileItem) itemWrapper;
+  final int crossAxisCount;
+
+  const _GroupedSliverView({
+    super.key,
+    required this.groups,
     required this.gridMode,
-    required this.headerBuilder,
-    required this.itemBuilder,
+    required this.groupHeaderBuilder,
     required this.itemWrapper,
-    this.onTap,
-    this.onLongPress,
+    required this.crossAxisCount,
   });
 
   @override
-  State<_GroupSection> createState() => _GroupSectionState();
+  State<_GroupedSliverView> createState() => _GroupedSliverViewState();
 }
 
-class _GroupSectionState extends State<_GroupSection> {
-  late bool _isExpanded;
+class _GroupedSliverViewState extends State<_GroupedSliverView> {
+  // 存储每个分组的展开状态
+  late Map<String, bool> _expandedStates;
 
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.group.initiallyExpanded;
+    _expandedStates = {
+      for (var group in widget.groups) group.title: group.initiallyExpanded,
+    };
+  }
+
+  @override
+  void didUpdateWidget(_GroupedSliverView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 检测 gridMode 是否改变
+    if (oldWidget.gridMode != widget.gridMode) {
+      // 切换模式时清理图片缓存
+      _clearImageCache();
+    }
+  }
+
+  void _toggleGroup(String groupTitle) {
+    setState(() {
+      _expandedStates[groupTitle] = !(_expandedStates[groupTitle] ?? true);
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _clearImageCache() {
+    try {
+      final imageCache = PaintingBinding.instance.imageCache;
+      final clearedCount = imageCache.currentSize;
+      imageCache.clear();
+      imageCache.clearLiveImages();
+      logger.d('Cleared image cache: $clearedCount images');
+    } catch (e) {
+      logger.e('Error clearing image cache: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final header = widget.headerBuilder != null
-        ? widget.headerBuilder!(context, widget.group)
+    return CustomScrollView(
+      // 添加缓存范围，提前渲染屏幕外的内容
+      cacheExtent: 500,
+      slivers: [
+        for (final group in widget.groups) ...[
+          // 分组头部
+          _SliverGroupHeader(
+            group: group,
+            headerBuilder: widget.groupHeaderBuilder,
+            isExpanded: _expandedStates[group.title] ?? true,
+            onToggle: () => _toggleGroup(group.title),
+          ),
+          // 分组内容
+          if (_expandedStates[group.title] ?? true)
+            widget.gridMode
+                ? _SliverGroupGrid(
+                    group: group,
+                    crossAxisCount: widget.crossAxisCount,
+                    itemWrapper: widget.itemWrapper,
+                  )
+                : _SliverGroupList(
+                    group: group,
+                    itemWrapper: widget.itemWrapper,
+                  ),
+        ],
+      ],
+    );
+  }
+}
+
+/// 分组头部的 Sliver 包装器
+class _SliverGroupHeader extends StatelessWidget {
+  final FileGroup group;
+  final Widget Function(BuildContext, FileGroup)? headerBuilder;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  const _SliverGroupHeader({
+    required this.group,
+    required this.isExpanded,
+    required this.onToggle,
+    this.headerBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final header = headerBuilder != null
+        ? headerBuilder!(context, group)
         : _buildDefaultHeader(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: widget.group.isCollapsible
-              ? () => setState(() => _isExpanded = !_isExpanded)
-              : null,
-          child: header,
-        ),
-        if (_isExpanded) ..._buildGroupItems(),
-      ],
+    return SliverToBoxAdapter(
+      child: InkWell(
+        onTap: group.isCollapsible ? onToggle : null,
+        child: header,
+      ),
     );
   }
 
@@ -517,71 +594,106 @@ class _GroupSectionState extends State<_GroupSection> {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
-          if (widget.group.isCollapsible)
+          if (group.isCollapsible)
             Icon(
-              _isExpanded ? Icons.expand_more : Icons.chevron_right,
+              isExpanded ? Icons.expand_more : Icons.chevron_right,
               size: 20,
             ),
-          if (widget.group.isCollapsible) const SizedBox(width: 8),
+          if (group.isCollapsible) const SizedBox(width: 8),
           Expanded(
             child: Text(
-              widget.group.title,
+              group.title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
             ),
           ),
+          Text(
+            '${group.items.length}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
         ],
       ),
     );
   }
+}
 
-  List<Widget> _buildGroupItems() {
-    final items = widget.group.items;
+/// 分组网格的 Sliver 实现 - 真正的懒加载
+class _SliverGroupGrid extends StatelessWidget {
+  final FileGroup group;
+  final int crossAxisCount;
+  final Widget Function(BuildContext, FileItem) itemWrapper;
 
-    if (widget.gridMode) {
-      // 网格模式：使用动态响应式 GridView
-      // 注意：这里需要从父 widget 传入的 itemWrapper 来构建，所以直接计算列数
-      final width = MediaQuery.sizeOf(context).width;
-      const minCardWidth = 110.0;
-      const spacing = 8.0;
-      const horizontalPadding = 16.0;
-      final availableWidth = width - horizontalPadding;
-      int crossAxisCount = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
-      crossAxisCount = crossAxisCount.clamp(3, 6);
-      
-      return [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.75, // 与非分组模式保持一致
-            ),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              return widget.itemWrapper(context, items[index]);
-            },
-          ),
+  const _SliverGroupGrid({
+    required this.group,
+    required this.crossAxisCount,
+    required this.itemWrapper,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      sliver: SliverGrid(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.75,
         ),
-      ];
-    } else {
-      // 列表模式：保持原有实现
-      final widgets = <Widget>[];
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            return itemWrapper(context, group.items[index]);
+          },
+          childCount: group.items.length,
+          // 懒加载关键配置：不自动保持状态
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          addSemanticIndexes: false,
+        ),
+      ),
+    );
+  }
+}
 
-      for (var i = 0; i < items.length; i++) {
-        widgets.add(widget.itemWrapper(context, items[i]));
-        // 在每个item后面添加分割线（最后一个除外）
-        if (i < items.length - 1) {
-          widgets.add(const Divider(height: 1));
-        }
-      }
+/// 分组列表的 Sliver 实现 - 真正的懒加载
+class _SliverGroupList extends StatelessWidget {
+  final FileGroup group;
+  final Widget Function(BuildContext, FileItem) itemWrapper;
 
-      return widgets;
-    }
+  const _SliverGroupList({
+    required this.group,
+    required this.itemWrapper,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 使用 SliverFixedExtentList 而不是 SliverList
+    // 这样 Flutter 可以更高效地计算布局，不需要测量每个 item
+    // 同时用 DecoratedBox 添加底部边框代替 Divider，避免 childCount 翻倍
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: itemWrapper(context, group.items[index]),
+          );
+        },
+        childCount: group.items.length, // 关键修复：不再乘以2
+        // 懒加载关键配置：不自动保持状态
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: true,
+        addSemanticIndexes: false,
+      ),
+    );
   }
 }

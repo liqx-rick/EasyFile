@@ -66,9 +66,13 @@ class CategoryNavBar extends StatelessWidget {
         return SizedBox(
           height: cardHeight + 4, // 卡片高度 + 额外padding
           child: GridView.builder(
-            shrinkWrap: true,
+            shrinkWrap: true, // 小数据量（<10）可以使用 shrinkWrap
             physics: const NeverScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
+            // 性能优化：小数据量固定布局
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: true,
+            addSemanticIndexes: false,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               mainAxisSpacing: actualSpacing,

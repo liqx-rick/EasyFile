@@ -146,7 +146,8 @@ class QuickAccessPresenter {
 
   /// 执行首次扫描（直接使用深度扫描获取所有目录）
   Future<ScanResult> performFirstTimeScan() async {
-    logger.i('QuickAccessPresenter.performFirstTimeScan called - using deep scan');
+    logger.i(
+        'QuickAccessPresenter.performFirstTimeScan called - using deep scan');
     // 首次扫描直接使用深度扫描，一次性获取所有目录
     return await performDeepScan();
   }

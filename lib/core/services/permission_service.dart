@@ -42,7 +42,7 @@ class PermissionService extends ChangeNotifier {
 
       // 首先检查 MANAGE_EXTERNAL_STORAGE (All files access)
       final manageStorageStatus = await Permission.manageExternalStorage.status;
-      
+
       // 检查存储权限
       final storageStatus = await Permission.storage.status;
 
@@ -50,7 +50,8 @@ class PermissionService extends ChangeNotifier {
       final photosStatus = await Permission.photos.status;
       final videosStatus = await Permission.videos.status;
 
-      logger.d('Permission status - manage: $manageStorageStatus, storage: $storageStatus, photos: $photosStatus, videos: $videosStatus');
+      logger.d(
+          'Permission status - manage: $manageStorageStatus, storage: $storageStatus, photos: $photosStatus, videos: $videosStatus');
 
       // 判断整体权限状态
       // 优先使用 MANAGE_EXTERNAL_STORAGE（最高权限）
@@ -87,9 +88,10 @@ class PermissionService extends ChangeNotifier {
       logger.i('PermissionService: Requesting permissions...');
 
       // 先尝试请求 MANAGE_EXTERNAL_STORAGE (All files access)
-      final manageStorageStatus = await Permission.manageExternalStorage.request();
+      final manageStorageStatus =
+          await Permission.manageExternalStorage.request();
       logger.i('MANAGE_EXTERNAL_STORAGE status: $manageStorageStatus');
-      
+
       // 如果获得了完全访问权限，直接返回
       if (manageStorageStatus.isGranted) {
         _setState(PermissionState.granted);

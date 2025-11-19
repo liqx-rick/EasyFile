@@ -644,8 +644,9 @@ class _FavoritesSectionState extends State<FavoritesSection> {
         title: const Text('所有收藏夹'),
         content: SizedBox(
           width: double.maxFinite,
+          height: 400, // 限制最大高度，避免 shrinkWrap
           child: ListView.builder(
-            shrinkWrap: true,
+            // 移除 shrinkWrap，使用固定高度提升性能
             itemCount: widget.viewModel.favorites.length,
             itemBuilder: (context, index) {
               final favorite = widget.viewModel.favorites[index];

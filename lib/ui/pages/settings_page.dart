@@ -219,7 +219,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   controller: scrollController,
                   children: PageId.values.map((pageId) {
                     final settings = allSettings[pageId]!;
-                    final hasCustom = _settingsService.hasCustomSettings(pageId);
+                    final hasCustom =
+                        _settingsService.hasCustomSettings(pageId);
 
                     return ListTile(
                       title: Text(PageDefaultSettings.getDescription(pageId)),
@@ -368,8 +369,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 格式化设置文本
   String _formatSettings(PageSettings settings) {
-    final viewMode =
-        settings.viewMode == ViewMode.grid ? '网格视图' : '列表视图';
+    final viewMode = settings.viewMode == ViewMode.grid ? '网格视图' : '列表视图';
     final sortType = _getSortTypeName(settings.sortType);
     final groupEnabled = settings.groupEnabled == true ? '时间分组' : '不分组';
 

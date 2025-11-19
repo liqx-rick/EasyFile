@@ -165,6 +165,18 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
             Image.memory(
               _thumbnailData!,
               fit: BoxFit.cover,
+              // 限制缓存大小，避免内存泄漏
+              cacheWidth:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio)
+                      .toInt()
+                      .clamp(100, 400),
+              cacheHeight:
+                  (widget.size * MediaQuery.of(context).devicePixelRatio)
+                      .toInt()
+                      .clamp(100, 400),
+              // 降低质量以减少内存占用
+              filterQuality: FilterQuality.low,
+              gaplessPlayback: true,
               errorBuilder: (context, error, stackTrace) {
                 return _buildFallbackIcon();
               },

@@ -18,6 +18,10 @@ class ImageThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    // 限制缓存尺寸，避免加载过大的图片到内存
+    final cacheSize = (size * pixelRatio).toInt().clamp(100, 400);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: SizedBox(
@@ -28,32 +32,21 @@ class ImageThumbnail extends StatelessWidget {
           width: size,
           height: size,
           fit: fit,
-          // 使用 cacheWidth 优化内存使用
-          cacheWidth: (size * MediaQuery.of(context).devicePixelRatio).toInt(),
+          // 同时限制宽度和高度，防止内存溢出
+          cacheWidth: cacheSize,
+          cacheHeight: cacheSize,
+          // 降低质量以减少内存占用
+          filterQuality: FilterQuality.low,
+          // 避免重复加载
+          gaplessPlayback: true,
+          // 错误时不显示加载动画，直接显示占位符
           frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            if (wasSynchronouslyLoaded) {
+            if (wasSynchronouslyLoaded || frame != null) {
               return child;
             }
-            // 显示加载动画
-            return AnimatedOpacity(
-              opacity: frame == null ? 0 : 1,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              child: frame == null
-                  ? Container(
-                      color: Colors.grey[200],
-                      child: Center(
-                        child: SizedBox(
-                          width: size / 3,
-                          height: size / 3,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                      ),
-                    )
-                  : child,
+            // 简化加载动画，减少重绘
+            return Container(
+              color: Colors.grey[200],
             );
           },
           errorBuilder: (context, error, stackTrace) {

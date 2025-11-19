@@ -21,9 +21,7 @@ class ScanProgressOverlay extends StatelessWidget {
     }
 
     // 根据扫描类型显示不同的文案
-    final String message = isFirstScan 
-        ? '正在为第一次访问执行深度扫描，请稍等...'
-        : '正在扫描文件...';
+    final String message = isFirstScan ? '正在为第一次访问执行深度扫描，请稍等...' : '正在扫描文件...';
 
     return Positioned(
       top: 0,

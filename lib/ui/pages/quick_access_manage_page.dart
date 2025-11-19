@@ -466,7 +466,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   /// 编辑模式：可拖拽排序列表
   Widget _buildHomeDisplayReorderable(List<QuickAccessFolder> folders) {
     return ReorderableListView.builder(
-      shrinkWrap: true,
+      shrinkWrap: true, // 必须：ReorderableListView 要求
       physics: const NeverScrollableScrollPhysics(),
       itemCount: folders.length,
       onReorder: (oldIndex, newIndex) async {

@@ -6,8 +6,11 @@ import 'dart:math';
 void main() async {
   print('🚀 开始创建测试文件结构...\n');
 
-  final platform = Platform.isAndroid ? 'Android' : 
-                   Platform.isWindows ? 'Windows' : 'Other';
+  final platform = Platform.isAndroid
+      ? 'Android'
+      : Platform.isWindows
+          ? 'Windows'
+          : 'Other';
   print('📱 检测到平台: $platform\n');
 
   // 确定根目录
@@ -85,7 +88,8 @@ Future<void> createImageFiles(String basePath) async {
     Directory(yearPath).createSync(recursive: true);
 
     for (var month = 1; month <= 3; month++) {
-      final monthPath = '$yearPath${Platform.pathSeparator}${month.toString().padLeft(2, '0')}';
+      final monthPath =
+          '$yearPath${Platform.pathSeparator}${month.toString().padLeft(2, '0')}';
       Directory(monthPath).createSync(recursive: true);
 
       // 创建3-5张图片

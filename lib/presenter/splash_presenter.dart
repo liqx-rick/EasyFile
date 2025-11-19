@@ -63,7 +63,7 @@ class SplashPresenter {
   }
 
   /// 检查应用权限（只在首次启动且权限未授予时请求）
-  /// 
+  ///
   /// 该方法会：
   /// 1. 检查所有必需权限的状态
   /// 2. 如果所有权限已授予，直接返回
@@ -78,17 +78,21 @@ class SplashPresenter {
       final storageStatus = await Permission.storage.status;
       final photosStatus = await Permission.photos.status;
       final videosStatus = await Permission.videos.status;
-      
+
       // 如果所有权限已授予，直接返回（避免重复弹窗）
       if (manageStorageStatus.isGranted ||
-          (storageStatus.isGranted && photosStatus.isGranted && videosStatus.isGranted)) {
-        logger.i('SplashPresenter: All permissions already granted, skipping requests');
+          (storageStatus.isGranted &&
+              photosStatus.isGranted &&
+              videosStatus.isGranted)) {
+        logger.i(
+            'SplashPresenter: All permissions already granted, skipping requests');
         return;
       }
-      
+
       // 只在首次启动（未决定状态）时请求权限
       // 已授予或永久拒绝的权限不再请求
-      if (manageStorageStatus.isDenied && !manageStorageStatus.isPermanentlyDenied) {
+      if (manageStorageStatus.isDenied &&
+          !manageStorageStatus.isPermanentlyDenied) {
         logger.i('SplashPresenter: Requesting MANAGE_EXTERNAL_STORAGE...');
         Permission.manageExternalStorage.request();
       }

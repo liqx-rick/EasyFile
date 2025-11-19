@@ -18,7 +18,8 @@ void main() {
           PathRiskLevel.forbidden,
         );
         expect(
-          PathSecurity.getPathRiskLevel('/storage/emulated/0/Android/data/com.android'),
+          PathSecurity.getPathRiskLevel(
+              '/storage/emulated/0/Android/data/com.android'),
           PathRiskLevel.forbidden,
         );
       });
@@ -40,11 +41,13 @@ void main() {
 
       test('should return danger for paths inside app data directories', () {
         expect(
-          PathSecurity.getPathRiskLevel('/storage/emulated/0/Android/data/com.example.app'),
+          PathSecurity.getPathRiskLevel(
+              '/storage/emulated/0/Android/data/com.example.app'),
           PathRiskLevel.danger,
         );
         expect(
-          PathSecurity.getPathRiskLevel('/storage/emulated/0/Android/obb/com.example.game'),
+          PathSecurity.getPathRiskLevel(
+              '/storage/emulated/0/Android/obb/com.example.game'),
           PathRiskLevel.danger,
         );
       });
@@ -116,8 +119,12 @@ void main() {
         );
         // Note: DCIM 本身就是warning level，但加上尾随斜杠后会被normalize
         // 测试应该验证normalize后的结果
-        final riskLevel = PathSecurity.getPathRiskLevel('/storage/emulated/0/DCIM/');
-        expect(riskLevel == PathRiskLevel.warning || riskLevel == PathRiskLevel.safe, true);
+        final riskLevel =
+            PathSecurity.getPathRiskLevel('/storage/emulated/0/DCIM/');
+        expect(
+            riskLevel == PathRiskLevel.warning ||
+                riskLevel == PathRiskLevel.safe,
+            true);
       });
 
       test('should handle Windows-style paths', () {
@@ -140,8 +147,10 @@ void main() {
       });
 
       test('should return false for danger paths', () {
-        expect(PathSecurity.isSafePath('/storage/emulated/0/Android/data'), false);
-        expect(PathSecurity.isSafePath('/storage/emulated/0/Android/obb'), false);
+        expect(
+            PathSecurity.isSafePath('/storage/emulated/0/Android/data'), false);
+        expect(
+            PathSecurity.isSafePath('/storage/emulated/0/Android/obb'), false);
       });
 
       test('should return false for forbidden paths', () {
@@ -152,13 +161,18 @@ void main() {
 
     group('isSystemCriticalPath', () {
       test('should return true for all protected paths', () {
-        expect(PathSecurity.isSystemCriticalPath('/storage/emulated/0/DCIM'), true);
-        expect(PathSecurity.isSystemCriticalPath('/storage/emulated/0/Android/data'), true);
+        expect(PathSecurity.isSystemCriticalPath('/storage/emulated/0/DCIM'),
+            true);
+        expect(
+            PathSecurity.isSystemCriticalPath(
+                '/storage/emulated/0/Android/data'),
+            true);
         expect(PathSecurity.isSystemCriticalPath('/system'), true);
       });
 
       test('should return false for normal user paths', () {
-        expect(PathSecurity.isSystemCriticalPath('/storage/emulated/0/MyFiles'), false);
+        expect(PathSecurity.isSystemCriticalPath('/storage/emulated/0/MyFiles'),
+            false);
       });
     });
 
@@ -293,7 +307,8 @@ void main() {
         // getDisplayName使用Platform.pathSeparator，在测试中需要考虑平台差异
         // 由于测试路径使用Unix风格'/'，但Windows上Platform.pathSeparator是'\\'
         // 我们测试一个更可靠的场景
-        final displayName = PathSecurity.getDisplayName('/storage/emulated/0/DCIM');
+        final displayName =
+            PathSecurity.getDisplayName('/storage/emulated/0/DCIM');
         expect(displayName.contains('DCIM'), true);
       });
 
@@ -313,7 +328,8 @@ void main() {
 
       test('should handle nested safe paths', () {
         expect(
-          PathSecurity.getPathRiskLevel('/storage/emulated/0/MyFolder/SubFolder/file.txt'),
+          PathSecurity.getPathRiskLevel(
+              '/storage/emulated/0/MyFolder/SubFolder/file.txt'),
           PathRiskLevel.safe,
         );
       });

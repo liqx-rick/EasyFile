@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
@@ -45,7 +46,16 @@ class ViewModeService extends ChangeNotifier {
   }
 
   /// 切换视图模式
-  void toggleViewMode() {
+  Future<void> toggleViewMode() async {
+    // 清理图片缓存，减少内存占用
+    try {
+      final imageCache = PaintingBinding.instance.imageCache;
+      imageCache.clear();
+      imageCache.clearLiveImages();
+    } catch (e) {
+      // 忽略清理错误
+    }
+
     _viewMode = _viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list;
     _saveViewMode();
     notifyListeners();

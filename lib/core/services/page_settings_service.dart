@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -8,8 +9,7 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 /// 页面设置管理服务
 /// 管理各页面的视图模式、排序、分组设置
 class PageSettingsService extends ChangeNotifier {
-  static final PageSettingsService _instance =
-      PageSettingsService._internal();
+  static final PageSettingsService _instance = PageSettingsService._internal();
   factory PageSettingsService() => _instance;
 
   PageSettingsService._internal();
@@ -112,6 +112,15 @@ class PageSettingsService extends ChangeNotifier {
 
   /// 切换页面的视图模式
   Future<void> toggleViewMode(PageId pageId) async {
+    // 清理图片缓存，减少内存占用
+    try {
+      final imageCache = PaintingBinding.instance.imageCache;
+      imageCache.clear();
+      imageCache.clearLiveImages();
+    } catch (e) {
+      // 忽略清理错误
+    }
+
     final current = getViewMode(pageId);
     final newMode = current == ViewMode.list ? ViewMode.grid : ViewMode.list;
     await setViewMode(pageId, newMode);

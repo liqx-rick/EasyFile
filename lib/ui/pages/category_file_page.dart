@@ -536,7 +536,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         final sortType = PageSettingsService().getSortType(pageId);
         final comparator = _getComparatorForSortType(sortType);
         cached.sort(comparator);
-        
+
         setState(() {
           _files = cached;
           _isLoading = false;
@@ -581,7 +581,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       final sortType = PageSettingsService().getSortType(pageId);
       final comparator = _getComparatorForSortType(sortType);
       files.sort(comparator);
-      
+
       setState(() {
         _files = files;
         _isLoading = false;
@@ -1227,7 +1227,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     // 根据可用宽度动态计算图标大小，确保不溢出
                     final availableWidth = constraints.maxWidth;
                     final iconSize = (availableWidth * 0.6).clamp(48.0, 80.0);
-                    
+
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1236,11 +1236,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         if (isImage)
                           ImageThumbnail(imagePath: file.path, size: iconSize)
                         else if (isVideo)
-                          RealVideoThumbnail(videoPath: file.path, size: iconSize)
+                          RealVideoThumbnail(
+                              videoPath: file.path, size: iconSize)
                         else if (isAudio)
                           AudioCoverWidget(audioPath: file.path, size: iconSize)
                         else if (isDocument)
-                          DocumentIconWidget(fileName: file.name, size: iconSize)
+                          DocumentIconWidget(
+                              fileName: file.name, size: iconSize)
                         else
                           Icon(
                             Icons.insert_drive_file,
@@ -1263,7 +1265,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                               const SizedBox(height: 2),
                               Text(
                                 FileUtils.formatFileSize(file.size),
-                                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                style: TextStyle(
+                                    fontSize: 10, color: Colors.grey[600]),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,
@@ -1391,7 +1394,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     : null,
                 onTap: () {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(pageId, SortType.modifiedTime);
+                  PageSettingsService()
+                      .setSortType(pageId, SortType.modifiedTime);
                   _applySorting();
                 },
               ),
@@ -1453,18 +1457,18 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             if (lastDot == -1 || lastDot == name.length - 1) return '';
             return name.substring(lastDot + 1).toLowerCase();
           }
-          
+
           final extA = getExt(a.name);
           final extB = getExt(b.name);
-          
+
           // 没有扩展名的排在后面
           if (extA.isEmpty && extB.isNotEmpty) return 1;
           if (extA.isNotEmpty && extB.isEmpty) return -1;
-          
+
           // 按扩展名排序
           final extCompare = extA.compareTo(extB);
           if (extCompare != 0) return extCompare;
-          
+
           // 扩展名相同时按名称排序
           return a.name.toLowerCase().compareTo(b.name.toLowerCase());
         };

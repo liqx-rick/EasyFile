@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/services/data_migration_service.dart';
 
 /// 数据迁移服务测试
-/// 
+///
 /// 由于DataMigrationService依赖多个外部服务（FavoritesLocalSource, QuickAccessLocalSource, FolderAnalyzer），
 /// 完整的单元测试需要mock框架支持。
-/// 
+///
 /// 此测试文件主要测试MigrationResult数据类和基本逻辑验证。
 /// 完整的集成测试应该在应用运行时手动进行。
 void main() {
@@ -112,7 +112,7 @@ void main() {
   });
 
   // 集成测试检查清单 (需手动测试):
-  // 
+  //
   // 1. 首次启动测试:
   //    - 准备一些Favorites数据
   //    - 清空QuickAccess数据

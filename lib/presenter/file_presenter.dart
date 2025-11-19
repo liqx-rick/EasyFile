@@ -694,7 +694,7 @@ class FilePresenter {
       final fileItems = <FileItem>[];
       int existingCount = 0;
       int missingCount = 0;
-      
+
       for (final favoriteFile in favoriteFiles) {
         try {
           final file = File(favoriteFile.filePath);
@@ -724,7 +724,8 @@ class FilePresenter {
       viewModel.setFiles(fileItems);
       viewModel.setLoading(false);
 
-      logger.i('Loaded ${fileItems.length} favorite files for display (existing: $existingCount, missing: $missingCount)');
+      logger.i(
+          'Loaded ${fileItems.length} favorite files for display (existing: $existingCount, missing: $missingCount)');
     } catch (e) {
       logger.e('Error loading favorite files: $e');
       viewModel.setLoading(false);
@@ -744,13 +745,13 @@ class FilePresenter {
         if (success) {
           viewModel.removeFavoriteFile(file.path);
           logger.i('File removed from favorites: ${file.path}');
-          
+
           // 如果当前在收藏Tab，立即重新加载收藏列表以更新UI
           if (isInFavoriteTab) {
             logger.d('Currently in favorite tab, reloading favorite files');
             await loadFavoriteFiles();
           }
-          
+
           return false;
         }
       } else {
@@ -763,13 +764,13 @@ class FilePresenter {
         if (success) {
           viewModel.addFavoriteFile(favoriteFile);
           logger.i('File added to favorites: ${file.path}');
-          
+
           // 如果当前在收藏Tab，立即重新加载收藏列表以更新UI
           if (isInFavoriteTab) {
             logger.d('Currently in favorite tab, reloading favorite files');
             await loadFavoriteFiles();
           }
-          
+
           return true;
         }
       }

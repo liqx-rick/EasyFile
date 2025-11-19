@@ -233,7 +233,7 @@ class _NewFolderNotificationDialogState
             // 文件夹列表
             Flexible(
               child: ListView.builder(
-                shrinkWrap: true,
+                // 使用 Flexible 自适应高度，无需 shrinkWrap
                 itemCount: widget.folders.length,
                 itemBuilder: (context, index) {
                   final folder = widget.folders[index];

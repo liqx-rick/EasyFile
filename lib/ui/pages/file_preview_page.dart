@@ -186,20 +186,38 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       child: InteractiveViewer(
         minScale: 0.5,
         maxScale: 4.0,
-        child: Image.file(
-          File(widget.file.path),
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            logger.e('Error loading image: $error');
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error, size: 48, color: Colors.red),
-                  SizedBox(height: 16),
-                  Text('无法加载图片'),
-                ],
-              ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 预览页面需要高质量图片，根据屏幕大小计算合理的缓存尺寸
+            final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+            final screenWidth = constraints.maxWidth;
+            final screenHeight = constraints.maxHeight;
+            final maxDimension =
+                screenWidth > screenHeight ? screenWidth : screenHeight;
+
+            // 限制在屏幕尺寸的 2 倍以内（考虑到 InteractiveViewer 的缩放）
+            final cacheSize =
+                (maxDimension * pixelRatio * 2).toInt().clamp(400, 2048);
+
+            return Image.file(
+              File(widget.file.path),
+              fit: BoxFit.contain,
+              cacheWidth: cacheSize,
+              cacheHeight: cacheSize,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (context, error, stackTrace) {
+                logger.e('Error loading image: $error');
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error, size: 48, color: Colors.red),
+                      SizedBox(height: 16),
+                      Text('无法加载图片'),
+                    ],
+                  ),
+                );
+              },
             );
           },
         ),

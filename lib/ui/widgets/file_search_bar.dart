@@ -163,7 +163,7 @@ class _FileSearchBarState extends State<FileSearchBar> {
                   // 历史记录列表
                   Flexible(
                     child: ListView.builder(
-                      shrinkWrap: true,
+                      // 使用 Flexible 自适应高度，无需 shrinkWrap
                       itemCount: _history.length,
                       itemBuilder: (context, index) {
                         final keyword = _history[index];

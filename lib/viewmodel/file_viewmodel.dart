@@ -155,7 +155,8 @@ class FileViewModel extends ChangeNotifier {
   /// 应用筛选条件
   void _applyFilters() {
     _files = _fileTypeAnalyzer.filterByCategory(_allFiles, _selectedCategory);
-    logger.d('After filters applied: ${_files.length} items (from ${_allFiles.length} total)');
+    logger.d(
+        'After filters applied: ${_files.length} items (from ${_allFiles.length} total)');
     notifyListeners();
   }
 
@@ -253,7 +254,8 @@ class FileViewModel extends ChangeNotifier {
   void setFavoriteFiles(List<FavoriteFileItem> favoriteFiles) {
     logger.d('Setting favorite files list: ${favoriteFiles.length} items');
     _favoriteFiles = _sortedFavoriteFiles(favoriteFiles);
-    logger.d('Favorite files after sorting: ${_favoriteFiles.map((f) => f.filePath).join(", ")}');
+    logger.d(
+        'Favorite files after sorting: ${_favoriteFiles.map((f) => f.filePath).join(", ")}');
     notifyListeners();
   }
 

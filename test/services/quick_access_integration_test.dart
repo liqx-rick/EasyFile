@@ -139,7 +139,7 @@ void main() {
       // 检查高优先级应用
       final highPriority = AppDirConfigs.highPriorityApps;
       expect(highPriority.every((app) => app.priority == 1), isTrue);
-      
+
       // 检查是否包含常用应用
       final appNames = AppDirConfigs.allApps.map((a) => a.name).toList();
       expect(appNames, contains('WhatsApp'));
@@ -149,7 +149,7 @@ void main() {
 
     test('应该为应用配置推荐正确别名', () {
       final service = AliasRecommendationService();
-      
+
       final whatsappAlias = service.recommendAlias(
         path: '/storage/emulated/0/WhatsApp/Media/WhatsApp Images',
         originalName: 'WhatsApp Images',

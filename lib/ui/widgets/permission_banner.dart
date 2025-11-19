@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// 权限提示横幅组件
-/// 
+///
 /// 在页面顶部显示非阻塞式的权限未授予提示，用户可以点击进行授权。
 /// 使用橙色背景和警告图标，显眼但不会阻塞主内容显示。
 class PermissionBanner extends StatelessWidget {
