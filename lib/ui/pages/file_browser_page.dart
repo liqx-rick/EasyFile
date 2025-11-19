@@ -29,6 +29,7 @@ import 'package:easyfile/ui/widgets/scan_progress_overlay.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 
 class FileBrowserPage extends StatefulWidget {
@@ -947,122 +948,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 获取收藏文件的日期分组
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in files) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(files, removeEmpty: false);
   }
 
   /// 获取浏览文件的日期分组
   Map<String, List<FileItem>> _groupBrowseFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in files) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(files, removeEmpty: false);
   }
 
   /// 获取最近文件的时间分组（基于访问时间）
   Map<String, List<FileItem>> _groupRecentFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-
-    for (final file in files) {
-      // 使用访问时间进行分组
-      final accessTime = file.accessedAt ?? file.modified;
-      final fileDate = DateTime(
-        accessTime.year,
-        accessTime.month,
-        accessTime.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByAccessDate(files, removeEmpty: false);
   }
 
   /// 构建收藏Tab的分组视图

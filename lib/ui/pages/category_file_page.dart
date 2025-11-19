@@ -19,6 +19,7 @@ import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
 
 /// 文档文件类型枚举
 enum DocumentFileType {
@@ -281,46 +282,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   // 按日期分组的文件列表
   Map<String, List<FileItem>> get _groupedFiles {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in _filteredFiles) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    // 移除空分组
-    groups.removeWhere((key, value) => value.isEmpty);
-
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(_filteredFiles);
   }
 
   @override
@@ -1100,7 +1062,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 构建按日期分组的视图
   Widget _buildGroupedView() {
     final groups = _groupedFiles;
-    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    final groupKeys = FileGroupingUtil.dateGroupKeys;
 
     // 构建 FileGroup 列表
     final fileGroups =

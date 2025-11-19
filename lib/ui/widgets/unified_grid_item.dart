@@ -134,17 +134,10 @@ class UnifiedGridItem extends StatelessWidget {
                 right: 4,
                 child: GestureDetector(
                   onTap: onFavoriteToggle,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.star,
-                      size: UnifiedViewConfig.favoriteIconSize,
-                      color: Colors.amber,
-                    ),
+                  child: Icon(
+                    Icons.star,
+                    size: UnifiedViewConfig.favoriteIconSize,
+                    color: Colors.amber,
                   ),
                 ),
               ),
