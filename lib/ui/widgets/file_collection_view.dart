@@ -680,12 +680,6 @@ class _SliverGroupHeader extends StatelessWidget {
                   ),
             ),
           ),
-          Text(
-            '${group.items.length}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
         ],
       ),
     );
