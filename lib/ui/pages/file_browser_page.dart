@@ -455,20 +455,86 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
-    Navigator.of(context)
-        .push<bool>(
-      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-    )
-        .then((refresh) async {
-      if (refresh == true) {
-        // 返回后主动刷新主界面文件列表
-        if (viewModel.currentTab == TabView.recent) {
-          await presenter.loadRecentFiles();
-        } else {
-          await presenter.loadFiles(viewModel.currentPath);
+
+    // 判断是否是图片或视频文件
+    final isImageOrVideo = _isImageFile(file.name) || _isVideoFile(file.name);
+
+    // 在收藏Tab中，如果是图片或视频，传递文件列表以支持滑动切换
+    if (viewModel.currentTab == TabView.favorite && isImageOrVideo) {
+      // 过滤出所有的图片和视频文件
+      final mediaFiles = viewModel.files
+          .where((f) => _isImageFile(f.name) || _isVideoFile(f.name))
+          .toList();
+
+      final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
+
+      Navigator.of(context)
+          .push<bool>(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            fileList: mediaFiles,
+            initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          ),
+        ),
+      )
+          .then((refresh) async {
+        if (refresh == true) {
+          await presenter.loadFavoriteFiles();
         }
-      }
-    });
+      });
+    } else {
+      // 其他情况使用单文件模式
+      Navigator.of(context)
+          .push<bool>(
+        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+      )
+          .then((refresh) async {
+        if (refresh == true) {
+          // 返回后主动刷新主界面文件列表
+          if (viewModel.currentTab == TabView.recent) {
+            await presenter.loadRecentFiles();
+          } else {
+            await presenter.loadFiles(viewModel.currentPath);
+          }
+        }
+      });
+    }
+  }
+
+  bool _isImageFile(String filename) {
+    final ext = filename.toLowerCase().split('.').last;
+    return [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+      'heic',
+      'heif'
+    ].contains(ext);
+  }
+
+  bool _isVideoFile(String filename) {
+    final ext = filename.toLowerCase().split('.').last;
+    return [
+      'mp4',
+      'avi',
+      'mov',
+      'wmv',
+      'flv',
+      'mkv',
+      'webm',
+      '3gp',
+      'rmvb',
+      'rm',
+      'asf'
+    ].contains(ext);
   }
 
   bool _canNavigateUp(String currentPath) {
@@ -672,47 +738,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         ),
       ),
     );
-  }
-
-  /// 获取文件浏览Tab的标签文本
-  String _getBrowseTabLabel(FileViewModel vm) {
-    if (vm.currentTab == TabView.browse && vm.currentPath.isNotEmpty) {
-      // 查找快速访问文件夹（包括子目录）
-      if (quickAccessViewModel != null) {
-        // 遍历所有快速访问文件夹，查找当前路径所属的根文件夹
-        for (final folder in quickAccessViewModel!.folders) {
-          // 检查当前路径是否等于或在该快速访问文件夹内
-          if (vm.currentPath == folder.path ||
-              vm.currentPath.startsWith(folder.path + Platform.pathSeparator)) {
-            // 限制名称长度为12个字符
-            final displayName = folder.displayName;
-            final maxLength = 12;
-            final truncatedName = displayName.length > maxLength
-                ? '${displayName.substring(0, 9)}...'
-                : displayName;
-            return truncatedName;
-          }
-        }
-      }
-
-      // 如果不在快速访问中，从路径中提取文件夹名
-      final pathSegments = vm.currentPath.split(Platform.pathSeparator);
-      final folderName = pathSegments.last.isEmpty
-          ? (pathSegments.length > 1
-              ? pathSegments[pathSegments.length - 2]
-              : '')
-          : pathSegments.last;
-
-      if (folderName.isNotEmpty) {
-        // 限制长度为12个字符
-        final maxLength = 12;
-        final truncatedName = folderName.length > maxLength
-            ? '${folderName.substring(0, 9)}...'
-            : folderName;
-        return truncatedName;
-      }
-    }
-    return '浏览';
   }
 
   /// 构建响应式Tab栏 - 根据可用宽度动态调整布局

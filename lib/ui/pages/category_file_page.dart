@@ -1202,9 +1202,28 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 预览文件
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-    );
+
+    // 对于图片和视频，传递文件列表以支持滑动切换
+    if (widget.categoryType == CategoryType.images ||
+        widget.categoryType == CategoryType.video) {
+      final fileList = _filteredFiles;
+      final initialIndex = fileList.indexWhere((f) => f.path == file.path);
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            fileList: fileList,
+            initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          ),
+        ),
+      );
+    } else {
+      // 其他类型保持单文件模式
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+      );
+    }
   }
 }
 
