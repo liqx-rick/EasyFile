@@ -1209,12 +1209,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   .withValues(alpha: 0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: 2, // 固定宽度，避免选中时溢出
-          ),
         ),
         child: Stack(
           children: [

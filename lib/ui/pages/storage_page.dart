@@ -698,12 +698,6 @@ class _StoragePageState extends State<StoragePage> {
                   .withValues(alpha: 0.3)
               : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: 2, // 固定宽度，避免选中时溢出
-          ),
         ),
         child: Stack(
           children: [
@@ -712,10 +706,9 @@ class _StoragePageState extends State<StoragePage> {
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // 文件图标或缩略图
+                    // 图标区域 - 在顶部
+                    const SizedBox(height: 4),
                     if (isImage)
                       ImageThumbnail(imagePath: file.path, size: 64)
                     else if (isVideo)
@@ -730,25 +723,35 @@ class _StoragePageState extends State<StoragePage> {
                         size: 48,
                         color: file.isDirectory ? Colors.amber : Colors.blue,
                       ),
-                    const SizedBox(height: 8),
-                    // 文件名
-                    Text(
-                      file.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+                    const Spacer(), // 弹性空间
+                    const SizedBox(height: 2), // 图标和文件名之间最小间距 2px
+                    // 文件名区域 - 固定在底部
+                    SizedBox(
+                      height: 40, // 增加高度以36到40，确保长文件名有足够空间
+                      child: Text(
+                        file.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, height: 1.2),
+                      ),
+                    ),
+                    const SizedBox(height: 2), // 文件名和文件大小之间固定间距 2px
+                    // 文件大小 - 固定在最底部
+                    SizedBox(
+                      height: 16,
+                      child: !file.isDirectory
+                          ? Text(
+                              FileUtils.formatFileSize(file.size),
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[600]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            )
+                          : const SizedBox.shrink(),
                     ),
                     const SizedBox(height: 4),
-                    // 文件大小
-                    if (!file.isDirectory)
-                      Text(
-                        FileUtils.formatFileSize(file.size),
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
                   ],
                 ),
               ),

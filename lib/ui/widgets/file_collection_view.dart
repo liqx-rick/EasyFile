@@ -363,7 +363,7 @@ class FileCollectionView extends StatelessWidget {
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.75, // 高度更大，为文件名和大小提供更多空间
+        childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
       ),
       itemCount: items!.length,
       itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
@@ -641,7 +641,7 @@ class _SliverGroupGrid extends StatelessWidget {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.75,
+          childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
