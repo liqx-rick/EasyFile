@@ -9,6 +9,7 @@ class FileItem {
   final int size;
   final DateTime modified;
   final DateTime? accessedAt; // 访问时间（可选，用于最近文件列表）
+  final DateTime? addedTime; // 加入收藏的时间（可选，用于收藏列表）
 
   FileItem({
     required this.name,
@@ -17,6 +18,7 @@ class FileItem {
     required this.size,
     required this.modified,
     this.accessedAt,
+    this.addedTime,
   });
 
   /// 获取文件类型分类

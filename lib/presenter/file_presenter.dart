@@ -705,6 +705,7 @@ class FilePresenter {
               size: file.lengthSync(),
               modified: file.lastModifiedSync(),
               isDirectory: false,
+              addedTime: favoriteFile.addedTime, // 传递收藏时间
             );
             fileItems.add(fileItem);
             existingCount++;

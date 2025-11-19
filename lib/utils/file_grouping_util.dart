@@ -53,6 +53,30 @@ class FileGroupingUtil {
     );
   }
 
+  /// 按加入收藏时间对文件进行分组（用于收藏文件列表）
+  ///
+  /// 分组规则：
+  /// - 今天：今天加入收藏的文件
+  /// - 昨天：昨天加入收藏的文件
+  /// - 本周：本周内加入收藏的文件（不包括今天和昨天）
+  /// - 本月：本月内加入收藏的文件（不包括本周）
+  /// - 更早：本月之前加入收藏的文件
+  ///
+  /// [files] 要分组的文件列表
+  /// [removeEmpty] 是否移除空分组，默认为 true
+  /// 返回按日期分组的文件 Map，key 为分组名称，value 为文件列表
+  static Map<String, List<FileItem>> groupByAddedDate(
+    List<FileItem> files, {
+    bool removeEmpty = true,
+  }) {
+    return _groupByDate(
+      files,
+      dateExtractor: (file) => file.addedTime ?? file.modified,
+      removeEmpty: removeEmpty,
+      includeMonth: true,
+    );
+  }
+
   /// 内部分组实现
   static Map<String, List<FileItem>> _groupByDate(
     List<FileItem> files, {

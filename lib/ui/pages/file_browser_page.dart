@@ -722,20 +722,26 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     double availableWidth,
   ) {
     final theme = Theme.of(context);
-    
+
     // 固定预留宽度（根据实际测量）
-    const recentTabWidth = 36.0;      // "最近" Tab固定宽度
-    const favoriteTabWidth = 36.0;     // "收藏" Tab固定宽度（不考虑括号和数字）
-    const dividerWidth = 5.0;          // 分隔符宽度（单个）
-    const toolbarWidth = 150.0;        // 工具栏宽度
-    const folderTabMinWidth = 10.0;    // 文件夹Tab最小预留宽度
-    const extraMargin = 10.0;          // 其余空格
-    
+    const recentTabWidth = 36.0; // "最近" Tab固定宽度
+    const favoriteTabWidth = 36.0; // "收藏" Tab固定宽度（不考虑括号和数字）
+    const dividerWidth = 5.0; // 分隔符宽度（单个）
+    const toolbarWidth = 150.0; // 工具栏宽度
+    const folderTabMinWidth = 10.0; // 文件夹Tab最小预留宽度
+    const extraMargin = 10.0; // 其余空格
+
     // 计算文件夹名Tab可用的最大宽度
     // 公式: 可用总宽度 - 最近(36) - 分隔符(5) - 收藏(36) - 分隔符(5) - 工具栏(150) - 文件夹最小(10) - 空格(10)
-    final fixedWidth = recentTabWidth + dividerWidth + favoriteTabWidth + dividerWidth + toolbarWidth + folderTabMinWidth + extraMargin;
+    final fixedWidth = recentTabWidth +
+        dividerWidth +
+        favoriteTabWidth +
+        dividerWidth +
+        toolbarWidth +
+        folderTabMinWidth +
+        extraMargin;
     final maxBrowseTabWidth = availableWidth - fixedWidth;
-    
+
     // 动态计算文件夹名的最大字符数
     int calculateMaxLength(double maxWidth) {
       // 每个字符大约占用8-10px（取决于字体），加上padding和图标
@@ -746,9 +752,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final maxChars = (availableForText / charWidth).floor();
       return maxChars.clamp(8, 20); // 最少8个字符，最多20个字符
     }
-    
+
     final dynamicMaxLength = calculateMaxLength(maxBrowseTabWidth);
-    
+
     return Row(
       children: [
         // Tab 切换 - 居左对齐
@@ -813,8 +819,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               vm.currentPath.isNotEmpty &&
               _canNavigateUp(vm.currentPath),
           onBackPressed: () => presenter.navigateUp(),
-          showSearchButton:
-              vm.currentTab == TabView.browse || vm.currentTab == TabView.favorite,
+          showSearchButton: vm.currentTab == TabView.browse ||
+              vm.currentTab == TabView.favorite,
           onSearchPressed: () {
             if (vm.currentTab == TabView.browse) {
               presenter.toggleSearch();
@@ -828,15 +834,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               });
             }
           },
-          isSearchMode:
-              vm.currentTab == TabView.browse ? vm.isSearchMode : _favoriteSearchMode,
-          showSortButton:
-              vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+          isSearchMode: vm.currentTab == TabView.browse
+              ? vm.isSearchMode
+              : _favoriteSearchMode,
+          showSortButton: vm.currentTab == TabView.favorite ||
+              vm.currentTab == TabView.browse,
           onSortPressed: vm.currentTab == TabView.favorite
               ? _showFavoriteSortOptions
               : _showBrowseSortOptions,
-          showGroupButton:
-              vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+          showGroupButton: vm.currentTab == TabView.favorite ||
+              vm.currentTab == TabView.browse,
           onGroupToggle: () => setState(() {}),
           iconSize: 18,
         ),
@@ -867,7 +874,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 如果不在快速访问中，从路径中提取文件夹名
       final pathSegments = vm.currentPath.split(Platform.pathSeparator);
       final folderName = pathSegments.last.isEmpty
-          ? (pathSegments.length > 1 ? pathSegments[pathSegments.length - 2] : '')
+          ? (pathSegments.length > 1
+              ? pathSegments[pathSegments.length - 2]
+              : '')
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
@@ -948,7 +957,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 获取收藏文件的日期分组
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
-    return FileGroupingUtil.groupByModifiedDate(files, removeEmpty: false);
+    return FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
   }
 
   /// 获取浏览文件的日期分组
@@ -1666,8 +1675,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               },
             ),
             // 批量操作底部工具栏
-            bottomNavigationBar:
-                _selectionController.isSelectionMode ? _buildSelectionBottomBar() : null,
+            bottomNavigationBar: _selectionController.isSelectionMode
+                ? _buildSelectionBottomBar()
+                : null,
           );
         },
       ),
