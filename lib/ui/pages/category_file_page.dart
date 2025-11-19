@@ -20,9 +20,17 @@ import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+
+/// 文件类型筛选接口
+abstract class FileTypeFilter {
+  String get label;
+  bool matches(String filename);
+  bool get isAll;
+}
 
 /// 文档文件类型枚举
-enum DocumentFileType {
+enum DocumentFileType implements FileTypeFilter {
   all('全部', ''),
   pdf('PDF', 'PDF'),
   word('Word', 'DOC, DOCX'),
@@ -34,6 +42,9 @@ enum DocumentFileType {
   final String label;
   final String extensions;
   const DocumentFileType(this.label, this.extensions);
+
+  @override
+  bool get isAll => this == DocumentFileType.all;
 
   IconData get icon {
     switch (this) {
@@ -54,6 +65,7 @@ enum DocumentFileType {
     }
   }
 
+  @override
   bool matches(String filename) {
     if (this == DocumentFileType.all) return true;
     final ext = filename.split('.').last.toUpperCase();
@@ -91,7 +103,7 @@ enum DocumentFileType {
 }
 
 /// 下载文件类型枚举
-enum DownloadFileType {
+enum DownloadFileType implements FileTypeFilter {
   all('全部', ''),
   installer('APK', 'APK, EXE, MSI'),
   archive('压缩包', 'ZIP, RAR, 7Z'),
@@ -103,6 +115,9 @@ enum DownloadFileType {
   final String label;
   final String extensions;
   const DownloadFileType(this.label, this.extensions);
+
+  @override
+  bool get isAll => this == DownloadFileType.all;
 
   IconData get icon {
     switch (this) {
@@ -123,6 +138,7 @@ enum DownloadFileType {
     }
   }
 
+  @override
   bool matches(String filename) {
     if (this == DownloadFileType.all) return true;
     final ext = filename.split('.').last.toUpperCase();
@@ -906,29 +922,50 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 构建文件类型筛选标签
   Widget _buildFileTypeChips() {
     if (widget.categoryType == CategoryType.documents) {
-      return _buildDocumentTypeChips();
+      return _buildGenericTypeChips<DocumentFileType>(
+        types: DocumentFileType.values,
+        currentFilter: _documentTypeFilter,
+        onFilterChanged: (type) {
+          setState(() {
+            _documentTypeFilter = type;
+          });
+          _saveFileTypeFilter();
+        },
+      );
     } else if (widget.categoryType == CategoryType.downloads) {
-      return _buildDownloadTypeChips();
+      return _buildGenericTypeChips<DownloadFileType>(
+        types: DownloadFileType.values,
+        currentFilter: _downloadTypeFilter,
+        onFilterChanged: (type) {
+          setState(() {
+            _downloadTypeFilter = type;
+          });
+          _saveFileTypeFilter();
+        },
+      );
     }
     return const SizedBox.shrink();
   }
 
-  /// 构建文档类型筛选标签
-  Widget _buildDocumentTypeChips() {
+  /// 通用的文件类型筛选标签构建方法
+  Widget _buildGenericTypeChips<T extends FileTypeFilter>({
+    required List<T> types,
+    required T currentFilter,
+    required ValueChanged<T> onFilterChanged,
+  }) {
     // 计算每个类型的文件数量
-    final typeCounts = <DocumentFileType, int>{};
-    for (final type in DocumentFileType.values) {
+    final typeCounts = <T, int>{};
+    for (final type in types) {
       final count = _files.where((file) => type.matches(file.name)).length;
       typeCounts[type] = count;
     }
 
-    // 过滤掉没有文件的类型（除了“全部”）
-    final availableTypes = DocumentFileType.values
-        .where((type) =>
-            type == DocumentFileType.all || (typeCounts[type] ?? 0) > 0)
+    // 过滤掉没有文件的类型（除了"全部"）
+    final availableTypes = types
+        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
         .toList();
 
-    // 如果只有“全部”一个选项，则不显示筛选栏
+    // 如果只有"全部"一个选项，则不显示筛选栏
     if (availableTypes.length <= 1) {
       return const SizedBox.shrink();
     }
@@ -946,12 +983,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         itemCount: availableTypes.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 2),
+        separatorBuilder: (context, index) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           final type = availableTypes[index];
-          final isSelected = _documentTypeFilter == type;
+          final isSelected = currentFilter == type;
 
           return FilterChip(
             label: Text(type.label, style: const TextStyle(fontSize: 14)),
@@ -973,10 +1010,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             ),
             onSelected: (selected) {
               if (selected) {
-                setState(() {
-                  _documentTypeFilter = type;
-                });
-                _saveFileTypeFilter();
+                onFilterChanged(type);
               }
             },
           );
@@ -1101,16 +1135,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   /// 格式化总大小
   String _formatTotalSize() {
-    final totalSize = _files.fold<int>(0, (sum, file) => sum + file.size);
-    if (totalSize < 1024) {
-      return '${totalSize}B';
-    } else if (totalSize < 1024 * 1024) {
-      return '${(totalSize / 1024).toStringAsFixed(1)}KB';
-    } else if (totalSize < 1024 * 1024 * 1024) {
-      return '${(totalSize / (1024 * 1024)).toStringAsFixed(1)}MB';
-    } else {
-      return '${(totalSize / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
-    }
+    return FileSizeFormatter.formatTotalSize(
+      _files.map((file) => file.size).toList(),
+    );
   }
 
   /// 显示排序选项

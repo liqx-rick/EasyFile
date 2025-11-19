@@ -9,6 +9,7 @@ import 'package:easyfile/ui/widgets/audio_player_widget.dart';
 import 'package:easyfile/ui/widgets/media_info_bar.dart';
 import 'package:easyfile/ui/widgets/detailed_media_info_view.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdfx/pdfx.dart';
 
@@ -377,7 +378,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             const SizedBox(height: 8),
 
             Text(
-              '${_formatFileSize(widget.file.size)} · ${_getDocumentTypeLabel()}',
+              '${FileSizeFormatter.formatBytesWithSpace(widget.file.size)} · ${_getDocumentTypeLabel()}',
               style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
 
@@ -429,7 +430,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                     _buildInfoRowWithIcon(
                       Icons.storage,
                       '大小',
-                      _formatFileSize(widget.file.size),
+                      FileSizeFormatter.formatBytesWithSpace(widget.file.size),
                     ),
                   ],
                 ),
@@ -649,7 +650,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           children: [
             _buildInfoRow('文件名', widget.file.name),
             _buildInfoRow('路径', widget.file.path),
-            _buildInfoRow('大小', _formatFileSize(widget.file.size)),
+            _buildInfoRow('大小', FileSizeFormatter.formatBytesWithSpace(widget.file.size)),
             _buildInfoRow('修改时间', _formatDateTime(widget.file.modified)),
             _buildInfoRow('类型', _getFileTypeDisplay()),
           ],
@@ -753,15 +754,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         ],
       ),
     );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   String _formatDateTime(DateTime dateTime) {
