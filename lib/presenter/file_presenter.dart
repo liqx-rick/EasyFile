@@ -705,6 +705,7 @@ class FilePresenter {
               size: file.lengthSync(),
               modified: file.lastModifiedSync(),
               isDirectory: false,
+              addedTime: favoriteFile.addedTime, // 传递收藏时间
             );
             fileItems.add(fileItem);
             existingCount++;
@@ -799,8 +800,11 @@ class FilePresenter {
   /// 刷新当前目录
   Future<void> refreshCurrent() async {
     logger.i('FilePresenter.refreshCurrent called');
-    // 如果是最近文件模式，刷新最近文件列表
-    if (viewModel.isRecentFilesMode) {
+    // 根据当前Tab类型刷新相应内容
+    if (viewModel.currentTab == TabView.favorite) {
+      logger.d('Refreshing favorite files');
+      await loadFavoriteFiles();
+    } else if (viewModel.isRecentFilesMode) {
       logger.d('Refreshing recent files');
       await loadRecentFiles();
     } else {

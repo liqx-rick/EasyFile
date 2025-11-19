@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/ui/widgets/unified_grid_item.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// Data model for a file group with collapsible support.
@@ -64,6 +66,7 @@ class FileGroup {
 /// ```
 class SelectionController {
   final ValueNotifier<Set<String>> _selected = ValueNotifier({});
+  final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
   /// Gets the notifier that emits when selection changes.
   ///
@@ -75,11 +78,24 @@ class SelectionController {
   /// ```
   ValueNotifier<Set<String>> get selectedNotifier => _selected;
 
+  /// Gets the notifier that emits when selection mode changes.
+  ///
+  /// Use this to listen to selection mode changes:
+  /// ```dart
+  /// controller.selectionModeNotifier.addListener(() {
+  ///   print('Selection mode: ${controller.isSelectionMode}');
+  /// });
+  /// ```
+  ValueNotifier<bool> get selectionModeNotifier => _isSelectionMode;
+
   /// Gets the current set of selected file paths.
   Set<String> get selected => _selected.value;
 
   /// Gets the count of currently selected items.
   int get count => _selected.value.length;
+
+  /// Gets whether selection mode is active.
+  bool get isSelectionMode => _isSelectionMode.value;
 
   /// Checks if a file path is currently selected.
   ///
@@ -94,10 +110,14 @@ class SelectionController {
   /// Adds a file path to the selection.
   ///
   /// If [path] is already selected, this has no effect.
+  /// Automatically enters selection mode if not already active.
   void select(String path) {
     final copy = Set<String>.from(_selected.value);
     copy.add(path);
     _selected.value = copy;
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
   }
 
   /// Removes a file path from the selection.
@@ -130,14 +150,18 @@ class SelectionController {
     _selected.value = Set<String>.from(paths);
   }
 
-  /// Clears all selections.
-  void clear() => _selected.value = {};
+  /// Clears all selections and exits selection mode.
+  void clear() {
+    _selected.value = {};
+    _isSelectionMode.value = false;
+  }
 
   /// Disposes the controller and releases resources.
   ///
   /// Must be called when the controller is no longer needed.
   void dispose() {
     _selected.dispose();
+    _isSelectionMode.dispose();
   }
 }
 
@@ -219,6 +243,9 @@ class FileCollectionView extends StatelessWidget {
   final bool Function(String)? isFavorite;
   final Future<bool> Function(FileItem)? onFavoriteToggle;
   final DateTime? Function(FileItem)? getAccessTime;
+  // 统一网格组件支持
+  final bool useUnifiedGridItem;
+  final UnifiedViewConfig? config;
 
   const FileCollectionView({
     super.key,
@@ -243,6 +270,8 @@ class FileCollectionView extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.getAccessTime,
+    this.useUnifiedGridItem = false,
+    this.config,
   }) : assert(items != null || groups != null,
             'Either items or groups must be provided');
 
@@ -339,7 +368,7 @@ class FileCollectionView extends StatelessWidget {
   /// - 考虑水平内边距和间距
   int _calculateCrossAxisCount(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    const minCardWidth = 110.0; // 最小卡片宽度
+    const minCardWidth = 100.0; // 最小卡片宽度（从110减少到100，允许更大的缩略图）
     const spacing = 8.0;
     final horizontalPadding = (padding as EdgeInsets?)?.horizontal ?? 16.0;
     final availableWidth = width - horizontalPadding;
@@ -361,8 +390,8 @@ class FileCollectionView extends StatelessWidget {
       addSemanticIndexes: false,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
         childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
       ),
       itemCount: items!.length,
@@ -399,11 +428,53 @@ class FileCollectionView extends StatelessWidget {
       return child;
     }
 
-    // 使用默认的 FileItemTile
-    // 只要传入了 selectionController 就表示处于选择模式（应该显示复选框）
-    final isSelectionMode = selectionController != null;
+    final isSelectionMode = selectionController?.isSelectionMode ?? false;
     final isSelected = selectionController?.contains(item.path) ?? false;
 
+    // 网格模式且启用统一组件
+    if (gridMode && useUnifiedGridItem) {
+      return UnifiedGridItem(
+        file: item,
+        isSelected: isSelected,
+        isFavorite: isFavorite?.call(item.path) ?? false,
+        showFavoriteButton: showFavoriteButton,
+        config: config,
+        onTap: () {
+          if (isSelectionMode) {
+            selectionController!.toggle(item.path);
+          } else {
+            if (onTap != null) onTap!(item);
+          }
+        },
+        onLongPress: () {
+          if (selectionController != null) {
+            // 框架内部完全处理选择逻辑
+            selectionController!.select(item.path);
+            // 可选：调用页面回调用于自定义行为（如显示提示）
+            if (onLongPress != null) onLongPress!(item);
+          } else {
+            if (onLongPress != null) onLongPress!(item);
+          }
+        },
+        onFavoriteToggle:
+            showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
+                ? () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final isFav = await onFavoriteToggle!(item);
+                    if (context.mounted) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  }
+                : null,
+      );
+    }
+
+    // 使用默认的 FileItemTile（列表模式或未启用统一组件）
     Widget child = FileItemTile(
       file: item,
       showFullPath: showFullPath,
@@ -436,9 +507,9 @@ class FileCollectionView extends StatelessWidget {
       },
       onLongPress: () {
         if (selectionController != null) {
-          if (!isSelectionMode) {
-            selectionController!.select(item.path);
-          }
+          // 框架内部完全处理选择逻辑
+          selectionController!.select(item.path);
+          // 可选：调用页面回调用于自定义行为（如显示提示）
           if (onLongPress != null) onLongPress!(item);
         } else {
           if (onLongPress != null) onLongPress!(item);
@@ -608,12 +679,6 @@ class _SliverGroupHeader extends StatelessWidget {
                   ),
             ),
           ),
-          Text(
-            '${group.items.length}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
         ],
       ),
     );
@@ -639,8 +704,8 @@ class _SliverGroupGrid extends StatelessWidget {
       sliver: SliverGrid(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
           childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
         ),
         delegate: SliverChildBuilderDelegate(

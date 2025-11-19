@@ -16,17 +16,22 @@ import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/image_thumbnail.dart';
-import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
-import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
-import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+
+/// 文件类型筛选接口
+abstract class FileTypeFilter {
+  String get label;
+  bool matches(String filename);
+  bool get isAll;
+}
 
 /// 文档文件类型枚举
-enum DocumentFileType {
+enum DocumentFileType implements FileTypeFilter {
   all('全部', ''),
   pdf('PDF', 'PDF'),
   word('Word', 'DOC, DOCX'),
@@ -38,6 +43,9 @@ enum DocumentFileType {
   final String label;
   final String extensions;
   const DocumentFileType(this.label, this.extensions);
+
+  @override
+  bool get isAll => this == DocumentFileType.all;
 
   IconData get icon {
     switch (this) {
@@ -58,6 +66,7 @@ enum DocumentFileType {
     }
   }
 
+  @override
   bool matches(String filename) {
     if (this == DocumentFileType.all) return true;
     final ext = filename.split('.').last.toUpperCase();
@@ -95,7 +104,7 @@ enum DocumentFileType {
 }
 
 /// 下载文件类型枚举
-enum DownloadFileType {
+enum DownloadFileType implements FileTypeFilter {
   all('全部', ''),
   installer('APK', 'APK, EXE, MSI'),
   archive('压缩包', 'ZIP, RAR, 7Z'),
@@ -107,6 +116,9 @@ enum DownloadFileType {
   final String label;
   final String extensions;
   const DownloadFileType(this.label, this.extensions);
+
+  @override
+  bool get isAll => this == DownloadFileType.all;
 
   IconData get icon {
     switch (this) {
@@ -127,6 +139,7 @@ enum DownloadFileType {
     }
   }
 
+  @override
   bool matches(String filename) {
     if (this == DownloadFileType.all) return true;
     final ext = filename.split('.').last.toUpperCase();
@@ -254,8 +267,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   DocumentFileType _documentTypeFilter = DocumentFileType.all;
   DownloadFileType _downloadTypeFilter = DownloadFileType.all;
 
-  // 批量操作相关
-  bool _isSelectionMode = false;
+  // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
 
   // 过滤后的文件列表（按搜索和文件类型筛选）
@@ -287,46 +299,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   // 按日期分组的文件列表
   Map<String, List<FileItem>> get _groupedFiles {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in _filteredFiles) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    // 移除空分组
-    groups.removeWhere((key, value) => value.isEmpty);
-
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(_filteredFiles);
   }
 
   @override
@@ -355,10 +328,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   void _onSelectionChanged() {
     setState(() {
       // SelectionController内部已经管理了选择状态，这里只需要触发界面更新
-      // 如果选择为空，退出选择模式
-      if (_selectionController.selected.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // 不再需要手动管理 _isSelectionMode
     });
   }
 
@@ -524,6 +494,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     return PageSettingsService().getGroupEnabled(pageId);
   }
 
+  /// 获取统一视图配置（包含简洁模式设置）
+  UnifiedViewConfig _getViewConfig(BuildContext context) {
+    final pageId = _getPageIdForCategory();
+    // 仅图片和视频分类使用简洁模式设置
+    final shouldUseCompactMode = (widget.categoryType == CategoryType.images ||
+            widget.categoryType == CategoryType.video) &&
+        _isGridView;
+
+    if (shouldUseCompactMode) {
+      // 从设置服务获取是否显示文件信息
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+      return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
+    }
+
+    return UnifiedViewConfig.fromContext(context);
+  }
+
   /// 加载分类文件
   Future<void> _loadCategoryFiles({bool forceRefresh = false}) async {
     // 如果是强制刷新，跳过缓存
@@ -612,12 +599,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         builder: (context, pageSettingsService, _) {
           return Scaffold(
             appBar: AppBar(
-              leading: _isSelectionMode
+              leading: _selectionController.isSelectionMode
                   ? IconButton(
                       icon: const Icon(Icons.close, size: 22),
                       onPressed: () {
                         setState(() {
-                          _isSelectionMode = false;
                           _selectionController.clear();
                         });
                       },
@@ -628,7 +614,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: '返回主页',
                     ),
-              title: _isSelectionMode
+              title: _selectionController.isSelectionMode
                   ? Text('已选择 ${_selectionController.count} 项')
                   : Row(
                       mainAxisSize: MainAxisSize.min,
@@ -655,7 +641,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   padding: const EdgeInsets.only(right: 4),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: _isSelectionMode
+                    children: _selectionController.isSelectionMode
                         ? [
                             // 多选模式下的操作按钮
                             // 全选/取消全选按钮
@@ -742,8 +728,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               ],
             ),
             // 批量操作底部工具栏
-            bottomNavigationBar:
-                _isSelectionMode ? _buildSelectionBottomBar() : null,
+            bottomNavigationBar: _selectionController.isSelectionMode
+                ? _buildSelectionBottomBar()
+                : null,
           );
         },
       ),
@@ -887,11 +874,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 : FileCollectionView(
                     items: _filteredFiles,
                     gridMode: _isGridView,
+                    config: _getViewConfig(context),
                     padding: _isGridView
                         ? const EdgeInsets.all(8)
                         : const EdgeInsets.symmetric(vertical: 0),
-                    selectionController:
-                        _isSelectionMode ? _selectionController : null,
+                    selectionController: _selectionController,
                     // 列表模式显示选项
                     showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
                     showFavoriteButton: true,
@@ -899,27 +886,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     onFavoriteToggle: (file) async {
                       return await widget.presenter.toggleFavoriteFile(file);
                     },
-                    // 网格模式使用自定义构建器
-                    itemBuilder: _isGridView
-                        ? (file) {
-                            final isSelected =
-                                _selectionController.contains(file.path);
-                            return _buildGridItem(file, isSelected);
-                          }
-                        : null, // 列表模式使用默认实现
+                    useUnifiedGridItem: true,
                     onTap: (file) {
-                      if (!_isSelectionMode) {
+                      if (!_selectionController.isSelectionMode) {
                         _previewFile(file);
                       }
                     },
-                    onLongPress: (file) {
-                      if (!_isSelectionMode) {
-                        setState(() {
-                          _isSelectionMode = true;
-                          _selectionController.select(file.path);
-                        });
-                      }
-                    },
+                    // onLongPress 不再需要，FileCollectionView 内部处理
                   ),
           ),
         ),
@@ -959,7 +932,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
           _selectionController.clear();
         });
       },
@@ -969,101 +941,50 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 构建文件类型筛选标签
   Widget _buildFileTypeChips() {
     if (widget.categoryType == CategoryType.documents) {
-      return _buildDocumentTypeChips();
+      return _buildGenericTypeChips<DocumentFileType>(
+        types: DocumentFileType.values,
+        currentFilter: _documentTypeFilter,
+        onFilterChanged: (type) {
+          setState(() {
+            _documentTypeFilter = type;
+          });
+          _saveFileTypeFilter();
+        },
+      );
     } else if (widget.categoryType == CategoryType.downloads) {
-      return _buildDownloadTypeChips();
+      return _buildGenericTypeChips<DownloadFileType>(
+        types: DownloadFileType.values,
+        currentFilter: _downloadTypeFilter,
+        onFilterChanged: (type) {
+          setState(() {
+            _downloadTypeFilter = type;
+          });
+          _saveFileTypeFilter();
+        },
+      );
     }
     return const SizedBox.shrink();
   }
 
-  /// 构建文档类型筛选标签
-  Widget _buildDocumentTypeChips() {
+  /// 通用的文件类型筛选标签构建方法
+  Widget _buildGenericTypeChips<T extends FileTypeFilter>({
+    required List<T> types,
+    required T currentFilter,
+    required ValueChanged<T> onFilterChanged,
+  }) {
     // 计算每个类型的文件数量
-    final typeCounts = <DocumentFileType, int>{};
-    for (final type in DocumentFileType.values) {
+    final typeCounts = <T, int>{};
+    for (final type in types) {
       final count = _files.where((file) => type.matches(file.name)).length;
       typeCounts[type] = count;
     }
 
-    // 过滤掉没有文件的类型（除了“全部”）
-    final availableTypes = DocumentFileType.values
-        .where((type) =>
-            type == DocumentFileType.all || (typeCounts[type] ?? 0) > 0)
+    // 过滤掉没有文件的类型（除了"全部"）
+    final availableTypes = types
+        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
         .toList();
 
-    // 如果只有“全部”一个选项，则不显示筛选栏
-    if (availableTypes.length <= 1) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
-          ),
-        ),
-      ),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: availableTypes.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 2),
-        itemBuilder: (context, index) {
-          final type = availableTypes[index];
-          final isSelected = _documentTypeFilter == type;
-
-          return FilterChip(
-            label: Text(type.label, style: const TextStyle(fontSize: 14)),
-            selected: isSelected,
-            showCheckmark: false,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-            labelPadding: EdgeInsets.zero,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-            selectedColor: categoryInfo.iconColor.withValues(alpha: 0.2),
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest,
-            side: BorderSide(
-              color: isSelected
-                  ? categoryInfo.iconColor
-                  : Theme.of(context).dividerColor,
-              width: isSelected ? 1.5 : 1,
-            ),
-            onSelected: (selected) {
-              if (selected) {
-                setState(() {
-                  _documentTypeFilter = type;
-                });
-                _saveFileTypeFilter();
-              }
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  /// 构建下载类型筛选标签
-  Widget _buildDownloadTypeChips() {
-    // 计算每个类型的文件数量
-    final typeCounts = <DownloadFileType, int>{};
-    for (final type in DownloadFileType.values) {
-      final count = _files.where((file) => type.matches(file.name)).length;
-      typeCounts[type] = count;
-    }
-
-    // 过滤掉没有文件的类型（除了“全部”）
-    final availableTypes = DownloadFileType.values
-        .where((type) =>
-            type == DownloadFileType.all || (typeCounts[type] ?? 0) > 0)
-        .toList();
-
-    // 如枟只有“全部”一个选项，则不显示筛选栏
+    // 如果只有"全部"一个选项，则不显示筛选栏
     if (availableTypes.length <= 1) {
       return const SizedBox.shrink();
     }
@@ -1086,7 +1007,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         separatorBuilder: (context, index) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           final type = availableTypes[index];
-          final isSelected = _downloadTypeFilter == type;
+          final isSelected = currentFilter == type;
 
           return FilterChip(
             label: Text(type.label, style: const TextStyle(fontSize: 14)),
@@ -1108,10 +1029,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             ),
             onSelected: (selected) {
               if (selected) {
-                setState(() {
-                  _downloadTypeFilter = type;
-                });
-                _saveFileTypeFilter();
+                onFilterChanged(type);
               }
             },
           );
@@ -1119,20 +1037,19 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       ),
     );
   }
-
   // 已迁移为 FileCollectionView 试点，旧的列表构建函数已移除。
 
   /// 构建按日期分组的视图
   Widget _buildGroupedView() {
     final groups = _groupedFiles;
-    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    final groupKeys = FileGroupingUtil.dateGroupKeys;
 
     // 构建 FileGroup 列表
     final fileGroups =
         groupKeys.where((key) => groups.containsKey(key)).map((key) {
       return FileGroup(
         key: key,
-        title: '$key（${groups[key]!.length} 个文件）',
+        title: '$key（${groups[key]!.length}个文件）',
         items: groups[key]!,
         isCollapsible: false, // 不使用折叠功能，保持与原来一致
       );
@@ -1141,10 +1058,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     return FileCollectionView(
       groups: fileGroups,
       gridMode: _isGridView,
+      config: _getViewConfig(context),
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       // 显示选项
       showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
       showFavoriteButton: true,
@@ -1152,209 +1070,21 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       onFavoriteToggle: (file) async {
         return await widget.presenter.toggleFavoriteFile(file);
       },
-      // 网格模式使用自定义构建器
-      itemBuilder: _isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, isSelected);
-            }
-          : null, // 列表模式使用默认实现
+      useUnifiedGridItem: true,
       onTap: (file) {
-        if (!_isSelectionMode) {
+        if (!_selectionController.isSelectionMode) {
           _previewFile(file);
         }
       },
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-          });
-        }
-      },
-    );
-  }
-
-  /// 构建网格项（简化版本，由 FileCollectionView 处理选中和点击）
-  /// 构建网格项（与主页保持一致）
-  Widget _buildGridItem(FileItem file, bool isSelected) {
-    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
-    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
-    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
-    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
-    final isFavorite = widget.viewModel.isFavoriteFile(file.path);
-
-    return InkWell(
-      key: ValueKey('${file.path}_$_isSelectionMode'), // 添加key确保状态变化时重建
-      onTap: () {
-        if (_isSelectionMode) {
-          _selectionController.toggle(file.path);
-        } else {
-          _previewFile(file);
-        }
-      },
-      onLongPress: () {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Stack(
-          children: [
-            // 主内容区域 - 图标在上，文件名和大小在下
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // 根据可用宽度动态计算图标大小，确保不溢出
-                    final availableWidth = constraints.maxWidth;
-                    final iconSize = (availableWidth * 0.6).clamp(48.0, 80.0);
-
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // 文件图标或缩略图 - 使用动态尺寸
-                        if (isImage)
-                          ImageThumbnail(imagePath: file.path, size: iconSize)
-                        else if (isVideo)
-                          RealVideoThumbnail(
-                              videoPath: file.path, size: iconSize)
-                        else if (isAudio)
-                          AudioCoverWidget(audioPath: file.path, size: iconSize)
-                        else if (isDocument)
-                          DocumentIconWidget(
-                              fileName: file.name, size: iconSize)
-                        else
-                          Icon(
-                            Icons.insert_drive_file,
-                            size: iconSize * 0.8,
-                            color: Colors.grey[400],
-                          ),
-                        const SizedBox(height: 8),
-                        // 文件名和文件大小 - 使用Expanded防止溢出
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Text(
-                                file.name,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                FileUtils.formatFileSize(file.size),
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.grey[600]),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            // 收藏按钮（右上角）- 仅在已收藏时显示
-            if (!file.isDirectory && isFavorite)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 与复选框使用相同的缩放比例
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final isFavoriteNew =
-                              await widget.presenter.toggleFavoriteFile(file);
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // 多选模式下的Checkbox（右下角）
-            if (_isSelectionMode)
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-                    child: Checkbox(
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        if (value == true) {
-                          _selectionController.select(file.path);
-                        } else {
-                          _selectionController.deselect(file.path);
-                        }
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      // onLongPress 不再需要，FileCollectionView 内部处理
     );
   }
 
   /// 格式化总大小
   String _formatTotalSize() {
-    final totalSize = _files.fold<int>(0, (sum, file) => sum + file.size);
-    if (totalSize < 1024) {
-      return '${totalSize}B';
-    } else if (totalSize < 1024 * 1024) {
-      return '${(totalSize / 1024).toStringAsFixed(1)}KB';
-    } else if (totalSize < 1024 * 1024 * 1024) {
-      return '${(totalSize / (1024 * 1024)).toStringAsFixed(1)}MB';
-    } else {
-      return '${(totalSize / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
-    }
+    return FileSizeFormatter.formatTotalSize(
+      _files.map((file) => file.size).toList(),
+    );
   }
 
   /// 显示排序选项
@@ -1472,9 +1202,28 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 预览文件
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-    );
+
+    // 对于图片和视频，传递文件列表以支持滑动切换
+    if (widget.categoryType == CategoryType.images ||
+        widget.categoryType == CategoryType.video) {
+      final fileList = _filteredFiles;
+      final initialIndex = fileList.indexWhere((f) => f.path == file.path);
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            fileList: fileList,
+            initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          ),
+        ),
+      );
+    } else {
+      // 其他类型保持单文件模式
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+      );
+    }
   }
 }
 

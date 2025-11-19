@@ -207,7 +207,10 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
                 child: Icon(
                   Icons.play_arrow,
                   color: Colors.white,
-                  size: widget.size * 0.3,
+                  // 根据尺寸调整播放图标大小
+                  // 小图(<=96px): 30%，大图(>96px): 18%，更精致小巧
+                  size:
+                      widget.size > 96 ? widget.size * 0.18 : widget.size * 0.3,
                 ),
               ),
             ),

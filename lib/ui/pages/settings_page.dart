@@ -15,6 +15,23 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _settingsService = PageSettingsService();
+  bool _gridShowFileInfo = true; // 默认值，会在initState中加载
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  /// 加载设置
+  Future<void> _loadSettings() async {
+    // 使用categoryImages作为参考页面来获取默认行为
+    final showInfo =
+        _settingsService.getGridShowFileInfo(PageId.categoryImages);
+    setState(() {
+      _gridShowFileInfo = showInfo;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildRestoreDefaultsTile(context),
           _buildCurrentSettingsTile(context),
           _buildRecommendedSettingsTile(context),
+          _buildGridFileInfoToggle(context),
 
           const Divider(height: 32),
 
@@ -255,6 +273,36 @@ class _SettingsPageState extends State<SettingsPage> {
       subtitle: const Text('了解我们为不同场景优化的设置'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _showRecommendedSettings(context),
+    );
+  }
+
+  /// 网格模式文件信息显示开关
+  Widget _buildGridFileInfoToggle(BuildContext context) {
+    return SwitchListTile(
+      secondary: const Icon(Icons.grid_view),
+      title: const Text('网格模式显示文件信息'),
+      subtitle: Text(
+        _gridShowFileInfo ? '当前显示文件名和大小' : '当前仅显示缩略图（图片/视频分类）',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      value: _gridShowFileInfo,
+      onChanged: (value) async {
+        setState(() {
+          _gridShowFileInfo = value;
+        });
+        await _settingsService.setGridShowFileInfo(value);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(value ? '已开启文件信息显示' : '已切换到简洁模式'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+      },
     );
   }
 

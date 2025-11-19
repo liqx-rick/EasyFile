@@ -11,15 +11,11 @@ import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/ui/widgets/image_thumbnail.dart';
-import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
-import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/utils/android_test_file_creator.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -40,8 +36,7 @@ class _StoragePageState extends State<StoragePage> {
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
 
-  // 批量操作相关状态
-  bool _isSelectionMode = false;
+  // 批量操作相关状态（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
 
@@ -95,45 +90,7 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 获取日期分组后的文件
   Map<String, List<FileItem>> _groupFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in files) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    // 移除空分组
-    groups.removeWhere((key, value) => value.isEmpty);
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(files);
   }
 
   /// 显示排序选项菜单
@@ -443,10 +400,7 @@ class _StoragePageState extends State<StoragePage> {
   void _onSelectionChanged() {
     setState(() {
       _selectedItems = _selectionController.selected;
-      // 如果选择为空，退出选择模式
-      if (_selectedItems.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // SelectionController 自动管理 isSelectionMode 状态
     });
   }
 
@@ -518,18 +472,12 @@ class _StoragePageState extends State<StoragePage> {
 
   void _onFileTap(FileItem file) {
     // 多选模式下，点击切换选中状态
-    if (_isSelectionMode) {
-      setState(() {
-        if (_selectedItems.contains(file.path)) {
-          _selectedItems.remove(file.path);
-          // 如果取消选择后没有选中项，退出多选模式
-          if (_selectedItems.isEmpty) {
-            _isSelectionMode = false;
-          }
-        } else {
-          _selectedItems.add(file.path);
-        }
-      });
+    if (_selectionController.isSelectionMode) {
+      if (_selectedItems.contains(file.path)) {
+        _selectionController.deselect(file.path);
+      } else {
+        _selectionController.select(file.path);
+      }
       return;
     }
 
@@ -601,7 +549,7 @@ class _StoragePageState extends State<StoragePage> {
         final count = entry.value.length;
         return FileGroup(
           key: entry.key,
-          title: '${entry.key} ($count 个文件)',
+          title: '${entry.key}（$count个文件）',
           items: entry.value,
         );
       }).toList();
@@ -612,28 +560,16 @@ class _StoragePageState extends State<StoragePage> {
         padding: isGridView
             ? const EdgeInsets.all(8)
             : const EdgeInsets.symmetric(vertical: 0),
-        selectionController: _isSelectionMode ? _selectionController : null,
+        selectionController: _selectionController,
         showFullPath: _isSearchMode && _searchInSubfolders,
         showFavoriteButton: true,
         isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
         onFavoriteToggle: (file) async {
           return await widget.presenter.toggleFavoriteFile(file);
         },
-        itemBuilder: isGridView
-            ? (file) {
-                final isSelected = _selectionController.contains(file.path);
-                return _buildGridItem(file, isSelected);
-              }
-            : null,
+        useUnifiedGridItem: true,
         onTap: (file) => _onFileTap(file),
-        onLongPress: (file) {
-          if (!_isSelectionMode) {
-            setState(() {
-              _isSelectionMode = true;
-              _selectionController.select(file.path);
-            });
-          }
-        },
+        // onLongPress 移除，由 FileCollectionView 内部处理
       );
     }
 
@@ -643,7 +579,7 @@ class _StoragePageState extends State<StoragePage> {
       padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       // 列表模式显示选项
       showFullPath: _isSearchMode && _searchInSubfolders,
       showFavoriteButton: true,
@@ -651,229 +587,21 @@ class _StoragePageState extends State<StoragePage> {
       onFavoriteToggle: (file) async {
         return await widget.presenter.toggleFavoriteFile(file);
       },
-      // 网格模式使用自定义构建器
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, isSelected);
-            }
-          : null, // 列表模式使用默认实现
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file),
-      onLongPress: (file) {
-        // 长按进入多选模式并选中当前项
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectedItems.add(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
-  }
-
-  /// 构建网格项（用于网格视图）
-  Widget _buildGridItem(FileItem file, bool isSelected) {
-    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
-    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
-    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
-    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
-    final isFavorite = widget.viewModel.isFavoriteFile(file.path);
-
-    return InkWell(
-      onTap: () => _onFileTap(file),
-      onLongPress: () {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Stack(
-          children: [
-            // 主内容区域 - 图标在上，文件名和大小在下
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  children: [
-                    // 图标区域 - 在顶部
-                    const SizedBox(height: 4),
-                    if (isImage)
-                      ImageThumbnail(imagePath: file.path, size: 64)
-                    else if (isVideo)
-                      RealVideoThumbnail(videoPath: file.path, size: 64)
-                    else if (isAudio)
-                      AudioCoverWidget(audioPath: file.path, size: 64)
-                    else if (isDocument)
-                      DocumentIconWidget(fileName: file.name, size: 64)
-                    else
-                      Icon(
-                        file.isDirectory ? Icons.folder : _getFileIcon(file),
-                        size: 48,
-                        color: file.isDirectory ? Colors.amber : Colors.blue,
-                      ),
-                    const Spacer(), // 弹性空间
-                    const SizedBox(height: 2), // 图标和文件名之间最小间距 2px
-                    // 文件名区域 - 固定在底部
-                    SizedBox(
-                      height: 40, // 增加高度以36到40，确保长文件名有足够空间
-                      child: Text(
-                        file.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, height: 1.2),
-                      ),
-                    ),
-                    const SizedBox(height: 2), // 文件名和文件大小之间固定间距 2px
-                    // 文件大小 - 固定在最底部
-                    SizedBox(
-                      height: 16,
-                      child: !file.isDirectory
-                          ? Text(
-                              FileUtils.formatFileSize(file.size),
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[600]),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-            // 收藏按钮（右上角）- 仅在已收藏时显示
-            if (!file.isDirectory && isFavorite)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 与复选框使用相同的缩放比例
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final isFavoriteNew =
-                              await widget.presenter.toggleFavoriteFile(file);
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // 多选模式下的Checkbox（右下角）
-            if (_isSelectionMode)
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-                    child: Checkbox(
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        if (value == true) {
-                          _selectionController.select(file.path);
-                        } else {
-                          _selectionController.deselect(file.path);
-                        }
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 获取文件图标
-  IconData _getFileIcon(FileItem file) {
-    final ext = file.name.split('.').last.toLowerCase();
-    switch (ext) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'xls':
-      case 'xlsx':
-        return Icons.table_chart;
-      case 'ppt':
-      case 'pptx':
-        return Icons.slideshow;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mkv':
-      case 'mov':
-        return Icons.video_file;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Icons.audio_file;
-      case 'zip':
-      case 'rar':
-      case '7z':
-        return Icons.archive;
-      case 'txt':
-        return Icons.text_snippet;
-      default:
-        return Icons.insert_drive_file;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _isSelectionMode
+        leading: _selectionController.isSelectionMode
             ? IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () {
                   setState(() {
-                    _isSelectionMode = false;
                     _selectionController.clear();
                   });
                 },
@@ -889,7 +617,7 @@ class _StoragePageState extends State<StoragePage> {
               ),
         leadingWidth: 48,
         titleSpacing: 4,
-        title: _isSelectionMode
+        title: _selectionController.isSelectionMode
             ? Text('已选中 ${_selectedItems.length} 项')
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -926,7 +654,7 @@ class _StoragePageState extends State<StoragePage> {
                     ),
                 ],
               ),
-        actions: _isSelectionMode
+        actions: _selectionController.isSelectionMode
             ? [
                 // 全选按钮
                 IconButton(
@@ -1140,7 +868,9 @@ class _StoragePageState extends State<StoragePage> {
         },
       ),
       // 批量操作底部工具栏
-      bottomNavigationBar: _isSelectionMode ? _buildSelectionBottomBar() : null,
+      bottomNavigationBar: _selectionController.isSelectionMode
+          ? _buildSelectionBottomBar()
+          : null,
     );
   }
 
@@ -1170,8 +900,7 @@ class _StoragePageState extends State<StoragePage> {
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
+          _selectionController.clear();
         });
       },
     );

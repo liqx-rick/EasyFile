@@ -28,14 +28,8 @@ import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/scan_progress_overlay.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
-
-import 'package:easyfile/ui/widgets/image_thumbnail.dart';
-import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
-import 'package:easyfile/ui/widgets/document_icon_widget.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/utils/time_formatter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 
 class FileBrowserPage extends StatefulWidget {
@@ -60,8 +54,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   PermissionState _permissionState = PermissionState.unknown;
   bool _isFirstScan = false;
 
-  // 批量操作相关状态
-  bool _isSelectionMode = false;
+  // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
 
@@ -130,10 +123,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void _onSelectionChanged() {
     setState(() {
       _selectedItems = _selectionController.selected;
-      // 如果选择为空，退出选择模式
-      if (_selectedItems.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // SelectionController 自动管理 isSelectionMode 状态
     });
   }
 
@@ -465,20 +455,86 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
-    Navigator.of(context)
-        .push<bool>(
-      MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-    )
-        .then((refresh) async {
-      if (refresh == true) {
-        // 返回后主动刷新主界面文件列表
-        if (viewModel.currentTab == TabView.recent) {
-          await presenter.loadRecentFiles();
-        } else {
-          await presenter.loadFiles(viewModel.currentPath);
+
+    // 判断是否是图片或视频文件
+    final isImageOrVideo = _isImageFile(file.name) || _isVideoFile(file.name);
+
+    // 在收藏Tab中，如果是图片或视频，传递文件列表以支持滑动切换
+    if (viewModel.currentTab == TabView.favorite && isImageOrVideo) {
+      // 过滤出所有的图片和视频文件
+      final mediaFiles = viewModel.files
+          .where((f) => _isImageFile(f.name) || _isVideoFile(f.name))
+          .toList();
+
+      final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
+
+      Navigator.of(context)
+          .push<bool>(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            fileList: mediaFiles,
+            initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          ),
+        ),
+      )
+          .then((refresh) async {
+        if (refresh == true) {
+          await presenter.loadFavoriteFiles();
         }
-      }
-    });
+      });
+    } else {
+      // 其他情况使用单文件模式
+      Navigator.of(context)
+          .push<bool>(
+        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+      )
+          .then((refresh) async {
+        if (refresh == true) {
+          // 返回后主动刷新主界面文件列表
+          if (viewModel.currentTab == TabView.recent) {
+            await presenter.loadRecentFiles();
+          } else {
+            await presenter.loadFiles(viewModel.currentPath);
+          }
+        }
+      });
+    }
+  }
+
+  bool _isImageFile(String filename) {
+    final ext = filename.toLowerCase().split('.').last;
+    return [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+      'heic',
+      'heif'
+    ].contains(ext);
+  }
+
+  bool _isVideoFile(String filename) {
+    final ext = filename.toLowerCase().split('.').last;
+    return [
+      'mp4',
+      'avi',
+      'mov',
+      'wmv',
+      'flv',
+      'mkv',
+      'webm',
+      '3gp',
+      'rmvb',
+      'rm',
+      'asf'
+    ].contains(ext);
   }
 
   bool _canNavigateUp(String currentPath) {
@@ -684,47 +740,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
-  /// 获取文件浏览Tab的标签文本
-  String _getBrowseTabLabel(FileViewModel vm) {
-    if (vm.currentTab == TabView.browse && vm.currentPath.isNotEmpty) {
-      // 查找快速访问文件夹（包括子目录）
-      if (quickAccessViewModel != null) {
-        // 遍历所有快速访问文件夹，查找当前路径所属的根文件夹
-        for (final folder in quickAccessViewModel!.folders) {
-          // 检查当前路径是否等于或在该快速访问文件夹内
-          if (vm.currentPath == folder.path ||
-              vm.currentPath.startsWith(folder.path + Platform.pathSeparator)) {
-            // 限制名称长度为12个字符
-            final displayName = folder.displayName;
-            final maxLength = 12;
-            final truncatedName = displayName.length > maxLength
-                ? '${displayName.substring(0, 9)}...'
-                : displayName;
-            return truncatedName;
-          }
-        }
-      }
-
-      // 如果不在快速访问中，从路径中提取文件夹名
-      final pathSegments = vm.currentPath.split(Platform.pathSeparator);
-      final folderName = pathSegments.last.isEmpty
-          ? (pathSegments.length > 1
-              ? pathSegments[pathSegments.length - 2]
-              : '')
-          : pathSegments.last;
-
-      if (folderName.isNotEmpty) {
-        // 限制长度为12个字符
-        final maxLength = 12;
-        final truncatedName = folderName.length > maxLength
-            ? '${folderName.substring(0, 9)}...'
-            : folderName;
-        return truncatedName;
-      }
-    }
-    return '浏览';
-  }
-
   /// 构建响应式Tab栏 - 根据可用宽度动态调整布局
   Widget _buildResponsiveTabBar(
     BuildContext context,
@@ -732,20 +747,26 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     double availableWidth,
   ) {
     final theme = Theme.of(context);
-    
+
     // 固定预留宽度（根据实际测量）
-    const recentTabWidth = 36.0;      // "最近" Tab固定宽度
-    const favoriteTabWidth = 36.0;     // "收藏" Tab固定宽度（不考虑括号和数字）
-    const dividerWidth = 5.0;          // 分隔符宽度（单个）
-    const toolbarWidth = 150.0;        // 工具栏宽度
-    const folderTabMinWidth = 10.0;    // 文件夹Tab最小预留宽度
-    const extraMargin = 10.0;          // 其余空格
-    
+    const recentTabWidth = 36.0; // "最近" Tab固定宽度
+    const favoriteTabWidth = 36.0; // "收藏" Tab固定宽度（不考虑括号和数字）
+    const dividerWidth = 5.0; // 分隔符宽度（单个）
+    const toolbarWidth = 150.0; // 工具栏宽度
+    const folderTabMinWidth = 10.0; // 文件夹Tab最小预留宽度
+    const extraMargin = 10.0; // 其余空格
+
     // 计算文件夹名Tab可用的最大宽度
     // 公式: 可用总宽度 - 最近(36) - 分隔符(5) - 收藏(36) - 分隔符(5) - 工具栏(150) - 文件夹最小(10) - 空格(10)
-    final fixedWidth = recentTabWidth + dividerWidth + favoriteTabWidth + dividerWidth + toolbarWidth + folderTabMinWidth + extraMargin;
+    final fixedWidth = recentTabWidth +
+        dividerWidth +
+        favoriteTabWidth +
+        dividerWidth +
+        toolbarWidth +
+        folderTabMinWidth +
+        extraMargin;
     final maxBrowseTabWidth = availableWidth - fixedWidth;
-    
+
     // 动态计算文件夹名的最大字符数
     int calculateMaxLength(double maxWidth) {
       // 每个字符大约占用8-10px（取决于字体），加上padding和图标
@@ -756,9 +777,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final maxChars = (availableForText / charWidth).floor();
       return maxChars.clamp(8, 20); // 最少8个字符，最多20个字符
     }
-    
+
     final dynamicMaxLength = calculateMaxLength(maxBrowseTabWidth);
-    
+
     return Row(
       children: [
         // Tab 切换 - 居左对齐
@@ -823,8 +844,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               vm.currentPath.isNotEmpty &&
               _canNavigateUp(vm.currentPath),
           onBackPressed: () => presenter.navigateUp(),
-          showSearchButton:
-              vm.currentTab == TabView.browse || vm.currentTab == TabView.favorite,
+          showSearchButton: vm.currentTab == TabView.browse ||
+              vm.currentTab == TabView.favorite,
           onSearchPressed: () {
             if (vm.currentTab == TabView.browse) {
               presenter.toggleSearch();
@@ -838,15 +859,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               });
             }
           },
-          isSearchMode:
-              vm.currentTab == TabView.browse ? vm.isSearchMode : _favoriteSearchMode,
-          showSortButton:
-              vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+          isSearchMode: vm.currentTab == TabView.browse
+              ? vm.isSearchMode
+              : _favoriteSearchMode,
+          showSortButton: vm.currentTab == TabView.favorite ||
+              vm.currentTab == TabView.browse,
           onSortPressed: vm.currentTab == TabView.favorite
               ? _showFavoriteSortOptions
               : _showBrowseSortOptions,
-          showGroupButton:
-              vm.currentTab == TabView.favorite || vm.currentTab == TabView.browse,
+          showGroupButton: vm.currentTab == TabView.favorite ||
+              vm.currentTab == TabView.browse,
           onGroupToggle: () => setState(() {}),
           iconSize: 18,
         ),
@@ -877,7 +899,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 如果不在快速访问中，从路径中提取文件夹名
       final pathSegments = vm.currentPath.split(Platform.pathSeparator);
       final folderName = pathSegments.last.isEmpty
-          ? (pathSegments.length > 1 ? pathSegments[pathSegments.length - 2] : '')
+          ? (pathSegments.length > 1
+              ? pathSegments[pathSegments.length - 2]
+              : '')
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
@@ -958,122 +982,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 获取收藏文件的日期分组
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in files) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
   }
 
   /// 获取浏览文件的日期分组
   Map<String, List<FileItem>> _groupBrowseFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '本月': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-    final thisMonthStart = DateTime(now.year, now.month, 1);
-
-    for (final file in files) {
-      final fileDate = DateTime(
-        file.modified.year,
-        file.modified.month,
-        file.modified.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else if (fileDate.isAfter(thisMonthStart) ||
-          fileDate.isAtSameMomentAs(thisMonthStart)) {
-        groups['本月']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByModifiedDate(files, removeEmpty: false);
   }
 
   /// 获取最近文件的时间分组（基于访问时间）
   Map<String, List<FileItem>> _groupRecentFilesByDate(List<FileItem> files) {
-    final Map<String, List<FileItem>> groups = {
-      '今天': [],
-      '昨天': [],
-      '本周': [],
-      '更早': [],
-    };
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
-
-    for (final file in files) {
-      // 使用访问时间进行分组
-      final accessTime = file.accessedAt ?? file.modified;
-      final fileDate = DateTime(
-        accessTime.year,
-        accessTime.month,
-        accessTime.day,
-      );
-
-      if (fileDate.isAtSameMomentAs(today)) {
-        groups['今天']!.add(file);
-      } else if (fileDate.isAtSameMomentAs(yesterday)) {
-        groups['昨天']!.add(file);
-      } else if (fileDate.isAfter(thisWeekStart) ||
-          fileDate.isAtSameMomentAs(thisWeekStart)) {
-        groups['本周']!.add(file);
-      } else {
-        groups['更早']!.add(file);
-      }
-    }
-
-    return groups;
+    return FileGroupingUtil.groupByAccessDate(files, removeEmpty: false);
   }
 
   /// 构建收藏Tab的分组视图
@@ -1089,7 +1008,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1101,28 +1020,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       showFullPath: _favoriteSearchMode,
       showFavoriteButton: true,
       isFavorite: (path) => viewModel.isFavoriteFile(path),
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, viewModel, isSelected);
-            }
-          : null,
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1139,7 +1046,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1151,28 +1058,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       showFullPath: viewModel.isSearchMode,
       showFavoriteButton: true,
       isFavorite: (path) => viewModel.isFavoriteFile(path),
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, viewModel, isSelected);
-            }
-          : null,
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1189,7 +1084,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1201,7 +1096,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
+      showFullPath: false,
       showAccessTime: true,
       getAccessTime: (file) => file.accessedAt,
       showFavoriteButton: true,
@@ -1209,21 +1105,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, viewModel, isSelected);
-            }
-          : null,
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1470,7 +1354,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       // 列表模式显示选项
       showFullPath: vm.isSearchMode ||
           (vm.currentTab == TabView.favorite && _favoriteSearchMode),
@@ -1481,190 +1365,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onFavoriteToggle: (file) async {
         return await presenter.toggleFavoriteFile(file);
       },
-      // 网格模式使用自定义构建器
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, vm, isSelected);
-            }
-          : null, // 列表模式使用默认实现
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, vm),
-      onLongPress: (file) {
-        // 长按进入多选模式并选中当前项
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
-  /// 构建网格项（用于网格视图）
-  Widget _buildGridItem(FileItem file, FileViewModel vm, bool isSelected) {
-    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
-    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
-    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
-    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
-    final isFavorite = vm.isFavoriteFile(file.path);
-
-    return InkWell(
-      onTap: () => _onFileTap(file, vm),
-      onLongPress: () {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Stack(
-          children: [
-            // 主内容区域 - 图标在上，文件名和大小在下
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 4),
-                    // 文件图标或缩略图
-                    if (isImage)
-                      ImageThumbnail(imagePath: file.path, size: 64)
-                    else if (isVideo)
-                      RealVideoThumbnail(videoPath: file.path, size: 64)
-                    else if (isAudio)
-                      AudioCoverWidget(audioPath: file.path, size: 64)
-                    else if (isDocument)
-                      DocumentIconWidget(fileName: file.name, size: 64)
-                    else
-                      Icon(
-                        file.isDirectory
-                            ? Icons.folder
-                            : Icons.insert_drive_file,
-                        size: 48,
-                        color: file.isDirectory ? Colors.amber : Colors.blue,
-                      ),
-                    const SizedBox(height: 6),
-                    // 文件名
-                    Flexible(
-                      child: Text(
-                        file.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    // 文件大小或访问时间
-                    if (vm.currentTab == TabView.recent &&
-                        file.accessedAt != null)
-                      Text(
-                        TimeFormatter.formatRelativeTime(file.accessedAt!),
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    else if (!file.isDirectory)
-                      Text(
-                        FileUtils.formatFileSize(file.size),
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-            // 收藏按钮（右上角）- 仅在已收藏时显示
-            if (!file.isDirectory && isFavorite)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 与复选框使用相同的缩放比例
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final isFavoriteNew =
-                              await presenter.toggleFavoriteFile(file);
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // 多选模式下的Checkbox（右下角）
-            if (_isSelectionMode)
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-                    child: Checkbox(
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        if (value == true) {
-                          _selectionController.select(file.path);
-                        } else {
-                          _selectionController.deselect(file.path);
-                        }
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建网格项（用于网格视图）
-  /// 获取文件图标
   /// 处理文件点击
   void _onFileTap(FileItem file, FileViewModel vm) {
     // 多选模式下的点击由FileCollectionView处理，这里只处理导航
-    if (_isSelectionMode) {
+    if (_selectionController.isSelectionMode) {
       return; // FileCollectionView已处理选择逻辑
     }
 
@@ -1715,18 +1425,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
           return Scaffold(
             appBar: AppBar(
-              leading: _isSelectionMode
+              leading: _selectionController.isSelectionMode
                   ? IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () {
                         setState(() {
-                          _isSelectionMode = false;
                           _selectionController.clear();
                         });
                       },
                     )
                   : null,
-              title: _isSelectionMode
+              title: _selectionController.isSelectionMode
                   ? Text('已选中 ${_selectedItems.length} 项')
                   : Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1740,7 +1449,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         const Text('EasyFile'),
                       ],
                     ),
-              actions: _isSelectionMode
+              actions: _selectionController.isSelectionMode
                   ? [
                       // 全选按钮
                       IconButton(
@@ -1991,8 +1700,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               },
             ),
             // 批量操作底部工具栏
-            bottomNavigationBar:
-                _isSelectionMode ? _buildSelectionBottomBar() : null,
+            bottomNavigationBar: _selectionController.isSelectionMode
+                ? _buildSelectionBottomBar()
+                : null,
           );
         },
       ),
@@ -2031,8 +1741,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
+          _selectionController.clear();
         });
       },
     );

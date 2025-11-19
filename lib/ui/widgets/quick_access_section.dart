@@ -9,6 +9,7 @@ import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:easyfile/ui/pages/storage_page.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
 
 /// 快速访问区域组件（可展开/折叠）
 ///
@@ -740,7 +741,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '${_formatStorageSize(_freeSpace!)} 可用',
+                  '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用',
                   style: const TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
@@ -753,7 +754,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '共 ${_formatStorageSize(_totalSpace!)}',
+                  '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
                   style: TextStyle(
                     fontSize: 8,
                     color: Theme.of(
@@ -852,7 +853,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _formatStorageSize(_freeSpace!),
+                              FileSizeFormatter.formatStorageSize(_freeSpace!),
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -876,7 +877,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '共 ${_formatStorageSize(_totalSpace!)}',
+                    '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
                     style: TextStyle(
                       fontSize: 10,
                       color: Theme.of(
@@ -912,21 +913,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       // 大于30% - 充足（绿色）
       return Colors.green;
     }
-  }
-
-  String _formatStorageSize(double? value) {
-    if (value == null || value == 0) {
-      return '加载中';
-    }
-
-    // DiskSpacePlus返回MB
-    final sizeInMB = value;
-    final sizeInGB = sizeInMB / 1024;
-
-    if (sizeInGB < 1) {
-      return '${sizeInMB.toStringAsFixed(0)} MB';
-    }
-    return '${sizeInGB.toStringAsFixed(1)} GB';
   }
 
   void _navigateToFolder(QuickAccessFolder folder) {
