@@ -18,13 +18,21 @@ class UnifiedViewConfig {
   // 网格视图配置
   // ============================================================================
 
-  /// 网格视图缩略图大小（响应式：72-96px）
+  /// 网格视图缩略图大小（响应式：72-96px，简洁模式：110-140px）
   ///
   /// 根据屏幕宽度动态计算：
-  /// - 小屏(<360): 72px
-  /// - 中屏(360-480): 80px
-  /// - 大屏(>480): 96px
+  /// - 普通模式：
+  ///   - 小屏(<360): 72px
+  ///   - 中屏(360-480): 80px
+  ///   - 大屏(>480): 96px
+  /// - 简洁模式（无文件信息）：
+  ///   - 小屏(<360): 110px
+  ///   - 中屏(360-480): 120px
+  ///   - 大屏(>480): 140px
   final double gridThumbnailSize;
+
+  /// 是否为简洁模式（不显示文件名和大小）
+  final bool compactMode;
 
   /// 网格视图内边距
   static const double gridPadding = 8.0;
@@ -94,25 +102,42 @@ class UnifiedViewConfig {
   const UnifiedViewConfig._({
     required this.gridThumbnailSize,
     required this.listThumbnailSize,
+    required this.compactMode,
   });
 
   /// 从 BuildContext 创建响应式配置
   ///
   /// 根据屏幕宽度自动计算合适的缩略图大小。
-  factory UnifiedViewConfig.fromContext(BuildContext context) {
+  /// [compactMode] 是否为简洁模式，简洁模式下缩略图更大
+  factory UnifiedViewConfig.fromContext(
+    BuildContext context, {
+    bool compactMode = false,
+  }) {
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // 网格缩略图：72-96px
+    // 网格缩略图：根据模式选择不同大小
     double gridSize;
-    if (screenWidth < 360) {
-      gridSize = 72.0;
-    } else if (screenWidth < 480) {
-      gridSize = 80.0;
+    if (compactMode) {
+      // 简洁模式：110-140px
+      if (screenWidth < 360) {
+        gridSize = 110.0;
+      } else if (screenWidth < 480) {
+        gridSize = 120.0;
+      } else {
+        gridSize = 140.0;
+      }
     } else {
-      gridSize = 96.0;
+      // 普通模式：72-96px
+      if (screenWidth < 360) {
+        gridSize = 72.0;
+      } else if (screenWidth < 480) {
+        gridSize = 80.0;
+      } else {
+        gridSize = 96.0;
+      }
     }
 
-    // 列表缩略图：40-56px
+    // 列表缩略图：40-56px（不受简洁模式影响）
     double listSize;
     if (screenWidth < 360) {
       listSize = 40.0;
@@ -125,6 +150,7 @@ class UnifiedViewConfig {
     return UnifiedViewConfig._(
       gridThumbnailSize: gridSize,
       listThumbnailSize: listSize,
+      compactMode: compactMode,
     );
   }
 
@@ -132,10 +158,12 @@ class UnifiedViewConfig {
   factory UnifiedViewConfig.fixed({
     double gridThumbnailSize = 80.0,
     double listThumbnailSize = 48.0,
+    bool compactMode = false,
   }) {
     return UnifiedViewConfig._(
       gridThumbnailSize: gridThumbnailSize,
       listThumbnailSize: listThumbnailSize,
+      compactMode: compactMode,
     );
   }
 
@@ -165,6 +193,7 @@ class UnifiedViewConfig {
   String toString() {
     return 'UnifiedViewConfig('
         'gridThumbnail: $gridThumbnailSize, '
-        'listThumbnail: $listThumbnailSize)';
+        'listThumbnail: $listThumbnailSize, '
+        'compactMode: $compactMode)';
   }
 }

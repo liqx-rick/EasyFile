@@ -89,7 +89,8 @@ class UnifiedGridItem extends StatelessWidget {
             // 主内容区域
             Positioned.fill(
               child: Padding(
-                padding: const EdgeInsets.all(UnifiedViewConfig.gridItemPadding),
+                padding:
+                    const EdgeInsets.all(UnifiedViewConfig.gridItemPadding),
                 child: Column(
                   children: [
                     // 图标区域 - 使用 Flexible 允许缩小
@@ -99,30 +100,32 @@ class UnifiedGridItem extends StatelessWidget {
                         child: _buildThumbnail(context, viewConfig),
                       ),
                     ),
-                    // 文件名区域 - 固定高度
-                    SizedBox(
-                      height: UnifiedViewConfig.fileNameHeight,
-                      child: Text(
-                        file.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: UnifiedViewConfig.fileNameStyle,
+                    // 文件名区域 - 条件渲染
+                    if (!viewConfig.compactMode)
+                      SizedBox(
+                        height: UnifiedViewConfig.fileNameHeight,
+                        child: Text(
+                          file.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: UnifiedViewConfig.fileNameStyle,
+                        ),
                       ),
-                    ),
-                    // 文件大小 - 固定高度
-                    SizedBox(
-                      height: UnifiedViewConfig.fileSizeHeight,
-                      child: !file.isDirectory
-                          ? Text(
-                              FileUtils.formatFileSize(file.size),
-                              style: UnifiedViewConfig.fileSizeStyle(context),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
+                    // 文件大小 - 条件渲染
+                    if (!viewConfig.compactMode)
+                      SizedBox(
+                        height: UnifiedViewConfig.fileSizeHeight,
+                        child: !file.isDirectory
+                            ? Text(
+                                FileUtils.formatFileSize(file.size),
+                                style: UnifiedViewConfig.fileSizeStyle(context),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                   ],
                 ),
               ),

@@ -15,10 +15,15 @@ class PageSettingsService extends ChangeNotifier {
   PageSettingsService._internal();
 
   static const String _userSettingsKey = 'page_user_settings';
+  static const String _gridShowFileInfoKey = 'grid_show_file_info';
   bool _initialized = false;
 
   /// 用户自定义的设置（覆盖默认值）
   Map<PageId, PageSettings> _userSettings = {};
+
+  /// 网格模式是否显示文件信息（文件名和大小）
+  /// 默认：图片和视频分类为false（简洁模式），其他为true
+  bool? _gridShowFileInfo;
 
   /// 当前活动的页面ID
   PageId? _currentPageId;
@@ -43,6 +48,9 @@ class PageSettingsService extends ChangeNotifier {
           ),
         );
       }
+
+      // 加载网格文件信息显示偏好
+      _gridShowFileInfo = prefs.getBool(_gridShowFileInfoKey);
 
       _initialized = true;
     } catch (e) {
@@ -169,5 +177,31 @@ class PageSettingsService extends ChangeNotifier {
     return Map.fromEntries(
       PageId.values.map((pageId) => MapEntry(pageId, getPageSettings(pageId))),
     );
+  }
+
+  /// 获取网格模式是否显示文件信息
+  /// [pageId] 页面ID，用于判断默认行为
+  /// 返回：true=显示文件名和大小，false=仅显示缩略图
+  bool getGridShowFileInfo(PageId pageId) {
+    // 如果用户设置过，使用用户设置
+    if (_gridShowFileInfo != null) {
+      return _gridShowFileInfo!;
+    }
+
+    // 默认行为：图片和视频分类默认不显示（简洁模式），其他显示
+    return pageId != PageId.categoryImages && pageId != PageId.categoryVideo;
+  }
+
+  /// 设置网格模式是否显示文件信息
+  Future<void> setGridShowFileInfo(bool show) async {
+    _gridShowFileInfo = show;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_gridShowFileInfoKey, show);
+      notifyListeners();
+    } catch (e) {
+      // 忽略保存错误
+    }
   }
 }

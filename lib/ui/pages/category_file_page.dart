@@ -17,6 +17,7 @@ import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
@@ -493,6 +494,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     return PageSettingsService().getGroupEnabled(pageId);
   }
 
+  /// 获取统一视图配置（包含简洁模式设置）
+  UnifiedViewConfig _getViewConfig(BuildContext context) {
+    final pageId = _getPageIdForCategory();
+    // 仅图片和视频分类使用简洁模式设置
+    final shouldUseCompactMode = (widget.categoryType == CategoryType.images ||
+            widget.categoryType == CategoryType.video) &&
+        _isGridView;
+
+    if (shouldUseCompactMode) {
+      // 从设置服务获取是否显示文件信息
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+      return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
+    }
+
+    return UnifiedViewConfig.fromContext(context);
+  }
+
   /// 加载分类文件
   Future<void> _loadCategoryFiles({bool forceRefresh = false}) async {
     // 如果是强制刷新，跳过缓存
@@ -856,6 +874,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 : FileCollectionView(
                     items: _filteredFiles,
                     gridMode: _isGridView,
+                    config: _getViewConfig(context),
                     padding: _isGridView
                         ? const EdgeInsets.all(8)
                         : const EdgeInsets.symmetric(vertical: 0),
@@ -1039,6 +1058,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     return FileCollectionView(
       groups: fileGroups,
       gridMode: _isGridView,
+      config: _getViewConfig(context),
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
