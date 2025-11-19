@@ -35,8 +35,7 @@ class _StoragePageState extends State<StoragePage> {
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
 
-  // 批量操作相关状态
-  bool _isSelectionMode = false;
+  // 批量操作相关状态（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
 
@@ -438,10 +437,7 @@ class _StoragePageState extends State<StoragePage> {
   void _onSelectionChanged() {
     setState(() {
       _selectedItems = _selectionController.selected;
-      // 如果选择为空，退出选择模式
-      if (_selectedItems.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // SelectionController 自动管理 isSelectionMode 状态
     });
   }
 
@@ -513,18 +509,12 @@ class _StoragePageState extends State<StoragePage> {
 
   void _onFileTap(FileItem file) {
     // 多选模式下，点击切换选中状态
-    if (_isSelectionMode) {
-      setState(() {
-        if (_selectedItems.contains(file.path)) {
-          _selectedItems.remove(file.path);
-          // 如果取消选择后没有选中项，退出多选模式
-          if (_selectedItems.isEmpty) {
-            _isSelectionMode = false;
-          }
-        } else {
-          _selectedItems.add(file.path);
-        }
-      });
+    if (_selectionController.isSelectionMode) {
+      if (_selectedItems.contains(file.path)) {
+        _selectionController.deselect(file.path);
+      } else {
+        _selectionController.select(file.path);
+      }
       return;
     }
 
@@ -596,7 +586,7 @@ class _StoragePageState extends State<StoragePage> {
         final count = entry.value.length;
         return FileGroup(
           key: entry.key,
-          title: '${entry.key} ($count 个文件)',
+          title: '${entry.key}（$count个文件）',
           items: entry.value,
         );
       }).toList();
@@ -607,7 +597,7 @@ class _StoragePageState extends State<StoragePage> {
         padding: isGridView
             ? const EdgeInsets.all(8)
             : const EdgeInsets.symmetric(vertical: 0),
-        selectionController: _isSelectionMode ? _selectionController : null,
+        selectionController: _selectionController,
         showFullPath: _isSearchMode && _searchInSubfolders,
         showFavoriteButton: true,
         isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
@@ -616,14 +606,7 @@ class _StoragePageState extends State<StoragePage> {
         },
         useUnifiedGridItem: true,
         onTap: (file) => _onFileTap(file),
-        onLongPress: (file) {
-          if (!_isSelectionMode) {
-            setState(() {
-              _isSelectionMode = true;
-              _selectionController.select(file.path);
-            });
-          }
-        },
+        // onLongPress 移除，由 FileCollectionView 内部处理
       );
     }
 
@@ -633,7 +616,7 @@ class _StoragePageState extends State<StoragePage> {
       padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       // 列表模式显示选项
       showFullPath: _isSearchMode && _searchInSubfolders,
       showFavoriteButton: true,
@@ -643,15 +626,7 @@ class _StoragePageState extends State<StoragePage> {
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file),
-      onLongPress: (file) {
-        // 长按进入多选模式并选中当前项
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectedItems.add(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -659,12 +634,11 @@ class _StoragePageState extends State<StoragePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _isSelectionMode
+        leading: _selectionController.isSelectionMode
             ? IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () {
                   setState(() {
-                    _isSelectionMode = false;
                     _selectionController.clear();
                   });
                 },
@@ -680,7 +654,7 @@ class _StoragePageState extends State<StoragePage> {
               ),
         leadingWidth: 48,
         titleSpacing: 4,
-        title: _isSelectionMode
+        title: _selectionController.isSelectionMode
             ? Text('已选中 ${_selectedItems.length} 项')
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,7 +691,7 @@ class _StoragePageState extends State<StoragePage> {
                     ),
                 ],
               ),
-        actions: _isSelectionMode
+        actions: _selectionController.isSelectionMode
             ? [
                 // 全选按钮
                 IconButton(
@@ -931,7 +905,7 @@ class _StoragePageState extends State<StoragePage> {
         },
       ),
       // 批量操作底部工具栏
-      bottomNavigationBar: _isSelectionMode ? _buildSelectionBottomBar() : null,
+      bottomNavigationBar: _selectionController.isSelectionMode ? _buildSelectionBottomBar() : null,
     );
   }
 
@@ -961,8 +935,7 @@ class _StoragePageState extends State<StoragePage> {
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
+          _selectionController.clear();
         });
       },
     );

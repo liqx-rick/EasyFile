@@ -53,8 +53,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   PermissionState _permissionState = PermissionState.unknown;
   bool _isFirstScan = false;
 
-  // 批量操作相关状态
-  bool _isSelectionMode = false;
+  // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
 
@@ -123,10 +122,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void _onSelectionChanged() {
     setState(() {
       _selectedItems = _selectionController.selected;
-      // 如果选择为空，退出选择模式
-      if (_selectedItems.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // SelectionController 自动管理 isSelectionMode 状态
     });
   }
 
@@ -1082,7 +1078,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1094,7 +1090,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       showFullPath: _favoriteSearchMode,
       showFavoriteButton: true,
       isFavorite: (path) => viewModel.isFavoriteFile(path),
@@ -1103,14 +1099,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1127,7 +1116,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1139,7 +1128,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       showFullPath: viewModel.isSearchMode,
       showFavoriteButton: true,
       isFavorite: (path) => viewModel.isFavoriteFile(path),
@@ -1148,14 +1137,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1172,7 +1154,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final count = groups[key]!.length;
       return FileGroup(
         key: key,
-        title: '$key ($count 个文件)',
+        title: '$key（$count个文件）',
         items: groups[key]!,
         isCollapsible: false,
       );
@@ -1184,7 +1166,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       showFullPath: false,
       showAccessTime: true,
       getAccessTime: (file) => file.accessedAt,
@@ -1195,14 +1177,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, viewModel),
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
@@ -1449,7 +1424,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: isGridView
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController,
       // 列表模式显示选项
       showFullPath: vm.isSearchMode ||
           (vm.currentTab == TabView.favorite && _favoriteSearchMode),
@@ -1462,22 +1437,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file, vm),
-      onLongPress: (file) {
-        // 长按进入多选模式并选中当前项
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
+      // onLongPress 移除，由 FileCollectionView 内部处理
     );
   }
 
   /// 处理文件点击
   void _onFileTap(FileItem file, FileViewModel vm) {
     // 多选模式下的点击由FileCollectionView处理，这里只处理导航
-    if (_isSelectionMode) {
+    if (_selectionController.isSelectionMode) {
       return; // FileCollectionView已处理选择逻辑
     }
 
@@ -1528,18 +1495,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
           return Scaffold(
             appBar: AppBar(
-              leading: _isSelectionMode
+              leading: _selectionController.isSelectionMode
                   ? IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () {
                         setState(() {
-                          _isSelectionMode = false;
                           _selectionController.clear();
                         });
                       },
                     )
                   : null,
-              title: _isSelectionMode
+              title: _selectionController.isSelectionMode
                   ? Text('已选中 ${_selectedItems.length} 项')
                   : Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1553,7 +1519,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         const Text('EasyFile'),
                       ],
                     ),
-              actions: _isSelectionMode
+              actions: _selectionController.isSelectionMode
                   ? [
                       // 全选按钮
                       IconButton(
@@ -1805,7 +1771,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             ),
             // 批量操作底部工具栏
             bottomNavigationBar:
-                _isSelectionMode ? _buildSelectionBottomBar() : null,
+                _selectionController.isSelectionMode ? _buildSelectionBottomBar() : null,
           );
         },
       ),
@@ -1844,8 +1810,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
-          _selectedItems.clear();
+          _selectionController.clear();
         });
       },
     );
