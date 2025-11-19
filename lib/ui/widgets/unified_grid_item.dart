@@ -92,12 +92,14 @@ class UnifiedGridItem extends StatelessWidget {
                 padding: const EdgeInsets.all(UnifiedViewConfig.gridItemPadding),
                 child: Column(
                   children: [
-                    // 图标区域 - 在顶部
-                    const SizedBox(height: 4),
-                    _buildThumbnail(context, viewConfig),
-                    const Spacer(), // 弹性空间
-                    const SizedBox(height: 2), // 图标和文件名之间最小间距
-                    // 文件名区域 - 固定在底部
+                    // 图标区域 - 使用 Flexible 允许缩小
+                    Flexible(
+                      flex: 3,
+                      child: Center(
+                        child: _buildThumbnail(context, viewConfig),
+                      ),
+                    ),
+                    // 文件名区域 - 固定高度
                     SizedBox(
                       height: UnifiedViewConfig.fileNameHeight,
                       child: Text(
@@ -108,8 +110,7 @@ class UnifiedGridItem extends StatelessWidget {
                         style: UnifiedViewConfig.fileNameStyle,
                       ),
                     ),
-                    const SizedBox(height: 2), // 文件名和文件大小之间固定间距
-                    // 文件大小 - 固定在最底部
+                    // 文件大小 - 固定高度
                     SizedBox(
                       height: UnifiedViewConfig.fileSizeHeight,
                       child: !file.isDirectory
@@ -122,7 +123,6 @@ class UnifiedGridItem extends StatelessWidget {
                             )
                           : const SizedBox.shrink(),
                     ),
-                    const SizedBox(height: 4),
                   ],
                 ),
               ),

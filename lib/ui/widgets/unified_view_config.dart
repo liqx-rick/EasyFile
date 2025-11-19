@@ -36,7 +36,7 @@ class UnifiedViewConfig {
   static const double gridItemPadding = 8.0;
 
   /// 文件名区域固定高度
-  static const double fileNameHeight = 40.0;
+  static const double fileNameHeight = 36.0;
 
   /// 文件名文字样式
   static const TextStyle fileNameStyle = TextStyle(
