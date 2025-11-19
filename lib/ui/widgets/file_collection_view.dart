@@ -368,7 +368,7 @@ class FileCollectionView extends StatelessWidget {
   /// - 考虑水平内边距和间距
   int _calculateCrossAxisCount(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    const minCardWidth = 110.0; // 最小卡片宽度
+    const minCardWidth = 100.0; // 最小卡片宽度（从110减少到100，允许更大的缩略图）
     const spacing = 8.0;
     final horizontalPadding = (padding as EdgeInsets?)?.horizontal ?? 16.0;
     final availableWidth = width - horizontalPadding;
@@ -390,8 +390,8 @@ class FileCollectionView extends StatelessWidget {
       addSemanticIndexes: false,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
         childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
       ),
       itemCount: items!.length,
@@ -456,22 +456,21 @@ class FileCollectionView extends StatelessWidget {
             if (onLongPress != null) onLongPress!(item);
           }
         },
-        onFavoriteToggle: showFavoriteButton &&
-                !item.isDirectory &&
-                onFavoriteToggle != null
-            ? () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final isFav = await onFavoriteToggle!(item);
-                if (context.mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                }
-              }
-            : null,
+        onFavoriteToggle:
+            showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
+                ? () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final isFav = await onFavoriteToggle!(item);
+                    if (context.mounted) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  }
+                : null,
       );
     }
 
@@ -705,8 +704,8 @@ class _SliverGroupGrid extends StatelessWidget {
       sliver: SliverGrid(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
           childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
         ),
         delegate: SliverChildBuilderDelegate(

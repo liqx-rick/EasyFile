@@ -18,7 +18,7 @@ class UnifiedViewConfig {
   // 网格视图配置
   // ============================================================================
 
-  /// 网格视图缩略图大小（响应式：72-96px，简洁模式：110-140px）
+  /// 网格视图缩略图大小（响应式：72-96px，简洁模式：140-180px）
   ///
   /// 根据屏幕宽度动态计算：
   /// - 普通模式：
@@ -26,9 +26,9 @@ class UnifiedViewConfig {
   ///   - 中屏(360-480): 80px
   ///   - 大屏(>480): 96px
   /// - 简洁模式（无文件信息）：
-  ///   - 小屏(<360): 110px
-  ///   - 中屏(360-480): 120px
-  ///   - 大屏(>480): 140px
+  ///   - 小屏(<360): 140px
+  ///   - 中屏(360-480): 160px
+  ///   - 大屏(>480): 180px
   final double gridThumbnailSize;
 
   /// 是否为简洁模式（不显示文件名和大小）
@@ -41,7 +41,7 @@ class UnifiedViewConfig {
   static const double gridBorderRadius = 8.0;
 
   /// 网格项内部内边距
-  static const double gridItemPadding = 8.0;
+  static const double gridItemPadding = 4.0;
 
   /// 文件名区域固定高度
   static const double fileNameHeight = 36.0;
@@ -118,13 +118,13 @@ class UnifiedViewConfig {
     // 网格缩略图：根据模式选择不同大小
     double gridSize;
     if (compactMode) {
-      // 简洁模式：110-140px
+      // 简洁模式：140-180px（更大的缩略图，充分利用空间）
       if (screenWidth < 360) {
-        gridSize = 110.0;
-      } else if (screenWidth < 480) {
-        gridSize = 120.0;
-      } else {
         gridSize = 140.0;
+      } else if (screenWidth < 480) {
+        gridSize = 160.0;
+      } else {
+        gridSize = 180.0;
       }
     } else {
       // 普通模式：72-96px
