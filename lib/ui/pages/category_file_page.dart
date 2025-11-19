@@ -249,8 +249,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   DocumentFileType _documentTypeFilter = DocumentFileType.all;
   DownloadFileType _downloadTypeFilter = DownloadFileType.all;
 
-  // 批量操作相关
-  bool _isSelectionMode = false;
+  // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
 
   // 过滤后的文件列表（按搜索和文件类型筛选）
@@ -350,10 +349,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   void _onSelectionChanged() {
     setState(() {
       // SelectionController内部已经管理了选择状态，这里只需要触发界面更新
-      // 如果选择为空，退出选择模式
-      if (_selectionController.selected.isEmpty && _isSelectionMode) {
-        _isSelectionMode = false;
-      }
+      // 不再需要手动管理 _isSelectionMode
     });
   }
 
@@ -607,12 +603,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         builder: (context, pageSettingsService, _) {
           return Scaffold(
             appBar: AppBar(
-              leading: _isSelectionMode
+              leading: _selectionController.isSelectionMode
                   ? IconButton(
                       icon: const Icon(Icons.close, size: 22),
                       onPressed: () {
                         setState(() {
-                          _isSelectionMode = false;
                           _selectionController.clear();
                         });
                       },
@@ -623,7 +618,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: '返回主页',
                     ),
-              title: _isSelectionMode
+              title: _selectionController.isSelectionMode
                   ? Text('已选择 ${_selectionController.count} 项')
                   : Row(
                       mainAxisSize: MainAxisSize.min,
@@ -650,7 +645,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   padding: const EdgeInsets.only(right: 4),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: _isSelectionMode
+                    children: _selectionController.isSelectionMode
                         ? [
                             // 多选模式下的操作按钮
                             // 全选/取消全选按钮
@@ -737,8 +732,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               ],
             ),
             // 批量操作底部工具栏
-            bottomNavigationBar:
-                _isSelectionMode ? _buildSelectionBottomBar() : null,
+            bottomNavigationBar: _selectionController.isSelectionMode
+                ? _buildSelectionBottomBar()
+                : null,
           );
         },
       ),
@@ -885,8 +881,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     padding: _isGridView
                         ? const EdgeInsets.all(8)
                         : const EdgeInsets.symmetric(vertical: 0),
-                    selectionController:
-                        _isSelectionMode ? _selectionController : null,
+                    selectionController: _selectionController.isSelectionMode
+                        ? _selectionController
+                        : null,
                     // 列表模式显示选项
                     showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
                     showFavoriteButton: true,
@@ -896,18 +893,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     },
                     useUnifiedGridItem: true,
                     onTap: (file) {
-                      if (!_isSelectionMode) {
+                      if (!_selectionController.isSelectionMode) {
                         _previewFile(file);
                       }
                     },
-                    onLongPress: (file) {
-                      if (!_isSelectionMode) {
-                        setState(() {
-                          _isSelectionMode = true;
-                          _selectionController.select(file.path);
-                        });
-                      }
-                    },
+                    // onLongPress 不再需要，FileCollectionView 内部处理
                   ),
           ),
         ),
@@ -947,7 +937,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       onExitSelectionMode: () {
         setState(() {
-          _isSelectionMode = false;
           _selectionController.clear();
         });
       },
@@ -1120,7 +1109,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         groupKeys.where((key) => groups.containsKey(key)).map((key) {
       return FileGroup(
         key: key,
-        title: '$key（${groups[key]!.length} 个文件）',
+        title: '$key（${groups[key]!.length}个文件）',
         items: groups[key]!,
         isCollapsible: false, // 不使用折叠功能，保持与原来一致
       );
@@ -1132,7 +1121,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
-      selectionController: _isSelectionMode ? _selectionController : null,
+      selectionController: _selectionController.isSelectionMode
+          ? _selectionController
+          : null,
       // 显示选项
       showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
       showFavoriteButton: true,
@@ -1142,17 +1133,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       useUnifiedGridItem: true,
       onTap: (file) {
-        if (!_isSelectionMode) {
+        if (!_selectionController.isSelectionMode) {
           _previewFile(file);
         }
       },
-      onLongPress: (file) {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-          });
-        }
-      },
+      // onLongPress 不再需要，FileCollectionView 内部处理
     );
   }
 

@@ -66,6 +66,7 @@ class FileGroup {
 /// ```
 class SelectionController {
   final ValueNotifier<Set<String>> _selected = ValueNotifier({});
+  final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
 
   /// Gets the notifier that emits when selection changes.
   ///
@@ -77,11 +78,24 @@ class SelectionController {
   /// ```
   ValueNotifier<Set<String>> get selectedNotifier => _selected;
 
+  /// Gets the notifier that emits when selection mode changes.
+  ///
+  /// Use this to listen to selection mode changes:
+  /// ```dart
+  /// controller.selectionModeNotifier.addListener(() {
+  ///   print('Selection mode: ${controller.isSelectionMode}');
+  /// });
+  /// ```
+  ValueNotifier<bool> get selectionModeNotifier => _isSelectionMode;
+
   /// Gets the current set of selected file paths.
   Set<String> get selected => _selected.value;
 
   /// Gets the count of currently selected items.
   int get count => _selected.value.length;
+
+  /// Gets whether selection mode is active.
+  bool get isSelectionMode => _isSelectionMode.value;
 
   /// Checks if a file path is currently selected.
   ///
@@ -96,10 +110,14 @@ class SelectionController {
   /// Adds a file path to the selection.
   ///
   /// If [path] is already selected, this has no effect.
+  /// Automatically enters selection mode if not already active.
   void select(String path) {
     final copy = Set<String>.from(_selected.value);
     copy.add(path);
     _selected.value = copy;
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
   }
 
   /// Removes a file path from the selection.
@@ -132,14 +150,18 @@ class SelectionController {
     _selected.value = Set<String>.from(paths);
   }
 
-  /// Clears all selections.
-  void clear() => _selected.value = {};
+  /// Clears all selections and exits selection mode.
+  void clear() {
+    _selected.value = {};
+    _isSelectionMode.value = false;
+  }
 
   /// Disposes the controller and releases resources.
   ///
   /// Must be called when the controller is no longer needed.
   void dispose() {
     _selected.dispose();
+    _isSelectionMode.dispose();
   }
 }
 
@@ -426,9 +448,9 @@ class FileCollectionView extends StatelessWidget {
         },
         onLongPress: () {
           if (selectionController != null) {
-            if (!isSelectionMode) {
-              selectionController!.select(item.path);
-            }
+            // 框架内部完全处理选择逻辑
+            selectionController!.select(item.path);
+            // 可选：调用页面回调用于自定义行为（如显示提示）
             if (onLongPress != null) onLongPress!(item);
           } else {
             if (onLongPress != null) onLongPress!(item);
@@ -486,9 +508,9 @@ class FileCollectionView extends StatelessWidget {
       },
       onLongPress: () {
         if (selectionController != null) {
-          if (!isSelectionMode) {
-            selectionController!.select(item.path);
-          }
+          // 框架内部完全处理选择逻辑
+          selectionController!.select(item.path);
+          // 可选：调用页面回调用于自定义行为（如显示提示）
           if (onLongPress != null) onLongPress!(item);
         } else {
           if (onLongPress != null) onLongPress!(item);
