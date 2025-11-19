@@ -11,11 +11,6 @@ import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/ui/widgets/image_thumbnail.dart';
-import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
-import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
@@ -619,12 +614,7 @@ class _StoragePageState extends State<StoragePage> {
         onFavoriteToggle: (file) async {
           return await widget.presenter.toggleFavoriteFile(file);
         },
-        itemBuilder: isGridView
-            ? (file) {
-                final isSelected = _selectionController.contains(file.path);
-                return _buildGridItem(file, isSelected);
-              }
-            : null,
+        useUnifiedGridItem: true,
         onTap: (file) => _onFileTap(file),
         onLongPress: (file) {
           if (!_isSelectionMode) {
@@ -651,13 +641,7 @@ class _StoragePageState extends State<StoragePage> {
       onFavoriteToggle: (file) async {
         return await widget.presenter.toggleFavoriteFile(file);
       },
-      // 网格模式使用自定义构建器
-      itemBuilder: isGridView
-          ? (file) {
-              final isSelected = _selectionController.contains(file.path);
-              return _buildGridItem(file, isSelected);
-            }
-          : null, // 列表模式使用默认实现
+      useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file),
       onLongPress: (file) {
         // 长按进入多选模式并选中当前项
@@ -669,199 +653,6 @@ class _StoragePageState extends State<StoragePage> {
         }
       },
     );
-  }
-
-  /// 构建网格项（用于网格视图）
-  Widget _buildGridItem(FileItem file, bool isSelected) {
-    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
-    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
-    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
-    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
-    final isFavorite = widget.viewModel.isFavoriteFile(file.path);
-
-    return InkWell(
-      onTap: () => _onFileTap(file),
-      onLongPress: () {
-        if (!_isSelectionMode) {
-          setState(() {
-            _isSelectionMode = true;
-            _selectionController.select(file.path);
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Stack(
-          children: [
-            // 主内容区域 - 图标在上，文件名和大小在下
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  children: [
-                    // 图标区域 - 在顶部
-                    const SizedBox(height: 4),
-                    if (isImage)
-                      ImageThumbnail(imagePath: file.path, size: 64)
-                    else if (isVideo)
-                      RealVideoThumbnail(videoPath: file.path, size: 64)
-                    else if (isAudio)
-                      AudioCoverWidget(audioPath: file.path, size: 64)
-                    else if (isDocument)
-                      DocumentIconWidget(fileName: file.name, size: 64)
-                    else
-                      Icon(
-                        file.isDirectory ? Icons.folder : _getFileIcon(file),
-                        size: 48,
-                        color: file.isDirectory ? Colors.amber : Colors.blue,
-                      ),
-                    const Spacer(), // 弹性空间
-                    const SizedBox(height: 2), // 图标和文件名之间最小间距 2px
-                    // 文件名区域 - 固定在底部
-                    SizedBox(
-                      height: 40, // 增加高度以36到40，确保长文件名有足够空间
-                      child: Text(
-                        file.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, height: 1.2),
-                      ),
-                    ),
-                    const SizedBox(height: 2), // 文件名和文件大小之间固定间距 2px
-                    // 文件大小 - 固定在最底部
-                    SizedBox(
-                      height: 16,
-                      child: !file.isDirectory
-                          ? Text(
-                              FileUtils.formatFileSize(file.size),
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[600]),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-            // 收藏按钮（右上角）- 仅在已收藏时显示
-            if (!file.isDirectory && isFavorite)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 与复选框使用相同的缩放比例
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final isFavoriteNew =
-                              await widget.presenter.toggleFavoriteFile(file);
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(isFavoriteNew ? '已添加到收藏' : '已取消收藏'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // 多选模式下的Checkbox（右下角）
-            if (_isSelectionMode)
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Transform.scale(
-                    scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-                    child: Checkbox(
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        if (value == true) {
-                          _selectionController.select(file.path);
-                        } else {
-                          _selectionController.deselect(file.path);
-                        }
-                      },
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 获取文件图标
-  IconData _getFileIcon(FileItem file) {
-    final ext = file.name.split('.').last.toLowerCase();
-    switch (ext) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'xls':
-      case 'xlsx':
-        return Icons.table_chart;
-      case 'ppt':
-      case 'pptx':
-        return Icons.slideshow;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mkv':
-      case 'mov':
-        return Icons.video_file;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Icons.audio_file;
-      case 'zip':
-      case 'rar':
-      case '7z':
-        return Icons.archive;
-      case 'txt':
-        return Icons.text_snippet;
-      default:
-        return Icons.insert_drive_file;
-    }
   }
 
   @override

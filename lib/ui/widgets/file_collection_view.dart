@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/ui/widgets/unified_grid_item.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// Data model for a file group with collapsible support.
@@ -219,6 +221,9 @@ class FileCollectionView extends StatelessWidget {
   final bool Function(String)? isFavorite;
   final Future<bool> Function(FileItem)? onFavoriteToggle;
   final DateTime? Function(FileItem)? getAccessTime;
+  // 统一网格组件支持
+  final bool useUnifiedGridItem;
+  final UnifiedViewConfig? config;
 
   const FileCollectionView({
     super.key,
@@ -243,6 +248,8 @@ class FileCollectionView extends StatelessWidget {
     this.isFavorite,
     this.onFavoriteToggle,
     this.getAccessTime,
+    this.useUnifiedGridItem = false,
+    this.config,
   }) : assert(items != null || groups != null,
             'Either items or groups must be provided');
 
@@ -399,11 +406,54 @@ class FileCollectionView extends StatelessWidget {
       return child;
     }
 
-    // 使用默认的 FileItemTile
-    // 只要传入了 selectionController 就表示处于选择模式（应该显示复选框）
     final isSelectionMode = selectionController != null;
     final isSelected = selectionController?.contains(item.path) ?? false;
 
+    // 网格模式且启用统一组件
+    if (gridMode && useUnifiedGridItem) {
+      return UnifiedGridItem(
+        file: item,
+        isSelected: isSelected,
+        isFavorite: isFavorite?.call(item.path) ?? false,
+        showFavoriteButton: showFavoriteButton,
+        config: config,
+        onTap: () {
+          if (isSelectionMode) {
+            selectionController!.toggle(item.path);
+          } else {
+            if (onTap != null) onTap!(item);
+          }
+        },
+        onLongPress: () {
+          if (selectionController != null) {
+            if (!isSelectionMode) {
+              selectionController!.select(item.path);
+            }
+            if (onLongPress != null) onLongPress!(item);
+          } else {
+            if (onLongPress != null) onLongPress!(item);
+          }
+        },
+        onFavoriteToggle: showFavoriteButton &&
+                !item.isDirectory &&
+                onFavoriteToggle != null
+            ? () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final isFav = await onFavoriteToggle!(item);
+                if (context.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+              }
+            : null,
+      );
+    }
+
+    // 使用默认的 FileItemTile（列表模式或未启用统一组件）
     Widget child = FileItemTile(
       file: item,
       showFullPath: showFullPath,
