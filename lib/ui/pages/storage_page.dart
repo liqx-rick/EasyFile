@@ -868,7 +868,9 @@ class _StoragePageState extends State<StoragePage> {
         },
       ),
       // 批量操作底部工具栏
-      bottomNavigationBar: _selectionController.isSelectionMode ? _buildSelectionBottomBar() : null,
+      bottomNavigationBar: _selectionController.isSelectionMode
+          ? _buildSelectionBottomBar()
+          : null,
     );
   }
 

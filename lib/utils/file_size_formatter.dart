@@ -86,8 +86,6 @@ class FileSizeFormatter {
   /// 返回格式化后的总大小字符串
   static String formatTotalSize(List<int> sizes, {bool withSpace = false}) {
     final totalSize = calculateTotalSize(sizes);
-    return withSpace
-        ? formatBytesWithSpace(totalSize)
-        : formatBytes(totalSize);
+    return withSpace ? formatBytesWithSpace(totalSize) : formatBytes(totalSize);
   }
 }
