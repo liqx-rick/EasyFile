@@ -27,9 +27,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   // 应用目录展开状态
   final Map<String, bool> _expandedAppFolders = {};
 
-  // 是否处于编辑模式
-  bool _isEditMode = false;
-
   // 是否处于首页排序编辑模式
   bool _isEditingHomeOrder = false;
 
@@ -64,43 +61,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   }
 
   PreferredSizeWidget _buildAppBar() {
-    if (_isEditMode) {
-      // 检查选中的项目中是否有未加入快速访问的
-      final selectedFolders = widget.viewModel.folders
-          .where((f) => _selectedIds.contains(f.id))
-          .toList();
-      final hasNotAdded = selectedFolders.any((f) => !f.isAddedToQuickAccess);
-      final hasAdded = selectedFolders.any((f) => f.isAddedToQuickAccess);
-
-      return AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () {
-            setState(() {
-              _isEditMode = false;
-              _selectedIds.clear();
-            });
-          },
-          tooltip: '取消',
-        ),
-        title: Text('已选择 ${_selectedIds.length} 项'),
-        actions: [
-          if (_selectedIds.isNotEmpty && hasNotAdded)
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              onPressed: _showBatchAddDialog,
-              tooltip: '批量加入',
-            ),
-          if (_selectedIds.isNotEmpty && hasAdded)
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline),
-              onPressed: _showBatchRemoveDialog,
-              tooltip: '批量移出',
-            ),
-        ],
-      );
-    }
-
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.home),
@@ -160,17 +120,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             ),
           ],
         ),
-        // 编辑按钮
-        if (!_isEditMode)
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              setState(() {
-                _isEditMode = true;
-              });
-            },
-            tooltip: '编辑',
-          ),
       ],
     );
   }
@@ -256,6 +205,14 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         ),
       );
 
+    // 检查是否有快速访问列表
+    final hasQuickAccessList = widget.viewModel.folders.any(
+      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
+    );
+
+    // 动态上限：有快速访问列表则为5，否则为6
+    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 16, 10, 8),
       child: Column(
@@ -267,7 +224,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               const Icon(Icons.star, color: Colors.amber, size: 20),
               const SizedBox(width: 8),
               Text(
-                '首页展示 (${userCustomizedFolders.length}/7)',
+                '首页展示 (${userCustomizedFolders.length}/$maxHomeItems)',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -341,29 +298,38 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   Widget _buildHomeDisplayCards(List<QuickAccessFolder> folders) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = 20.0; // 两侧padding
-        final minSpacing = 2.0;
-        final maxSpacing = 12.0;
+        // 根据卡片数量和屏幕宽度动态调整padding
+        final totalPositions = folders.length;
+        final screenWidth = constraints.maxWidth;
 
-        // 预留7个位置（即使当前文件夹数量不足7个）
-        final totalPositions = 7;
+        // 动态计算padding：屏幕越小或卡片越多，padding越小
+        double horizontalPadding;
+        if (totalPositions >= 6) {
+          // 6个卡片：根据屏幕宽度调整
+          horizontalPadding = screenWidth > 400 ? 8.0 : 4.0;
+        } else {
+          horizontalPadding = screenWidth > 400 ? 20.0 : 12.0;
+        }
+
+        final minSpacing = 2.0;
 
         // 计算可用空间（减去两侧padding）
         final availableWidth = constraints.maxWidth - (horizontalPadding * 2);
 
-        // 计算间距总宽度：6个间距（7个卡片之间）
+        // 计算间距总宽度
         final spacingCount = totalPositions - 1;
         final totalSpacing = minSpacing * spacingCount;
 
-        // 计算卡片大小：(可用宽度 - 间距总宽度) / 7
+        // 计算卡片大小：(可用宽度 - 间距总宽度) / 卡片数量
+        // 移除最大值限制，让卡片可以更灵活地缩小
         final cardSize = ((availableWidth - totalSpacing) / totalPositions)
-            .clamp(40.0, 80.0);
+            .clamp(40.0, 100.0);
 
         // 重新计算实际间距
         final actualTotalSpacing = availableWidth - (cardSize * totalPositions);
         final spacing = (actualTotalSpacing / spacingCount).clamp(
           minSpacing,
-          maxSpacing,
+          minSpacing * 2,
         );
 
         return SizedBox(
@@ -760,34 +726,18 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   }) {
     final isSelected = _selectedIds.contains(folder.id);
     final exists = Directory(folder.path).existsSync();
-    final canSelect = true; // 所有目录都可以批量选择
 
     return ListTile(
       selected: isSelected,
       dense: true,
       visualDensity: VisualDensity.compact,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: _isEditMode && canSelect
-          ? Checkbox(
-              value: isSelected,
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _selectedIds.add(folder.id);
-                  } else {
-                    _selectedIds.remove(folder.id);
-                  }
-                });
-              },
-            )
-          : null,
       title: Row(
         children: [
-          if (!_isEditMode || !canSelect)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: _buildFolderIcon(folder, isSubfolder, exists, color),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _buildFolderIcon(folder, isSubfolder, exists, color),
+          ),
           Expanded(
             child: RichText(
               text: TextSpan(
@@ -834,17 +784,15 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-          if (!_isEditMode)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: trailing ?? _buildFolderActions(folder),
-            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: trailing ?? _buildFolderActions(folder),
+          ),
         ],
       ),
       subtitle: Padding(
-        padding: EdgeInsets.only(
-          left:
-              (!_isEditMode || !canSelect) ? 36 : 0, // 图标宽度(24) + 右边距(12) = 36
+        padding: const EdgeInsets.only(
+          left: 36, // 图标宽度(24) + 右边距(12) = 36
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,25 +815,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ],
         ),
       ),
-      onTap: _isEditMode && canSelect
-          ? () {
-              setState(() {
-                if (isSelected) {
-                  _selectedIds.remove(folder.id);
-                } else {
-                  _selectedIds.add(folder.id);
-                }
-              });
-            }
-          : null,
-      onLongPress: !_isEditMode && canSelect
-          ? () {
-              setState(() {
-                _isEditMode = true;
-                _selectedIds.add(folder.id);
-              });
-            }
-          : null,
     );
   }
 
@@ -993,9 +922,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
         );
 
-        // 快速访问操作
+        // 快速访问操作（与首页展示互斥）
         items.add(const PopupMenuDivider());
         if (isAdded) {
+          // 已加入快速访问，显示移除选项
           items.add(
             const PopupMenuItem(
               value: 'remove_from_qa',
@@ -1006,7 +936,24 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               ),
             ),
           );
+        } else if (isOnHomePage) {
+          // 已在首页展示，快速访问不可用
+          items.add(
+            const PopupMenuItem(
+              enabled: false,
+              value: 'add_to_qa_disabled',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.add_circle_outline, color: Colors.grey),
+                title: Text(
+                  '加入快速访问（已在首页）',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ),
+          );
         } else {
+          // 未加入快速访问，且不在首页，显示加入选项
           items.add(
             const PopupMenuItem(
               value: 'add_to_qa',
@@ -1035,7 +982,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   }
 
   Widget? _buildFAB() {
-    // Removed per user request - scan functionality available in app bar menu
+    // 扫描功能已移至顶部菜单
     return null;
   }
 
@@ -1090,6 +1037,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     final messenger = ScaffoldMessenger.of(context);
     switch (action) {
       case 'add_to_home':
+        // 加入首页展示时，自动移除快速访问标记
+        if (folder.isAddedToQuickAccess) {
+          await widget.presenter.removeFromQuickAccess(folder.id);
+        }
         await _handleAddToHome(folder);
         break;
 
@@ -1104,10 +1055,32 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         break;
 
       case 'add_to_qa':
-        final success = await widget.presenter.addToQuickAccess(folder.id);
-        if (!mounted) return;
-        messenger.showSnackBar(
-            SnackBar(content: Text(success ? '已加入快速访问' : '操作失败')));
+        // 检查首页推荐数量
+        final homeFolders = await widget.presenter.getHomeFolders();
+        if (homeFolders.length >= 6) {
+          // 首页推荐已有6项，提示用户需要移除一个
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('需要调整首页推荐'),
+              content: const Text(
+                '首页推荐已有6项。加入快速访问后，首页最多只能显示5项推荐。\n\n请先移除一个首页推荐项目，以便为快速访问按钮腾出空间。',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('知道了'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          final success = await widget.presenter.addToQuickAccess(folder.id);
+          if (!mounted) return;
+          messenger.showSnackBar(
+              SnackBar(content: Text(success ? '已加入快速访问' : '操作失败')));
+        }
         break;
 
       case 'remove_from_qa':
@@ -1124,18 +1097,47 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     }
   }
 
-  /// 处理加入首页（检查7项限制）
+  /// 处理加入首页（检查动态限制：无快速访问6项，有快速访问5项）
   Future<void> _handleAddToHome(QuickAccessFolder folder) async {
     final messenger = ScaffoldMessenger.of(context);
     final homeFolders = await widget.presenter.getHomeFolders();
 
-    if (homeFolders.length >= 7) {
-      // 已满7项，需要替换
+    // 检查是否有快速访问列表
+    final hasQuickAccessList = widget.viewModel.folders.any(
+      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
+    );
+
+    // 动态上限：有快速访问列表则为5，否则为6
+    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+
+    if (homeFolders.length >= maxHomeItems) {
+      // 已满，需要替换
       if (mounted) {
         _showReplaceHomeItemDialog(folder, homeFolders);
       }
     } else {
-      // 未满7项，直接添加
+      // 检查特殊情况：已有快速访问列表，且首页推荐已有5项，无法再添加
+      if (hasQuickAccessList && homeFolders.length >= 5) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('无法添加'),
+            content: const Text(
+              '已有项目加入快速访问时，首页推荐仅能支持5项。\n\n当前已达到最大数量，无法继续添加。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('知道了'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // 未满，直接添加
       final order = homeFolders.length;
       final success = await widget.presenter.setHomeDisplayOrder(
         folder.id,
@@ -1321,101 +1323,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     );
   }
 
-  void _showBatchAddDialog() {
-    // 只处理未加入的目录
-    final selectedFolders = widget.viewModel.folders
-        .where((f) => _selectedIds.contains(f.id) && !f.isAddedToQuickAccess)
-        .toList();
-
-    if (selectedFolders.isEmpty) {
-      _showSnackBar('选中的目录已全部加入快速访问');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('批量加入快速访问'),
-        content: Text('确定要将选中的 ${selectedFolders.length} 个目录加入快速访问吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
-              int successCount = 0;
-              for (final folder in selectedFolders) {
-                final success = await widget.presenter.addToQuickAccess(
-                  folder.id,
-                );
-                if (success) successCount++;
-              }
-              if (!mounted) return;
-              navigator.pop();
-              setState(() {
-                _isEditMode = false;
-                _selectedIds.clear();
-              });
-              messenger.showSnackBar(
-                  SnackBar(content: Text('已加入 $successCount 个目录')));
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('加入'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBatchRemoveDialog() {
-    // 只处理已加入的目录
-    final selectedFolders = widget.viewModel.folders
-        .where((f) => _selectedIds.contains(f.id) && f.isAddedToQuickAccess)
-        .toList();
-
-    if (selectedFolders.isEmpty) {
-      _showSnackBar('选中的目录未加入快速访问');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('批量移出快速访问'),
-        content: Text(
-          '确定要将选中的 ${selectedFolders.length} 个目录移出快速访问吗？\n\n不会删除实际文件，稍后可以重新加入。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
-              final count = await widget.presenter.batchRemoveFolders(
-                selectedFolders.map((f) => f.id).toList(),
-              );
-              if (!mounted) return;
-              navigator.pop();
-              setState(() {
-                _isEditMode = false;
-                _selectedIds.clear();
-              });
-              messenger.showSnackBar(SnackBar(content: Text('已移出 $count 个目录')));
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('移出'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
@@ -1494,6 +1401,12 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   ) {
     String? selectedId;
 
+    // 检查是否有快速访问列表以确定动态上限
+    final hasQuickAccessList = widget.viewModel.folders.any(
+      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
+    );
+    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1509,7 +1422,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('首页最多显示7项，请选择要替换的项目：'),
+                  Text('超过首页展示项目数量（最多$maxHomeItems项），请选择要替换的项目：'),
                   const SizedBox(height: 16),
                   ...currentHomeFolders.map(
                     (folder) => RadioListTile<String>(
