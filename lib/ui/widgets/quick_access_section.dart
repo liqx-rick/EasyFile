@@ -127,24 +127,28 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       if (systemFolders.length <= 4) {
         displayFoldersForHome = systemFolders;
       } else {
-        // 按优先级排序：下载 > DCIM/相机 > 图片 > 文档 > 音乐 > 视频 > 其他
+        // 按优先级排序：文档 > 图片 > 音乐 > 视频 > DCIM/相机 > 其他（排除Download，因为分类中已有）
         systemFolders.sort((a, b) {
           int getPriority(QuickAccessFolder folder) {
             final path = folder.path.toLowerCase();
-            if (path.contains('download')) return 1;
-            if (path.contains('dcim') || path.contains('camera')) return 2;
-            if (path.contains('picture') || path.contains('photo')) return 3;
-            if (path.contains('document')) return 4;
-            if (path.contains('music')) return 5;
-            if (path.contains('movie') || path.contains('video')) return 6;
-            return 99; // 其他
+            // Download优先级最低，避免与分类重复
+            if (path.contains('download')) return 99;
+            if (path.contains('document')) return 1;
+            if (path.contains('picture') || path.contains('photo')) return 2;
+            if (path.contains('music')) return 3;
+            if (path.contains('movie') || path.contains('video')) return 4;
+            if (path.contains('dcim') || path.contains('camera')) return 5;
+            return 98; // 其他
           }
 
           return getPriority(a).compareTo(getPriority(b));
         });
 
-        // 选择优先级最高的前4个
-        displayFoldersForHome = systemFolders.take(4).toList();
+        // 选择优先级最高的前4个（排除Download）
+        displayFoldersForHome = systemFolders
+            .where((f) => !f.path.toLowerCase().contains('download'))
+            .take(4)
+            .toList();
       }
     }
 
@@ -152,59 +156,97 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       return const SizedBox.shrink();
     }
 
-    // 根据推荐数量决定布局模式
-    final isCompactMode = displayFoldersForHome.length <= 4;
+    // 检查是否有快速访问列表（不在首页推荐中的）
+    final hasQuickAccessList = folders.any(
+      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
+    );
+
+    // 计算实际显示数量（包含"更多"按钮）
+    final totalDisplayCount =
+        displayFoldersForHome.length + (hasQuickAccessList ? 1 : 0);
+
+    // 根据推荐数量决定布局模式：
+    // 1个：特殊单按钮模式（与存储空间1:1）
+    // 2-3个：单行模式
+    // 4-6个：双行模式
+    final isSingleButtonMode = totalDisplayCount == 1;
+    final isCompactMode = totalDisplayCount >= 2 && totalDisplayCount <= 3;
+    final isDoubleRowMode = totalDisplayCount >= 4;
 
     // 调试信息
     logger.d(
-      'QuickAccessSection: displayFolders count = ${displayFoldersForHome.length}, isCompactMode = $isCompactMode',
+      'QuickAccessSection: folders=${displayFoldersForHome.length}, hasMore=$hasQuickAccessList, total=$totalDisplayCount, single=$isSingleButtonMode, compact=$isCompactMode, double=$isDoubleRowMode',
     );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 快速访问区域 - 根据模式调整比例
-          Expanded(
-            flex: isCompactMode ? 80 : 65,
-            child: _buildQuickAccessCards(
-              context,
-              displayFoldersForHome,
-              isCompactMode,
-            ),
-          ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 计算快速访问区域高度（基于分类图片高度）
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isSmallScreen = screenWidth < 360;
 
-          // 分隔线区域 - 根据模式调整比例
-          Expanded(
-            flex: isCompactMode ? 4 : 5,
-            child: Center(
-              child: Container(
-                width: 1,
-                height: isCompactMode ? 60 : 100,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(context).dividerColor.withValues(alpha: 0),
-                      Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                      Theme.of(context).dividerColor.withValues(alpha: 0),
-                    ],
+          // 根据模式计算实际高度
+          double quickAccessHeight;
+          if (isSingleButtonMode || isCompactMode) {
+            // 单行模式：高度=分类图片高度
+            quickAccessHeight = widget.categoryCardSize;
+          } else {
+            // 双行模式：高度=分类图片高度×2 + 行间距 + 底部间距
+            final spacing = isSmallScreen ? 2.0 : 3.0;
+            quickAccessHeight =
+                widget.categoryCardSize * 2 + spacing + 3.0; // 加上底部3px间距
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 快速访问区域 - 根据模式调整比例
+              Expanded(
+                flex: isSingleButtonMode ? 1 : 2, // 单按钮模式1:1，其他2:1
+                child: _buildQuickAccessCards(
+                  context,
+                  displayFoldersForHome,
+                  isSingleButtonMode,
+                  isCompactMode,
+                  isDoubleRowMode,
+                ),
+              ),
+
+              // 分隔线区域 - 高度自适应
+              SizedBox(
+                width: 8,
+                child: Center(
+                  child: Container(
+                    width: 1,
+                    height: quickAccessHeight,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Theme.of(context).dividerColor.withValues(alpha: 0),
+                          Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                          Theme.of(context).dividerColor.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
 
-          // 存储空间信息 - 根据模式调整比例和显示方式
-          Expanded(
-            flex: isCompactMode ? 16 : 30,
-            child: isCompactMode
-                ? _buildStorageInfoCompact(context)
-                : _buildStorageInfo(context),
-          ),
-        ],
+              // 存储空间信息 - 根据模式调整比例和显示
+              Expanded(
+                flex: isSingleButtonMode ? 1 : 1, // 保持1:1或2:1比例
+                child: SizedBox(
+                  height: quickAccessHeight, // 固定高度以匹配快速访问区域
+                  child: _buildStorageInfoResponsive(
+                      context, isCompactMode || isSingleButtonMode),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -212,81 +254,112 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   Widget _buildQuickAccessCards(
     BuildContext context,
     List<QuickAccessFolder> homeFolders,
+    bool isSingleButtonMode,
     bool isCompactMode,
+    bool isDoubleRowMode,
   ) {
-    logger.d(
-      '_buildQuickAccessCards: isCompactMode = $isCompactMode, folders = ${homeFolders.length}',
+    // 检查是否有快速访问列表
+    final hasQuickAccessList = widget.quickAccessViewModel.folders.any(
+      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
     );
 
-    if (isCompactMode) {
-      // 紧凑模式：单行显示，最多4个文件夹 + 1个更多卡片
-      final displayFolders = homeFolders.take(4).toList();
+    logger.d(
+      '_buildQuickAccessCards: single=$isSingleButtonMode, compact=$isCompactMode, double=$isDoubleRowMode, folders=${homeFolders.length}, hasMore=$hasQuickAccessList',
+    );
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final availableWidth = constraints.maxWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
 
-          // 单行5个卡片（4个文件夹 + 1个更多）
-          final totalCards = 5;
-          final minSpacing = 3.0;
-          final maxSpacing = 12.0;
+        // 根据屏幕宽度确定设备类型和尺寸参数
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isSmallScreen = screenWidth < 360; // 小屏手机
 
-          // 计算卡片尺寸
-          final estimatedCardSize =
+        if (isSingleButtonMode) {
+          // 单按钮模式：1个按钮填充整个左半部区域（与存储按钮1:1）
+          // 高度固定为分类图片高度，宽度填充可用空间
+          final minSpacing = isSmallScreen ? 2.0 : 3.0;
+
+          // 宽度=可用空间，左右各留少量间距
+          final cardWidth = availableWidth - minSpacing * 2;
+
+          return Row(
+            children: [
+              SizedBox(width: minSpacing),
+              _buildFolderCard(context, homeFolders[0], cardWidth,
+                  widget.categoryCardSize, isSmallScreen),
+              SizedBox(width: minSpacing),
+            ],
+          );
+        } else if (isCompactMode) {
+          // 单行模式：2-3个按钮
+          // 高度固定为分类图片高度，宽度根据数量平均分配
+          final totalCards = homeFolders.length + (hasQuickAccessList ? 1 : 0);
+
+          final minSpacing = isSmallScreen ? 2.0 : 3.0;
+
+          // 2个或3个卡片：平均分配宽度
+          // 计算方式：(总宽度 - 所有间距) / 卡片数量
+          final cardWidth =
               (availableWidth - (totalCards + 1) * minSpacing) / totalCards;
-          final cardSize = estimatedCardSize.clamp(40.0, double.infinity);
 
-          // 计算实际间距
-          final totalCardWidth = cardSize * totalCards;
+          final totalCardWidth = cardWidth * totalCards;
           final availableSpace = availableWidth - totalCardWidth;
-          final spacing = availableSpace > 0
-              ? (availableSpace / (totalCards + 1)).clamp(
-                  minSpacing,
-                  maxSpacing,
-                )
-              : minSpacing;
+          final spacing = (availableSpace / (totalCards + 1))
+              .clamp(minSpacing, minSpacing * 2);
 
           return Row(
             children: [
               SizedBox(width: spacing),
-              for (int i = 0; i < displayFolders.length; i++) ...[
-                _buildFolderCard(context, displayFolders[i], cardSize),
+              for (int i = 0; i < homeFolders.length; i++) ...[
+                _buildFolderCard(context, homeFolders[i], cardWidth,
+                    widget.categoryCardSize, isSmallScreen),
                 SizedBox(width: spacing),
               ],
-              // 总是显示更多卡片
-              _buildMoreCard(context, cardSize),
-              SizedBox(width: spacing),
+              if (hasQuickAccessList) ...[
+                _buildMoreCard(
+                    context, cardWidth, widget.categoryCardSize, isSmallScreen),
+                SizedBox(width: spacing),
+              ],
             ],
           );
-        },
-      );
-    } else {
-      // 正常模式：2行显示，最多7个文件夹 + 1个更多卡片
-      final displayFolders = homeFolders.take(7).toList();
+        } else {
+          // 双行模式：4-6个按钮
+          // 高度固定为分类图片高度，宽度根据数量和行数动态分配
+          final maxFolders = hasQuickAccessList ? 5 : 6;
+          final displayFolders = homeFolders.take(maxFolders).toList();
+          final totalCards =
+              displayFolders.length + (hasQuickAccessList ? 1 : 0);
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final availableWidth = constraints.maxWidth;
+          final minSpacing = isSmallScreen ? 2.0 : 3.0;
 
-          // 每行4张卡片
-          final cardsPerRow = 4;
-          final minSpacing = 3.0;
-          final maxSpacing = 12.0;
+          // 根据总卡片数决定每行布局
+          int firstRowCount;
+          int secondRowCount;
+          double firstRowCardWidth;
+          double secondRowCardWidth;
 
-          // 计算卡片尺寸
-          final estimatedCardSize =
-              (availableWidth - (cardsPerRow + 1) * minSpacing) / cardsPerRow;
-          final cardSize = estimatedCardSize.clamp(40.0, double.infinity);
+          if (totalCards == 4) {
+            // 4个卡片：2行2列，各占1/2
+            firstRowCount = 2;
+            secondRowCount = 2;
+            firstRowCardWidth = (availableWidth - 3 * minSpacing) / 2;
+            secondRowCardWidth = firstRowCardWidth;
+          } else if (totalCards == 5) {
+            // 5个卡片：第一行2个（各占1/2），第二行3个（各占1/3）
+            firstRowCount = 2;
+            secondRowCount = 3;
+            firstRowCardWidth = (availableWidth - 3 * minSpacing) / 2;
+            secondRowCardWidth = (availableWidth - 4 * minSpacing) / 3;
+          } else {
+            // 6个卡片：2行3列，各占1/3
+            firstRowCount = 3;
+            secondRowCount = 3;
+            firstRowCardWidth = (availableWidth - 4 * minSpacing) / 3;
+            secondRowCardWidth = firstRowCardWidth;
+          }
 
-          // 计算实际间距
-          final totalCardWidth = cardSize * cardsPerRow;
-          final availableSpace = availableWidth - totalCardWidth;
-          final spacing = availableSpace > 0
-              ? (availableSpace / (cardsPerRow + 1)).clamp(
-                  minSpacing,
-                  maxSpacing,
-                )
-              : minSpacing;
+          final spacing = minSpacing;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,38 +368,57 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
               Row(
                 children: [
                   SizedBox(width: spacing),
-                  for (int i = 0; i < 4 && i < displayFolders.length; i++) ...[
-                    _buildFolderCard(context, displayFolders[i], cardSize),
+                  for (int i = 0;
+                      i < firstRowCount && i < displayFolders.length;
+                      i++) ...[
+                    _buildFolderCard(
+                        context,
+                        displayFolders[i],
+                        firstRowCardWidth,
+                        widget.categoryCardSize,
+                        isSmallScreen),
                     SizedBox(width: spacing),
                   ],
-                  // 如果第一行不满4个，在第一行末尾显示"更多"
-                  if (displayFolders.length < 4) ...[
-                    _buildMoreCard(context, cardSize),
-                    SizedBox(width: spacing),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 3),
-              // 第二行
-              Row(
-                children: [
-                  SizedBox(width: spacing),
-                  for (int i = 4; i < 8 && i < displayFolders.length; i++) ...[
-                    _buildFolderCard(context, displayFolders[i], cardSize),
-                    SizedBox(width: spacing),
-                  ],
-                  // 如果第一行满了但第二行有空间，在第二行末尾显示"更多"
-                  if (displayFolders.length >= 4) ...[
-                    _buildMoreCard(context, cardSize),
+                  if (firstRowCount >= displayFolders.length &&
+                      hasQuickAccessList) ...[
+                    _buildMoreCard(context, firstRowCardWidth,
+                        widget.categoryCardSize, isSmallScreen),
                     SizedBox(width: spacing),
                   ],
                 ],
               ),
+              if (secondRowCount > 0) ...[
+                SizedBox(height: spacing),
+                // 第二行
+                Row(
+                  children: [
+                    SizedBox(width: spacing),
+                    for (int i = firstRowCount;
+                        i < displayFolders.length;
+                        i++) ...[
+                      _buildFolderCard(
+                          context,
+                          displayFolders[i],
+                          secondRowCardWidth,
+                          widget.categoryCardSize,
+                          isSmallScreen),
+                      SizedBox(width: spacing),
+                    ],
+                    if (displayFolders.length >= firstRowCount &&
+                        hasQuickAccessList) ...[
+                      _buildMoreCard(context, secondRowCardWidth,
+                          widget.categoryCardSize, isSmallScreen),
+                      SizedBox(width: spacing),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3), // 增加底部间距
+              ],
             ],
           );
-        },
-      );
-    }
+        }
+      },
+    );
   }
 
   Future<void> _showFolderMenu(BuildContext context) async {
@@ -534,44 +626,71 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     );
   }
 
+  /// 构建文件夹卡片（宽度动态调整，高度固定为分类图片高度）
   Widget _buildFolderCard(
     BuildContext context,
     QuickAccessFolder folder,
-    double cardSize,
+    double cardWidth,
+    double cardHeight,
+    bool isSmallScreen,
   ) {
     final exists = Directory(folder.path).existsSync();
     final color = _getFolderColorByType(folder.type);
 
+    // 检查是否被选中（当前路径是否在此文件夹内）
+    final currentPath = widget.fileViewModel.currentPath;
+    final isSelected = currentPath == folder.path ||
+        (currentPath.isNotEmpty &&
+            currentPath.startsWith(folder.path + Platform.pathSeparator));
+
+    // 根据卡片高度动态调整图标和文字大小
+    final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
+    final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
+
+    // 统一的首页推荐背景色
+    final backgroundColor = isSelected
+        ? Theme.of(context).colorScheme.primaryContainer // 选中时高亮背景
+        : const Color(0xFFF5F5F5); // 未选中时的浅灰色背景
+
     return SizedBox(
-      width: cardSize,
-      height: cardSize,
+      width: cardWidth,
+      height: cardHeight,
       child: Material(
-        elevation: 2,
+        elevation: isSelected ? 4 : 2,
         borderRadius: BorderRadius.circular(12),
+        color: backgroundColor,
         child: InkWell(
           onTap: exists ? () => _navigateToFolder(folder) : null,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(8),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   _getFolderIcon(folder),
-                  size: 24,
-                  color: exists ? color : Colors.grey,
+                  size: iconSize,
+                  color: exists
+                      ? (isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : color)
+                      : Colors.grey,
                 ),
-                const SizedBox(height: 1),
+                SizedBox(height: cardHeight * 0.02),
                 Text(
                   folder.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: exists ? null : Colors.grey,
+                    fontSize: fontSize,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: exists
+                        ? (isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : null)
+                        : Colors.grey,
                     height: 1.1,
                   ),
                 ),
@@ -584,39 +703,70 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   }
 
   /// 构建"更多"卡片
-  Widget _buildMoreCard(BuildContext context, double cardSize) {
+  /// 构建"更多"卡片（宽度动态调整，高度固定为分类图片高度）
+  Widget _buildMoreCard(
+    BuildContext context,
+    double cardWidth,
+    double cardHeight,
+    bool isSmallScreen,
+  ) {
+    // 检查当前路径是否在快速访问列表中（但不在首页推荐中）
+    final currentPath = widget.fileViewModel.currentPath;
+    final folders = widget.quickAccessViewModel.folders;
+
+    final isMoreSelected = folders.any((f) =>
+        f.isAddedToQuickAccess &&
+        f.homeDisplayOrder == null &&
+        (currentPath == f.path ||
+            (currentPath.isNotEmpty &&
+                currentPath.startsWith(f.path + Platform.pathSeparator))));
+
+    // 根据卡片高度动态调整图标和文字大小
+    final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
+    final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
+
+    // "更多"按钮使用不同的背景色
+    final backgroundColor = isMoreSelected
+        ? Theme.of(context).colorScheme.secondaryContainer // 选中时高亮
+        : const Color(0xFFE8EAF6); // 未选中时的浅紫色背景
+
     return SizedBox(
       key: _moreCardKey, // 添加key用于定位
-      width: cardSize,
-      height: cardSize,
+      width: cardWidth,
+      height: cardHeight,
       child: Material(
-        elevation: 2,
+        elevation: isMoreSelected ? 4 : 2,
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context).colorScheme.surface,
+        color: backgroundColor,
         child: InkWell(
           onTap: () => _showFolderMenu(context),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(8),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.more_horiz,
-                  size: 24,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: iconSize,
+                  color: isMoreSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(height: 1),
+                SizedBox(height: cardHeight * 0.02),
                 Text(
                   '更多',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: fontSize,
+                    fontWeight:
+                        isMoreSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isMoreSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.1,
                   ),
                 ),
@@ -668,9 +818,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     }
   }
 
-  /// 紧凑模式的存储信息显示（文字+进度条）
-  Widget _buildStorageInfoCompact(BuildContext context) {
-    return InkWell(
+  /// 响应式存储信息显示（根据模式自动切换）
+  Widget _buildStorageInfoResponsive(BuildContext context, bool isCompactMode) {
+    return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
@@ -683,218 +833,193 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         );
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        padding: const EdgeInsets.fromLTRB(4, 2, 4, 4), // 上边距减少到2px，其他保持4px
         decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.storage,
-                  size: 11,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  '存储',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            if (_loadingStorage)
-              const Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else if (_totalSpace != null && _freeSpace != null) ...[
-              // 进度条
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: (_totalSpace! - _freeSpace!) / _totalSpace!,
-                  backgroundColor: Colors.grey[300],
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _getStorageColor(_freeSpace! / _totalSpace!),
-                  ),
-                  minHeight: 3,
-                ),
-              ),
-              const SizedBox(height: 3),
-              // 文字信息 - 使用FittedBox防止换行
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ] else
-              Text(
-                '加载失败',
-                style: TextStyle(fontSize: 9, color: Colors.grey[600]),
-              ),
-          ],
-        ),
+        child: isCompactMode
+            ? _buildStorageContentCompact(context)
+            : _buildStorageContentExpanded(context),
       ),
     );
   }
 
-  Widget _buildStorageInfo(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => StoragePage(
-              presenter: widget.filePresenter,
-              viewModel: widget.fileViewModel,
+  /// 紧凑模式存储内容（单行 - 横向进度条）
+  Widget _buildStorageContentCompact(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min, // 使用最小尺寸，避免溢出
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.storage,
+              size: 12,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '存储',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3), // 减少间距
+        if (_loadingStorage)
+          const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_totalSpace != null && _freeSpace != null) ...[
+          // 横向进度条
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: (_totalSpace! - _freeSpace!) / _totalSpace!,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _getStorageColor(_freeSpace! / _totalSpace!),
+              ),
+              minHeight: 4,
             ),
           ),
-        );
-      },
-      child: Container(
-        width: 120,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(height: 2), // 减少间距
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用 / 共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+            ),
+          ),
+        ] else
+          Text(
+            '加载失败',
+            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+          ),
+      ],
+    );
+  }
+
+  /// 扩展模式存储内容（双行 - 圆形进度环）
+  Widget _buildStorageContentExpanded(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start, // 左对齐
+      mainAxisAlignment: MainAxisAlignment.start, // 顶部对齐
+      children: [
+        // "存储"标题在左上角
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
+            Icon(
+              Icons.storage,
+              size: 14,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '存储',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4), // 减少间距，让圆环向上移动
+        if (_loadingStorage)
+          const Center(
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_totalSpace != null && _freeSpace != null)
+          // 圆环和文字信息居中
+          Center(
+            child: Column(
               children: [
-                Icon(
-                  Icons.storage,
-                  size: 14,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '存储',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
+                // 圆形进度环
+                SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 50,
+                        height: 50,
+                        child: CircularProgressIndicator(
+                          value: (_totalSpace! - _freeSpace!) / _totalSpace!,
+                          strokeWidth: 5,
+                          backgroundColor: Colors.grey[300],
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _getStorageColor(_freeSpace! / _totalSpace!),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(((_totalSpace! - _freeSpace!) / _totalSpace!) * 100).toInt()}%',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _getStorageColor(_freeSpace! / _totalSpace!),
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(height: 6),
+                // 文字信息
+                Text(
+                  '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.color
+                        ?.withValues(alpha: 0.5),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            if (_loadingStorage)
-              const Center(
-                child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else if (_totalSpace != null && _freeSpace != null)
-              Column(
-                children: [
-                  SizedBox(
-                    width: 60,
-                    height: 60,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 60,
-                          height: 60,
-                          child: CircularProgressIndicator(
-                            value: (_totalSpace! - _freeSpace!) / _totalSpace!,
-                            strokeWidth: 6,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              _getStorageColor(_freeSpace! / _totalSpace!),
-                            ),
-                          ),
-                        ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              FileSizeFormatter.formatStorageSize(_freeSpace!),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '可用',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.color
-                                    ?.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.color?.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              )
-            else
-              Text(
-                '加载失败',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-          ],
-        ),
-      ),
+          )
+        else
+          Text(
+            '加载失败',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+      ],
     );
   }
 

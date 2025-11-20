@@ -582,8 +582,6 @@ class QuickAccessLocalSource {
 
       final updatedFolder = folders[index].copyWith(
         homeDisplayOrder: order,
-        isAddedToQuickAccess:
-            order != null ? true : folders[index].isAddedToQuickAccess,
       );
 
       folders[index] = updatedFolder;
@@ -604,9 +602,6 @@ class QuickAccessLocalSource {
         if (index != -1) {
           folders[index] = folders[index].copyWith(
             homeDisplayOrder: entry.value,
-            isAddedToQuickAccess: entry.value != null
-                ? true
-                : folders[index].isAddedToQuickAccess,
           );
         }
       }
