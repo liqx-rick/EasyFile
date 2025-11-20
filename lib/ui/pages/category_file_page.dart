@@ -40,6 +40,7 @@ enum DocumentFileType implements FileTypeFilter {
   text('TXT', 'TXT, MD, LOG'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DocumentFileType(this.label, this.extensions);
@@ -113,6 +114,7 @@ enum DownloadFileType implements FileTypeFilter {
   media('视频', 'MP3, MP4, AVI'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DownloadFileType(this.label, this.extensions);
@@ -872,6 +874,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             child: _isGroupEnabled
                 ? _buildGroupedView()
                 : FileCollectionView(
+                    key: PageStorageKey(
+                        'category_${widget.categoryType.name}_non_grouped'),
                     items: _filteredFiles,
                     gridMode: _isGridView,
                     config: _getViewConfig(context),
@@ -1056,6 +1060,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     }).toList();
 
     return FileCollectionView(
+      key: PageStorageKey('category_${widget.categoryType.name}_grouped'),
       groups: fileGroups,
       gridMode: _isGridView,
       config: _getViewConfig(context),

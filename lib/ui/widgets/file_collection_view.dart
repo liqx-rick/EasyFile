@@ -338,23 +338,30 @@ class FileCollectionView extends StatelessWidget {
     );
   }
 
-  Widget _buildList(BuildContext context) {
-    final controller = onScrollNearEnd != null ? ScrollController() : null;
+  /// 创建带有滚动到底部监听的ScrollController
+  ///
+  /// 当滚动位置接近底部200px时，触发[onScrollNearEnd]回调
+  ScrollController? _createScrollController() {
+    if (onScrollNearEnd == null) return null;
 
-    if (controller != null) {
-      controller.addListener(() {
-        if (controller.position.pixels >=
-            controller.position.maxScrollExtent - 200) {
-          onScrollNearEnd!();
-        }
-      });
-    }
+    final controller = ScrollController();
+    controller.addListener(() {
+      if (controller.position.pixels >=
+          controller.position.maxScrollExtent - 200) {
+        onScrollNearEnd!();
+      }
+    });
+    return controller;
+  }
+
+  Widget _buildList(BuildContext context) {
+    final controller = _createScrollController();
 
     return ListView.separated(
       controller: controller,
       padding: padding as EdgeInsets?,
       itemCount: items!.length,
-      cacheExtent: cacheExtent,
+      cacheExtent: cacheExtent ?? 1000, // 适度增加缓存范围，约2屏
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
     );
@@ -381,13 +388,16 @@ class FileCollectionView extends StatelessWidget {
 
   Widget _buildGrid(BuildContext context) {
     final crossAxisCount = _calculateCrossAxisCount(context);
+    final controller = _createScrollController();
 
     return GridView.builder(
+      controller: controller,
       padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
       // 禁用自动保持 widget，减少内存占用
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       addSemanticIndexes: false,
+      cacheExtent: cacheExtent ?? 1000, // 适度增加缓存范围，约2屏
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 8,
@@ -582,11 +592,6 @@ class _GroupedSliverViewState extends State<_GroupedSliverView> {
     });
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   void _clearImageCache() {
     try {
       final imageCache = PaintingBinding.instance.imageCache;
@@ -602,8 +607,8 @@ class _GroupedSliverViewState extends State<_GroupedSliverView> {
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
-      // 添加缓存范围，提前渲染屏幕外的内容
-      cacheExtent: 500,
+      // 适度增加缓存范围，约2屏
+      cacheExtent: 1000,
       slivers: [
         for (final group in widget.groups) ...[
           // 分组头部

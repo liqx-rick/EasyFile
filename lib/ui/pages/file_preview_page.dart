@@ -34,6 +34,12 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   late int _currentIndex;
   bool _showPageIndicator = true;
 
+  // 预加载管理
+  final Map<int, bool> _preloadedIndexes = {};
+  static const int _preloadDistance = 2; // 前后各预加载2页
+  static const int _cleanupDistance = 3; // 清理距离超过3页的缓存
+  int _lastCleanupIndex = -1; // 上次清理时的索引，用于渐进式清理
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +55,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           });
         }
       });
+
+      // 初始化时预加载当前页和相邻页
+      _preloadAdjacentPages(_currentIndex);
     }
   }
 
@@ -56,6 +65,150 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// 预加载相邻页面
+  void _preloadAdjacentPages(int centerIndex) {
+    if (widget.fileList == null || widget.fileList!.isEmpty) return;
+
+    logger.d('Starting preload for center index: $centerIndex');
+    final indicesToPreload = <int>[];
+
+    // 向前预加载（前2页）
+    for (int i = 1; i <= _preloadDistance; i++) {
+      final prevIndex = centerIndex - i;
+      if (prevIndex >= 0) {
+        // 检查是否已预加载且成功
+        if (_preloadedIndexes[prevIndex] != true) {
+          indicesToPreload.add(prevIndex);
+          logger.d('Will preload previous page at index $prevIndex');
+        } else {
+          logger.d('Page $prevIndex already preloaded, skipping');
+        }
+      }
+    }
+
+    // 向后预加载（后2页）
+    for (int i = 1; i <= _preloadDistance; i++) {
+      final nextIndex = centerIndex + i;
+      if (nextIndex < widget.fileList!.length) {
+        // 检查是否已预加载且成功
+        if (_preloadedIndexes[nextIndex] != true) {
+          indicesToPreload.add(nextIndex);
+          logger.d('Will preload next page at index $nextIndex');
+        } else {
+          logger.d('Page $nextIndex already preloaded, skipping');
+        }
+      }
+    }
+
+    logger.d(
+        'Total pages to preload: ${indicesToPreload.length}, indices: $indicesToPreload');
+
+    // 异步预加载（避免阻塞UI）
+    for (final index in indicesToPreload) {
+      _preloadFileAtIndex(index);
+    }
+
+    // 清理远离的页面缓存
+    _cleanupDistantPages(centerIndex);
+  }
+
+  /// 预加载指定索引的文件
+  Future<void> _preloadFileAtIndex(int index) async {
+    if (_preloadedIndexes[index] == true) {
+      logger.d('Index $index already preloaded, skipping');
+      return;
+    }
+
+    logger.d('Starting preload for index $index');
+    _preloadedIndexes[index] = true;
+    final file = widget.fileList![index];
+
+    try {
+      if (_isImageFile(file.name)) {
+        // 预加载图片到Flutter缓存
+        final imageFile = File(file.path);
+        if (await imageFile.exists()) {
+          if (!mounted) return;
+          await precacheImage(
+            FileImage(imageFile),
+            context,
+          );
+          logger.d(
+              '✓ Successfully preloaded IMAGE at index $index: ${file.name}');
+        } else {
+          logger.w('Image file does not exist at index $index: ${file.path}');
+          _preloadedIndexes[index] = false;
+        }
+      } else if (_isVideoFile(file.name)) {
+        // 视频缩略图已由RealVideoThumbnail组件自动缓存
+        logger.d(
+            '✓ VIDEO at index $index will be loaded on demand: ${file.name}');
+      } else if (_isAudioFile(file.name)) {
+        logger.d(
+            '✓ AUDIO at index $index will be loaded on demand: ${file.name}');
+      } else {
+        logger.d(
+            '✓ FILE at index $index (${file.name}) will be loaded on demand');
+      }
+      // PDF和文本文件按需加载，不预加载
+    } catch (e) {
+      logger.e('✗ Failed to preload file at index $index: $e');
+      _preloadedIndexes[index] = false;
+    }
+  }
+
+  /// 清理距离当前页面较远的缓存（渐进式清理策略）
+  void _cleanupDistantPages(int currentIndex) {
+    // 只在索引变化时执行清理
+    if (_lastCleanupIndex == currentIndex) return;
+
+    final direction = currentIndex > _lastCleanupIndex ? 1 : -1; // 1=向右滑，-1=向左滑
+    _lastCleanupIndex = currentIndex;
+
+    final keysToRemove = <int>[];
+
+    // 查找需要清理的页面（距离超过cleanupDistance）
+    _preloadedIndexes.forEach((index, _) {
+      if ((index - currentIndex).abs() > _cleanupDistance) {
+        keysToRemove.add(index);
+      }
+    });
+
+    if (keysToRemove.isNotEmpty) {
+      // 按照滑动方向，优先清理最远的页面
+      keysToRemove.sort((a, b) {
+        final distA = (a - currentIndex).abs();
+        final distB = (b - currentIndex).abs();
+        return distB.compareTo(distA); // 从远到近排序
+      });
+
+      logger.d(
+          '🧹 Cleanup triggered at index $currentIndex (direction: ${direction > 0 ? "→" : "←"}), will clean ${keysToRemove.length} pages: $keysToRemove');
+    }
+
+    for (final key in keysToRemove) {
+      _preloadedIndexes.remove(key);
+
+      // 清理缓存并记录日志
+      if (key < widget.fileList!.length) {
+        final file = widget.fileList![key];
+        if (_isImageFile(file.name)) {
+          final imageFile = File(file.path);
+          imageCache.evict(FileImage(imageFile));
+          logger.d('🗑 Cleaned up IMAGE cache for page $key: ${file.name}');
+        } else if (_isVideoFile(file.name)) {
+          logger.d(
+              '🗑 Cleaned up VIDEO preload record for page $key: ${file.name}');
+        } else if (_isAudioFile(file.name)) {
+          logger.d(
+              '🗑 Cleaned up AUDIO preload record for page $key: ${file.name}');
+        } else {
+          logger.d('🗑 Cleaned up preload record for page $key: ${file.name}');
+        }
+      }
+    }
   }
 
   // 辅助方法：判断文件类型
@@ -157,12 +310,16 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           // PageView 支持滑动切换
           PageView.builder(
             controller: _pageController,
+            physics: const BouncingScrollPhysics(), // 启用回弹效果
             itemCount: widget.fileList!.length,
             onPageChanged: (index) {
               setState(() {
                 _currentIndex = index;
                 _showPageIndicator = true;
               });
+
+              // 预加载相邻页面
+              _preloadAdjacentPages(index);
 
               // 3秒后隐藏页码
               Future.delayed(const Duration(seconds: 3), () {
@@ -380,6 +537,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     } catch (e) {
       if (!mounted) return;
       navigator.pop(); // 关闭加载对话框
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('加载详细信息失败: $e')),
       );

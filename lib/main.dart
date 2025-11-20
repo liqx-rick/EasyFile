@@ -14,9 +14,12 @@ Future<void> main() async {
   // 保持native splash显示，直到Flutter应用完全准备好
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // 配置图片缓存，限制内存使用
-  PaintingBinding.instance.imageCache.maximumSize = 100; // 最多缓存100张图片
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50MB
+  // 优化图片缓存配置
+  // 增加缓存容量，解决从预览返回时缩略图被清除的问题
+  PaintingBinding.instance.imageCache.maximumSize = 300; // 增加到300张（原100张）
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      150 << 20; // 150MB（原50MB）
+  logger.i('ImageCache configured: maximumSize=300, maximumSizeBytes=150MB');
 
   // Initialize logger before other startup so DI logs go to file
   await logger.init();
