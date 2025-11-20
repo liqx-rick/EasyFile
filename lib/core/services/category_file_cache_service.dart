@@ -31,10 +31,12 @@ class CategoryFileCacheService {
       );
 
       // 计算总数
-      final totalFiles = counts.values.fold<int>(0, (sum, count) => sum + count);
+      final totalFiles =
+          counts.values.fold<int>(0, (sum, count) => sum + count);
       await prefs.setInt(_keyTotalFilesScanned, totalFiles);
 
-      logger.i('Saved category counts: ${counts.length} categories, $totalFiles files');
+      logger.i(
+          'Saved category counts: ${counts.length} categories, $totalFiles files');
       return true;
     } catch (e, stackTrace) {
       logger.e('Error saving category counts: $e\n$stackTrace');

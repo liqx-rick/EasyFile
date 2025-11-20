@@ -227,7 +227,7 @@ class QuickAccessPresenter {
       // 4. 扫描分类文件（如果提供了扫描函数）
       logger.i('Starting category file scan...');
       Map<FileCategory, int> categoryFileCounts;
-      
+
       if (scanCategoryFiles != null) {
         // 使用外部提供的扫描函数（完整扫描）
         logger.i('Using provided category scan function');
@@ -237,11 +237,12 @@ class QuickAccessPresenter {
         logger.i('Using fallback quick scan');
         categoryFileCounts = await _scanCategoryFiles(systemFolders);
       }
-      
+
       // 使用 'all' 分类的计数作为总文件数（避免重复计数）
       final totalFilesScanned = categoryFileCounts[FileCategory.all] ?? 0;
-      
-      logger.i('Category scan completed: $totalFilesScanned files in ${categoryFileCounts.length} categories');
+
+      logger.i(
+          'Category scan completed: $totalFilesScanned files in ${categoryFileCounts.length} categories');
 
       // 5. 保存分类文件缓存
       final cacheService = CategoryFileCacheService();
@@ -274,9 +275,10 @@ class QuickAccessPresenter {
   Future<Map<FileCategory, int>> _scanCategoryFiles(
     List<QuickAccessFolder> systemFolders,
   ) async {
-    logger.i('_scanCategoryFiles called with ${systemFolders.length} system folders');
+    logger.i(
+        '_scanCategoryFiles called with ${systemFolders.length} system folders');
     final Map<FileCategory, int> counts = {};
-    
+
     // 初始化所有分类计数
     for (final category in FileCategory.values) {
       counts[category] = 0;
@@ -301,8 +303,9 @@ class QuickAccessPresenter {
       }
     }
 
-    logger.i('Scanning ${priorityPaths.length} priority directories for category files');
-    
+    logger.i(
+        'Scanning ${priorityPaths.length} priority directories for category files');
+
     if (priorityPaths.isEmpty) {
       logger.w('No priority directories found, returning empty counts');
       return counts;
@@ -323,7 +326,7 @@ class QuickAccessPresenter {
         // 只扫描一级文件，不递归（提高速度）
         final entities = await dir.list(followLinks: false).toList();
         logger.d('Found ${entities.length} entities in $dirPath');
-        
+
         int filesInDir = 0;
         for (final entity in entities) {
           if (entity is File) {
@@ -334,12 +337,12 @@ class QuickAccessPresenter {
             counts[FileCategory.all] = (counts[FileCategory.all] ?? 0) + 1;
           }
         }
-        
+
         totalFilesFound += filesInDir;
         logger.i('Scanned $dirPath: found $filesInDir files');
 
         scannedDirs++;
-        
+
         // 限制扫描时间，避免首次启动太慢
         if (scannedDirs >= 10) {
           logger.i('Reached scan limit (10 directories), stopping early');
@@ -351,8 +354,10 @@ class QuickAccessPresenter {
       }
     }
 
-    logger.i('Category scan completed: scanned $scannedDirs directories, found $totalFilesFound files');
-    logger.i('Category counts: ${counts.entries.where((e) => e.value > 0).map((e) => '${e.key.name}:${e.value}').join(', ')}');
+    logger.i(
+        'Category scan completed: scanned $scannedDirs directories, found $totalFilesFound files');
+    logger.i(
+        'Category counts: ${counts.entries.where((e) => e.value > 0).map((e) => '${e.key.name}:${e.value}').join(', ')}');
 
     return counts;
   }

@@ -535,22 +535,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     if (!forceRefresh) {
       final cacheService = CategoryFileCacheService();
       final hasCacheStats = await cacheService.hasCache();
-      
+
       if (hasCacheStats) {
         // 有综合扫描的缓存统计，显示提示信息
         final categoryCount = await cacheService.getCategoryCount(
           _getCategoryEnumFromType(widget.categoryType),
         );
-        
+
         if (categoryCount != null && categoryCount > 0) {
           logger.i(
             'Found comprehensive scan cache: $categoryCount files for ${categoryInfo.name}',
           );
-          
+
           // 在UI上显示友好提示
           if (mounted) {
             setState(() {
-              _loadingProgress = '已发现 $categoryCount 个${categoryInfo.name}，正在加载...';
+              _loadingProgress =
+                  '已发现 $categoryCount 个${categoryInfo.name}，正在加载...';
             });
           }
         }
