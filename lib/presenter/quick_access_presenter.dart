@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
+import 'package:easyfile/data/models/comprehensive_scan_result.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
 import 'package:easyfile/data/services/smart_app_scanner.dart';
 import 'package:easyfile/data/services/user_folder_detector.dart';
 import 'package:easyfile/data/services/alias_recommendation_service.dart';
+import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
 
@@ -144,7 +147,218 @@ class QuickAccessPresenter {
 
   // ==================== 扫描功能 ====================
 
+  /// 执行首次综合扫描（扫描快速访问目录 + 分类文件）
+  /// [scanCategoryFiles] 是一个可选的回调函数，用于扫描分类文件并返回统计结果
+  Future<ComprehensiveScanResult> performFirstTimeComprehensiveScan({
+    Future<Map<FileCategory, int>> Function()? scanCategoryFiles,
+  }) async {
+    logger.i('QuickAccessPresenter.performFirstTimeComprehensiveScan called');
+    _viewModel.setScanning(true);
+
+    try {
+      // 1. 扫描应用目录
+      final appFolders = await _appScanner.deepScan();
+      logger.i('Deep scan found ${appFolders.length} app folders');
+
+      // 2. 扫描系统目录
+      final systemFolders = await _scanSystemDirectories();
+      logger.i('Deep scan found ${systemFolders.length} system folders');
+      for (final folder in systemFolders) {
+        logger.d('System folder: ${folder.path}');
+      }
+
+      // 3. 检测用户目录
+      final userFolders = await _userDetector.detectUserFolders();
+      logger.i('Deep scan found ${userFolders.length} user folders');
+
+      // 合并所有扫描结果
+      final allScannedFolders = [
+        ...appFolders.map((f) => f.toQuickAccessFolder()),
+        ...systemFolders,
+        ...userFolders.map((f) => f.toQuickAccessFolder()),
+      ];
+
+      logger.i('Deep scan total: ${allScannedFolders.length} folders');
+
+      int newlyAdded = 0;
+      int unhidden = 0;
+      int alreadyExists = 0;
+      int systemCount = 0;
+      int appRootCount = 0;
+      int appSubCount = 0;
+      int userCustomCount = 0;
+
+      // 添加到数据库并统计
+      for (final folder in allScannedFolders) {
+        // 统计类型
+        switch (folder.type) {
+          case QuickAccessFolderType.system:
+            systemCount++;
+            break;
+          case QuickAccessFolderType.appRoot:
+            appRootCount++;
+            break;
+          case QuickAccessFolderType.appSubfolder:
+            appSubCount++;
+            break;
+          case QuickAccessFolderType.userCustom:
+            userCustomCount++;
+            break;
+        }
+
+        // 添加到数据库
+        final result = await _localSource.addFolderWithResult(folder);
+        switch (result) {
+          case AddFolderResult.added:
+            newlyAdded++;
+            break;
+          case AddFolderResult.unhidden:
+            unhidden++;
+            break;
+          case AddFolderResult.exists:
+            alreadyExists++;
+            break;
+          case AddFolderResult.skippedHidden:
+          case AddFolderResult.error:
+            break;
+        }
+      }
+
+      // 4. 扫描分类文件（如果提供了扫描函数）
+      logger.i('Starting category file scan...');
+      Map<FileCategory, int> categoryFileCounts;
+      
+      if (scanCategoryFiles != null) {
+        // 使用外部提供的扫描函数（完整扫描）
+        logger.i('Using provided category scan function');
+        categoryFileCounts = await scanCategoryFiles();
+      } else {
+        // 回退到快速扫描（只扫描系统目录第一层）
+        logger.i('Using fallback quick scan');
+        categoryFileCounts = await _scanCategoryFiles(systemFolders);
+      }
+      
+      // 使用 'all' 分类的计数作为总文件数（避免重复计数）
+      final totalFilesScanned = categoryFileCounts[FileCategory.all] ?? 0;
+      
+      logger.i('Category scan completed: $totalFilesScanned files in ${categoryFileCounts.length} categories');
+
+      // 5. 保存分类文件缓存
+      final cacheService = CategoryFileCacheService();
+      await cacheService.saveCategoryCounts(categoryFileCounts);
+
+      await loadQuickAccessFolders();
+
+      return ComprehensiveScanResult(
+        quickAccessFoldersFound: allScannedFolders.length,
+        systemFoldersCount: systemCount,
+        appRootFoldersCount: appRootCount,
+        appSubFoldersCount: appSubCount,
+        userCustomFoldersCount: userCustomCount,
+        newlyAdded: newlyAdded,
+        alreadyExists: alreadyExists,
+        unhidden: unhidden,
+        categoryFileCounts: categoryFileCounts,
+        totalFilesScanned: totalFilesScanned,
+        success: true,
+      );
+    } catch (e, stackTrace) {
+      logger.e('Error performing comprehensive scan: $e\n$stackTrace');
+      return ComprehensiveScanResult.error(e.toString());
+    } finally {
+      _viewModel.setScanning(false);
+    }
+  }
+
+  /// 扫描分类文件（统计各分类文件数量）
+  Future<Map<FileCategory, int>> _scanCategoryFiles(
+    List<QuickAccessFolder> systemFolders,
+  ) async {
+    logger.i('_scanCategoryFiles called with ${systemFolders.length} system folders');
+    final Map<FileCategory, int> counts = {};
+    
+    // 初始化所有分类计数
+    for (final category in FileCategory.values) {
+      counts[category] = 0;
+    }
+
+    // 优先扫描的系统目录
+    final priorityPaths = <String>[];
+    for (final folder in systemFolders) {
+      final path = folder.path.toLowerCase();
+      logger.d('Checking system folder: $path');
+      // 只扫描常用的系统目录
+      if (path.contains('dcim') ||
+          path.contains('picture') ||
+          path.contains('photo') ||
+          path.contains('video') ||
+          path.contains('movie') ||
+          path.contains('music') ||
+          path.contains('document') ||
+          path.contains('download')) {
+        priorityPaths.add(folder.path);
+        logger.d('Added to priority: ${folder.path}');
+      }
+    }
+
+    logger.i('Scanning ${priorityPaths.length} priority directories for category files');
+    
+    if (priorityPaths.isEmpty) {
+      logger.w('No priority directories found, returning empty counts');
+      return counts;
+    }
+
+    // 扫描每个优先目录
+    int scannedDirs = 0;
+    int totalFilesFound = 0;
+    for (final dirPath in priorityPaths) {
+      try {
+        logger.d('Scanning directory: $dirPath');
+        final dir = Directory(dirPath);
+        if (!await dir.exists()) {
+          logger.w('Directory does not exist: $dirPath');
+          continue;
+        }
+
+        // 只扫描一级文件，不递归（提高速度）
+        final entities = await dir.list(followLinks: false).toList();
+        logger.d('Found ${entities.length} entities in $dirPath');
+        
+        int filesInDir = 0;
+        for (final entity in entities) {
+          if (entity is File) {
+            filesInDir++;
+            final extension = entity.path.split('.').last.toLowerCase();
+            final category = FileCategoryExtension.fromExtension(extension);
+            counts[category] = (counts[category] ?? 0) + 1;
+            counts[FileCategory.all] = (counts[FileCategory.all] ?? 0) + 1;
+          }
+        }
+        
+        totalFilesFound += filesInDir;
+        logger.i('Scanned $dirPath: found $filesInDir files');
+
+        scannedDirs++;
+        
+        // 限制扫描时间，避免首次启动太慢
+        if (scannedDirs >= 10) {
+          logger.i('Reached scan limit (10 directories), stopping early');
+          break;
+        }
+      } catch (e) {
+        logger.e('Error scanning directory $dirPath: $e');
+        continue;
+      }
+    }
+
+    logger.i('Category scan completed: scanned $scannedDirs directories, found $totalFilesFound files');
+    logger.i('Category counts: ${counts.entries.where((e) => e.value > 0).map((e) => '${e.key.name}:${e.value}').join(', ')}');
+
+    return counts;
+  }
+
   /// 执行首次扫描（直接使用深度扫描获取所有目录）
+  /// 此方法保留用于向后兼容
   Future<ScanResult> performFirstTimeScan() async {
     logger.i(
         'QuickAccessPresenter.performFirstTimeScan called - using deep scan');

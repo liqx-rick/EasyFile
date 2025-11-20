@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,8 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/settings_page.dart';
@@ -262,7 +265,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         logger.i('First scan needed: $needsScan');
 
         if (needsScan) {
-          logger.i('Performing first-time deep scan...');
+          logger.i('Performing first-time comprehensive scan...');
 
           // 显示首次扫描进度
           setState(() {
@@ -270,34 +273,122 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             _isFirstScan = true;
           });
 
-          final scanResult = await quickAccessPresenter!.performFirstTimeScan();
+          // 执行综合扫描（同时扫描快速访问和分类文件）
+          final scanResult = await quickAccessPresenter!
+              .performFirstTimeComprehensiveScan(
+            scanCategoryFiles: () async {
+              // 使用 FilePresenter 的完整扫描逻辑
+              logger.i('Scanning all category files using FilePresenter...');
+              final Map<FileCategory, int> counts = {};
+              
+              // 初始化所有分类计数
+              for (final category in FileCategory.values) {
+                counts[category] = 0;
+              }
+              
+              // 扫描所有分类类型
+              final categoriesToScan = [
+                CategoryType.images,
+                CategoryType.video,
+                CategoryType.music,
+                CategoryType.documents,
+                CategoryType.downloads,
+              ];
+              
+              int totalFiles = 0;
+              final prefs = await SharedPreferences.getInstance();
+              
+              for (final categoryType in categoriesToScan) {
+                try {
+                  final files = await presenter.scanFilesByCategory(categoryType);
+                  final count = files.length;
+                  
+                  // 映射到 FileCategory
+                  FileCategory fileCategory;
+                  switch (categoryType) {
+                    case CategoryType.images:
+                      fileCategory = FileCategory.image;
+                      break;
+                    case CategoryType.video:
+                      fileCategory = FileCategory.video;
+                      break;
+                    case CategoryType.music:
+                      fileCategory = FileCategory.audio;
+                      break;
+                    case CategoryType.documents:
+                      fileCategory = FileCategory.document;
+                      break;
+                    case CategoryType.downloads:
+                      fileCategory = FileCategory.other;
+                      break;
+                  }
+                  
+                  counts[fileCategory] = count;
+                  totalFiles = totalFiles + count;
+                  
+                  // 同时保存文件列表到分类页面缓存
+                  try {
+                    final key = 'category_cache_${categoryType.name}';
+                    final cacheData = {
+                      'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      'categoryType': categoryType.name,
+                      'files': files.map((file) => {
+                        'name': file.name,
+                        'path': file.path,
+                        'size': file.size,
+                        'modified': file.modified.millisecondsSinceEpoch,
+                      }).toList(),
+                    };
+                    await prefs.setString(key, json.encode(cacheData));
+                    logger.i('Cached ${count} files for ${categoryType.name}');
+                  } catch (e) {
+                    logger.e('Error caching files for ${categoryType.name}: $e');
+                  }
+                  
+                  logger.i('Category ${categoryType.toString().split('.').last}: $count files');
+                } catch (e) {
+                  logger.e('Error scanning category $categoryType: $e');
+                }
+              }
+              
+              counts[FileCategory.all] = totalFiles;
+              logger.i('Total files scanned across all categories: $totalFiles');
+              
+              return counts;
+            },
+          );
           logger.i(
-              'First-time scan completed: ${scanResult.totalFound} folders found, ${scanResult.newlyAdded} added');
+              'Comprehensive scan completed: ${scanResult.quickAccessFoldersFound} folders, ${scanResult.totalFilesScanned} files');
 
           // 标记首次扫描已完成
           await FirstScanService().markScanCompleted();
 
           // 显示扫描完成提示
-          if (mounted && scanResult.totalFound > 0) {
+          if (mounted && scanResult.success) {
             final String message;
-            // 根据扫描结果构建消息：
-            // - 如果有系统或应用目录，显示详细统计
-            // - 否则只显示总数
-            if (scanResult.systemCount > 0 || scanResult.appRootCount > 0) {
-              // 显示详细统计
-              final parts = <String>[];
-              if (scanResult.systemCount > 0) {
-                parts.add('${scanResult.systemCount} 个系统目录');
-              }
-              if (scanResult.appRootCount > 0) {
-                parts.add('${scanResult.appRootCount} 个应用目录');
-              }
-              if (scanResult.userCustomCount > 0) {
-                parts.add('${scanResult.userCustomCount} 个用户目录');
-              }
-              message = '文件管理器首次初始化完成：${parts.join('、')}';
+            final List<String> parts = [];
+
+            // 快速访问统计
+            if (scanResult.systemFoldersCount > 0) {
+              parts.add('${scanResult.systemFoldersCount} 个系统目录');
+            }
+            if (scanResult.appRootFoldersCount > 0) {
+              parts.add('${scanResult.appRootFoldersCount} 个应用目录');
+            }
+            if (scanResult.userCustomFoldersCount > 0) {
+              parts.add('${scanResult.userCustomFoldersCount} 个用户目录');
+            }
+
+            // 分类文件统计
+            if (scanResult.totalFilesScanned > 0) {
+              parts.add('整理了 ${scanResult.totalFilesScanned} 个文件');
+            }
+
+            if (parts.isEmpty) {
+              message =
+                  '首次初始化完成，发现 ${scanResult.quickAccessFoldersFound} 个目录';
             } else {
-              message = '文件管理器首次初始化完成，发现 ${scanResult.totalFound} 个目录';
+              message = '首次初始化完成：${parts.join('、')}';
             }
 
             ScaffoldMessenger.of(context).showSnackBar(
@@ -318,7 +409,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     ),
                   ],
                 ),
-                duration: const Duration(seconds: 3),
+                duration: const Duration(seconds: 4),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),

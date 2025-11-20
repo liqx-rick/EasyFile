@@ -8,8 +8,10 @@ import 'package:path/path.dart' as path;
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/category_info.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
@@ -511,8 +513,50 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     return UnifiedViewConfig.fromContext(context);
   }
 
+  /// 将CategoryType转换为FileCategory枚举
+  FileCategory _getCategoryEnumFromType(CategoryType type) {
+    switch (type) {
+      case CategoryType.images:
+        return FileCategory.image;
+      case CategoryType.video:
+        return FileCategory.video;
+      case CategoryType.music:
+        return FileCategory.audio;
+      case CategoryType.documents:
+        return FileCategory.document;
+      case CategoryType.downloads:
+        return FileCategory.other; // downloads没有直接对应，使用other
+    }
+  }
+
   /// 加载分类文件
   Future<void> _loadCategoryFiles({bool forceRefresh = false}) async {
+    // Step 0: 优先检查综合扫描的缓存统计
+    if (!forceRefresh) {
+      final cacheService = CategoryFileCacheService();
+      final hasCacheStats = await cacheService.hasCache();
+      
+      if (hasCacheStats) {
+        // 有综合扫描的缓存统计，显示提示信息
+        final categoryCount = await cacheService.getCategoryCount(
+          _getCategoryEnumFromType(widget.categoryType),
+        );
+        
+        if (categoryCount != null && categoryCount > 0) {
+          logger.i(
+            'Found comprehensive scan cache: $categoryCount files for ${categoryInfo.name}',
+          );
+          
+          // 在UI上显示友好提示
+          if (mounted) {
+            setState(() {
+              _loadingProgress = '已发现 $categoryCount 个${categoryInfo.name}，正在加载...';
+            });
+          }
+        }
+      }
+    }
+
     // 如果是强制刷新，跳过缓存
     if (!forceRefresh) {
       // Step 1: 尝试加载缓存
