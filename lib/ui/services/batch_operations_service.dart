@@ -47,51 +47,73 @@ class BatchOperationsService {
     final allFavorite = isAllSelectedFavorite(selectedItems);
     final action = allFavorite ? '取消收藏' : '添加到收藏';
 
-    int successCount = 0;
-    int failCount = 0;
+    try {
+      if (allFavorite) {
+        // 全部已收藏，批量取消收藏
+        final (successCount, failCount) =
+            await presenter.batchRemoveFavoriteFiles(selectedItems.toList());
 
-    for (final path in selectedItems) {
-      // 只处理文件，跳过文件夹
-      final entity = FileSystemEntity.typeSync(path);
-      if (entity != FileSystemEntityType.file) continue;
+        if (!_isMounted) return;
 
-      try {
-        final file = FileItem(
-          name: path.split(Platform.pathSeparator).last,
-          path: path,
-          size: File(path).lengthSync(),
-          modified: File(path).lastModifiedSync(),
-          isDirectory: false,
-        );
+        final message = failCount > 0
+            ? '$action完成：成功 $successCount 个，失败 $failCount 个'
+            : '已$action $successCount 个文件';
 
-        if (allFavorite) {
-          // 全部已收藏，则取消收藏
-          await presenter.toggleFavoriteFile(file);
-          successCount++;
-        } else {
-          // 有未收藏的，则添加收藏
-          final isFav = viewModel.isFavoriteFile(path);
-          if (!isFav) {
-            await presenter.toggleFavoriteFile(file);
-            successCount++;
+        _showSnackBar(message);
+      } else {
+        // 有未收藏的，批量添加收藏
+        // 先过滤出未收藏的文件
+        final filesToAdd = <FileItem>[];
+        for (final path in selectedItems) {
+          // 跳过已收藏的和文件夹
+          if (viewModel.isFavoriteFile(path)) continue;
+
+          final entity = FileSystemEntity.typeSync(path);
+          if (entity != FileSystemEntityType.file) continue;
+
+          try {
+            final file = FileItem(
+              name: path.split(Platform.pathSeparator).last,
+              path: path,
+              size: File(path).lengthSync(),
+              modified: File(path).lastModifiedSync(),
+              isDirectory: false,
+            );
+            filesToAdd.add(file);
+          } catch (e) {
+            logger.w('Failed to create FileItem for: $path, error: $e');
           }
         }
-      } catch (e) {
-        logger.e('Failed to toggle favorite: $path, error: $e');
-        failCount++;
+
+        if (filesToAdd.isEmpty) {
+          if (_isMounted) {
+            _showSnackBar('没有可添加到收藏的文件');
+          }
+          onExitSelectionMode();
+          return;
+        }
+
+        final (successCount, failCount) =
+            await presenter.batchAddFavoriteFiles(filesToAdd);
+
+        if (!_isMounted) return;
+
+        final message = failCount > 0
+            ? '$action完成：成功 $successCount 个，失败 $failCount 个'
+            : '已$action $successCount 个文件';
+
+        _showSnackBar(message);
       }
+
+      // 操作完成后退出选择模式
+      onExitSelectionMode();
+    } catch (e, stackTrace) {
+      logger.e('Batch toggle favorite failed: $e\n$stackTrace');
+      if (_isMounted) {
+        _showSnackBar('$action失败：$e');
+      }
+      onExitSelectionMode();
     }
-
-    if (!_isMounted) return;
-
-    final message = failCount > 0
-        ? '$action完成：成功 $successCount 个，失败 $failCount 个'
-        : '已$action $successCount 个文件';
-
-    _showSnackBar(message);
-
-    // 操作完成后退出选择模式
-    onExitSelectionMode();
   }
 
   /// 批量删除
