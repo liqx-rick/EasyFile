@@ -910,34 +910,95 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
         // 文件列表或网格（已迁移到 FileCollectionView）
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => _loadCategoryFiles(forceRefresh: true),
-            // 启用分组时（无论列表还是网格模式）都使用分组视图
-            child: _isGroupEnabled
-                ? _buildGroupedView()
-                : FileCollectionView(
-                    items: _filteredFiles,
-                    gridMode: _isGridView,
-                    config: _getViewConfig(context),
-                    padding: _isGridView
-                        ? const EdgeInsets.all(8)
-                        : const EdgeInsets.symmetric(vertical: 0),
-                    selectionController: _selectionController,
-                    // 列表模式显示选项
-                    showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
-                    showFavoriteButton: true,
-                    isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
-                    onFavoriteToggle: (file) async {
-                      return await widget.presenter.toggleFavoriteFile(file);
-                    },
-                    useUnifiedGridItem: true,
-                    onTap: (file) {
-                      if (!_selectionController.isSelectionMode) {
-                        _previewFile(file);
-                      }
-                    },
-                    // onLongPress 不再需要，FileCollectionView 内部处理
-                  ),
+          child: GestureDetector(
+            // 左右滑动切换文件类型Tab（文档和下载分类）
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity == null) return;
+
+              final velocity = details.primaryVelocity!;
+              final isSwipeRight = velocity > 500; // 右滑
+              final isSwipeLeft = velocity < -500; // 左滑
+
+              // 搜索模式下禁用手势
+              if (_isSearchMode) return;
+
+              // 文档分类：切换文档类型Tab
+              if (widget.categoryType == CategoryType.documents) {
+                final availableTypes = _getAvailableDocumentTypes();
+                if (availableTypes.length <= 1) return;
+
+                final currentIndex =
+                    availableTypes.indexOf(_documentTypeFilter);
+                if (currentIndex == -1) return;
+
+                if (isSwipeLeft && currentIndex < availableTypes.length - 1) {
+                  // 左滑切换到下一个类型
+                  setState(() {
+                    _documentTypeFilter = availableTypes[currentIndex + 1];
+                  });
+                  _saveFileTypeFilter();
+                } else if (isSwipeRight && currentIndex > 0) {
+                  // 右滑切换到上一个类型
+                  setState(() {
+                    _documentTypeFilter = availableTypes[currentIndex - 1];
+                  });
+                  _saveFileTypeFilter();
+                }
+              }
+              // 下载分类：切换下载类型Tab
+              else if (widget.categoryType == CategoryType.downloads) {
+                final availableTypes = _getAvailableDownloadTypes();
+                if (availableTypes.length <= 1) return;
+
+                final currentIndex =
+                    availableTypes.indexOf(_downloadTypeFilter);
+                if (currentIndex == -1) return;
+
+                if (isSwipeLeft && currentIndex < availableTypes.length - 1) {
+                  // 左滑切换到下一个类型
+                  setState(() {
+                    _downloadTypeFilter = availableTypes[currentIndex + 1];
+                  });
+                  _saveFileTypeFilter();
+                } else if (isSwipeRight && currentIndex > 0) {
+                  // 右滑切换到上一个类型
+                  setState(() {
+                    _downloadTypeFilter = availableTypes[currentIndex - 1];
+                  });
+                  _saveFileTypeFilter();
+                }
+              }
+            },
+            child: RefreshIndicator(
+              onRefresh: () => _loadCategoryFiles(forceRefresh: true),
+              // 启用分组时（无论列表还是网格模式）都使用分组视图
+              child: _isGroupEnabled
+                  ? _buildGroupedView()
+                  : FileCollectionView(
+                      items: _filteredFiles,
+                      gridMode: _isGridView,
+                      config: _getViewConfig(context),
+                      padding: _isGridView
+                          ? const EdgeInsets.all(8)
+                          : const EdgeInsets.symmetric(vertical: 0),
+                      selectionController: _selectionController,
+                      // 列表模式显示选项
+                      showFullPath: false, // 搜索模式下不显示路径文本
+                      showFavoriteButton: true,
+                      isFavorite: (path) =>
+                          widget.viewModel.isFavoriteFile(path),
+                      onFavoriteToggle: (file) async {
+                        return await widget.presenter.toggleFavoriteFile(file);
+                      },
+                      useUnifiedGridItem: true,
+                      onTap: (file) {
+                        if (!_selectionController.isSelectionMode) {
+                          _previewFile(file);
+                        }
+                      },
+                      // onLongPress 不再需要，FileCollectionView 内部处理
+                    ),
+            ),
           ),
         ),
       ],
@@ -980,6 +1041,32 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         });
       },
     );
+  }
+
+  /// 获取可用的文档类型列表（过滤掉没有文件的类型）
+  List<DocumentFileType> _getAvailableDocumentTypes() {
+    final typeCounts = <DocumentFileType, int>{};
+    for (final type in DocumentFileType.values) {
+      final count = _files.where((file) => type.matches(file.name)).length;
+      typeCounts[type] = count;
+    }
+
+    return DocumentFileType.values
+        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
+        .toList();
+  }
+
+  /// 获取可用的下载类型列表（过滤掉没有文件的类型）
+  List<DownloadFileType> _getAvailableDownloadTypes() {
+    final typeCounts = <DownloadFileType, int>{};
+    for (final type in DownloadFileType.values) {
+      final count = _files.where((file) => type.matches(file.name)).length;
+      typeCounts[type] = count;
+    }
+
+    return DownloadFileType.values
+        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
+        .toList();
   }
 
   /// 构建文件类型筛选标签
@@ -1108,7 +1195,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _selectionController,
       // 显示选项
-      showFullPath: _isSearchMode, // 只在搜索模式下显示完整路径
+      showFullPath: false, // 搜索模式下不显示路径文本
       showFavoriteButton: true,
       isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
       onFavoriteToggle: (file) async {
