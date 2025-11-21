@@ -13,6 +13,7 @@ import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/utils/android_test_file_creator.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
@@ -522,7 +523,7 @@ class _StoragePageState extends State<StoragePage> {
             ? const EdgeInsets.all(8)
             : const EdgeInsets.symmetric(vertical: 0),
         selectionController: _selectionController,
-        showFullPath: _isSearchMode && _searchInSubfolders,
+        showFullPath: false, // 搜索模式下不显示路径文本
         showFavoriteButton: true,
         isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
         onFavoriteToggle: (file) async {
@@ -542,7 +543,7 @@ class _StoragePageState extends State<StoragePage> {
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _selectionController,
       // 列表模式显示选项
-      showFullPath: _isSearchMode && _searchInSubfolders,
+      showFullPath: false, // 搜索模式下不显示路径文本
       showFavoriteButton: true,
       isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
       onFavoriteToggle: (file) async {
@@ -556,282 +557,331 @@ class _StoragePageState extends State<StoragePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: _selectionController.isSelectionMode
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  setState(() {
-                    _selectionController.clear();
-                  });
-                },
-                tooltip: '取消',
-              )
-            : IconButton(
-                icon: const Icon(Icons.home),
-                onPressed: () => Navigator.of(context).pop(),
-                tooltip: '返回主页',
-                padding: const EdgeInsets.all(4),
-                visualDensity: VisualDensity.compact,
-                iconSize: 22,
-              ),
-        leadingWidth: 48,
-        titleSpacing: 4,
-        title: _selectionController.isSelectionMode
-            ? Text('已选中 ${_selectedItems.length} 项')
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 主标题：当前文件夹名称
-                  Text(
-                    _getCurrentFolderName(),
-                    style: const TextStyle(fontSize: 18),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // 副标题：路径 + 统计信息
-                  if (!_isLoading)
-                    InkWell(
-                      onTap: () => _showBreadcrumbMenu(context),
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${_getSimplifiedBreadcrumb()} · ${_getStatisticsText()}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-        actions: _selectionController.isSelectionMode
-            ? [
-                // 全选按钮
-                IconButton(
-                  icon: Icon(
-                    _selectedItems.length == _filteredFiles.length
-                        ? Icons.deselect
-                        : Icons.select_all,
-                  ),
+    return WillPopScope(
+      onWillPop: () async {
+        // 优先级1: 退出批量选择模式
+        if (_selectionController.isSelectionMode) {
+          setState(() {
+            _selectionController.clear();
+          });
+          return false;
+        }
+
+        // 优先级2: 退出搜索模式
+        if (_isSearchMode) {
+          setState(() {
+            _searchQuery = '';
+            _searchController.clear();
+            _isSearchMode = false;
+          });
+          return false;
+        }
+
+        // 优先级3: 子文件夹返回上级
+        if (_canNavigateUp(_currentPath)) {
+          _navigateUp();
+          return false;
+        }
+
+        // 优先级4: 其他情况允许系统默认行为（返回主页）
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _selectionController.isSelectionMode
+              ? IconButton(
+                  icon: const Icon(Icons.close),
                   onPressed: () {
-                    if (_selectedItems.length == _filteredFiles.length) {
+                    setState(() {
                       _selectionController.clear();
-                    } else {
-                      _selectionController.selectAll(
-                        _filteredFiles.map((f) => f.path).toList(),
-                      );
-                    }
+                    });
                   },
-                  tooltip: _selectedItems.length == _filteredFiles.length
-                      ? '取消全选'
-                      : '全选',
+                  tooltip: '取消',
+                )
+              : IconButton(
+                  icon: const Icon(Icons.home),
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: '返回主页',
+                  padding: const EdgeInsets.all(4),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 22,
                 ),
-              ]
-            : [
-                // 测试按钮（仅Android）
-                if (Platform.isAndroid)
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.science, size: 20),
-                    tooltip: '测试工具',
-                    onSelected: (value) async {
-                      if (value == 'create') {
-                        await _createTestFiles();
-                      } else if (value == 'cleanup') {
-                        await _cleanupTestFiles();
+          leadingWidth: 48,
+          titleSpacing: 4,
+          title: _selectionController.isSelectionMode
+              ? Text('已选中 ${_selectedItems.length} 项')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 主标题：当前文件夹名称
+                    Text(
+                      _getCurrentFolderName(),
+                      style: const TextStyle(fontSize: 18),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // 副标题：路径 + 统计信息
+                    if (!_isLoading)
+                      InkWell(
+                        onTap: () => _showBreadcrumbMenu(context),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${_getSimplifiedBreadcrumb()} · ${_getStatisticsText()}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(
+                                    context,
+                                  )
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.6),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+          actions: _selectionController.isSelectionMode
+              ? [
+                  // 全选按钮
+                  IconButton(
+                    icon: Icon(
+                      _selectedItems.length == _filteredFiles.length
+                          ? Icons.deselect
+                          : Icons.select_all,
+                    ),
+                    onPressed: () {
+                      if (_selectedItems.length == _filteredFiles.length) {
+                        _selectionController.clear();
+                      } else {
+                        _selectionController.selectAll(
+                          _filteredFiles.map((f) => f.path).toList(),
+                        );
                       }
                     },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'create',
-                        child: Row(
-                          children: [
-                            Icon(Icons.create_new_folder, size: 18),
-                            SizedBox(width: 8),
-                            Text('创建测试文件'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'cleanup',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_sweep, size: 18),
-                            SizedBox(width: 8),
-                            Text('清理测试文件'),
-                          ],
-                        ),
-                      ),
-                    ],
+                    tooltip: _selectedItems.length == _filteredFiles.length
+                        ? '取消全选'
+                        : '全选',
                   ),
-                // 使用Row来控制按钮间距
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                ]
+              : [
+                  // 测试按钮（仅Android）
+                  if (Platform.isAndroid)
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.science, size: 20),
+                      tooltip: '测试工具',
+                      onSelected: (value) async {
+                        if (value == 'create') {
+                          await _createTestFiles();
+                        } else if (value == 'cleanup') {
+                          await _cleanupTestFiles();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'create',
+                          child: Row(
+                            children: [
+                              Icon(Icons.create_new_folder, size: 18),
+                              SizedBox(width: 8),
+                              Text('创建测试文件'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'cleanup',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_sweep, size: 18),
+                              SizedBox(width: 8),
+                              Text('清理测试文件'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  // 使用Row来控制按钮间距
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 使用统一的FileToolbar组件
+                        FileToolbar(
+                          pageId: PageId.storage,
+                          showBackButton: false, // 移除工具栏返回按钮，使用底部导航栏代替
+                          onBackPressed: _navigateUp,
+                          showSearchButton: true,
+                          onSearchPressed: () {
+                            setState(() {
+                              _isSearchMode = !_isSearchMode;
+                              if (!_isSearchMode) _searchQuery = '';
+                            });
+                          },
+                          isSearchMode: _isSearchMode,
+                          showSortButton: true,
+                          onSortPressed: _showSortOptions,
+                          showGroupButton: true,
+                          onGroupToggle: () => setState(() {}),
+                          iconSize: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+        ),
+        body: Consumer<PageSettingsService>(
+          builder: (context, pageSettingsService, _) {
+            return _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
                     children: [
-                      // 使用统一的FileToolbar组件
-                      FileToolbar(
-                        pageId: PageId.storage,
-                        showBackButton: _canNavigateUp(_currentPath),
-                        onBackPressed: _navigateUp,
-                        showSearchButton: true,
-                        onSearchPressed: () {
-                          setState(() {
-                            _isSearchMode = !_isSearchMode;
-                            if (!_isSearchMode) _searchQuery = '';
-                          });
-                        },
-                        isSearchMode: _isSearchMode,
-                        showSortButton: true,
-                        onSortPressed: _showSortOptions,
-                        showGroupButton: true,
-                        onGroupToggle: () => setState(() {}),
-                        iconSize: 22,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-      ),
-      body: Consumer<PageSettingsService>(
-        builder: (context, pageSettingsService, _) {
-          return _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    // 搜索栏（使用统一的FileSearchBar组件）
-                    if (_isSearchMode)
-                      FileSearchBar(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        hintText: '搜索文件...',
-                        onSearch: (query) async {
-                          if (query.isNotEmpty) {
+                      // 搜索栏（使用统一的FileSearchBar组件）
+                      if (_isSearchMode)
+                        FileSearchBar(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          hintText: '搜索文件...',
+                          onSearch: (query) async {
+                            if (query.isNotEmpty) {
+                              setState(() {
+                                _searchQuery = query;
+                              });
+                            }
+                          },
+                          onClose: () {
+                            setState(() {
+                              _searchQuery = '';
+                              _searchController.clear();
+                              _isSearchMode = false;
+                            });
+                          },
+                          onChanged: (query) {
                             setState(() {
                               _searchQuery = query;
                             });
-                          }
-                        },
-                        onClose: () {
-                          setState(() {
-                            _searchQuery = '';
-                            _searchController.clear();
-                            _isSearchMode = false;
-                          });
-                        },
-                        onChanged: (query) {
-                          setState(() {
-                            _searchQuery = query;
-                          });
-                        },
-                      ),
+                          },
+                        ),
 
-                    // 搜索范围选择器
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      height: _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
-                      child: _isSearchMode && _searchQuery.isNotEmpty
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 4,
-                              ),
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                              child: Row(
-                                children: [
-                                  Text(
-                                    '搜索范围:',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Theme.of(
-                                        context,
-                                      )
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.7),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ChoiceChip(
-                                    label: const Text(
-                                      '当前文件夹',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    selected: !_searchInSubfolders,
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setState(() {
-                                          _searchInSubfolders = false;
-                                        });
-                                      }
-                                    },
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ChoiceChip(
-                                    label: const Text(
-                                      '包含子文件夹',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    selected: _searchInSubfolders,
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setState(() {
-                                          _searchInSubfolders = true;
-                                        });
-                                      }
-                                    },
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  const Spacer(),
-                                  // 显示搜索结果数量
-                                  if (_searchQuery.isNotEmpty)
+                      // 搜索范围选择器
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        height:
+                            _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
+                        child: _isSearchMode && _searchQuery.isNotEmpty
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                                child: Row(
+                                  children: [
                                     Text(
-                                      '找到 ${_filteredFiles.length} 个结果',
+                                      '搜索范围:',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 13,
                                         color: Theme.of(
                                           context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.w500,
+                                        )
+                                            .colorScheme
+                                            .onSurface
+                                            .withValues(alpha: 0.7),
                                       ),
                                     ),
-                                ],
-                              ),
-                            )
-                          : null,
-                    ),
-
-                    // 文件列表区域（占据剩余空间）
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _loadStorageFiles,
-                        child: _buildFileView(),
+                                    const SizedBox(width: 8),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        '当前文件夹',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      selected: !_searchInSubfolders,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() {
+                                            _searchInSubfolders = false;
+                                          });
+                                        }
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ChoiceChip(
+                                      label: const Text(
+                                        '包含子文件夹',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      selected: _searchInSubfolders,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() {
+                                            _searchInSubfolders = true;
+                                          });
+                                        }
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const Spacer(),
+                                    // 显示搜索结果数量
+                                    if (_searchQuery.isNotEmpty)
+                                      Text(
+                                        '找到 ${_filteredFiles.length} 个结果',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              )
+                            : null,
                       ),
-                    ),
-                  ],
-                );
-        },
+
+                      // 文件列表区域（占据剩余空间）
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: RefreshIndicator(
+                                onRefresh: _loadStorageFiles,
+                                child: _buildFileView(),
+                              ),
+                            ),
+
+                            // 底部文件夹导航栏（子文件夹中显示）
+                            if (!_selectionController.isSelectionMode &&
+                                !_isSearchMode &&
+                                _canNavigateUp(_currentPath))
+                              FolderNavigationBar(
+                                currentPath: _currentPath,
+                                onBackPressed: _navigateUp,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+          },
+        ),
+        // 批量操作底部工具栏
+        bottomNavigationBar: _selectionController.isSelectionMode
+            ? _buildSelectionBottomBar()
+            : null,
       ),
-      // 批量操作底部工具栏
-      bottomNavigationBar: _selectionController.isSelectionMode
-          ? _buildSelectionBottomBar()
-          : null,
     );
   }
 
