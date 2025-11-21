@@ -168,6 +168,66 @@ class FavoriteFilesLocalSource {
     }
   }
 
+  /// 批量添加收藏文件
+  ///
+  /// 一次性添加多个文件到收藏，比逐个添加更高效
+  /// 返回成功添加的文件数量
+  Future<int> batchAddFavoriteFiles(
+      List<FavoriteFileItem> newFavoriteFiles) async {
+    try {
+      final existingFavoriteFiles = await getFavoriteFiles();
+      final existingPaths =
+          existingFavoriteFiles.map((f) => f.filePath).toSet();
+
+      int addedCount = 0;
+      for (final favoriteFile in newFavoriteFiles) {
+        // 跳过已存在的
+        if (!existingPaths.contains(favoriteFile.filePath)) {
+          existingFavoriteFiles.add(favoriteFile);
+          addedCount++;
+        }
+      }
+
+      if (addedCount > 0) {
+        await saveFavoriteFiles(existingFavoriteFiles);
+        logger.i('Batch added $addedCount favorite files');
+      }
+
+      return addedCount;
+    } catch (e, stackTrace) {
+      logger
+          .e('Error batch adding favorite files: $e\nStackTrace: $stackTrace');
+      return 0;
+    }
+  }
+
+  /// 批量移除收藏文件
+  ///
+  /// 一次性移除多个文件的收藏，比逐个移除更高效
+  /// 返回成功移除的文件数量
+  Future<int> batchRemoveFavoriteFiles(List<String> filePaths) async {
+    try {
+      final favoriteFiles = await getFavoriteFiles();
+      final originalLength = favoriteFiles.length;
+      final pathsToRemove = filePaths.toSet();
+
+      favoriteFiles
+          .removeWhere((item) => pathsToRemove.contains(item.filePath));
+
+      final removedCount = originalLength - favoriteFiles.length;
+      if (removedCount > 0) {
+        await saveFavoriteFiles(favoriteFiles);
+        logger.i('Batch removed $removedCount favorite files');
+      }
+
+      return removedCount;
+    } catch (e, stackTrace) {
+      logger.e(
+          'Error batch removing favorite files: $e\nStackTrace: $stackTrace');
+      return 0;
+    }
+  }
+
   /// 清空所有收藏文件
   Future<bool> clearAllFavoriteFiles() async {
     try {

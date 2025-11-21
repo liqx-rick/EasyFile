@@ -783,6 +783,109 @@ class FilePresenter {
     }
   }
 
+  /// 批量添加收藏文件
+  ///
+  /// 一次性添加多个文件到收藏，适用于批量操作场景
+  /// 返回 (成功数量, 失败数量)
+  Future<(int, int)> batchAddFavoriteFiles(List<FileItem> files) async {
+    logger.i(
+        'FilePresenter.batchAddFavoriteFiles called for ${files.length} files');
+
+    try {
+      // 只处理文件，过滤掉文件夹
+      final fileItems = files.where((f) => !f.isDirectory).toList();
+
+      if (fileItems.isEmpty) {
+        logger.w('No files to add to favorites (all are directories)');
+        return (0, 0);
+      }
+
+      // 构建收藏文件列表
+      final now = DateTime.now();
+      final favoriteFiles = fileItems
+          .map((file) => FavoriteFileItem(
+                filePath: file.path,
+                addedTime: now,
+              ))
+          .toList();
+
+      // 批量添加
+      final addedCount =
+          await favoriteFilesSource.batchAddFavoriteFiles(favoriteFiles);
+      final failedCount = favoriteFiles.length - addedCount;
+
+      // 更新ViewModel
+      if (addedCount > 0) {
+        for (final favoriteFile in favoriteFiles) {
+          if (!viewModel.isFavoriteFile(favoriteFile.filePath)) {
+            viewModel.addFavoriteFile(favoriteFile);
+          }
+        }
+
+        // 如果当前在收藏Tab，重新加载
+        if (viewModel.currentTab == TabView.favorite) {
+          await loadFavoriteFiles();
+        }
+      }
+
+      logger.i(
+          'Batch add favorites completed: $addedCount succeeded, $failedCount failed');
+      return (addedCount, failedCount);
+    } catch (e, stackTrace) {
+      logger.e('Error batch adding favorite files: $e\n$stackTrace');
+      return (0, files.length);
+    }
+  }
+
+  /// 批量移除收藏文件
+  ///
+  /// 一次性移除多个文件的收藏，适用于批量操作场景
+  /// 返回 (成功数量, 失败数量)
+  Future<(int, int)> batchRemoveFavoriteFiles(List<String> filePaths) async {
+    logger.i(
+        'FilePresenter.batchRemoveFavoriteFiles called for ${filePaths.length} files');
+
+    try {
+      // 只处理文件，过滤掉文件夹
+      final filesToRemove = <String>[];
+      for (final path in filePaths) {
+        final entity = FileSystemEntity.typeSync(path);
+        if (entity == FileSystemEntityType.file) {
+          filesToRemove.add(path);
+        }
+      }
+
+      if (filesToRemove.isEmpty) {
+        logger.w('No files to remove from favorites (all are directories)');
+        return (0, 0);
+      }
+
+      // 批量移除
+      final removedCount =
+          await favoriteFilesSource.batchRemoveFavoriteFiles(filesToRemove);
+      final failedCount = filesToRemove.length - removedCount;
+
+      // 更新ViewModel
+      if (removedCount > 0) {
+        for (final path in filesToRemove) {
+          viewModel.removeFavoriteFile(path);
+        }
+
+        // 如果当前在收藏Tab，重新加载
+        if (viewModel.currentTab == TabView.favorite) {
+          await loadFavoriteFiles();
+        }
+      }
+
+      logger.i(
+          'Batch remove favorites completed: $removedCount succeeded, $failedCount failed');
+      return (removedCount, failedCount);
+    } catch (e, stackTrace) {
+      logger.e('Error batch removing favorite files: $e\n$stackTrace');
+      return (0, filePaths.length);
+    }
+  }
+
   /// 更新收藏文件访问信息
   Future<void> updateFavoriteFileAccess(String filePath) async {
     logger.d('Updating favorite file access: $filePath');
