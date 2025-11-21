@@ -24,6 +24,7 @@ import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
 
 /// 文件类型筛选接口
 abstract class FileTypeFilter {
@@ -566,8 +567,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         // 应用页面级排序
         final pageId = _getPageIdForCategory();
         final sortType = PageSettingsService().getSortType(pageId);
-        final comparator = _getComparatorForSortType(sortType);
-        cached.sort(comparator);
+        FileComparatorUtil.sortFilesInPlace(cached, sortType);
 
         setState(() {
           _files = cached;
@@ -611,8 +611,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 应用页面级排序
       final pageId = _getPageIdForCategory();
       final sortType = PageSettingsService().getSortType(pageId);
-      final comparator = _getComparatorForSortType(sortType);
-      files.sort(comparator);
+      FileComparatorUtil.sortFilesInPlace(files, sortType);
 
       setState(() {
         _files = files;
@@ -1204,44 +1203,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     setState(() {
       final pageId = _getPageIdForCategory();
       final sortType = PageSettingsService().getSortType(pageId);
-      final comparator = _getComparatorForSortType(sortType);
-      _files.sort(comparator);
+      FileComparatorUtil.sortFilesInPlace(_files, sortType);
     });
-  }
-
-  /// 根据排序类型获取比较器
-  Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
-    switch (sortType) {
-      case SortType.name:
-        return (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      case SortType.modifiedTime:
-        return (a, b) => b.modified.compareTo(a.modified);
-      case SortType.size:
-        return (a, b) => b.size.compareTo(a.size);
-      case SortType.fileType:
-        return (a, b) {
-          // 获取文件扩展名
-          String getExt(String name) {
-            final lastDot = name.lastIndexOf('.');
-            if (lastDot == -1 || lastDot == name.length - 1) return '';
-            return name.substring(lastDot + 1).toLowerCase();
-          }
-
-          final extA = getExt(a.name);
-          final extB = getExt(b.name);
-
-          // 没有扩展名的排在后面
-          if (extA.isEmpty && extB.isNotEmpty) return 1;
-          if (extA.isNotEmpty && extB.isEmpty) return -1;
-
-          // 按扩展名排序
-          final extCompare = extA.compareTo(extB);
-          if (extCompare != 0) return extCompare;
-
-          // 扩展名相同时按名称排序
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        };
-    }
   }
 
   /// 预览文件
