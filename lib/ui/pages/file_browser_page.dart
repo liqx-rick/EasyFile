@@ -29,7 +29,7 @@ import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/scan_progress_overlay.dart';
+import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
@@ -59,6 +59,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   bool _isScanning = false;
   PermissionState _permissionState = PermissionState.unknown;
   bool _isFirstScan = false;
+  double _scanProgress = 0.0; // 扫描进度 (0.0 - 1.0)
 
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
@@ -264,21 +265,31 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         await quickAccessPresenter!.loadQuickAccessFolders();
 
         // 检查是否需要执行首次深度扫描
+        // 首次扫描会发现系统目录、应用目录，并对所有文件进行分类
         final needsScan = await FirstScanService().needsFirstScan();
         logger.i('First scan needed: $needsScan');
 
         if (needsScan) {
           logger.i('Performing first-time comprehensive scan...');
 
-          // 显示首次扫描进度
+          // 显示首次扫描进度卡片 UI
           setState(() {
             _isScanning = true;
             _isFirstScan = true;
+            _scanProgress = 0.0;
           });
 
           // 执行综合扫描（同时扫描快速访问和分类文件）
+          // onProgress 回调会实时更新 UI 进度显示 (0.0 - 1.0)
           final scanResult =
               await quickAccessPresenter!.performFirstTimeComprehensiveScan(
+            onProgress: (progress) {
+              if (mounted) {
+                setState(() {
+                  _scanProgress = progress;
+                });
+              }
+            },
             scanCategoryFiles: () async {
               // 使用 FilePresenter 的完整扫描逻辑
               logger.i('Scanning all category files using FilePresenter...');
@@ -301,8 +312,22 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               int totalFiles = 0;
               final prefs = await SharedPreferences.getInstance();
 
+              // 分类扫描的进度范围: 30% - 95%
+              // 每个分类占约 13% 进度 (65% / 5 = 13%)
+              final progressPerCategory = 0.13;
+              var currentCategoryIndex = 0;
+
               for (final categoryType in categoriesToScan) {
                 try {
+                  // 更新当前分类扫描的进度
+                  final baseProgress =
+                      0.30 + (currentCategoryIndex * progressPerCategory);
+                  if (mounted) {
+                    setState(() {
+                      _scanProgress = baseProgress;
+                    });
+                  }
+
                   final files =
                       await presenter.scanFilesByCategory(categoryType);
                   final count = files.length;
@@ -355,8 +380,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                   logger.i(
                       'Category ${categoryType.toString().split('.').last}: $count files');
+
+                  currentCategoryIndex++;
                 } catch (e) {
                   logger.e('Error scanning category $categoryType: $e');
+                  currentCategoryIndex++;
                 }
               }
 
@@ -373,68 +401,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           // 标记首次扫描已完成
           await FirstScanService().markScanCompleted();
 
-          // 显示扫描完成提示
-          if (mounted && scanResult.success) {
-            final String message;
-            final List<String> parts = [];
-
-            // 快速访问统计
-            if (scanResult.systemFoldersCount > 0) {
-              parts.add('${scanResult.systemFoldersCount} 个系统目录');
-            }
-            if (scanResult.appRootFoldersCount > 0) {
-              parts.add('${scanResult.appRootFoldersCount} 个应用目录');
-            }
-            if (scanResult.userCustomFoldersCount > 0) {
-              parts.add('${scanResult.userCustomFoldersCount} 个用户目录');
-            }
-
-            // 分类文件统计
-            if (scanResult.totalFilesScanned > 0) {
-              parts.add('整理了 ${scanResult.totalFilesScanned} 个文件');
-            }
-
-            if (parts.isEmpty) {
-              message = '首次初始化完成，发现 ${scanResult.quickAccessFoldersFound} 个目录';
-            } else {
-              message = '首次初始化完成：${parts.join('、')}';
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        message,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-                duration: const Duration(seconds: 4),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-
-          // 清除首次扫描标志
-          if (mounted) {
-            setState(() {
-              _isScanning = false;
-              _isFirstScan = false;
-            });
-          }
+          // 重要：不要立即关闭扫描状态
+          // 让 FirstScanCardOverlay 组件的 onComplete 回调来关闭
+          // 这样用户才能看到完成状态停留 2.5 秒，体验更友好
         } else {
           logger.i('First scan not needed, skipping...');
         }
@@ -2083,11 +2052,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           ),
                         ),
 
-                      // 扫描进度Overlay
-                      ScanProgressOverlay(
-                        isScanning: _isScanning,
-                        isFirstScan: _isFirstScan,
-                      ),
+                      // 首次扫描卡片覆盖层
+                      if (_isFirstScan)
+                        FirstScanCardOverlay(
+                          isScanning: _isScanning,
+                          progress: _scanProgress,
+                          onComplete: () {
+                            if (mounted) {
+                              setState(() {
+                                _isScanning = false;
+                                _isFirstScan = false;
+                              });
+                            }
+                          },
+                        ),
                     ],
                   );
                 },

@@ -148,28 +148,45 @@ class QuickAccessPresenter {
   // ==================== 扫描功能 ====================
 
   /// 执行首次综合扫描（扫描快速访问目录 + 分类文件）
+  /// 
+  /// 该方法会执行以下操作：
+  /// 1. 扫描应用目录 (0-10%)
+  /// 2. 扫描系统目录 (10-20%)
+  /// 3. 检测用户目录 (20-30%)
+  /// 4. 扫描分类文件 (30-95%)
+  /// 5. 保存缓存 (95-100%)
+  /// 
   /// [scanCategoryFiles] 是一个可选的回调函数，用于扫描分类文件并返回统计结果
+  /// [onProgress] 进度回调，参数为进度值 (0.0 - 1.0)，用于实时更新 UI
   Future<ComprehensiveScanResult> performFirstTimeComprehensiveScan({
     Future<Map<FileCategory, int>> Function()? scanCategoryFiles,
+    void Function(double progress)? onProgress,
   }) async {
     logger.i('QuickAccessPresenter.performFirstTimeComprehensiveScan called');
     _viewModel.setScanning(true);
 
+    // 初始进度
+    onProgress?.call(0.0);
+
     try {
-      // 1. 扫描应用目录
+      // 1. 扫描应用目录 (0-10%)
+      onProgress?.call(0.05);
       final appFolders = await _appScanner.deepScan();
       logger.i('Deep scan found ${appFolders.length} app folders');
+      onProgress?.call(0.10);
 
-      // 2. 扫描系统目录
+      // 2. 扫描系统目录 (10-20%)
       final systemFolders = await _scanSystemDirectories();
       logger.i('Deep scan found ${systemFolders.length} system folders');
       for (final folder in systemFolders) {
         logger.d('System folder: ${folder.path}');
       }
+      onProgress?.call(0.20);
 
-      // 3. 检测用户目录
+      // 3. 检测用户目录 (20-30%)
       final userFolders = await _userDetector.detectUserFolders();
       logger.i('Deep scan found ${userFolders.length} user folders');
+      onProgress?.call(0.30);
 
       // 合并所有扫描结果
       final allScannedFolders = [
@@ -224,8 +241,9 @@ class QuickAccessPresenter {
         }
       }
 
-      // 4. 扫描分类文件（如果提供了扫描函数）
+      // 4. 扫描分类文件（如果提供了扫描函数）(30-95%)
       logger.i('Starting category file scan...');
+      onProgress?.call(0.30);
       Map<FileCategory, int> categoryFileCounts;
 
       if (scanCategoryFiles != null) {
@@ -237,6 +255,7 @@ class QuickAccessPresenter {
         logger.i('Using fallback quick scan');
         categoryFileCounts = await _scanCategoryFiles(systemFolders);
       }
+      onProgress?.call(0.95);
 
       // 使用 'all' 分类的计数作为总文件数（避免重复计数）
       final totalFilesScanned = categoryFileCounts[FileCategory.all] ?? 0;
@@ -244,11 +263,12 @@ class QuickAccessPresenter {
       logger.i(
           'Category scan completed: $totalFilesScanned files in ${categoryFileCounts.length} categories');
 
-      // 5. 保存分类文件缓存
+      // 5. 保存分类文件缓存 (95-100%)
       final cacheService = CategoryFileCacheService();
       await cacheService.saveCategoryCounts(categoryFileCounts);
 
       await loadQuickAccessFolders();
+      onProgress?.call(1.0);
 
       return ComprehensiveScanResult(
         quickAccessFoldersFound: allScannedFolders.length,
