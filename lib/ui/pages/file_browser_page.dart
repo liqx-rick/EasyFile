@@ -879,62 +879,74 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     return Row(
       children: [
-        // Tab 切换 - 居左对齐
-        _buildTabButton(
-          context,
-          '最近',
-          TabView.recent,
-          vm.currentTab == TabView.recent,
-          onTap: () {
-            viewModel.setCurrentTab(TabView.recent);
-            presenter.loadRecentFiles();
-          },
-        ),
-        // 分割线
-        Container(
-          width: 1,
-          height: 20,
-          color: theme.dividerColor,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-        ),
-        // 收藏 Tab
-        _buildTabButton(
-          context,
-          '收藏',
-          TabView.favorite,
-          vm.currentTab == TabView.favorite,
-          onTap: () {
-            viewModel.setCurrentTab(TabView.favorite);
-            presenter.loadFavoriteFiles();
-          },
-          count: vm.currentTab == TabView.favorite ? vm.files.length : null,
-        ),
-        // 分割线和文件浏览Tab - 仅在browse模式下显示
-        if (vm.currentTab == TabView.browse) ...[
-          Container(
-            width: 1,
-            height: 20,
-            color: theme.dividerColor,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
-          // 使用ConstrainedBox限制文件夹名Tab的最大宽度
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: maxBrowseTabWidth.clamp(80.0, 150.0), // 最小80px，最大150px
+        // 左侧Tab区域 - 使用Expanded + SingleChildScrollView防止溢出
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Tab 切换 - 居左对齐
+                _buildTabButton(
+                  context,
+                  '最近',
+                  TabView.recent,
+                  vm.currentTab == TabView.recent,
+                  onTap: () {
+                    viewModel.setCurrentTab(TabView.recent);
+                    presenter.loadRecentFiles();
+                  },
+                ),
+                // 分割线
+                Container(
+                  width: 1,
+                  height: 20,
+                  color: theme.dividerColor,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                ),
+                // 收藏 Tab
+                _buildTabButton(
+                  context,
+                  '收藏',
+                  TabView.favorite,
+                  vm.currentTab == TabView.favorite,
+                  onTap: () {
+                    viewModel.setCurrentTab(TabView.favorite);
+                    presenter.loadFavoriteFiles();
+                  },
+                  count: vm.currentTab == TabView.favorite
+                      ? vm.files.length
+                      : null,
+                ),
+                // 分割线和文件浏览Tab - 仅在browse模式下显示
+                if (vm.currentTab == TabView.browse) ...[
+                  Container(
+                    width: 1,
+                    height: 20,
+                    color: theme.dividerColor,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                  // 使用ConstrainedBox限制文件夹名Tab的最大宽度
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: maxBrowseTabWidth.clamp(
+                          80.0, 150.0), // 最小80px，最大150px
+                    ),
+                    child: _buildTabButton(
+                      context,
+                      _getBrowseTabLabelWithDynamicLength(vm, dynamicMaxLength),
+                      TabView.browse,
+                      vm.currentTab == TabView.browse,
+                      onTap: null, // 文件浏览 Tab 不可点击，只能通过收藏夹激活
+                      count: null, // 不显示数量，避免与下方标签栏重复
+                    ),
+                  ),
+                ],
+              ],
             ),
-            child: _buildTabButton(
-              context,
-              _getBrowseTabLabelWithDynamicLength(vm, dynamicMaxLength),
-              TabView.browse,
-              vm.currentTab == TabView.browse,
-              onTap: null, // 文件浏览 Tab 不可点击，只能通过收藏夹激活
-              count: null, // 不显示数量，避免与下方标签栏重复
-            ),
           ),
-        ],
-        // 占位空间
-        const Spacer(),
-        // 工具按钮组（使用统一的FileToolbar组件）
+        ),
+        // 右侧工具栏 - 固定显示
         FileToolbar(
           pageId: _getPageIdForCurrentTab(vm.currentTab),
           showBackButton: vm.currentTab == TabView.browse &&
