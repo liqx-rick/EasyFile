@@ -29,6 +29,7 @@ import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/scan_progress_overlay.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -1039,78 +1040,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 应用页面级排序
     final sortType = PageSettingsService().getSortType(PageId.homeFavorite);
-    final comparator = _getComparatorForSortType(sortType);
-    result.sort(comparator);
+    FileComparatorUtil.sortFilesInPlace(result, sortType);
 
     return result;
   }
 
   /// 获取排序后的浏览文件列表
   List<FileItem> _getSortedBrowseFiles(List<FileItem> files) {
-    final result = List<FileItem>.from(files);
     final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
-    final comparator = _getComparatorForSortType(sortType);
-    result.sort(comparator);
-    return result;
-  }
-
-  /// 根据排序类型获取比较器
-  ///
-  /// 遵循文件管理器通用规则：文件夹始终排在文件前面
-  Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
-    switch (sortType) {
-      case SortType.name:
-        return (a, b) {
-          // 文件夹优先
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          // 同类型按名称排序
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        };
-      case SortType.modifiedTime:
-        return (a, b) {
-          // 文件夹优先
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          // 同类型按修改时间排序（新的在前）
-          return b.modified.compareTo(a.modified);
-        };
-      case SortType.size:
-        return (a, b) {
-          // 文件夹优先
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          // 同类型按大小排序（大的在前）
-          return b.size.compareTo(a.size);
-        };
-      case SortType.fileType:
-        return (a, b) {
-          // 文件夹优先
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-
-          // 获取文件扩展名
-          String getExt(String name) {
-            final lastDot = name.lastIndexOf('.');
-            if (lastDot == -1 || lastDot == name.length - 1) return '';
-            return name.substring(lastDot + 1).toLowerCase();
-          }
-
-          final extA = getExt(a.name);
-          final extB = getExt(b.name);
-
-          // 没有扩展名的排在后面
-          if (extA.isEmpty && extB.isNotEmpty) return 1;
-          if (extA.isNotEmpty && extB.isEmpty) return -1;
-
-          // 按扩展名排序
-          final extCompare = extA.compareTo(extB);
-          if (extCompare != 0) return extCompare;
-
-          // 扩展名相同时按名称排序
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        };
-    }
+    return FileComparatorUtil.sortFiles(files, sortType);
   }
 
   /// 获取收藏文件的日期分组

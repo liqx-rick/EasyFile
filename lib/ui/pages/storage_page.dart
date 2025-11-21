@@ -16,6 +16,7 @@ import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/utils/android_test_file_creator.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -46,46 +47,8 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 获取排序后的文件列表
   List<FileItem> _getSortedFiles(List<FileItem> files) {
-    final result = List<FileItem>.from(files);
     final sortType = PageSettingsService().getSortType(PageId.storage);
-    final comparator = _getComparatorForSortType(sortType);
-    result.sort(comparator);
-    return result;
-  }
-
-  /// 根据排序类型获取比较器
-  Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
-    switch (sortType) {
-      case SortType.name:
-        return (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      case SortType.modifiedTime:
-        return (a, b) => b.modified.compareTo(a.modified);
-      case SortType.size:
-        return (a, b) => b.size.compareTo(a.size);
-      case SortType.fileType:
-        return (a, b) {
-          // 获取文件扩展名
-          String getExt(String name) {
-            final lastDot = name.lastIndexOf('.');
-            if (lastDot == -1 || lastDot == name.length - 1) return '';
-            return name.substring(lastDot + 1).toLowerCase();
-          }
-
-          final extA = getExt(a.name);
-          final extB = getExt(b.name);
-
-          // 没有扩展名的排在后面
-          if (extA.isEmpty && extB.isNotEmpty) return 1;
-          if (extA.isNotEmpty && extB.isEmpty) return -1;
-
-          // 按扩展名排序
-          final extCompare = extA.compareTo(extB);
-          if (extCompare != 0) return extCompare;
-
-          // 扩展名相同时按名称排序
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        };
-    }
+    return FileComparatorUtil.sortFiles(files, sortType);
   }
 
   /// 获取日期分组后的文件
@@ -447,8 +410,7 @@ class _StoragePageState extends State<StoragePage> {
 
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final comparator = _getComparatorForSortType(sortType);
-        files.sort(comparator);
+        FileComparatorUtil.sortFilesInPlace(files, sortType);
 
         setState(() {
           _files = files;
@@ -513,8 +475,7 @@ class _StoragePageState extends State<StoragePage> {
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final comparator = _getComparatorForSortType(sortType);
-        files.sort(comparator);
+        FileComparatorUtil.sortFilesInPlace(files, sortType);
         setState(() {
           _files = files;
           _isLoading = false;
