@@ -24,6 +24,7 @@ dependencies:
   open_file: ^3.3.2
   pdfx: ^2.6.0
   shared_preferences: ^2.2.2
+  charset_converter: ^2.1.1
 
 dev_dependencies:
   flutter_test:
