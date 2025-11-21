@@ -117,6 +117,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           // PageView 支持滑动切换
           PageView.builder(
             controller: _pageController,
+            physics: const BouncingScrollPhysics(), // iOS 风格边缘回弹效果
             itemCount: widget.fileList!.length,
             onPageChanged: (index) {
               setState(() {
