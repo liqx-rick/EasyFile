@@ -18,6 +18,7 @@ import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/utils/android_test_file_creator.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -449,10 +450,34 @@ class _StoragePageState extends State<StoragePage> {
       _currentPath = file.path;
       _loadFilesInPath(file.path);
     } else {
-      // 跳转到文件预览页
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
-      );
+      // 对于图片/视频文件，支持左右滑动浏览相邻文件
+      if (FileUtils.isImageFile(file.name) ||
+          FileUtils.isVideoFile(file.name)) {
+        // 筛选出当前目录中所有的图片和视频
+        final mediaFiles = _files
+            .where((f) =>
+                !f.isDirectory &&
+                (FileUtils.isImageFile(f.name) ||
+                    FileUtils.isVideoFile(f.name)))
+            .toList();
+
+        final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => FilePreviewPage(
+              file: file,
+              fileList: mediaFiles,
+              initialIndex: initialIndex >= 0 ? initialIndex : 0,
+            ),
+          ),
+        );
+      } else {
+        // 其他文件类型使用单文件模式
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+        );
+      }
     }
   }
 

@@ -29,10 +29,11 @@ class FilePreviewPage extends StatefulWidget {
 }
 
 class _FilePreviewPageState extends State<FilePreviewPage> {
-  // 滑动切换相关
+  // 滑动切换相关状态
   late PageController _pageController;
   late int _currentIndex;
-  bool _showPageIndicator = true;
+  bool _showPageIndicator = true; // 是否显示页码指示器
+  double _pageIndicatorOpacity = 1.0; // 页码指示器透明度
 
   @override
   void initState() {
@@ -40,16 +41,30 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
 
-    // 3秒后隐藏页码指示器
+    // 如果有多个文件，3秒后淡出页码指示器
     if (widget.fileList != null && widget.fileList!.length > 1) {
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _showPageIndicator = false;
-          });
-        }
-      });
+      _scheduleIndicatorFadeOut();
     }
+  }
+
+  /// 计划页码指示器淡出动画
+  /// 3秒后开始淡出，300毫秒完成动画后隐藏组件
+  void _scheduleIndicatorFadeOut() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _pageIndicatorOpacity = 0.0;
+        });
+        // 完全隐藏（为了性能）
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            setState(() {
+              _showPageIndicator = false;
+            });
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -58,64 +73,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     super.dispose();
   }
 
-  // 辅助方法：判断文件类型
-  bool _isImageFile(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    return [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'bmp',
-      'webp',
-      'svg',
-      'ico',
-      'tiff',
-      'tif',
-      'heic',
-      'heif'
-    ].contains(ext);
-  }
-
-  bool _isVideoFile(String fileName) {
-    return FileUtils.isVideoFile(fileName);
-  }
-
-  bool _isAudioFile(String fileName) {
-    return FileUtils.isAudioFile(fileName);
-  }
-
-  bool _isTextFile(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    return [
-      'txt',
-      'md',
-      'json',
-      'xml',
-      'html',
-      'css',
-      'js',
-      'ts',
-      'dart',
-      'java',
-      'py',
-      'cpp',
-      'c',
-      'h',
-      'cs',
-      'php',
-      'yaml',
-      'yml',
-      'ini',
-      'conf',
-      'log',
-      'csv',
-    ].contains(ext);
-  }
-
   @override
   Widget build(BuildContext context) {
-    // 如果没有文件列表或只有一个文件，使用原来的单文件模式
+    // 如果没有文件列表或只有一个文件，使用单文件预览模式
     if (widget.fileList == null || widget.fileList!.length <= 1) {
       return _buildSingleFilePreview(context, widget.file);
     }
@@ -162,16 +122,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
               setState(() {
                 _currentIndex = index;
                 _showPageIndicator = true;
+                _pageIndicatorOpacity = 1.0;
               });
 
-              // 3秒后隐藏页码
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  setState(() {
-                    _showPageIndicator = false;
-                  });
-                }
-              });
+              // 重新计划淡出
+              _scheduleIndicatorFadeOut();
             },
             itemBuilder: (context, index) {
               return _FilePreviewItem(
@@ -181,7 +136,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             },
           ),
 
-          // 页码指示器
+          // 页码指示器 - 改进的视觉效果
           if (_showPageIndicator && widget.fileList!.length > 1)
             Positioned(
               bottom: 32,
@@ -189,24 +144,47 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
               right: 0,
               child: Center(
                 child: AnimatedOpacity(
-                  opacity: _showPageIndicator ? 1.0 : 0.0,
+                  opacity: _pageIndicatorOpacity,
                   duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+                      horizontal: 20,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      '${_currentIndex + 1} / ${widget.fileList!.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          FileUtils.isImageFile(
+                                  widget.fileList![_currentIndex].name)
+                              ? Icons.image
+                              : Icons.videocam,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_currentIndex + 1} / ${widget.fileList!.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -269,19 +247,19 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   /// 获取指定文件的类型显示
   String _getFileTypeDisplayForFile(FileItem file) {
-    if (_isImageFile(file.name)) return '图片';
-    if (_isVideoFile(file.name)) return '视频';
-    if (_isAudioFile(file.name)) return '音频';
+    if (FileUtils.isImageFile(file.name)) return '图片';
+    if (FileUtils.isVideoFile(file.name)) return '视频';
+    if (FileUtils.isAudioFile(file.name)) return '音频';
     if (FileUtils.isPdfFile(file.name)) return 'PDF文档';
     if (FileUtils.isDocumentFile(file.name)) return '文档';
-    if (_isTextFile(file.name)) return '文本';
+    if (FileUtils.isTextFile(file.name)) return '文本';
     return '未知类型';
   }
 
   /// 显示指定文件的信息
   void _showFileInfoForFile(BuildContext context, FileItem file) async {
     // 对于音视频文件，显示详细信息
-    if (_isVideoFile(file.name) || _isAudioFile(file.name)) {
+    if (FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name)) {
       _showDetailedMediaInfoForFile(context, file);
       return;
     }
@@ -341,7 +319,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
     try {
       final extractor = MediaInfoExtractor();
-      final info = _isVideoFile(file.name)
+      final info = FileUtils.isVideoFile(file.name)
           ? await extractor.extractVideoInfo(file.path)
           : await extractor.extractAudioInfo(file.path);
 
@@ -369,7 +347,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 Expanded(
                   child: DetailedMediaInfoView(
                     info: info,
-                    isVideo: _isVideoFile(file.name),
+                    isVideo: FileUtils.isVideoFile(file.name),
                   ),
                 ),
               ],
@@ -405,7 +383,11 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   PdfController? _pdfController;
 
   @override
-  bool get wantKeepAlive => true; // 保持状态，避免重复加载
+  // 只为图片和文本文件保持状态，视频不保持（避免内存问题）
+  bool get wantKeepAlive =>
+      FileUtils.isImageFile(widget.file.name) ||
+      FileUtils.isTextFile(widget.file.name) ||
+      FileUtils.isPdfFile(widget.file.name);
 
   @override
   void initState() {
@@ -448,7 +430,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       }
 
       // 文本文件
-      if (_isTextFile(widget.file.name)) {
+      if (FileUtils.isTextFile(widget.file.name)) {
         final file = File(widget.file.path);
         final content = await file.readAsString();
         setState(() {
@@ -484,14 +466,6 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         _isLoading = false;
       });
     }
-  }
-
-  bool _isTextFile(String filename) {
-    return filename.toLowerCase().endsWith('.txt') ||
-        filename.toLowerCase().endsWith('.log') ||
-        filename.toLowerCase().endsWith('.md') ||
-        filename.toLowerCase().endsWith('.json') ||
-        filename.toLowerCase().endsWith('.xml');
   }
 
   @override
