@@ -1055,16 +1055,40 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 根据排序类型获取比较器
+  ///
+  /// 遵循文件管理器通用规则：文件夹始终排在文件前面
   Comparator<FileItem> _getComparatorForSortType(SortType sortType) {
     switch (sortType) {
       case SortType.name:
-        return (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        return (a, b) {
+          // 文件夹优先
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+          // 同类型按名称排序
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        };
       case SortType.modifiedTime:
-        return (a, b) => b.modified.compareTo(a.modified);
+        return (a, b) {
+          // 文件夹优先
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+          // 同类型按修改时间排序（新的在前）
+          return b.modified.compareTo(a.modified);
+        };
       case SortType.size:
-        return (a, b) => b.size.compareTo(a.size);
+        return (a, b) {
+          // 文件夹优先
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+          // 同类型按大小排序（大的在前）
+          return b.size.compareTo(a.size);
+        };
       case SortType.fileType:
         return (a, b) {
+          // 文件夹优先
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+
           // 获取文件扩展名
           String getExt(String name) {
             final lastDot = name.lastIndexOf('.');
