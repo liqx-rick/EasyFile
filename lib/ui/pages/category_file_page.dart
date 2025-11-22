@@ -43,6 +43,7 @@ enum DocumentFileType implements FileTypeFilter {
   text('TXT', 'TXT, MD, LOG'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DocumentFileType(this.label, this.extensions);
@@ -116,6 +117,7 @@ enum DownloadFileType implements FileTypeFilter {
   media('视频', 'MP3, MP4, AVI'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DownloadFileType(this.label, this.extensions);
@@ -660,24 +662,36 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     ),
               title: _selectionController.isSelectionMode
                   ? Text('已选择 ${_selectionController.count} 项')
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: categoryInfo.backgroundColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            categoryInfo.icon,
-                            size: 20,
-                            color: categoryInfo.iconColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(categoryInfo.name),
-                      ],
+                  : Builder(
+                      builder: (context) {
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? categoryInfo.iconColor.withValues(
+                                        alpha: 0.2) // 深色模式：20%主题色透明度
+                                    : categoryInfo.backgroundColor, // 浅色模式：原背景色
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                categoryInfo.icon,
+                                size: 20,
+                                color: isDark
+                                    ? categoryInfo
+                                        .backgroundColor // 深色模式：使用原背景色（更浅）
+                                    : categoryInfo.iconColor, // 浅色模式：原图标色
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(categoryInfo.name),
+                          ],
+                        );
+                      },
                     ),
               titleSpacing: 0,
               actions: [
