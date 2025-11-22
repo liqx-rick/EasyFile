@@ -200,23 +200,25 @@ class FileItemTile extends StatelessWidget {
       );
     }
 
-    // 仅显示收藏按钮 - 只在已收藏时显示
-    if (onFavoriteToggle != null && isFavorite) {
+    // 显示收藏按钮或占位空间 - 保持所有文件对齐
+    if (onFavoriteToggle != null) {
       return SizedBox(
         width: 32,
-        child: Transform.scale(
-          scale: 0.75, // 与复选框使用相同的缩放比例
-          child: IconButton(
-            icon: const Icon(
-              Icons.star,
-              color: Colors.amber,
-            ),
-            onPressed: onFavoriteToggle,
-            tooltip: '取消收藏',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ),
+        child: isFavorite
+            ? Transform.scale(
+                scale: 0.75, // 与复选框使用相同的缩放比例
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                  ),
+                  onPressed: onFavoriteToggle,
+                  tooltip: '取消收藏',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              )
+            : const SizedBox(width: 32), // 占位空间，保持对齐
       );
     }
 

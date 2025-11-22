@@ -374,7 +374,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           .toList(),
                     };
                     await prefs.setString(key, json.encode(cacheData));
-                    logger.i('Cached ${count} files for ${categoryType.name}');
+                    logger.i('Cached $count files for ${categoryType.name}');
                   } catch (e) {
                     logger
                         .e('Error caching files for ${categoryType.name}: $e');
@@ -535,13 +535,19 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final isImageOrVideo =
         FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
 
-    // 如果是图片或视频，传递文件列表以支持滑动切换
-    if (isImageOrVideo) {
-      // 过滤出当前列表中所有的图片和视频文件
-      final mediaFiles = viewModel.files
-          .where((f) =>
-              FileUtils.isImageFile(f.name) || FileUtils.isVideoFile(f.name))
-          .toList();
+    // 如果是图片、视频或音频，传递文件列表以支持滑动切换
+    if (isImageOrVideo || FileUtils.isAudioFile(file.name)) {
+      // 根据当前文件类型只过滤同类型文件
+      final mediaFiles = viewModel.files.where((f) {
+        if (FileUtils.isImageFile(file.name)) {
+          return FileUtils.isImageFile(f.name);
+        } else if (FileUtils.isVideoFile(file.name)) {
+          return FileUtils.isVideoFile(f.name);
+        } else if (FileUtils.isAudioFile(file.name)) {
+          return FileUtils.isAudioFile(f.name);
+        }
+        return false;
+      }).toList();
 
       final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
 
@@ -1320,13 +1326,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       final path = folder.path.toLowerCase();
                       if (path.contains('download')) return 99;
                       if (path.contains('document')) return 1;
-                      if (path.contains('picture') || path.contains('photo'))
+                      if (path.contains('picture') || path.contains('photo')) {
                         return 2;
+                      }
                       if (path.contains('music')) return 3;
-                      if (path.contains('movie') || path.contains('video'))
+                      if (path.contains('movie') || path.contains('video')) {
                         return 4;
-                      if (path.contains('dcim') || path.contains('camera'))
+                      }
+                      if (path.contains('dcim') || path.contains('camera')) {
                         return 5;
+                      }
                       return 98;
                     }
 
@@ -1417,13 +1426,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         final path = folder.path.toLowerCase();
                         if (path.contains('download')) return 99;
                         if (path.contains('document')) return 1;
-                        if (path.contains('picture') || path.contains('photo'))
+                        if (path.contains('picture') ||
+                            path.contains('photo')) {
                           return 2;
+                        }
                         if (path.contains('music')) return 3;
-                        if (path.contains('movie') || path.contains('video'))
+                        if (path.contains('movie') || path.contains('video')) {
                           return 4;
-                        if (path.contains('dcim') || path.contains('camera'))
+                        }
+                        if (path.contains('dcim') || path.contains('camera')) {
                           return 5;
+                        }
                         return 98;
                       }
 

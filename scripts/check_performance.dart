@@ -21,7 +21,7 @@ void main() {
   issueCount += checkShrinkWrap();
   issueCount += checkImageCache();
 
-  print('\n' + '=' * 60);
+  print('\n${'=' * 60}');
   if (issueCount == 0) {
     print('✅ 性能检查通过！未发现问题。');
   } else {
@@ -56,7 +56,7 @@ int checkListViews() {
         // 检查下几行是否有 children:
         final nextLines = lines.skip(i).take(5).join(' ');
         if (nextLines.contains('children:')) {
-          print('  ⚠️  ${file}:${i + 1}');
+          print('  ⚠️  $file:${i + 1}');
           print('     建议使用 ListView.builder 而不是 ListView(children: ...)');
           issues++;
         }
@@ -66,7 +66,7 @@ int checkListViews() {
       if (line.contains('GridView(') && !line.contains('GridView.builder')) {
         final nextLines = lines.skip(i).take(5).join(' ');
         if (nextLines.contains('children:')) {
-          print('  ⚠️  ${file}:${i + 1}');
+          print('  ⚠️  $file:${i + 1}');
           print('     建议使用 GridView.builder 而不是 GridView(children: ...)');
           issues++;
         }
@@ -104,7 +104,7 @@ int checkImages() {
             !nextLines.contains('预览页面') && // 中文注释
             !nextLines.contains('Image.asset')) {
           // asset 例外
-          print('  ⚠️  ${file}:${i + 1}');
+          print('  ⚠️  $file:${i + 1}');
           print('     建议为 Image 设置 cacheWidth 和 cacheHeight');
           issues++;
         }
@@ -144,7 +144,7 @@ int checkShrinkWrap() {
                 line.contains('Reorderable'));
 
         if (!hasComment) {
-          print('  ⚠️  ${file}:${i + 1}');
+          print('  ⚠️  $file:${i + 1}');
           print('     使用 shrinkWrap: true 可能影响性能，请确认是否必要');
           issues++;
         }

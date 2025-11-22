@@ -647,10 +647,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
     final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
 
-    // 统一的首页推荐背景色
+    // 统一的首页推荐背景色 - 适配深色/浅色主题
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isSelected
         ? Theme.of(context).colorScheme.primaryContainer // 选中时高亮背景
-        : const Color(0xFFF5F5F5); // 未选中时的浅灰色背景
+        : (isDark 
+            ? Colors.white.withValues(alpha: 0.08) // 深色模式：8%白色透明度
+            : const Color(0xFFF5F5F5)); // 浅色模式：浅灰色背景
 
     return SizedBox(
       width: cardWidth,
@@ -725,10 +728,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
     final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
 
-    // "更多"按钮使用不同的背景色
+    // "更多"按钮使用不同的背景色 - 适配深色/浅色主题
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isMoreSelected
         ? Theme.of(context).colorScheme.secondaryContainer // 选中时高亮
-        : const Color(0xFFE8EAF6); // 未选中时的浅紫色背景
+        : (isDark
+            ? Colors.deepPurple.withValues(alpha: 0.12) // 深色模式：12%深紫色透明度
+            : const Color(0xFFE8EAF6)); // 浅色模式：浅紫色背景
 
     return SizedBox(
       key: _moreCardKey, // 添加key用于定位
@@ -889,7 +895,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: (_totalSpace! - _freeSpace!) / _totalSpace!,
-              backgroundColor: Colors.grey[300],
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.1) // 深色模式
+                  : Colors.grey[300], // 浅色模式
               valueColor: AlwaysStoppedAnimation<Color>(
                 _getStorageColor(_freeSpace! / _totalSpace!),
               ),
@@ -912,7 +920,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         ] else
           Text(
             '加载失败',
-            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
       ],
     );
@@ -971,7 +982,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                         child: CircularProgressIndicator(
                           value: (_totalSpace! - _freeSpace!) / _totalSpace!,
                           strokeWidth: 5,
-                          backgroundColor: Colors.grey[300],
+                          backgroundColor: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white.withValues(alpha: 0.1) // 深色模式
+                              : Colors.grey[300], // 浅色模式
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _getStorageColor(_freeSpace! / _totalSpace!),
                           ),
@@ -1017,7 +1030,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         else
           Text(
             '加载失败',
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
       ],
     );

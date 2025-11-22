@@ -450,16 +450,24 @@ class _StoragePageState extends State<StoragePage> {
       _currentPath = file.path;
       _loadFilesInPath(file.path);
     } else {
-      // 对于图片/视频文件，支持左右滑动浏览相邻文件
+      // 添加到最近访问记录
+      widget.presenter.addToRecentFiles(file);
+      // 对于图片/视频/音频文件，支持左右滑动浏览相邻文件
       if (FileUtils.isImageFile(file.name) ||
-          FileUtils.isVideoFile(file.name)) {
-        // 筛选出当前目录中所有的图片和视频
-        final mediaFiles = _files
-            .where((f) =>
-                !f.isDirectory &&
-                (FileUtils.isImageFile(f.name) ||
-                    FileUtils.isVideoFile(f.name)))
-            .toList();
+          FileUtils.isVideoFile(file.name) ||
+          FileUtils.isAudioFile(file.name)) {
+        // 根据当前文件类型只筛选同类型文件
+        final mediaFiles = _files.where((f) {
+          if (f.isDirectory) return false;
+          if (FileUtils.isImageFile(file.name)) {
+            return FileUtils.isImageFile(f.name);
+          } else if (FileUtils.isVideoFile(file.name)) {
+            return FileUtils.isVideoFile(f.name);
+          } else if (FileUtils.isAudioFile(file.name)) {
+            return FileUtils.isAudioFile(f.name);
+          }
+          return false;
+        }).toList();
 
         final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
 
