@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 存储权限 (Android 12 及以下) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
@@ -13,6 +14,10 @@
     
     <!-- 视频播放需要的网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- 亮度调节权限 -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" 
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:label="EasyFile"

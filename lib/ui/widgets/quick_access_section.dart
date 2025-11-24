@@ -651,7 +651,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isSelected
         ? Theme.of(context).colorScheme.primaryContainer // 选中时高亮背景
-        : (isDark 
+        : (isDark
             ? Colors.white.withValues(alpha: 0.08) // 深色模式：8%白色透明度
             : const Color(0xFFF5F5F5)); // 浅色模式：浅灰色背景
 
@@ -982,9 +982,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                         child: CircularProgressIndicator(
                           value: (_totalSpace! - _freeSpace!) / _totalSpace!,
                           strokeWidth: 5,
-                          backgroundColor: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white.withValues(alpha: 0.1) // 深色模式
-                              : Colors.grey[300], // 浅色模式
+                          backgroundColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white.withValues(alpha: 0.1) // 深色模式
+                                  : Colors.grey[300], // 浅色模式
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _getStorageColor(_freeSpace! / _totalSpace!),
                           ),

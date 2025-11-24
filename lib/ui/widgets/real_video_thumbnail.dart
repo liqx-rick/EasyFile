@@ -4,21 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
+import 'package:easyfile/data/services/video_duration_cache_service.dart';
 
 /// 视频真实缩略图组件
 ///
 /// 从视频文件生成真实的第一帧缩略图
 /// 支持缓存机制，避免重复生成
+/// 自动获取并显示视频时长
 class RealVideoThumbnail extends StatefulWidget {
   final String videoPath;
   final double size;
-  final String? duration; // 可选的时长显示
+  final bool showDuration; // 是否显示时长标签
 
   const RealVideoThumbnail({
     super.key,
     required this.videoPath,
-    this.size = 40,
-    this.duration,
+    this.size = 48.0,
+    this.showDuration = true, // 默认显示，保持向后兼容
   });
 
   @override
@@ -29,12 +31,18 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
   Uint8List? _thumbnailData;
   bool _isLoading = true;
   bool _hasError = false;
+  String? _duration;
   final _cacheManager = ThumbnailCacheManager();
+  final _durationCache = VideoDurationCacheService();
 
   @override
   void initState() {
     super.initState();
     _loadThumbnail();
+    // 只有在需要显示时长时才加载
+    if (widget.showDuration) {
+      _loadDuration();
+    }
   }
 
   Future<void> _loadThumbnail() async {
@@ -95,6 +103,20 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// 加载视频时长
+  Future<void> _loadDuration() async {
+    try {
+      final duration = await _durationCache.getVideoDuration(widget.videoPath);
+      if (mounted && duration != null) {
+        setState(() {
+          _duration = duration;
+        });
+      }
+    } catch (e) {
+      logger.w('Failed to load video duration: $e');
     }
   }
 
@@ -196,29 +218,10 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
               ),
             ),
 
-            // 播放图标
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.play_arrow,
-                  color: Colors.white,
-                  // 根据尺寸调整播放图标大小
-                  // 小图(<=96px): 30%，大图(>96px): 18%，更精致小巧
-                  size:
-                      widget.size > 96 ? widget.size * 0.18 : widget.size * 0.3,
-                ),
-              ),
-            ),
-
-            // 时长标签（右下角）
-            if (widget.duration != null)
+            // 时长标签（左下角）- 仅在showDuration=true时显示
+            if (widget.showDuration && _duration != null)
               Positioned(
-                right: 4,
+                left: 4,
                 bottom: 4,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -230,12 +233,12 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
-                    widget.duration!,
+                    _duration!,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: widget.size > 50 ? 10 : 8,
-                      fontWeight: FontWeight.bold,
-                      height: 1.0,
+                      fontSize: widget.size > 96 ? 11 : 10,
+                      fontWeight: FontWeight.w500,
+                      height: 1.2,
                     ),
                   ),
                 ),

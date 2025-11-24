@@ -75,7 +75,9 @@ class _SearchHistoryPanelState extends State<SearchHistoryPanel> {
       final success = await widget.historySource.clearAllHistory();
       if (success) {
         await _loadHistory();
-        widget.onClearHistory?.call();
+        if (mounted) {
+          widget.onClearHistory?.call();
+        }
       }
     }
   }

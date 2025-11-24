@@ -15,7 +15,7 @@ import 'package:easyfile/ui/widgets/detailed_media_info_view.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:open_file/open_file.dart';
-import 'package:pdfx/pdfx.dart';
+// import 'package:pdfx/pdfx.dart'; // Windows 构建问题，暂时禁用
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
@@ -182,12 +182,24 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 file: widget.fileList![index],
                 key: ValueKey(widget.fileList![index].path),
                 onTap: _toggleUIVisibility, // 传递点击回调
+                onSetUIVisible: (show) {
+                  _uiHideTimer?.cancel();
+                  setState(() {
+                    _showUI = show;
+                  });
+                  if (show) {
+                    _scheduleUIHide();
+                  }
+                },
               );
             },
           ),
 
-          // 页码指示器 - 改进的视觉效果
-          if (_showUI && _showPageIndicator && widget.fileList!.length > 1)
+          // 页码指示器 - 只对图片显示，视频和音频不显示
+          if (_showUI &&
+              _showPageIndicator &&
+              widget.fileList!.length > 1 &&
+              FileUtils.isImageFile(widget.fileList![_currentIndex].name))
             Positioned(
               bottom: 32,
               left: 0,
@@ -216,11 +228,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          FileUtils.isImageFile(
-                                  widget.fileList![_currentIndex].name)
-                              ? Icons.image
-                              : Icons.videocam,
+                        const Icon(
+                          Icons.image,
                           color: Colors.white70,
                           size: 16,
                         ),
@@ -361,6 +370,15 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       body: _FilePreviewItem(
         file: file,
         onTap: _toggleUIVisibility, // 传递点击回调
+        onSetUIVisible: (show) {
+          _uiHideTimer?.cancel();
+          setState(() {
+            _showUI = show;
+          });
+          if (show) {
+            _scheduleUIHide();
+          }
+        },
       ),
     );
   }
@@ -550,8 +568,14 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 class _FilePreviewItem extends StatefulWidget {
   final FileItem file;
   final VoidCallback? onTap; // 点击回调，用于切换UI
+  final Function(bool show)? onSetUIVisible; // 强制设置UI显示状态
 
-  const _FilePreviewItem({super.key, required this.file, this.onTap});
+  const _FilePreviewItem({
+    super.key,
+    required this.file,
+    this.onTap,
+    this.onSetUIVisible,
+  });
 
   @override
   State<_FilePreviewItem> createState() => __FilePreviewItemState();
@@ -562,7 +586,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   String? _fileContent;
   bool _isLoading = true;
   String? _error;
-  PdfController? _pdfController;
+  // PdfController? _pdfController; // Windows 构建问题，禁用 pdfx
 
   @override
   // 只为图片和文本文件保持状态，视频和音频不保持（避免内存问题）
@@ -579,7 +603,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
   @override
   void dispose() {
-    _pdfController?.dispose();
+    // _pdfController?.dispose(); // pdfx 已禁用
     super.dispose();
   }
 
@@ -744,12 +768,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       }
 
       logger.d('Opening PDF file: ${widget.file.path}');
-      final pdfDoc = await PdfDocument.openFile(widget.file.path);
-      _pdfController = PdfController(document: Future.value(pdfDoc));
+      // PDF 在 Windows 上有构建问题，改为提示使用外部应用打开
       setState(() {
+        _error = 'PDF 预览暂不可用\n点击"使用其他应用打开"按钮查看 PDF';
         _isLoading = false;
       });
-      logger.i('PDF document loaded successfully');
+      logger.i('PDF preview disabled on Windows');
     } catch (e) {
       logger.e('Error loading PDF: $e');
       String errorMessage;
@@ -883,12 +907,15 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildVideoPreview() {
-    return GestureDetector(
-      onTap: widget.onTap, // 点击切换UI
-      child: Container(
-        color: Colors.black, // 视频预览固定黑色背景
-        child: Center(
-          child: VideoPlayerWidget(videoPath: widget.file.path),
+    // 视频播放器自己处理点击事件（用于显示/隐藏控制栏）
+    // 同时传递onToggleUI回调，与顶部AppBar同步切换
+    return Container(
+      color: Colors.black, // 视频预览固定黑色背景
+      child: Center(
+        child: VideoPlayerWidget(
+          videoPath: widget.file.path,
+          onToggleUI: widget.onTap, // 传递UI切换回调
+          onSetUIVisible: widget.onSetUIVisible, // 传递强制设置UI状态的回调
         ),
       ),
     );
@@ -905,23 +932,53 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildPdfViewer() {
-    if (_pdfController == null) {
-      return Container(
-        color: Colors.black, // PDF预览固定黑色背景
-        child: const Center(
-          child: Text(
-            'PDF加载失败',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      );
-    }
-
+    // PDF 预览在 Windows 上不可用，显示提示信息
     return GestureDetector(
       onTap: widget.onTap, // 点击切换UI
       child: Container(
-        color: Colors.black, // PDF预览固定黑色背景
-        child: PdfView(controller: _pdfController!),
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.picture_as_pdf,
+                size: 64,
+                color: Colors.white70,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'PDF 预览暂不可用',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.file.name,
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await OpenFile.open(widget.file.path);
+                  if (result.type != ResultType.done) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('打开失败: ${result.message}')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('使用其他应用打开'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

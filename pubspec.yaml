@@ -22,9 +22,12 @@ dependencies:
   video_thumbnail: ^0.5.3
   crypto: ^3.0.3
   open_file: ^3.3.2
-  pdfx: ^2.6.0
+  # pdfx: ^2.6.0  # Windows 构建问题，暂时禁用
+  # 替代方案：使用 native_pdf_renderer 或在 Windows 上使用系统默认 PDF 查看器
   shared_preferences: ^2.2.2
   charset_converter: ^2.1.1
+  screen_brightness: ^2.1.7
+  gal: ^2.3.0
 
 dev_dependencies:
   flutter_test:
