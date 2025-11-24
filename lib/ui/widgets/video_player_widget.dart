@@ -183,12 +183,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       // 创建视频控制器
       _videoPlayerController = VideoPlayerController.file(file);
 
-      // 初始化视频
-      await _videoPlayerController!.initialize();
+      // 初始化视频控制器（添加超时）
+      await _videoPlayerController!.initialize().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('视频初始化超时，可能是编解码器不支持或文件损坏');
+        },
+      );
 
-      // 检查视频是否初始化成功
       if (!_videoPlayerController!.value.isInitialized) {
         throw Exception('视频初始化失败');
+      }
+      
+      // 检查视频是否有错误
+      if (_videoPlayerController!.value.hasError) {
+        throw Exception('视频加载错误: ${_videoPlayerController!.value.errorDescription}');
       }
 
       // 恢复播放位置
@@ -235,9 +244,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           _isInitializing = false;
         });
       }
+    } on TimeoutException catch (e) {
+      final errorMsg = '视频加载超时\n可能是编解码器不支持或文件损坏';
+      logger.e('TimeoutException: $e');
+      _handleError(errorMsg);
     } on PlatformException catch (e) {
-      final errorMsg = '平台错误: ${e.message}';
-      logger.e('PlatformException initializing video player: $errorMsg');
+      String errorMsg;
+      if (e.message?.contains('ExoPlaybackException') == true ||
+          e.message?.contains('MediaCodec') == true) {
+        errorMsg = '视频格式不支持\n设备编解码器无法处理此视频格式';
+      } else {
+        errorMsg = '平台错误: ${e.message ?? e.code}';
+      }
+      logger.e('PlatformException initializing video player: ${e.code} - ${e.message}');
       _handleError(errorMsg);
     } on FileSystemException catch (e) {
       final errorMsg = '文件系统错误: ${e.message}';

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:easyfile/core/logger.dart';
@@ -57,15 +59,45 @@ class VideoDurationCacheService {
       }
 
       controller = VideoPlayerController.file(file);
-      await controller.initialize();
+      
+      // 添加超时机制，避免卡住
+      await controller.initialize().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('Video initialization timeout');
+        },
+      );
+
+      // 检查是否初始化成功
+      if (!controller.value.isInitialized) {
+        return null;
+      }
 
       final duration = controller.value.duration;
+      
+      // 验证时长是否有效
+      if (duration == Duration.zero) {
+        logger.w('Video duration is zero for: $videoPath');
+        return null;
+      }
+      
       return duration;
+    } on TimeoutException catch (e) {
+      logger.w('Timeout reading video duration for $videoPath: $e');
+      return null;
+    } on PlatformException catch (e) {
+      // Android ExoPlayer 编解码器错误
+      logger.w('Platform error reading video duration for $videoPath: ${e.code} - ${e.message}');
+      return null;
     } catch (e) {
-      logger.w('Error reading video duration: $e');
+      logger.w('Error reading video duration for $videoPath: $e');
       return null;
     } finally {
-      await controller?.dispose();
+      try {
+        await controller?.dispose();
+      } catch (e) {
+        logger.w('Error disposing video controller: $e');
+      }
     }
   }
 
