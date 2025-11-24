@@ -2,7 +2,20 @@ class FileUtils {
   /// 判断文件是否为图片类型
   static bool isImageFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(ext);
+    return [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+      'heic',
+      'heif'
+    ].contains(ext);
   }
 
   /// 判断文件是否为视频类型
@@ -18,6 +31,9 @@ class FileUtils {
       'webm',
       '3gp',
       'm4v',
+      'rmvb',
+      'rm',
+      'asf'
     ].contains(ext);
   }
 

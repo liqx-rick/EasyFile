@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:easyfile/utils/file_utils.dart';
+
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/permission_service.dart';
@@ -372,7 +374,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           .toList(),
                     };
                     await prefs.setString(key, json.encode(cacheData));
-                    logger.i('Cached ${count} files for ${categoryType.name}');
+                    logger.i('Cached $count files for ${categoryType.name}');
                   } catch (e) {
                     logger
                         .e('Error caching files for ${categoryType.name}: $e');
@@ -522,18 +524,30 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
+  /// 预览文件
+  ///
+  /// 对于图片和视频文件，支持左右滑动浏览相邻文件
+  /// 其他类型文件使用单文件预览模式
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
 
     // 判断是否是图片或视频文件
-    final isImageOrVideo = _isImageFile(file.name) || _isVideoFile(file.name);
+    final isImageOrVideo =
+        FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
 
-    // 在收藏Tab中，如果是图片或视频，传递文件列表以支持滑动切换
-    if (viewModel.currentTab == TabView.favorite && isImageOrVideo) {
-      // 过滤出所有的图片和视频文件
-      final mediaFiles = viewModel.files
-          .where((f) => _isImageFile(f.name) || _isVideoFile(f.name))
-          .toList();
+    // 如果是图片、视频或音频，传递文件列表以支持滑动切换
+    if (isImageOrVideo || FileUtils.isAudioFile(file.name)) {
+      // 根据当前文件类型只过滤同类型文件
+      final mediaFiles = viewModel.files.where((f) {
+        if (FileUtils.isImageFile(file.name)) {
+          return FileUtils.isImageFile(f.name);
+        } else if (FileUtils.isVideoFile(file.name)) {
+          return FileUtils.isVideoFile(f.name);
+        } else if (FileUtils.isAudioFile(file.name)) {
+          return FileUtils.isAudioFile(f.name);
+        }
+        return false;
+      }).toList();
 
       final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
 
@@ -549,11 +563,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       )
           .then((refresh) async {
         if (refresh == true) {
-          await presenter.loadFavoriteFiles();
+          // 根据当前Tab刷新对应的数据
+          if (viewModel.currentTab == TabView.favorite) {
+            await presenter.loadFavoriteFiles();
+          } else if (viewModel.currentTab == TabView.recent) {
+            await presenter.loadRecentFiles();
+          } else {
+            await presenter.loadFiles(viewModel.currentPath);
+          }
         }
       });
     } else {
-      // 其他情况使用单文件模式
+      // 其他文件类型使用单文件模式
       Navigator.of(context)
           .push<bool>(
         MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
@@ -569,41 +590,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         }
       });
     }
-  }
-
-  bool _isImageFile(String filename) {
-    final ext = filename.toLowerCase().split('.').last;
-    return [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'bmp',
-      'webp',
-      'svg',
-      'ico',
-      'tiff',
-      'tif',
-      'heic',
-      'heif'
-    ].contains(ext);
-  }
-
-  bool _isVideoFile(String filename) {
-    final ext = filename.toLowerCase().split('.').last;
-    return [
-      'mp4',
-      'avi',
-      'mov',
-      'wmv',
-      'flv',
-      'mkv',
-      'webm',
-      '3gp',
-      'rmvb',
-      'rm',
-      'asf'
-    ].contains(ext);
   }
 
   bool _canNavigateUp(String currentPath) {
@@ -1340,13 +1326,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       final path = folder.path.toLowerCase();
                       if (path.contains('download')) return 99;
                       if (path.contains('document')) return 1;
-                      if (path.contains('picture') || path.contains('photo'))
+                      if (path.contains('picture') || path.contains('photo')) {
                         return 2;
+                      }
                       if (path.contains('music')) return 3;
-                      if (path.contains('movie') || path.contains('video'))
+                      if (path.contains('movie') || path.contains('video')) {
                         return 4;
-                      if (path.contains('dcim') || path.contains('camera'))
+                      }
+                      if (path.contains('dcim') || path.contains('camera')) {
                         return 5;
+                      }
                       return 98;
                     }
 
@@ -1437,13 +1426,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         final path = folder.path.toLowerCase();
                         if (path.contains('download')) return 99;
                         if (path.contains('document')) return 1;
-                        if (path.contains('picture') || path.contains('photo'))
+                        if (path.contains('picture') ||
+                            path.contains('photo')) {
                           return 2;
+                        }
                         if (path.contains('music')) return 3;
-                        if (path.contains('movie') || path.contains('video'))
+                        if (path.contains('movie') || path.contains('video')) {
                           return 4;
-                        if (path.contains('dcim') || path.contains('camera'))
+                        }
+                        if (path.contains('dcim') || path.contains('camera')) {
                           return 5;
+                        }
                         return 98;
                       }
 

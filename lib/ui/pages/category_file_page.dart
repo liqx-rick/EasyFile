@@ -20,6 +20,7 @@ import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
@@ -43,6 +44,7 @@ enum DocumentFileType implements FileTypeFilter {
   text('TXT', 'TXT, MD, LOG'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DocumentFileType(this.label, this.extensions);
@@ -116,6 +118,7 @@ enum DownloadFileType implements FileTypeFilter {
   media('视频', 'MP3, MP4, AVI'),
   other('其他', '');
 
+  @override
   final String label;
   final String extensions;
   const DownloadFileType(this.label, this.extensions);
@@ -660,24 +663,36 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     ),
               title: _selectionController.isSelectionMode
                   ? Text('已选择 ${_selectionController.count} 项')
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: categoryInfo.backgroundColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            categoryInfo.icon,
-                            size: 20,
-                            color: categoryInfo.iconColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(categoryInfo.name),
-                      ],
+                  : Builder(
+                      builder: (context) {
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? categoryInfo.iconColor.withValues(
+                                        alpha: 0.2) // 深色模式：20%主题色透明度
+                                    : categoryInfo.backgroundColor, // 浅色模式：原背景色
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                categoryInfo.icon,
+                                size: 20,
+                                color: isDark
+                                    ? categoryInfo
+                                        .backgroundColor // 深色模式：使用原背景色（更浅）
+                                    : categoryInfo.iconColor, // 浅色模式：原图标色
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(categoryInfo.name),
+                          ],
+                        );
+                      },
                     ),
               titleSpacing: 0,
               actions: [
@@ -993,6 +1008,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       useUnifiedGridItem: true,
                       onTap: (file) {
                         if (!_selectionController.isSelectionMode) {
+                          // 添加到最近访问记录
+                          widget.presenter.addToRecentFiles(file);
                           _previewFile(file);
                         }
                       },
@@ -1204,6 +1221,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       useUnifiedGridItem: true,
       onTap: (file) {
         if (!_selectionController.isSelectionMode) {
+          // 添加到最近访问记录
+          widget.presenter.addToRecentFiles(file);
           _previewFile(file);
         }
       },
@@ -1298,9 +1317,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   void _previewFile(FileItem file) {
     logger.d('Previewing file: ${file.path}');
 
-    // 对于图片和视频，传递文件列表以支持滑动切换
+    // 对于图片、视频和音频，传递文件列表以支持滑动切换
     if (widget.categoryType == CategoryType.images ||
-        widget.categoryType == CategoryType.video) {
+        widget.categoryType == CategoryType.video ||
+        widget.categoryType == CategoryType.music) {
+      // 图片、视频、音乐分类：传递所有文件
       final fileList = _filteredFiles;
       final initialIndex = fileList.indexWhere((f) => f.path == file.path);
 
@@ -1309,6 +1330,32 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           builder: (context) => FilePreviewPage(
             file: file,
             fileList: fileList,
+            initialIndex: initialIndex >= 0 ? initialIndex : 0,
+          ),
+        ),
+      );
+    } else if (widget.categoryType == CategoryType.downloads &&
+        (FileUtils.isImageFile(file.name) ||
+            FileUtils.isVideoFile(file.name) ||
+            FileUtils.isAudioFile(file.name))) {
+      // 下载分类：根据当前文件类型只过滤同类型文件
+      final mediaFiles = _filteredFiles.where((f) {
+        if (FileUtils.isImageFile(file.name)) {
+          return FileUtils.isImageFile(f.name);
+        } else if (FileUtils.isVideoFile(file.name)) {
+          return FileUtils.isVideoFile(f.name);
+        } else if (FileUtils.isAudioFile(file.name)) {
+          return FileUtils.isAudioFile(f.name);
+        }
+        return false;
+      }).toList();
+      final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            fileList: mediaFiles,
             initialIndex: initialIndex >= 0 ? initialIndex : 0,
           ),
         ),

@@ -1,5 +1,10 @@
 import 'dart:io';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:charset_converter/charset_converter.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
@@ -10,7 +15,7 @@ import 'package:easyfile/ui/widgets/detailed_media_info_view.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:open_file/open_file.dart';
-import 'package:pdfx/pdfx.dart';
+// import 'package:pdfx/pdfx.dart'; // Windows 构建问题，暂时禁用
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
@@ -29,10 +34,15 @@ class FilePreviewPage extends StatefulWidget {
 }
 
 class _FilePreviewPageState extends State<FilePreviewPage> {
-  // 滑动切换相关
+  // 滑动切换相关状态
   late PageController _pageController;
   late int _currentIndex;
-  bool _showPageIndicator = true;
+  bool _showPageIndicator = true; // 是否显示页码指示器
+  double _pageIndicatorOpacity = 1.0; // 页码指示器透明度
+
+  // 沉浸式UI控制
+  bool _showUI = true; // 是否显示AppBar和其他UI组件
+  Timer? _uiHideTimer; // UI自动隐藏计时器
 
   @override
   void initState() {
@@ -40,82 +50,92 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
 
-    // 3秒后隐藏页码指示器
+    // 启用沉浸式全屏模式
+    _enableImmersiveMode();
+
+    // 计划UI自动隐藏（3秒后）
+    _scheduleUIHide();
+
+    // 如果有多个文件，3秒后淡出页码指示器
     if (widget.fileList != null && widget.fileList!.length > 1) {
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _showPageIndicator = false;
-          });
-        }
-      });
+      _scheduleIndicatorFadeOut();
     }
+  }
+
+  /// 计划页码指示器淡出动画
+  /// 3秒后开始淡出，300毫秒完成动画后隐藏组件
+  void _scheduleIndicatorFadeOut() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _pageIndicatorOpacity = 0.0;
+        });
+        // 完全隐藏（为了性能）
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            setState(() {
+              _showPageIndicator = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  /// 启用沉浸式全屏模式
+  void _enableImmersiveMode() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersive,
+      overlays: [],
+    );
+  }
+
+  /// 禁用沉浸式模式，恢复系统UI
+  void _disableImmersiveMode() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.edgeToEdge,
+      overlays: SystemUiOverlay.values,
+    );
+  }
+
+  /// 切换UI显示/隐藏
+  void _toggleUIVisibility() {
+    // 取消之前的计时器
+    _uiHideTimer?.cancel();
+
+    setState(() {
+      _showUI = !_showUI;
+    });
+
+    // 显示UI时启动3秒自动隐藏计时器
+    if (_showUI) {
+      _scheduleUIHide();
+    }
+  }
+
+  /// 计划UI自动隐藏
+  void _scheduleUIHide() {
+    _uiHideTimer?.cancel();
+    _uiHideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _showUI = false;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _uiHideTimer?.cancel();
     _pageController.dispose();
+    _disableImmersiveMode();
     super.dispose();
-  }
-
-  // 辅助方法：判断文件类型
-  bool _isImageFile(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    return [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'bmp',
-      'webp',
-      'svg',
-      'ico',
-      'tiff',
-      'tif',
-      'heic',
-      'heif'
-    ].contains(ext);
-  }
-
-  bool _isVideoFile(String fileName) {
-    return FileUtils.isVideoFile(fileName);
-  }
-
-  bool _isAudioFile(String fileName) {
-    return FileUtils.isAudioFile(fileName);
-  }
-
-  bool _isTextFile(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    return [
-      'txt',
-      'md',
-      'json',
-      'xml',
-      'html',
-      'css',
-      'js',
-      'ts',
-      'dart',
-      'java',
-      'py',
-      'cpp',
-      'c',
-      'h',
-      'cs',
-      'php',
-      'yaml',
-      'yml',
-      'ini',
-      'conf',
-      'log',
-      'csv',
-    ].contains(ext);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 如果没有文件列表或只有一个文件，使用原来的单文件模式
+    // 如果没有文件列表或只有一个文件，使用单文件预览模式
     if (widget.fileList == null || widget.fileList!.length <= 1) {
       return _buildSingleFilePreview(context, widget.file);
     }
@@ -126,88 +146,202 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   /// 构建支持滑动切换的预览页面
   Widget _buildPageViewPreview(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 获取当前文件类型
+    final currentFile = widget.fileList![_currentIndex];
+    final isMediaFile = FileUtils.isImageFile(currentFile.name) ||
+        FileUtils.isVideoFile(currentFile.name) ||
+        FileUtils.isPdfFile(currentFile.name);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.fileList![_currentIndex].name,
-              style: const TextStyle(fontSize: 16),
-            ),
-            Text(
-              _getFileTypeDisplayForFile(widget.fileList![_currentIndex]),
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => _showFileInfoForFile(
-              context,
-              widget.fileList![_currentIndex],
-            ),
-            tooltip: '文件信息',
-          ),
-        ],
-      ),
+      backgroundColor: isMediaFile
+          ? Colors.black // 图片/视频/PDF固定黑色
+          : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
+      extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
       body: Stack(
         children: [
           // PageView 支持滑动切换
           PageView.builder(
             controller: _pageController,
+            physics: const BouncingScrollPhysics(), // iOS 风格边缘回弹效果
             itemCount: widget.fileList!.length,
             onPageChanged: (index) {
               setState(() {
                 _currentIndex = index;
                 _showPageIndicator = true;
+                _pageIndicatorOpacity = 1.0;
               });
 
-              // 3秒后隐藏页码
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  setState(() {
-                    _showPageIndicator = false;
-                  });
-                }
-              });
+              // 重新计划淡出
+              _scheduleIndicatorFadeOut();
             },
             itemBuilder: (context, index) {
               return _FilePreviewItem(
                 file: widget.fileList![index],
                 key: ValueKey(widget.fileList![index].path),
+                onTap: _toggleUIVisibility, // 传递点击回调
+                onSetUIVisible: (show) {
+                  _uiHideTimer?.cancel();
+                  setState(() {
+                    _showUI = show;
+                  });
+                  if (show) {
+                    _scheduleUIHide();
+                  }
+                },
               );
             },
           ),
 
-          // 页码指示器
-          if (_showPageIndicator && widget.fileList!.length > 1)
+          // 页码指示器 - 只对图片显示，视频和音频不显示
+          if (_showUI &&
+              _showPageIndicator &&
+              widget.fileList!.length > 1 &&
+              FileUtils.isImageFile(widget.fileList![_currentIndex].name))
             Positioned(
               bottom: 32,
               left: 0,
               right: 0,
               child: Center(
                 child: AnimatedOpacity(
-                  opacity: _showPageIndicator ? 1.0 : 0.0,
+                  opacity: _pageIndicatorOpacity,
                   duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+                      horizontal: 20,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      '${_currentIndex + 1} / ${widget.fileList!.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.image,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_currentIndex + 1} / ${widget.fileList!.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // AppBar - 作为Stack中的浮动元素，不影响布局
+          if (_showUI)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildFloatingAppBar(context),
+            ),
+
+          // 左箭头按钮 - 上一个文件（仅对音频文件显示）
+          if (_showUI &&
+              widget.fileList!.length > 1 &&
+              _currentIndex > 0 &&
+              FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
+            Positioned(
+              left: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 2),
                       ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                    iconSize: 32,
+                    onPressed: () {
+                      if (_currentIndex > 0) {
+                        _pageController.previousPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    tooltip: '上一个',
+                  ),
+                ),
+              ),
+            ),
+
+          // 右箭头按钮 - 下一个文件（仅对音频文件显示）
+          if (_showUI &&
+              widget.fileList!.length > 1 &&
+              _currentIndex < widget.fileList!.length - 1 &&
+              FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 2,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                    iconSize: 32,
+                    onPressed: () {
+                      if (_currentIndex < widget.fileList!.length - 1) {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    tooltip: '下一个',
                   ),
                 ),
               ),
@@ -219,27 +353,66 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   /// 构建单文件预览页面（保持原有逻辑）
   Widget _buildSingleFilePreview(BuildContext context, FileItem file) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 判断是否为媒体文件（图片/视频/PDF）
+    final isMediaFile = FileUtils.isImageFile(file.name) ||
+        FileUtils.isVideoFile(file.name) ||
+        FileUtils.isPdfFile(file.name);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(file.name, style: const TextStyle(fontSize: 16)),
-            Text(
-              _getFileTypeDisplayForFile(file),
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => _showFileInfoForFile(context, file),
-            tooltip: '文件信息',
+      backgroundColor: isMediaFile
+          ? Colors.black // 图片/视频/PDF固定黑色
+          : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
+      extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
+      appBar: _showUI ? _buildFloatingAppBar(context) : null,
+      body: _FilePreviewItem(
+        file: file,
+        onTap: _toggleUIVisibility, // 传递点击回调
+        onSetUIVisible: (show) {
+          _uiHideTimer?.cancel();
+          setState(() {
+            _showUI = show;
+          });
+          if (show) {
+            _scheduleUIHide();
+          }
+        },
+      ),
+    );
+  }
+
+  /// 构建浮动半透明AppBar
+  PreferredSizeWidget _buildFloatingAppBar(BuildContext context) {
+    final currentFile = widget.fileList != null && widget.fileList!.isNotEmpty
+        ? widget.fileList![_currentIndex]
+        : widget.file;
+
+    return AppBar(
+      backgroundColor: Colors.black.withValues(alpha: 0.6), // 半透明黑色背景（60%不透明度）
+      elevation: 0,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            currentFile.name,
+            style: const TextStyle(fontSize: 16, color: Colors.white),
+          ),
+          Text(
+            _getFileTypeDisplayForFile(currentFile),
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),
         ],
       ),
-      body: _FilePreviewItem(file: file),
+      iconTheme: const IconThemeData(color: Colors.white),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.info_outline),
+          onPressed: () => _showFileInfoForFile(context, currentFile),
+          tooltip: '文件信息',
+        ),
+      ],
     );
   }
 
@@ -269,19 +442,19 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   /// 获取指定文件的类型显示
   String _getFileTypeDisplayForFile(FileItem file) {
-    if (_isImageFile(file.name)) return '图片';
-    if (_isVideoFile(file.name)) return '视频';
-    if (_isAudioFile(file.name)) return '音频';
+    if (FileUtils.isImageFile(file.name)) return '图片';
+    if (FileUtils.isVideoFile(file.name)) return '视频';
+    if (FileUtils.isAudioFile(file.name)) return '音频';
     if (FileUtils.isPdfFile(file.name)) return 'PDF文档';
     if (FileUtils.isDocumentFile(file.name)) return '文档';
-    if (_isTextFile(file.name)) return '文本';
+    if (FileUtils.isTextFile(file.name)) return '文本';
     return '未知类型';
   }
 
   /// 显示指定文件的信息
   void _showFileInfoForFile(BuildContext context, FileItem file) async {
     // 对于音视频文件，显示详细信息
-    if (_isVideoFile(file.name) || _isAudioFile(file.name)) {
+    if (FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name)) {
       _showDetailedMediaInfoForFile(context, file);
       return;
     }
@@ -341,7 +514,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
     try {
       final extractor = MediaInfoExtractor();
-      final info = _isVideoFile(file.name)
+      final info = FileUtils.isVideoFile(file.name)
           ? await extractor.extractVideoInfo(file.path)
           : await extractor.extractAudioInfo(file.path);
 
@@ -369,7 +542,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 Expanded(
                   child: DetailedMediaInfoView(
                     info: info,
-                    isVideo: _isVideoFile(file.name),
+                    isVideo: FileUtils.isVideoFile(file.name),
                   ),
                 ),
               ],
@@ -380,9 +553,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     } catch (e) {
       if (!mounted) return;
       navigator.pop(); // 关闭加载对话框
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载详细信息失败: $e')),
-      );
+
+      // 保存context到局部变量避免异步警告
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载详细信息失败: $e')),
+        );
+      }
     }
   }
 }
@@ -390,8 +567,15 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 /// 单个文件预览项组件（用于 PageView）
 class _FilePreviewItem extends StatefulWidget {
   final FileItem file;
+  final VoidCallback? onTap; // 点击回调，用于切换UI
+  final Function(bool show)? onSetUIVisible; // 强制设置UI显示状态
 
-  const _FilePreviewItem({super.key, required this.file});
+  const _FilePreviewItem({
+    super.key,
+    required this.file,
+    this.onTap,
+    this.onSetUIVisible,
+  });
 
   @override
   State<_FilePreviewItem> createState() => __FilePreviewItemState();
@@ -402,10 +586,14 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   String? _fileContent;
   bool _isLoading = true;
   String? _error;
-  PdfController? _pdfController;
+  // PdfController? _pdfController; // Windows 构建问题，禁用 pdfx
 
   @override
-  bool get wantKeepAlive => true; // 保持状态，避免重复加载
+  // 只为图片和文本文件保持状态，视频和音频不保持（避免内存问题）
+  bool get wantKeepAlive =>
+      FileUtils.isImageFile(widget.file.name) ||
+      FileUtils.isTextFile(widget.file.name) ||
+      FileUtils.isPdfFile(widget.file.name);
 
   @override
   void initState() {
@@ -415,7 +603,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
   @override
   void dispose() {
-    _pdfController?.dispose();
+    // _pdfController?.dispose(); // pdfx 已禁用
     super.dispose();
   }
 
@@ -447,10 +635,104 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         return;
       }
 
-      // 文本文件
-      if (_isTextFile(widget.file.name)) {
+      // 文本文件 - 支持多种编码格式
+      if (FileUtils.isTextFile(widget.file.name)) {
         final file = File(widget.file.path);
-        final content = await file.readAsString();
+        final bytes = await file.readAsBytes();
+        String? content;
+        bool decoded = false;
+
+        // 检测BOM（字节顺序标记）并使用相应编码
+        if (bytes.length >= 2) {
+          // UTF-16 LE BOM: FF FE (Windows记事本常用)
+          if (bytes[0] == 0xFF && bytes[1] == 0xFE) {
+            try {
+              content = String.fromCharCodes(
+                  Uint16List.view(Uint8List.fromList(bytes.sublist(2)).buffer));
+              decoded = true;
+            } catch (e) {
+              logger.w('UTF-16 LE decode failed: $e');
+            }
+          }
+          // UTF-16 BE BOM: FE FF
+          else if (bytes[0] == 0xFE && bytes[1] == 0xFF) {
+            try {
+              final data = bytes.sublist(2);
+              final swapped = <int>[];
+              for (int i = 0; i < data.length - 1; i += 2) {
+                swapped.add(data[i + 1]);
+                swapped.add(data[i]);
+              }
+              content = String.fromCharCodes(
+                  Uint16List.view(Uint8List.fromList(swapped).buffer));
+              decoded = true;
+            } catch (e) {
+              logger.w('UTF-16 BE decode failed: $e');
+            }
+          }
+          // UTF-8 BOM: EF BB BF
+          else if (bytes.length >= 3 &&
+              bytes[0] == 0xEF &&
+              bytes[1] == 0xBB &&
+              bytes[2] == 0xBF) {
+            try {
+              content = utf8.decode(bytes.sublist(3));
+              decoded = true;
+            } catch (e) {
+              logger.w('UTF-8 with BOM decode failed: $e');
+            }
+          }
+        }
+
+        // UTF-8 (无BOM)
+        if (!decoded) {
+          try {
+            content = utf8.decode(bytes, allowMalformed: false);
+            decoded = true;
+          } on FormatException catch (_) {
+            // UTF-8失败，继续尝试其他编码
+          }
+        }
+
+        // GBK (简体中文Windows常用编码)
+        if (!decoded) {
+          try {
+            content = await CharsetConverter.decode("GBK", bytes);
+            if (content.isNotEmpty) {
+              decoded = true;
+            }
+          } catch (e) {
+            logger.w('GBK decode failed: $e');
+          }
+        }
+
+        // GB2312 (旧版中文编码)
+        if (!decoded) {
+          try {
+            content = await CharsetConverter.decode("GB2312", bytes);
+            if (content.isNotEmpty) {
+              decoded = true;
+            }
+          } catch (e) {
+            logger.w('GB2312 decode failed: $e');
+          }
+        }
+
+        // UTF-8 宽松模式
+        if (!decoded) {
+          try {
+            content = utf8.decode(bytes, allowMalformed: true);
+            decoded = true;
+          } catch (e) {
+            logger.w('UTF-8 malformed decode failed: $e');
+          }
+        }
+
+        // Latin1 兜底
+        if (!decoded || content == null || content.isEmpty) {
+          content = latin1.decode(bytes);
+        }
+
         setState(() {
           _fileContent = content;
           _isLoading = false;
@@ -472,56 +754,98 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
   Future<void> _loadPdfDocument() async {
     try {
-      final pdfDoc = await PdfDocument.openFile(widget.file.path);
-      _pdfController = PdfController(document: Future.value(pdfDoc));
+      // 检查文件是否存在
+      final file = File(widget.file.path);
+      if (!await file.exists()) {
+        throw Exception('文件不存在: ${widget.file.path}');
+      }
+
+      // 检查文件是否可读
+      try {
+        await file.readAsBytes();
+      } catch (e) {
+        throw Exception('文件无法读取，可能没有权限: $e');
+      }
+
+      logger.d('Opening PDF file: ${widget.file.path}');
+      // PDF 在 Windows 上有构建问题，改为提示使用外部应用打开
       setState(() {
+        _error = 'PDF 预览暂不可用\n点击"使用其他应用打开"按钮查看 PDF';
         _isLoading = false;
       });
+      logger.i('PDF preview disabled on Windows');
     } catch (e) {
       logger.e('Error loading PDF: $e');
+      String errorMessage;
+      if (e.toString().contains('文件不存在')) {
+        errorMessage = '文件不存在，可能已被删除';
+      } else if (e.toString().contains('无法读取')) {
+        errorMessage = '无法读取文件，请检查应用权限';
+      } else if (e.toString().contains("Can't open file")) {
+        errorMessage = 'PDF文件已损坏或格式不正确';
+      } else {
+        errorMessage = 'PDF加载失败: ${e.toString()}';
+      }
+
       setState(() {
-        _error = 'PDF加载失败: $e';
+        _error = errorMessage;
         _isLoading = false;
       });
     }
-  }
-
-  bool _isTextFile(String filename) {
-    return filename.toLowerCase().endsWith('.txt') ||
-        filename.toLowerCase().endsWith('.log') ||
-        filename.toLowerCase().endsWith('.md') ||
-        filename.toLowerCase().endsWith('.json') ||
-        filename.toLowerCase().endsWith('.xml');
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context); // 必须调用，因为使用了 AutomaticKeepAliveClientMixin
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Container(
+        color: isDark ? Colors.black : theme.colorScheme.surface,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: isDark ? Colors.white : theme.colorScheme.primary,
+          ),
+        ),
+      );
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _isLoading = true;
-                  _error = null;
-                });
-                _loadFileContent();
-              },
-              child: const Text('重试'),
+      return GestureDetector(
+        onTapUp: (details) {
+          widget.onTap?.call();
+        },
+        child: Container(
+          color: isDark ? Colors.black : theme.colorScheme.surface,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  _error!,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isLoading = true;
+                      _error = null;
+                    });
+                    _loadFileContent();
+                  },
+                  child: const Text('重试'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }
@@ -543,39 +867,63 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildImagePreview() {
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: Center(
-        child: Image.file(
-          File(widget.file.path),
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text('图片加载失败'),
-                  Text('$error', style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            );
-          },
+    return GestureDetector(
+      onTap: widget.onTap, // 点击切换UI
+      child: Container(
+        color: Colors.black, // 图片预览固定黑色背景
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Center(
+            child: Image.file(
+              File(widget.file.path),
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.broken_image,
+                          size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      const Text(
+                        '图片加载失败',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      Text(
+                        '$error',
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildVideoPreview() {
-    return Center(
-      child: VideoPlayerWidget(videoPath: widget.file.path),
+    // 视频播放器自己处理点击事件（用于显示/隐藏控制栏）
+    // 同时传递onToggleUI回调，与顶部AppBar同步切换
+    return Container(
+      color: Colors.black, // 视频预览固定黑色背景
+      child: Center(
+        child: VideoPlayerWidget(
+          videoPath: widget.file.path,
+          onToggleUI: widget.onTap, // 传递UI切换回调
+          onSetUIVisible: widget.onSetUIVisible, // 传递强制设置UI状态的回调
+        ),
+      ),
     );
   }
 
   Widget _buildAudioPreview() {
-    return Center(
+    return GestureDetector(
+      onTap: widget.onTap, // 点击切换UI
       child: AudioPlayerWidget(
         audioPath: widget.file.path,
         fileName: widget.file.name,
@@ -584,52 +932,214 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildPdfViewer() {
-    if (_pdfController == null) {
-      return const Center(child: Text('PDF加载失败'));
-    }
-
-    return PdfView(controller: _pdfController!);
-  }
-
-  Widget _buildDocumentInfo() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          DocumentIconWidget(fileName: widget.file.name, size: 80),
-          const SizedBox(height: 24),
-          Text(
-            widget.file.name,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
+    // PDF 预览在 Windows 上不可用，显示提示信息
+    return GestureDetector(
+      onTap: widget.onTap, // 点击切换UI
+      child: Container(
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.picture_as_pdf,
+                size: 64,
+                color: Colors.white70,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'PDF 预览暂不可用',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.file.name,
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await OpenFile.open(widget.file.path);
+                  if (result.type != ResultType.done) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('打开失败: ${result.message}')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('使用其他应用打开'),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            FileSizeFormatter.formatBytesWithSpace(widget.file.size),
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final result = await OpenFile.open(widget.file.path);
-              if (result.type != ResultType.done) {
-                logger.w('Failed to open file: ${result.message}');
-              }
-            },
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('使用外部应用打开'),
-          ),
-        ],
+        ),
       ),
     );
   }
 
+  Widget _buildDocumentInfo() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: widget.onTap, // 点击切换UI
+      child: Container(
+        color: isDark ? Colors.black : theme.colorScheme.surface,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 文档大图标
+                DocumentIconWidget(fileName: widget.file.name, size: 120),
+                const SizedBox(height: 32),
+
+                // 文件名
+                Text(
+                  widget.file.name,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+
+                // 文件信息卡片
+                Card(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : theme.colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildDocInfoRow('类型', _getFileExtension()),
+                        const SizedBox(height: 8),
+                        _buildDocInfoRow(
+                          '大小',
+                          FileSizeFormatter.formatBytesWithSpace(
+                              widget.file.size),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDocInfoRow(
+                          '修改时间',
+                          _formatFileDateTime(widget.file.modified),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // 操作按钮
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await OpenFile.open(widget.file.path);
+                    if (result.type != ResultType.done) {
+                      logger.w('Failed to open file: ${result.message}');
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('使用外部应用打开'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建文档信息行
+  Widget _buildDocInfoRow(String label, String value) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
+            fontSize: 14,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: isDark ? Colors.white : theme.colorScheme.onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 获取文件扩展名
+  String _getFileExtension() {
+    final name = widget.file.name;
+    final lastDot = name.lastIndexOf('.');
+    if (lastDot != -1 && lastDot < name.length - 1) {
+      return name.substring(lastDot + 1).toUpperCase();
+    }
+    return '未知';
+  }
+
+  /// 格式化文件日期时间
+  String _formatFileDateTime(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildTextPreview() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: SelectableText(
-        _fileContent ?? '',
-        style: const TextStyle(fontFamily: 'monospace'),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTapUp: (details) {
+        widget.onTap?.call();
+      },
+      child: Container(
+        color: isDark
+            ? const Color(0xFF1E1E1E) // 深色模式：VS Code深色主题色
+            : theme.colorScheme.surface, // 浅色模式：系统surface颜色
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              _fileContent ?? '',
+              style: TextStyle(
+                // 移除 fontFamily 以使用系统默认字体，更好地支持中文
+                color: isDark
+                    ? const Color(0xFFD4D4D4) // 深色模式：VS Code文字颜色
+                    : theme.colorScheme.onSurface, // 浅色模式：系统文字颜色
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

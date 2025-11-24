@@ -6,8 +6,17 @@ import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
+import 'package:easyfile/data/services/video_duration_cache_service.dart';
 
-class FileItemTile extends StatelessWidget {
+/// 文件列表项组件
+///
+/// 用于在列表模式下显示文件/文件夹信息
+/// 支持：
+/// - 自动识别文件类型并显示对应的缩略图/图标
+/// - 视频时长自动加载并显示在info行
+/// - 收藏功能
+/// - 选择模式
+class FileItemTile extends StatefulWidget {
   final FileItem file;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -38,7 +47,7 @@ class FileItemTile extends StatelessWidget {
     this.accessTime,
     this.isSelected = false,
     this.showCheckbox = false,
-    this.leadingSize = 30,
+    this.leadingSize = 40,
     this.titleFontSize = 14,
     this.subtitleFontSize = 11,
     this.favoriteIconSize = 20,
@@ -48,41 +57,86 @@ class FileItemTile extends StatelessWidget {
   });
 
   @override
+  State<FileItemTile> createState() => _FileItemTileState();
+}
+
+class _FileItemTileState extends State<FileItemTile> {
+  final _durationCache = VideoDurationCacheService();
+  String? _videoDuration;
+
+  @override
+  void initState() {
+    super.initState();
+    // 视频文件：异步加载时长并显示在info行
+    if (!widget.file.isDirectory && FileUtils.isVideoFile(widget.file.name)) {
+      _loadVideoDuration();
+    }
+  }
+
+  /// 从缓存或视频元数据加载视频时长
+  Future<void> _loadVideoDuration() async {
+    try {
+      final duration = await _durationCache.getVideoDuration(widget.file.path);
+      if (mounted && duration != null) {
+        setState(() {
+          _videoDuration = duration;
+        });
+      }
+    } catch (e) {
+      // 静默失败，不影响显示
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isImage = !file.isDirectory && FileUtils.isImageFile(file.name);
-    final isVideo = !file.isDirectory && FileUtils.isVideoFile(file.name);
-    final isAudio = !file.isDirectory && FileUtils.isAudioFile(file.name);
-    final isDocument = !file.isDirectory && FileUtils.isDocumentFile(file.name);
+    final isImage =
+        !widget.file.isDirectory && FileUtils.isImageFile(widget.file.name);
+    final isVideo =
+        !widget.file.isDirectory && FileUtils.isVideoFile(widget.file.name);
+    final isAudio =
+        !widget.file.isDirectory && FileUtils.isAudioFile(widget.file.name);
+    final isDocument =
+        !widget.file.isDirectory && FileUtils.isDocumentFile(widget.file.name);
 
     return ListTile(
-      dense: dense,
-      contentPadding: contentPaddingOverride,
+      dense: widget.dense,
+      contentPadding: widget.contentPaddingOverride,
       minVerticalPadding: 0,
       leading: isImage
-          ? ImageThumbnail(imagePath: file.path, size: leadingSize)
+          ? ImageThumbnail(
+              imagePath: widget.file.path, size: widget.leadingSize)
           : isVideo
-              ? RealVideoThumbnail(videoPath: file.path, size: leadingSize)
+              ? RealVideoThumbnail(
+                  videoPath: widget.file.path,
+                  size: widget.leadingSize,
+                  showDuration: false, // 列表模式不显示时长标签
+                )
               : isAudio
-                  ? AudioCoverWidget(audioPath: file.path, size: leadingSize)
+                  ? AudioCoverWidget(
+                      audioPath: widget.file.path, size: widget.leadingSize)
                   : isDocument
                       ? DocumentIconWidgetRounded(
-                          fileName: file.name, size: leadingSize)
+                          fileName: widget.file.name, size: widget.leadingSize)
                       : Icon(
-                          file.isDirectory ? Icons.folder : _getFileIcon(),
-                          color:
-                              file.isDirectory ? Colors.amber : _getFileColor(),
-                          size: leadingSize,
+                          widget.file.isDirectory
+                              ? Icons.folder
+                              : _getFileIcon(),
+                          color: widget.file.isDirectory
+                              ? Colors.amber
+                              : _getFileColor(),
+                          size: widget.leadingSize,
                         ),
       title: Text(
-        file.name,
+        widget.file.name,
         style: TextStyle(
-          fontWeight: file.isDirectory ? FontWeight.w500 : FontWeight.normal,
-          fontSize: titleFontSize,
+          fontWeight:
+              widget.file.isDirectory ? FontWeight.w500 : FontWeight.normal,
+          fontSize: widget.titleFontSize,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: showFullPath
+      subtitle: widget.showFullPath
           ? SizedBox(
               height: 28,
               child: Column(
@@ -91,18 +145,19 @@ class FileItemTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      file.path,
+                      widget.file.path,
                       style: TextStyle(
-                          fontSize: subtitleFontSize, color: Colors.blue),
+                          fontSize: widget.subtitleFontSize,
+                          color: Colors.blue),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Text(
-                    file.isDirectory
+                    widget.file.isDirectory
                         ? '文件夹'
-                        : FileUtils.formatFileSize(file.size),
-                    style: TextStyle(fontSize: subtitleFontSize),
+                        : FileUtils.formatFileSize(widget.file.size),
+                    style: TextStyle(fontSize: widget.subtitleFontSize),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -112,31 +167,32 @@ class FileItemTile extends StatelessWidget {
           : Text(
               _buildSubtitleText(),
               style: TextStyle(
-                fontSize: subtitleFontSize,
-                color: showAccessTime ? Colors.grey[600] : Colors.grey[500],
+                fontSize: widget.subtitleFontSize,
+                color:
+                    widget.showAccessTime ? Colors.grey[600] : Colors.grey[500],
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-      isThreeLine: showFullPath,
+      isThreeLine: widget.showFullPath,
       trailing: _buildTrailing(),
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
     );
   }
 
   /// 构建trailing部分（收藏按钮 + 复选框，或文件夹图标）
   Widget? _buildTrailing() {
-    if (file.isDirectory) {
+    if (widget.file.isDirectory) {
       // 文件夹显示右箭头（或复选框）
-      if (showCheckbox) {
+      if (widget.showCheckbox) {
         return SizedBox(
           width: 32,
           child: Transform.scale(
             scale: 0.75, // 缩放到18px，与收藏按钮大小一致
             child: Checkbox(
-              value: isSelected,
-              onChanged: onTap != null ? (_) => onTap!() : null,
+              value: widget.isSelected,
+              onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
@@ -146,12 +202,12 @@ class FileItemTile extends StatelessWidget {
     }
 
     // 文件：同时显示收藏按钮和复选框（如果在选择模式）
-    if (showCheckbox && onFavoriteToggle != null) {
+    if (widget.showCheckbox && widget.onFavoriteToggle != null) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // 收藏按钮 - 仅在已收藏时显示
-          if (isFavorite)
+          if (widget.isFavorite)
             SizedBox(
               width: 32,
               child: Transform.scale(
@@ -161,7 +217,7 @@ class FileItemTile extends StatelessWidget {
                     Icons.star,
                     color: Colors.amber,
                   ),
-                  onPressed: onFavoriteToggle,
+                  onPressed: widget.onFavoriteToggle,
                   tooltip: '取消收藏',
                   padding: EdgeInsets.zero,
                   constraints:
@@ -175,8 +231,8 @@ class FileItemTile extends StatelessWidget {
             child: Transform.scale(
               scale: 0.75, // 缩放到18px，与收藏按钮大小一致
               child: Checkbox(
-                value: isSelected,
-                onChanged: onTap != null ? (_) => onTap!() : null,
+                value: widget.isSelected,
+                onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
@@ -186,37 +242,39 @@ class FileItemTile extends StatelessWidget {
     }
 
     // 仅显示复选框
-    if (showCheckbox) {
+    if (widget.showCheckbox) {
       return SizedBox(
         width: 32,
         child: Transform.scale(
           scale: 0.75, // 缩放到18px，与收藏按钮大小一致
           child: Checkbox(
-            value: isSelected,
-            onChanged: onTap != null ? (_) => onTap!() : null,
+            value: widget.isSelected,
+            onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       );
     }
 
-    // 仅显示收藏按钮 - 只在已收藏时显示
-    if (onFavoriteToggle != null && isFavorite) {
+    // 显示收藏按钮或占位空间 - 保持所有文件对齐
+    if (widget.onFavoriteToggle != null) {
       return SizedBox(
         width: 32,
-        child: Transform.scale(
-          scale: 0.75, // 与复选框使用相同的缩放比例
-          child: IconButton(
-            icon: const Icon(
-              Icons.star,
-              color: Colors.amber,
-            ),
-            onPressed: onFavoriteToggle,
-            tooltip: '取消收藏',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ),
+        child: widget.isFavorite
+            ? Transform.scale(
+                scale: 0.75, // 与复选框使用相同的缩放比例
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                  ),
+                  onPressed: widget.onFavoriteToggle,
+                  tooltip: '取消收藏',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              )
+            : const SizedBox(width: 32), // 占位空间，保持对齐
       );
     }
 
@@ -224,7 +282,7 @@ class FileItemTile extends StatelessWidget {
   }
 
   IconData _getFileIcon() {
-    final extension = file.name.toLowerCase().split('.').last;
+    final extension = widget.file.name.toLowerCase().split('.').last;
     switch (extension) {
       case 'jpg':
       case 'jpeg':
@@ -269,7 +327,7 @@ class FileItemTile extends StatelessWidget {
   }
 
   Color _getFileColor() {
-    final extension = file.name.toLowerCase().split('.').last;
+    final extension = widget.file.name.toLowerCase().split('.').last;
     switch (extension) {
       case 'jpg':
       case 'jpeg':
@@ -308,18 +366,20 @@ class FileItemTile extends StatelessWidget {
   }
 
   String _buildSubtitleText() {
-    if (file.isDirectory) {
+    if (widget.file.isDirectory) {
       return '文件夹';
     }
 
-    final sizeText = FileUtils.formatFileSize(file.size);
+    final sizeText = FileUtils.formatFileSize(widget.file.size);
 
-    // 如果需要显示访问时间且时间不为空
-    if (showAccessTime && accessTime != null) {
-      final timeText = TimeFormatter.formatRelativeTime(accessTime!);
-      return '$sizeText · $timeText';
-    }
+    // 组合所有部分：大小 · 时长 · 访问时间
+    final parts = <String>[
+      sizeText,
+      if (_videoDuration != null) _videoDuration!,
+      if (widget.showAccessTime && widget.accessTime != null)
+        TimeFormatter.formatRelativeTime(widget.accessTime!),
+    ];
 
-    return sizeText;
+    return parts.join(' · ');
   }
 }
