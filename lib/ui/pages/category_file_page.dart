@@ -996,6 +996,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       padding: _isGridView
                           ? const EdgeInsets.all(8)
                           : const EdgeInsets.symmetric(vertical: 0),
+                      // 增加预构建范围以改善滚动体验
+                      cacheExtent: _isGridView ? 1000.0 : 600.0,
                       selectionController: _selectionController,
                       // 列表模式显示选项
                       showFullPath: false, // 搜索模式下不显示路径文本
@@ -1210,6 +1212,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),
+      // 增加预构建范围以改善滚动体验
+      cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
       // 显示选项
       showFullPath: false, // 搜索模式下不显示路径文本

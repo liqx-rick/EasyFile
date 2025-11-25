@@ -11,6 +11,7 @@ import 'package:screen_brightness/screen_brightness.dart';
 import 'package:gal/gal.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 
 /// 视频适配模式枚举
 enum VideoFitMode {
@@ -135,9 +136,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   final GlobalKey _repaintBoundaryKey = GlobalKey();
   bool _isTakingScreenshot = false;
 
+  // 播放状态的本地缓存（用于立即响应UI更新）
+  bool? _localIsPlaying;
+
   @override
   void initState() {
     super.initState();
+
+    // 暂停缩略图加载队列，为视频播放释放MediaCodec资源
+    VideoThumbnailLoadQueue().pause();
+    logger.i('Paused thumbnail load queue for video playback');
+
     // 提前获取主题色，避免在 async 方法中使用 BuildContext
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -242,6 +251,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (mounted) {
         setState(() {
           _isInitializing = false;
+          // 如果是自动播放，立即设置本地状态为播放中，避免UI延迟
+          if (widget.autoPlay) {
+            _localIsPlaying = true;
+          }
         });
       }
     } on TimeoutException catch (e) {
@@ -322,6 +335,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (_videoPlayerController == null || !mounted) return;
 
     final value = _videoPlayerController!.value;
+
+    // 清除本地状态：仅当本地状态与实际状态一致时清除
+    // 这表示异步更新已完成，可以安全地切换回使用实际状态
+    if (_localIsPlaying != null && _localIsPlaying == value.isPlaying) {
+      setState(() {
+        _localIsPlaying = null;
+      });
+    }
 
     // 检查错误
     if (value.hasError) {
@@ -593,6 +614,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void dispose() {
     logger.i('Disposing video player');
 
+    // 恢复缩略图加载队列
+    VideoThumbnailLoadQueue().resume();
+    logger.i('Resumed thumbnail load queue after video playback');
+
     // 恢复系统设置
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
@@ -706,7 +731,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     final value = _videoPlayerController!.value;
     final position = value.position;
     final duration = value.duration;
-    final isPlaying = value.isPlaying;
+    // 优先使用本地状态，如果本地状态为null则使用controller的状态
+    final isPlaying = _localIsPlaying ?? value.isPlaying;
 
     return Container(
       padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 16),
@@ -840,15 +866,33 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   size: 28,
                 ),
                 onPressed: () {
-                  setState(() {
-                    if (isPlaying) {
-                      _videoPlayerController!.pause();
-                      _cancelHideControlsTimer();
-                    } else {
-                      _videoPlayerController!.play();
-                      _startHideControlsTimer();
-                    }
-                  });
+                  // 【关键逻辑】处理播放/暂停的异步状态更新问题
+                  // 问题：VideoPlayerController.value.isPlaying 是异步更新的（50-200ms延迟）
+                  // 解决：使用 _localIsPlaying 立即更新UI，避免按钮响应延迟
+                  // 
+                  // 工作流程：
+                  // 1. 基于控制器的实际状态（value.isPlaying）决定操作
+                  // 2. 立即设置 _localIsPlaying 提供即时UI反馈
+                  // 3. 调用 play()/pause() 触发异步操作
+                  // 4. 控制器状态更新后，_onVideoPlayerUpdate() 会清除 _localIsPlaying
+                  // 5. UI 切换回使用实际状态（value.isPlaying）
+                  final actuallyPlaying = _videoPlayerController!.value.isPlaying;
+                  
+                  if (actuallyPlaying) {
+                    // 暂停：立即更新本地状态以实现即时UI反馈
+                    setState(() {
+                      _localIsPlaying = false;
+                    });
+                    _videoPlayerController!.pause();
+                    _cancelHideControlsTimer();
+                  } else {
+                    // 播放：立即更新本地状态以实现即时UI反馈
+                    setState(() {
+                      _localIsPlaying = true;
+                    });
+                    _videoPlayerController!.play();
+                    _startHideControlsTimer();
+                  }
                 },
               ),
               // 截图按钮
@@ -1143,10 +1187,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
                   child: Text(
                     '${_playbackSpeed}x',
                     style: const TextStyle(

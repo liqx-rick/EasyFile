@@ -1,10 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/utils/thumbnail_cache_manager.dart';
-import 'package:easyfile/data/services/video_duration_cache_service.dart';
+import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 
 /// 视频真实缩略图组件
 ///
@@ -32,8 +30,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
   bool _isLoading = true;
   bool _hasError = false;
   String? _duration;
-  final _cacheManager = ThumbnailCacheManager();
-  final _durationCache = VideoDurationCacheService();
+  final _loadQueue = VideoThumbnailLoadQueue();
 
   @override
   void initState() {
@@ -60,32 +57,11 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
         return;
       }
 
-      // 2. 尝试从缓存加载
-      final cachedData = await _cacheManager.getCached(widget.videoPath);
-      if (cachedData != null) {
-        logger.d('Loaded video thumbnail from cache');
-        if (mounted) {
-          setState(() {
-            _thumbnailData = cachedData;
-            _isLoading = false;
-          });
-        }
-        return;
-      }
-
-      // 3. 生成新缩略图
-      logger.d('Generating video thumbnail: ${widget.videoPath}');
-      final thumbnailData = await VideoThumbnail.thumbnailData(
-        video: widget.videoPath,
-        imageFormat: ImageFormat.JPEG,
-        maxWidth: widget.size > 64 ? 256 : 128, // 根据显示大小调整
-        quality: 75,
-      );
+      // 2. 使用队列加载缩略图（自动处理缓存和并发控制）
+      final thumbnailData =
+          await _loadQueue.loadThumbnail(widget.videoPath, widget.size);
 
       if (thumbnailData != null) {
-        // 4. 保存到缓存
-        await _cacheManager.saveCache(widget.videoPath, thumbnailData);
-
         if (mounted) {
           setState(() {
             _thumbnailData = thumbnailData;
@@ -93,7 +69,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
           });
         }
       } else {
-        throw Exception('Failed to generate thumbnail');
+        throw Exception('Failed to load thumbnail');
       }
     } catch (e) {
       logger.e('Error loading video thumbnail: $e');
@@ -109,7 +85,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> {
   /// 加载视频时长
   Future<void> _loadDuration() async {
     try {
-      final duration = await _durationCache.getVideoDuration(widget.videoPath);
+      final duration = await _loadQueue.loadDuration(widget.videoPath);
       if (mounted && duration != null) {
         setState(() {
           _duration = duration;

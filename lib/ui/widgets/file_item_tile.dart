@@ -6,14 +6,13 @@ import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
-import 'package:easyfile/data/services/video_duration_cache_service.dart';
 
 /// 文件列表项组件
 ///
 /// 用于在列表模式下显示文件/文件夹信息
 /// 支持：
 /// - 自动识别文件类型并显示对应的缩略图/图标
-/// - 视频时长自动加载并显示在info行
+/// - 视频缩略图通过 RealVideoThumbnail 自动显示时长
 /// - 收藏功能
 /// - 选择模式
 class FileItemTile extends StatefulWidget {
@@ -61,32 +60,6 @@ class FileItemTile extends StatefulWidget {
 }
 
 class _FileItemTileState extends State<FileItemTile> {
-  final _durationCache = VideoDurationCacheService();
-  String? _videoDuration;
-
-  @override
-  void initState() {
-    super.initState();
-    // 视频文件：异步加载时长并显示在info行
-    if (!widget.file.isDirectory && FileUtils.isVideoFile(widget.file.name)) {
-      _loadVideoDuration();
-    }
-  }
-
-  /// 从缓存或视频元数据加载视频时长
-  Future<void> _loadVideoDuration() async {
-    try {
-      final duration = await _durationCache.getVideoDuration(widget.file.path);
-      if (mounted && duration != null) {
-        setState(() {
-          _videoDuration = duration;
-        });
-      }
-    } catch (e) {
-      // 静默失败，不影响显示
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isImage =
@@ -372,10 +345,10 @@ class _FileItemTileState extends State<FileItemTile> {
 
     final sizeText = FileUtils.formatFileSize(widget.file.size);
 
-    // 组合所有部分：大小 · 时长 · 访问时间
+    // 组合所有部分：大小 · 访问时间
+    // 注意：视频时长已由 RealVideoThumbnail 在缩略图上显示，无需在此处重复
     final parts = <String>[
       sizeText,
-      if (_videoDuration != null) _videoDuration!,
       if (widget.showAccessTime && widget.accessTime != null)
         TimeFormatter.formatRelativeTime(widget.accessTime!),
     ];
