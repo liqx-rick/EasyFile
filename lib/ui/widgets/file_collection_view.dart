@@ -384,6 +384,8 @@ class FileCollectionView extends StatelessWidget {
 
     return GridView.builder(
       padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
+      // 增加预构建范围，改善滚动体验（使用传入值或默认 800px）
+      cacheExtent: cacheExtent ?? 800.0,
       // 禁用自动保持 widget，减少内存占用
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
