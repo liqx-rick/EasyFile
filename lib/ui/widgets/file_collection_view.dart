@@ -435,7 +435,11 @@ class FileCollectionView extends StatelessWidget {
 
     // 网格模式且启用统一组件
     if (gridMode && useUnifiedGridItem) {
+      // 添加唯一 key 以保持 widget 状态
+      // 这确保滚动时 widget 不会被完全重建，子组件的状态得以保留
+      // 特别重要：视频缩略图不会重新显示 loading 状态
       return UnifiedGridItem(
+        key: ValueKey('grid_item_${item.path}'),
         file: item,
         isSelected: isSelected,
         isFavorite: isFavorite?.call(item.path) ?? false,

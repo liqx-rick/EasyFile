@@ -184,7 +184,10 @@ class UnifiedGridItem extends StatelessWidget {
         size: thumbnailSize,
       );
     } else if (isVideo) {
+      // 为视频缩略图添加唯一 key，配合 AutomaticKeepAliveClientMixin
+      // 确保 Flutter 能正确识别和复用同一个 widget 实例，避免重新初始化
       return RealVideoThumbnail(
+        key: ValueKey('video_thumb_${file.path}'),
         videoPath: file.path,
         size: thumbnailSize,
       );
