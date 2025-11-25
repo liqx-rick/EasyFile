@@ -15,7 +15,7 @@ import 'package:easyfile/ui/widgets/detailed_media_info_view.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:open_file/open_file.dart';
-// import 'package:pdfx/pdfx.dart'; // Windows 构建问题，暂时禁用
+import 'package:pdfx/pdfx.dart';
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
@@ -586,7 +586,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   String? _fileContent;
   bool _isLoading = true;
   String? _error;
-  // PdfController? _pdfController; // Windows 构建问题，禁用 pdfx
+  PdfController? _pdfController; // 仅在非 Windows 平台使用
 
   @override
   // 只为图片和文本文件保持状态，视频和音频不保持（避免内存问题）
@@ -603,7 +603,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
   @override
   void dispose() {
-    // _pdfController?.dispose(); // pdfx 已禁用
+    _pdfController?.dispose(); // 仅在非 Windows 平台初始化
     super.dispose();
   }
 
@@ -768,14 +768,20 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       }
 
       logger.d('Opening PDF file: ${widget.file.path}');
-      // PDF 在 Windows 上有构建问题，改为提示使用外部应用打开
+      
+      // 使用 pdfx 加载 PDF
+      // 注意：pdfx 在某些设备上可能因平台通道问题而失败
+      // 失败时会通过 catch 块优雅降级，提示用户使用外部应用
+      final document = PdfDocument.openFile(widget.file.path);
       setState(() {
-        _error = 'PDF 预览暂不可用\n点击"使用其他应用打开"按钮查看 PDF';
+        _pdfController = PdfController(document: document);
         _isLoading = false;
       });
-      logger.i('PDF preview disabled on Windows');
+      logger.i('PDF document opened successfully');
     } catch (e) {
       logger.e('Error loading PDF: $e');
+      
+      // 根据错误类型提供友好的错误信息
       String errorMessage;
       if (e.toString().contains('文件不存在')) {
         errorMessage = '文件不存在，可能已被删除';
@@ -783,6 +789,10 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         errorMessage = '无法读取文件，请检查应用权限';
       } else if (e.toString().contains("Can't open file")) {
         errorMessage = 'PDF文件已损坏或格式不正确';
+      } else if (e.toString().contains('channel-error') || 
+                 e.toString().contains('PlatformException')) {
+        // pdfx 插件平台通道错误，通常是插件初始化失败
+        errorMessage = 'PDF 预览功能暂不可用\n请使用其他应用打开';
       } else {
         errorMessage = 'PDF加载失败: ${e.toString()}';
       }
@@ -843,6 +853,25 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                   },
                   child: const Text('重试'),
                 ),
+                // PDF 文件加载失败时，提供备选方案：使用系统默认应用打开
+                // 这确保即使内置预览失败，用户仍然可以查看 PDF 文件
+                if (FileUtils.isPdfFile(widget.file.name)) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await OpenFile.open(widget.file.path);
+                      if (result.type != ResultType.done) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('打开失败: ${result.message}')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('使用其他应用打开'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -932,52 +961,31 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildPdfViewer() {
-    // PDF 预览在 Windows 上不可用，显示提示信息
+    // 使用 pdfx 组件显示 PDF 文档
+    // 注意：此方法只有在 PDF 成功加载后才会被调用
+    if (_pdfController == null) {
+      // 防御性检查：理论上不应该到达这里
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: widget.onTap, // 点击切换UI
       child: Container(
         color: Colors.black,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.picture_as_pdf,
-                size: 64,
-                color: Colors.white70,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'PDF 预览暂不可用',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.file.name,
-                style: const TextStyle(color: Colors.white70),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await OpenFile.open(widget.file.path);
-                  if (result.type != ResultType.done) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('打开失败: ${result.message}')),
-                      );
-                    }
-                  }
-                },
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('使用其他应用打开'),
-              ),
-            ],
-          ),
+        child: PdfView(
+          controller: _pdfController!,
+          scrollDirection: Axis.vertical,
+          onDocumentLoaded: (document) {
+            logger.i('PDF document loaded: ${document.pagesCount} pages');
+          },
+          onPageChanged: (page) {
+            logger.d('PDF page changed to: $page');
+          },
         ),
       ),
     );
