@@ -359,7 +359,28 @@ class _StoragePageState extends State<StoragePage> {
     _selectionController = SelectionController();
     // 监听SelectionController变化并同步到_selectedItems
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
+    // 监听ViewModel变化，当文件列表更新时同步本地状态
+    widget.viewModel.addListener(_onViewModelChanged);
     _loadStorageFiles();
+  }
+
+  /// ViewModel变化回调 - 同步文件列表
+  void _onViewModelChanged() {
+    if (mounted) {
+      final oldPath = widget.viewModel.lastUpdatedOldPath;
+      final newFile = widget.viewModel.lastUpdatedNewFile;
+      
+      if (oldPath != null && newFile != null) {
+        setState(() {
+          // 在本地列表中找到旧路径的文件并替换
+          final index = _files.indexWhere((f) => f.path == oldPath);
+          if (index != -1) {
+            _files[index] = newFile;
+            logger.d('Updated file in storage page: $oldPath -> ${newFile.path}');
+          }
+        });
+      }
+    }
   }
 
   void _onSelectionChanged() {
@@ -374,6 +395,7 @@ class _StoragePageState extends State<StoragePage> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     _selectionController.dispose();
+    widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
   }
 
@@ -471,19 +493,27 @@ class _StoragePageState extends State<StoragePage> {
 
         final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
 
-        Navigator.of(context).push(
+        Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (context) => FilePreviewPage(
               file: file,
               fileList: mediaFiles,
               initialIndex: initialIndex >= 0 ? initialIndex : 0,
+              viewModel: widget.viewModel,
+              presenter: widget.presenter,
             ),
           ),
         );
       } else {
         // 其他文件类型使用单文件模式
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+        Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (context) => FilePreviewPage(
+              file: file,
+              viewModel: widget.viewModel,
+              presenter: widget.presenter,
+            ),
+          ),
         );
       }
     }

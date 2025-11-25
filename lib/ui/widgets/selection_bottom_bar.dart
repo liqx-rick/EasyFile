@@ -89,9 +89,9 @@ class SelectionBottomBar extends StatelessWidget {
     final hasSelection = selectedPaths.isNotEmpty;
 
     return BottomAppBar(
-      height: 56,
+      height: 66,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Row(
           children: [
             // 显示选中信息
@@ -108,81 +108,195 @@ class SelectionBottomBar extends StatelessWidget {
               ),
             ),
 
-            // 操作按钮 - 始终显示，通过启用/禁用控制
+            // 操作按钮区域 - 紧凑靠右显示
             // 复制按钮（支持多选）
             IconButton(
-              icon: const Icon(Icons.copy),
+              icon: const Icon(Icons.copy, size: 22),
               onPressed: hasSelection && onCopy != null ? onCopy : null,
               tooltip: '复制',
               color: hasSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(
-                horizontal: -4,
-                vertical: -4,
-              ),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              visualDensity: VisualDensity.compact,
             ),
 
-            // 重命名按钮（单个文件/文件夹）
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed:
-                  stats.isSingleSelection && onRename != null ? onRename : null,
-              tooltip: '重命名',
-              color: stats.isSingleSelection ? null : Colors.grey,
-              padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(
-                horizontal: -4,
-                vertical: -4,
-              ),
-            ),
-
-            // 分享按钮（只有文件可以分享）
-            if (onShare != null)
-              IconButton(
-                icon: const Icon(Icons.share),
-                onPressed: stats.hasOnlyFiles && hasSelection ? onShare : null,
-                tooltip: '分享',
-                color: stats.hasOnlyFiles && hasSelection ? null : Colors.grey,
-                padding: EdgeInsets.zero,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
-                ),
-              ),
+            const SizedBox(width: 4),
 
             // 移动按钮
             IconButton(
-              icon: const Icon(Icons.drive_file_move),
+              icon: const Icon(Icons.drive_file_move, size: 22),
               onPressed: hasSelection && onMove != null ? onMove : null,
               tooltip: '移动',
               color: hasSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              visualDensity: VisualDensity.compact,
             ),
 
-            // 批量收藏/取消收藏按钮（只要有文件即可用，自动忽略文件夹）
-            IconButton(
-              icon: Icon(isAllFavorite ? Icons.star : Icons.star_border),
-              onPressed:
-                  stats.hasFiles && hasSelection && onToggleFavorite != null
-                      ? onToggleFavorite
-                      : null,
-              tooltip: isAllFavorite ? '取消收藏' : '添加收藏',
-              color: stats.hasFiles && hasSelection
-                  ? (isAllFavorite ? Colors.amber : null)
-                  : Colors.grey,
-              padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-            ),
+            const SizedBox(width: 4),
 
             // 删除按钮
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete, size: 22),
               onPressed: hasSelection && onDelete != null ? onDelete : null,
               tooltip: '删除',
               color: hasSelection ? null : Colors.grey,
               padding: EdgeInsets.zero,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              visualDensity: VisualDensity.compact,
+            ),
+
+            const SizedBox(width: 4),
+
+            // 更多菜单按钮
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 22),
+              tooltip: '更多操作',
+              enabled: hasSelection,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              iconColor: hasSelection ? null : Colors.grey,
+              position: PopupMenuPosition.under,
+              offset: const Offset(0, 8),
+              onSelected: (value) {
+                switch (value) {
+                  case 'rename':
+                    onRename?.call();
+                    break;
+                  case 'share':
+                    onShare?.call();
+                    break;
+                  case 'favorite':
+                    onToggleFavorite?.call();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                // 重命名（仅单选）
+                PopupMenuItem<String>(
+                  value: 'rename',
+                  enabled: stats.isSingleSelection && onRename != null,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: SizedBox(
+                    width: 120,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          size: 20,
+                          color: stats.isSingleSelection
+                              ? Theme.of(context).colorScheme.onSurface
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            '重命名',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: stats.isSingleSelection
+                                  ? Theme.of(context).colorScheme.onSurface
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                        if (!stats.isSingleSelection)
+                          Text(
+                            '需单选',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 分享（仅文件）
+                if (onShare != null)
+                  PopupMenuItem<String>(
+                    value: 'share',
+                    enabled: stats.hasOnlyFiles && hasSelection,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: SizedBox(
+                      width: 120,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.share,
+                            size: 20,
+                            color: stats.hasOnlyFiles
+                                ? Theme.of(context).colorScheme.onSurface
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              '分享',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: stats.hasOnlyFiles
+                                    ? Theme.of(context).colorScheme.onSurface
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                          if (!stats.hasOnlyFiles)
+                            Text(
+                              '仅文件',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // 收藏/取消收藏（仅文件）
+                if (onToggleFavorite != null)
+                  PopupMenuItem<String>(
+                    value: 'favorite',
+                    enabled: stats.hasFiles && hasSelection,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: SizedBox(
+                      width: 140,
+                      child: Row(
+                        children: [
+                          Icon(
+                            isAllFavorite ? Icons.star : Icons.star_border,
+                            size: 20,
+                            color: stats.hasFiles
+                                ? (isAllFavorite
+                                    ? Colors.amber
+                                    : Theme.of(context).colorScheme.onSurface)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              isAllFavorite ? '取消收藏' : '添加收藏',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: stats.hasFiles
+                                    ? Theme.of(context).colorScheme.onSurface
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                          if (!stats.hasFiles)
+                            Text(
+                              '仅文件',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),

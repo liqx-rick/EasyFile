@@ -129,23 +129,97 @@ class LocalFileRepository implements FileRepository {
   }
 
   @override
-  Future<bool> copyFile(FileItem file, String destinationPath) async {
+  Future<FileItem?> copyFile(FileItem file, String destinationPath) async {
     try {
       logger.i('Copying file from ${file.path} to $destinationPath');
 
-      if (file.isDirectory) {
-        return await _copyDirectory(file.path, destinationPath);
-      } else {
-        return await _copyFileInternal(file.path, destinationPath);
+      // 构建完整的目标路径（目录 + 文件/文件夹名）
+      final fileName = path.basename(file.path);
+      final sourceDir = path.dirname(file.path);
+      
+      // 检查是否复制到同一目录
+      if (path.normalize(sourceDir) == path.normalize(destinationPath)) {
+        logger.w('Cannot copy to same directory: $destinationPath');
+        
+        // 生成新文件名（添加副本后缀）
+        final extension = path.extension(fileName);
+        final nameWithoutExt = path.basenameWithoutExtension(fileName);
+        String newFileName;
+        String fullDestinationPath;
+        int copyNumber = 1;
+        
+        // 查找可用的文件名
+        do {
+          if (file.isDirectory) {
+            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}';
+          } else {
+            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}$extension';
+          }
+          fullDestinationPath = path.join(destinationPath, newFileName);
+          copyNumber++;
+        } while ((file.isDirectory ? Directory(fullDestinationPath) : File(fullDestinationPath)).existsSync());
+        
+        logger.i('Using new name: $newFileName');
+        
+        // 使用新文件名进行复制
+        bool success;
+        if (file.isDirectory) {
+          success = await _copyDirectory(file.path, fullDestinationPath);
+        } else {
+          success = await _copyFileInternal(file.path, fullDestinationPath);
+        }
+        
+        if (success) {
+          final copiedEntity = file.isDirectory 
+              ? Directory(fullDestinationPath) 
+              : File(fullDestinationPath);
+          final stat = await copiedEntity.stat();
+          
+          return FileItem(
+            path: fullDestinationPath,
+            name: newFileName,
+            isDirectory: file.isDirectory,
+            size: file.isDirectory ? 0 : stat.size,
+            modified: stat.modified,
+          );
+        }
+        return null;
       }
+      
+      // 正常复制到不同目录
+      final fullDestinationPath = path.join(destinationPath, fileName);
+
+      bool success;
+      if (file.isDirectory) {
+        success = await _copyDirectory(file.path, fullDestinationPath);
+      } else {
+        success = await _copyFileInternal(file.path, fullDestinationPath);
+      }
+
+      if (success) {
+        // 获取复制后的文件信息
+        final copiedEntity = file.isDirectory 
+            ? Directory(fullDestinationPath) 
+            : File(fullDestinationPath);
+        final stat = await copiedEntity.stat();
+        
+        return FileItem(
+          path: fullDestinationPath,
+          name: fileName,
+          isDirectory: file.isDirectory,
+          size: file.isDirectory ? 0 : stat.size,
+          modified: stat.modified,
+        );
+      }
+      return null;
     } catch (e) {
       logger.e('Error copying file ${file.path}: $e');
-      return false;
+      return null;
     }
   }
 
   @override
-  Future<bool> moveFile(FileItem file, String destinationPath) async {
+  Future<FileItem?> moveFile(FileItem file, String destinationPath) async {
     // 安全检查：验证源路径是否允许移动
     final sourceRiskLevel = PathSecurity.getPathRiskLevel(file.path);
 
@@ -161,7 +235,7 @@ class LocalFileRepository implements FileRepository {
       logger.e(
         'Move operation blocked: ${file.path} is a forbidden system path',
       );
-      return false;
+      return null;
     }
 
     // 危险路径也拒绝
@@ -174,7 +248,7 @@ class LocalFileRepository implements FileRepository {
         reason: 'Dangerous path',
       );
       logger.w('Move operation blocked: ${file.path} is a dangerous path');
-      return false;
+      return null;
     }
 
     // 验证目标路径的安全性
@@ -191,7 +265,7 @@ class LocalFileRepository implements FileRepository {
       logger.w(
         'Move operation blocked: target path $destinationPath is protected',
       );
-      return false;
+      return null;
     }
 
     // 检查是否为系统关键文件夹
@@ -205,45 +279,61 @@ class LocalFileRepository implements FileRepository {
         reason: 'System critical folder',
       );
       logger.w('Move operation blocked: "$currentName" is a system folder');
-      return false;
+      return null;
     }
 
     try {
       logger.i('Moving file from ${file.path} to $destinationPath');
 
+      // 构建完整的目标路径（目录 + 文件名）
+      final fileName = path.basename(file.path);
+      final fullDestinationPath = path.join(destinationPath, fileName);
+
       // 记录操作日志
       PathSecurity.logOperation(
         operation: 'MOVE',
-        path: '${file.path} -> $destinationPath',
+        path: '${file.path} -> $fullDestinationPath',
         riskLevel: sourceRiskLevel,
         allowed: true,
       );
 
       final source = file.isDirectory ? Directory(file.path) : File(file.path);
-      await source.rename(destinationPath);
+      await source.rename(fullDestinationPath);
 
-      logger.i('File moved successfully: ${file.path} -> $destinationPath');
-      return true;
+      logger.i('File moved successfully: ${file.path} -> $fullDestinationPath');
+      
+      // 返回更新后的 FileItem
+      return FileItem(
+        path: fullDestinationPath,
+        name: fileName,
+        isDirectory: file.isDirectory,
+        size: file.size,
+        modified: file.modified,
+      );
     } catch (e) {
       logger.e('Error moving file ${file.path}: $e');
       // 如果重命名失败，尝试复制然后删除
       try {
-        if (await copyFile(file, destinationPath)) {
+        final copiedFile = await copyFile(file, destinationPath);
+        if (copiedFile != null) {
           await deleteFile(file);
+          
           logger.i(
-            'File moved using copy+delete: ${file.path} -> $destinationPath',
+            'File moved using copy+delete: ${file.path} -> ${copiedFile.path}',
           );
-          return true;
+          
+          // 返回复制的文件信息
+          return copiedFile;
         }
       } catch (e2) {
         logger.e('Error in fallback move operation: $e2');
       }
-      return false;
+      return null;
     }
   }
 
   @override
-  Future<bool> renameFile(FileItem file, String newName) async {
+  Future<FileItem?> renameFile(FileItem file, String newName) async {
     // 安全检查：验证源路径是否允许重命名
     final sourceRiskLevel = PathSecurity.getPathRiskLevel(file.path);
 
@@ -259,7 +349,7 @@ class LocalFileRepository implements FileRepository {
       logger.e(
         'Rename operation blocked: ${file.path} is a forbidden system path',
       );
-      return false;
+      return null;
     }
 
     // 危险路径也拒绝
@@ -272,7 +362,7 @@ class LocalFileRepository implements FileRepository {
         reason: 'Dangerous path',
       );
       logger.w('Rename operation blocked: ${file.path} is a dangerous path');
-      return false;
+      return null;
     }
 
     // 检查是否为系统关键文件夹名称
@@ -286,7 +376,7 @@ class LocalFileRepository implements FileRepository {
         reason: 'System critical folder name',
       );
       logger.w('Rename operation blocked: "$currentName" is a system folder');
-      return false;
+      return null;
     }
 
     try {
@@ -308,7 +398,7 @@ class LocalFileRepository implements FileRepository {
           reason: 'Target path is protected',
         );
         logger.w('Rename operation blocked: target path $newPath is protected');
-        return false;
+        return null;
       }
 
       // 记录操作日志
@@ -323,10 +413,18 @@ class LocalFileRepository implements FileRepository {
       await source.rename(newPath);
 
       logger.i('File renamed successfully: ${file.path} -> $newPath');
-      return true;
+      
+      // Return updated FileItem with new path and name
+      return FileItem(
+        path: newPath,
+        name: newName,
+        isDirectory: file.isDirectory,
+        size: file.size,
+        modified: file.modified,
+      );
     } catch (e) {
       logger.e('Error renaming file ${file.path}: $e');
-      return false;
+      return null;
     }
   }
 

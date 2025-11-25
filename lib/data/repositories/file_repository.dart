@@ -4,7 +4,7 @@ abstract class FileRepository {
   Future<List<FileItem>> getFiles(String path);
   Future<List<FileItem>> searchFiles(String path, String query);
   Future<bool> deleteFile(FileItem file);
-  Future<bool> copyFile(FileItem file, String destinationPath);
-  Future<bool> moveFile(FileItem file, String destinationPath);
-  Future<bool> renameFile(FileItem file, String newName);
+  Future<FileItem?> copyFile(FileItem file, String destinationPath);
+  Future<FileItem?> moveFile(FileItem file, String destinationPath);
+  Future<FileItem?> renameFile(FileItem file, String newName);
 }

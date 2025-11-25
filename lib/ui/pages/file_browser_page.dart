@@ -197,7 +197,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             if (mounted) {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => FilePreviewPage(file: fileItem),
+                  builder: (context) => FilePreviewPage(
+                    file: fileItem,
+                    viewModel: viewModel,
+                    presenter: presenter,
+                  ),
                 ),
               );
             }
@@ -558,6 +562,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             file: file,
             fileList: mediaFiles,
             initialIndex: initialIndex >= 0 ? initialIndex : 0,
+            viewModel: viewModel,
+            presenter: presenter,
           ),
         ),
       )
@@ -577,7 +583,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 其他文件类型使用单文件模式
       Navigator.of(context)
           .push<bool>(
-        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            viewModel: viewModel,
+            presenter: presenter,
+          ),
+        ),
       )
           .then((refresh) async {
         if (refresh == true) {

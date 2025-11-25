@@ -4,29 +4,38 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:charset_converter/charset_converter.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/utils/media_info_extractor.dart';
 import 'package:easyfile/ui/widgets/video_player_widget.dart';
 import 'package:easyfile/ui/widgets/audio_player_widget.dart';
-import 'package:easyfile/ui/widgets/detailed_media_info_view.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdfx/pdfx.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart' as pw_pdf;
+import 'package:pdf/widgets.dart' as pw;
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
   final List<FileItem>? fileList; // 可选：用于滑动切换
   final int? initialIndex; // 可选：初始索引
+  final FileViewModel? viewModel; // 可选：如果不提供，功能按钮将被隐藏
+  final FilePresenter? presenter; // 可选：如果不提供，功能按钮将被隐藏
 
   const FilePreviewPage({
     super.key,
     required this.file,
     this.fileList,
     this.initialIndex,
+    this.viewModel,
+    this.presenter,
   });
 
   @override
@@ -44,11 +53,23 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   bool _showUI = true; // 是否显示AppBar和其他UI组件
   Timer? _uiHideTimer; // UI自动隐藏计时器
 
+  // 文件操作服务
+  SingleFileOperationsService? _operationsService;
+
+  // 收藏状态（用于实时更新UI）
+  late bool _isFavorite;
+
+  // 文件是否被修改（重命名、移动、复制），用于返回时通知父页面刷新
+  bool _fileModified = false;
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
+
+    // 初始化收藏状态
+    _isFavorite = false;
 
     // 启用沉浸式全屏模式
     _enableImmersiveMode();
@@ -155,198 +176,207 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         FileUtils.isVideoFile(currentFile.name) ||
         FileUtils.isPdfFile(currentFile.name);
 
-    return Scaffold(
-      backgroundColor: isMediaFile
-          ? Colors.black // 图片/视频/PDF固定黑色
-          : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
-      extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
-      body: Stack(
-        children: [
-          // PageView 支持滑动切换
-          PageView.builder(
-            controller: _pageController,
-            physics: const BouncingScrollPhysics(), // iOS 风格边缘回弹效果
-            itemCount: widget.fileList!.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-                _showPageIndicator = true;
-                _pageIndicatorOpacity = 1.0;
-              });
+    return PopScope(
+      canPop: !_fileModified,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _fileModified) {
+          Navigator.of(context).pop(true);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isMediaFile
+            ? Colors.black // 图片/视频/PDF固定黑色
+            : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
+        extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
+        body: Stack(
+          children: [
+            // PageView 支持滑动切换
+            PageView.builder(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(), // iOS 风格边缘回弹效果
+              itemCount: widget.fileList!.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                  _showPageIndicator = true;
+                  _pageIndicatorOpacity = 1.0;
+                });
 
-              // 重新计划淡出
-              _scheduleIndicatorFadeOut();
-            },
-            itemBuilder: (context, index) {
-              return _FilePreviewItem(
-                file: widget.fileList![index],
-                key: ValueKey(widget.fileList![index].path),
-                onTap: _toggleUIVisibility, // 传递点击回调
-                onSetUIVisible: (show) {
-                  _uiHideTimer?.cancel();
-                  setState(() {
-                    _showUI = show;
-                  });
-                  if (show) {
-                    _scheduleUIHide();
-                  }
-                },
-              );
-            },
-          ),
+                // 重新计划淡出
+                _scheduleIndicatorFadeOut();
+              },
+              itemBuilder: (context, index) {
+                return _FilePreviewItem(
+                  file: widget.fileList![index],
+                  key: ValueKey(widget.fileList![index].path),
+                  onTap: _toggleUIVisibility, // 传递点击回调
+                  onSetUIVisible: (show) {
+                    _uiHideTimer?.cancel();
+                    setState(() {
+                      _showUI = show;
+                    });
+                    if (show) {
+                      _scheduleUIHide();
+                    }
+                  },
+                );
+              },
+            ),
 
-          // 页码指示器 - 只对图片显示，视频和音频不显示
-          if (_showUI &&
-              _showPageIndicator &&
-              widget.fileList!.length > 1 &&
-              FileUtils.isImageFile(widget.fileList![_currentIndex].name))
-            Positioned(
-              bottom: 32,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: _pageIndicatorOpacity,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
+            // 页码指示器 - 只对图片显示，视频和音频不显示
+            if (_showUI &&
+                _showPageIndicator &&
+                widget.fileList!.length > 1 &&
+                FileUtils.isImageFile(widget.fileList![_currentIndex].name))
+              Positioned(
+                bottom: 32,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: _pageIndicatorOpacity,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.image,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_currentIndex + 1} / ${widget.fileList!.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+              ),
+
+            // AppBar - 作为Stack中的浮动元素，不影响布局
+            if (_showUI)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: _buildFloatingAppBar(context),
+              ),
+
+            // 左箭头按钮 - 上一个文件（仅对音频文件显示）
+            if (_showUI &&
+                widget.fileList!.length > 1 &&
+                _currentIndex > 0 &&
+                FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
+              Positioned(
+                left: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                      decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 2,
+                      ),
                       boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 8,
+                          BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 12,
+                          spreadRadius: 2,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.image,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_currentIndex + 1} / ${widget.fileList!.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      iconSize: 32,
+                      onPressed: () {
+                        if (_currentIndex > 0) {
+                          _pageController.previousPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      },
+                      tooltip: '上一个',
+                    ),
+                  ),
+                ),
+              ),
+
+            // 右箭头按钮 - 下一个文件（仅对音频文件显示）
+            if (_showUI &&
+                widget.fileList!.length > 1 &&
+                _currentIndex < widget.fileList!.length - 1 &&
+                FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
+              Positioned(
+                right: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                      decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                          BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-            ),
-
-          // AppBar - 作为Stack中的浮动元素，不影响布局
-          if (_showUI)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildFloatingAppBar(context),
-            ),
-
-          // 左箭头按钮 - 上一个文件（仅对音频文件显示）
-          if (_showUI &&
-              widget.fileList!.length > 1 &&
-              _currentIndex > 0 &&
-              FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
-            Positioned(
-              left: 16,
-              top: 0,
-              bottom: 0,
-              child: Center(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 2,
+                    child: IconButton(
+                      icon:
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                      iconSize: 32,
+                      onPressed: () {
+                        if (_currentIndex < widget.fileList!.length - 1) {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      },
+                      tooltip: '下一个',
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    iconSize: 32,
-                    onPressed: () {
-                      if (_currentIndex > 0) {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                    tooltip: '上一个',
                   ),
                 ),
               ),
-            ),
-
-          // 右箭头按钮 - 下一个文件（仅对音频文件显示）
-          if (_showUI &&
-              widget.fileList!.length > 1 &&
-              _currentIndex < widget.fileList!.length - 1 &&
-              FileUtils.isAudioFile(widget.fileList![_currentIndex].name))
-            Positioned(
-              right: 16,
-              top: 0,
-              bottom: 0,
-              child: Center(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    iconSize: 32,
-                    onPressed: () {
-                      if (_currentIndex < widget.fileList!.length - 1) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                    tooltip: '下一个',
-                  ),
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -361,24 +391,32 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         FileUtils.isVideoFile(file.name) ||
         FileUtils.isPdfFile(file.name);
 
-    return Scaffold(
-      backgroundColor: isMediaFile
-          ? Colors.black // 图片/视频/PDF固定黑色
-          : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
-      extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
-      appBar: _showUI ? _buildFloatingAppBar(context) : null,
-      body: _FilePreviewItem(
-        file: file,
-        onTap: _toggleUIVisibility, // 传递点击回调
-        onSetUIVisible: (show) {
-          _uiHideTimer?.cancel();
-          setState(() {
-            _showUI = show;
-          });
-          if (show) {
-            _scheduleUIHide();
-          }
-        },
+    return PopScope(
+      canPop: !_fileModified,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _fileModified) {
+          Navigator.of(context).pop(true);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isMediaFile
+            ? Colors.black // 图片/视频/PDF固定黑色
+            : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
+        extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
+        appBar: _showUI ? _buildFloatingAppBar(context) : null,
+        body: _FilePreviewItem(
+          file: file,
+          onTap: _toggleUIVisibility, // 传递点击回调
+          onSetUIVisible: (show) {
+            _uiHideTimer?.cancel();
+            setState(() {
+              _showUI = show;
+            });
+            if (show) {
+              _scheduleUIHide();
+            }
+          },
+        ),
       ),
     );
   }
@@ -389,8 +427,61 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         ? widget.fileList![_currentIndex]
         : widget.file;
 
+    // 尝试获取 ViewModel 和 Presenter（优先使用参数，否则尝试从 context 获取）
+    FileViewModel? viewModel = widget.viewModel;
+    FilePresenter? presenter = widget.presenter;
+
+    // 如果参数未提供，尝试从 context 获取（如果可用）
+    if (viewModel == null || presenter == null) {
+      try {
+        viewModel ??= context.watch<FileViewModel>();
+        presenter ??= context.read<FilePresenter>();
+      } catch (e) {
+        // Provider 不可用，功能按钮将被隐藏
+        logger.d(
+            'Provider not available in FilePreviewPage, operation buttons will be hidden');
+      }
+    }
+
+    // 初始化操作服务（仅当 viewModel 和 presenter 都可用时）
+    // 每次 build 都重新创建，确保使用最新的有效 context
+    if (viewModel != null && presenter != null) {
+      _operationsService = SingleFileOperationsService(
+        context: context,
+        viewModel: viewModel,
+        presenter: presenter,
+        onRefresh: () {
+          if (mounted) {
+            setState(() {
+              // 刷新收藏状态
+              _isFavorite = viewModel!.isFavoriteFile(currentFile.path);
+            });
+          }
+        },
+        onFileDeleted: () {
+          // 文件被删除，关闭预览页并通知列表刷新
+          if (mounted) {
+            Navigator.of(context).pop(true);
+          }
+        },
+      );
+
+      // 更新收藏状态
+      _isFavorite = viewModel.isFavoriteFile(currentFile.path);
+    }
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final isMediaFile = FileUtils.isImageFile(currentFile.name) ||
+        FileUtils.isVideoFile(currentFile.name) ||
+        FileUtils.isPdfFile(currentFile.name);
+
+    // If previewing media (black background) keep icons white for visibility.
+    final iconColor = (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
+
     return AppBar(
-      backgroundColor: Colors.black.withValues(alpha: 0.6), // 半透明黑色背景（60%不透明度）
+      backgroundColor: Colors.black.withOpacity(0.6), // 半透明黑色背景（60%不透明度）
       elevation: 0,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,168 +489,309 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
           Text(
             currentFile.name,
             style: const TextStyle(fontSize: 16, color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
-            _getFileTypeDisplayForFile(currentFile),
+            FileSizeFormatter.formatBytesWithSpace(currentFile.size),
             style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),
         ],
       ),
-      iconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: IconThemeData(color: iconColor),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.info_outline),
-          onPressed: () => _showFileInfoForFile(context, currentFile),
-          tooltip: '文件信息',
-        ),
+        // 打印按钮（只对支持打印的文件显示，且服务可用时）
+        if (!currentFile.isDirectory && _operationsService != null && _canPrint(currentFile))
+          IconButton(
+            icon: const Icon(Icons.print),
+            onPressed: () => _printFile(currentFile),
+            tooltip: '打印',
+          ),
+        // 分享按钮（只对文件显示，且服务可用时）
+        if (!currentFile.isDirectory && _operationsService != null)
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _operationsService?.shareFile(currentFile),
+            tooltip: '分享',
+          ),
+        // 收藏/取消收藏按钮（只对文件显示，且服务可用时）
+        if (!currentFile.isDirectory && _operationsService != null)
+          IconButton(
+            icon: Icon(_isFavorite ? Icons.star : Icons.star_border),
+            onPressed: () => _operationsService?.toggleFavorite(currentFile),
+            tooltip: _isFavorite ? '取消收藏' : '添加到收藏',
+          ),
+        // 三点菜单（只在服务可用时显示）
+          if (_operationsService != null)
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: iconColor),
+            tooltip: '更多操作',
+            onSelected: (value) async {
+              // 等待 PopupMenu 完全关闭后再处理操作
+              // 避免与新对话框的显示产生冲突
+              await Future.delayed(const Duration(milliseconds: 100));
+              _handleMenuAction(value, currentFile);
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'details',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 20, color: theme.colorScheme.onSurface),
+                      SizedBox(width: 16),
+                      Text('文件详情', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'rename',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 20, color: theme.colorScheme.onSurface),
+                      SizedBox(width: 16),
+                      Text('重命名', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'move',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.drive_file_move, size: 20, color: theme.colorScheme.onSurface),
+                      SizedBox(width: 16),
+                      Text('移动', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'copy',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.content_copy, size: 20, color: theme.colorScheme.onSurface),
+                      SizedBox(width: 16),
+                      Text('复制', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+              PopupMenuDivider(height: 8),
+              PopupMenuItem<String>(
+                value: 'delete',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, size: 20, color: Colors.red),
+                      SizedBox(width: 16),
+                      Text('删除', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(child: SelectableText(value)),
-        ],
-      ),
-    );
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
-  }
-
-  /// 获取指定文件的类型显示
-  String _getFileTypeDisplayForFile(FileItem file) {
-    if (FileUtils.isImageFile(file.name)) return '图片';
-    if (FileUtils.isVideoFile(file.name)) return '视频';
-    if (FileUtils.isAudioFile(file.name)) return '音频';
-    if (FileUtils.isPdfFile(file.name)) return 'PDF文档';
-    if (FileUtils.isDocumentFile(file.name)) return '文档';
-    if (FileUtils.isTextFile(file.name)) return '文本';
-    return '未知类型';
-  }
-
-  /// 显示指定文件的信息
-  void _showFileInfoForFile(BuildContext context, FileItem file) async {
-    // 对于音视频文件，显示详细信息
-    if (FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name)) {
-      _showDetailedMediaInfoForFile(context, file);
-      return;
+  /// 处理菜单操作
+  Future<void> _handleMenuAction(String action, FileItem file) async {
+    // 确保在执行操作前重新获取有效的 context
+    // 这样可以避免 PopupMenu 关闭时的 context 问题
+    if (!mounted) return;
+    
+    bool operationSuccess = false;
+    switch (action) {
+      case 'details':
+        await _operationsService?.showFileDetails(file);
+        break;
+      case 'rename':
+        operationSuccess = await _operationsService?.renameFile(file) ?? false;
+        // 重命名成功后，标记文件已修改，但继续停留在预览页
+        if (operationSuccess) {
+          setState(() {
+            _fileModified = true;
+          });
+        }
+        break;
+      case 'move':
+        operationSuccess = await _operationsService?.moveFile(file) ?? false;
+        // 移动成功后，标记文件已修改
+        if (operationSuccess) {
+          setState(() {
+            _fileModified = true;
+          });
+        }
+        break;
+      case 'copy':
+        operationSuccess = await _operationsService?.copyFile(file) ?? false;
+        // 复制成功后，标记文件已修改（目标位置有新文件）
+        if (operationSuccess) {
+          setState(() {
+            _fileModified = true;
+          });
+        }
+        break;
+      case 'delete':
+        // 删除操作会通过 onFileDeleted 回调处理页面关闭
+        await _operationsService?.deleteFile(file);
+        return;
     }
-
-    // 普通文件显示基本信息
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('文件信息'),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildInfoRow('文件名', file.name),
-            _buildInfoRow('路径', file.path),
-            _buildInfoRow(
-                '大小', FileSizeFormatter.formatBytesWithSpace(file.size)),
-            _buildInfoRow('修改时间', _formatDateTime(file.modified)),
-            _buildInfoRow('类型', _getFileTypeDisplayForFile(file)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
-          ),
-        ],
-      ),
-    );
   }
 
-  /// 显示指定文件的详细媒体信息
-  void _showDetailedMediaInfoForFile(
-      BuildContext context, FileItem file) async {
-    // 显示加载对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('正在加载详细信息...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  /// 判断文件是否支持打印
+  bool _canPrint(FileItem file) {
+    return FileUtils.isImageFile(file.name) ||
+        FileUtils.isPdfFile(file.name) ||
+        FileUtils.isTextFile(file.name);
+  }
 
-    final navigator = Navigator.of(context);
-
+  /// 打印文件
+  /// 
+  /// 根据文件类型调用对应的打印方法：
+  /// - 图片：转换为 PDF 后打印
+  /// - PDF：直接打印原始文件
+  /// - 文本：格式化为 PDF 后打印
+  Future<void> _printFile(FileItem file) async {
     try {
-      final extractor = MediaInfoExtractor();
-      final info = FileUtils.isVideoFile(file.name)
-          ? await extractor.extractVideoInfo(file.path)
-          : await extractor.extractAudioInfo(file.path);
-
-      if (!mounted) return;
-      navigator.pop(); // 关闭加载对话框
-
-      // 显示详细信息
-      showDialog(
-        context: this.context,
-        builder: (context) => Dialog(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-            child: Column(
-              children: [
-                AppBar(
-                  title: const Text('详细信息'),
-                  automaticallyImplyLeading: false,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: DetailedMediaInfoView(
-                    info: info,
-                    isVideo: FileUtils.isVideoFile(file.name),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      if (FileUtils.isImageFile(file.name)) {
+        await _printImage(file);
+      } else if (FileUtils.isPdfFile(file.name)) {
+        await _printPdf(file);
+      } else if (FileUtils.isTextFile(file.name)) {
+        await _printText(file);
+      }
     } catch (e) {
-      if (!mounted) return;
-      navigator.pop(); // 关闭加载对话框
-
-      // 保存context到局部变量避免异步警告
+      logger.e('Print failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载详细信息失败: $e')),
+          SnackBar(content: Text('打印失败: $e')),
         );
       }
+    }
+  }
+
+  /// 打印图片
+  /// 
+  /// 将图片文件转换为 PDF 格式后打印
+  /// 图片会自动缩放以适配页面大小，居中显示
+  Future<void> _printImage(FileItem file) async {
+    try {
+      final imageBytes = await File(file.path).readAsBytes();
+      final image = pw.MemoryImage(imageBytes);
+
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (pw_pdf.PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.Page(
+              pageFormat: format,
+              build: (context) => pw.Center(
+                child: pw.Image(image, fit: pw.BoxFit.contain),
+              ),
+            ),
+          );
+          return pdf.save();
+        },
+      );
+      logger.i('Image print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print image: $e');
+      rethrow;
+    }
+  }
+
+  /// 打印 PDF
+  /// 
+  /// 直接使用原始 PDF 文件字节进行打印
+  /// 保留 PDF 原始格式和布局
+  Future<void> _printPdf(FileItem file) async {
+    try {
+      final pdfBytes = await File(file.path).readAsBytes();
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (_) => Future.value(pdfBytes),
+      );
+      logger.i('PDF print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print PDF: $e');
+      rethrow;
+    }
+  }
+
+  /// 打印文本
+  /// 
+  /// 将文本文件格式化为 PDF 后打印
+  /// 功能特性：
+  /// - 带文件名标题
+  /// - 自动分页
+  /// - 限制最大内容长度（50KB），避免生成过大的 PDF
+  /// - 支持 UTF-8 编码，失败时回退到 Latin1
+  Future<void> _printText(FileItem file) async {
+    try {
+      // 直接读取文件内容
+      String content;
+      try {
+        // 尝试以 UTF-8 读取
+        content = await File(file.path).readAsString();
+      } catch (e) {
+        // UTF-8 失败，使用 Latin1 作为后备
+        final bytes = await File(file.path).readAsBytes();
+        content = latin1.decode(bytes);
+      }
+
+      // 限制内容长度，避免生成过大的 PDF
+      const maxLength = 50000; // 约 50KB 文本
+      if (content.length > maxLength) {
+        content = content.substring(0, maxLength) +
+            '\n\n... (内容过长，已截断) ...';
+      }
+
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (pw_pdf.PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.MultiPage(
+              pageFormat: format,
+              build: (context) => [
+                pw.Header(
+                  level: 0,
+                  child: pw.Text(
+                    file.name,
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  content,
+                  style: const pw.TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          );
+          return pdf.save();
+        },
+      );
+      logger.i('Text print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print text: $e');
+      rethrow;
     }
   }
 }
@@ -768,7 +1000,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       }
 
       logger.d('Opening PDF file: ${widget.file.path}');
-      
+
       // 使用 pdfx 加载 PDF
       // 注意：pdfx 在某些设备上可能因平台通道问题而失败
       // 失败时会通过 catch 块优雅降级，提示用户使用外部应用
@@ -780,7 +1012,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       logger.i('PDF document opened successfully');
     } catch (e) {
       logger.e('Error loading PDF: $e');
-      
+
       // 根据错误类型提供友好的错误信息
       String errorMessage;
       if (e.toString().contains('文件不存在')) {
@@ -789,8 +1021,8 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         errorMessage = '无法读取文件，请检查应用权限';
       } else if (e.toString().contains("Can't open file")) {
         errorMessage = 'PDF文件已损坏或格式不正确';
-      } else if (e.toString().contains('channel-error') || 
-                 e.toString().contains('PlatformException')) {
+      } else if (e.toString().contains('channel-error') ||
+          e.toString().contains('PlatformException')) {
         // pdfx 插件平台通道错误，通常是插件初始化失败
         errorMessage = 'PDF 预览功能暂不可用\n请使用其他应用打开';
       } else {

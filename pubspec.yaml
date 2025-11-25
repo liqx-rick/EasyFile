@@ -27,6 +27,8 @@ dependencies:
   charset_converter: ^2.1.1
   screen_brightness: ^2.1.7
   gal: ^2.3.0
+  printing: ^5.13.3
+  pdf: ^3.11.1
 
 dev_dependencies:
   flutter_test:

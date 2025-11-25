@@ -168,6 +168,43 @@ class FavoriteFilesLocalSource {
     }
   }
 
+  /// 更新收藏文件的路径（用于重命名、移动等操作）
+  Future<bool> updateFavoriteFilePath(String oldPath, String newPath) async {
+    try {
+      final favoriteFiles = await getFavoriteFiles();
+      final index = favoriteFiles.indexWhere(
+        (item) => item.filePath == oldPath,
+      );
+
+      if (index == -1) {
+        // 文件不在收藏列表中，无需更新
+        logger.d('File not in favorites, no need to update: $oldPath');
+        return true;
+      }
+
+      // 更新路径
+      final oldFavorite = favoriteFiles[index];
+      final updatedFavorite = FavoriteFileItem(
+        filePath: newPath,
+        addedTime: oldFavorite.addedTime,
+        accessCount: oldFavorite.accessCount,
+        lastAccessTime: oldFavorite.lastAccessTime,
+      );
+      
+      favoriteFiles[index] = updatedFavorite;
+      final success = await saveFavoriteFiles(favoriteFiles);
+      
+      if (success) {
+        logger.i('Updated favorite file path: $oldPath -> $newPath');
+      }
+      
+      return success;
+    } catch (e) {
+      logger.e('Error updating favorite file path: $e');
+      return false;
+    }
+  }
+
   /// 批量添加收藏文件
   ///
   /// 一次性添加多个文件到收藏，比逐个添加更高效

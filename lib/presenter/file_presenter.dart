@@ -199,28 +199,83 @@ class FilePresenter {
     logger.i(
       'FilePresenter.copyFile called from ${file.path} to $destinationPath',
     );
-    final success = await repository.copyFile(file, destinationPath);
-    if (success) {
-      logger.i('File copied successfully, refreshing list');
-      await loadFiles(viewModel.currentPath);
+    final copiedFile = await repository.copyFile(file, destinationPath);
+    if (copiedFile != null) {
+      logger.i('File copied successfully: ${copiedFile.path}');
+      
+      // 智能判断是否应该将复制的文件添加到当前列表
+      bool shouldAddToList = false;
+      
+      // 场景1：复制到当前浏览目录（文件浏览模式）
+      if (destinationPath == viewModel.currentPath) {
+        logger.d('File copied to current browsing directory');
+        shouldAddToList = true;
+      }
+      // 场景2：原文件在当前列表中（分类模式、收藏模式等）
+      // 复制的文件类型与原文件相同，应该也在当前列表中
+      else if (viewModel.files.any((f) => f.path == file.path)) {
+        logger.d('Source file is in current list (${viewModel.files.length} items), copied file should be added too');
+        shouldAddToList = true;
+      } else {
+        logger.d('Source file NOT in current list. Current list has ${viewModel.files.length} items');
+        logger.d('Current path: ${viewModel.currentPath}');
+      }
+      
+      if (shouldAddToList) {
+        logger.i('Adding copied file to current list: ${copiedFile.path}');
+        viewModel.addFileToList(copiedFile);
+        logger.i('File added to list. New list size: ${viewModel.files.length}');
+      } else {
+        logger.d('File not added to list (different directory/category)');
+      }
+      
+      return true;
     } else {
       logger.w('Failed to copy file: ${file.path}');
+      return false;
     }
-    return success;
   }
 
   Future<bool> moveFile(FileItem file, String destinationPath) async {
     logger.i(
       'FilePresenter.moveFile called from ${file.path} to $destinationPath',
     );
-    final success = await repository.moveFile(file, destinationPath);
-    if (success) {
-      logger.i('File moved successfully, refreshing list');
-      await loadFiles(viewModel.currentPath);
+    final movedFile = await repository.moveFile(file, destinationPath);
+    if (movedFile != null) {
+      logger.i('File moved successfully, updating in list');
+      
+      // 如果文件被收藏，同步更新收藏记录中的路径
+      if (viewModel.isFavoriteFile(file.path)) {
+        logger.d('File is favorited, updating favorite path');
+        
+        // 获取原收藏信息
+        final oldFavorite = viewModel.favoriteFiles.firstWhere(
+          (f) => f.filePath == file.path,
+        );
+        
+        // 更新数据源中的路径
+        await favoriteFilesSource.updateFavoriteFilePath(
+          file.path,
+          movedFile.path,
+        );
+        
+        // 同步更新 ViewModel 中的收藏状态
+        viewModel.removeFavoriteFile(file.path);
+        viewModel.addFavoriteFile(FavoriteFileItem(
+          filePath: movedFile.path,
+          addedTime: oldFavorite.addedTime,
+          accessCount: oldFavorite.accessCount,
+          lastAccessTime: oldFavorite.lastAccessTime,
+        ));
+      }
+      
+      viewModel.updateFileInList(file.path, movedFile);
+      logger.i('File updated in list instantly');
+      return true;
     } else {
       logger.w('Failed to move file: ${file.path}');
+      return false;
     }
-    return success;
   }
 
   /// 批量移动文件
@@ -248,8 +303,6 @@ class FilePresenter {
         final file = File(filePath);
         if (file.existsSync()) {
           final fileName = path.basename(filePath);
-          // 构造完整的目标路径（目录路径 + 文件名）
-          final fullDestinationPath = path.join(destinationPath, fileName);
 
           final fileItem = FileItem(
             name: fileName,
@@ -258,13 +311,13 @@ class FilePresenter {
             modified: file.lastModifiedSync(),
             isDirectory: false,
           );
-          final success = await repository.moveFile(
+          final movedFile = await repository.moveFile(
             fileItem,
-            fullDestinationPath,
+            destinationPath,
           );
-          results[filePath] = success;
-          if (success) {
-            logger.d('Moved file: $filePath to $fullDestinationPath');
+          results[filePath] = movedFile != null;
+          if (movedFile != null) {
+            logger.d('Moved file: $filePath to ${movedFile.path}');
           } else {
             logger.w('Failed to move file: $filePath');
           }
@@ -312,12 +365,21 @@ class FilePresenter {
         return false;
       }
 
-      // 使用原生方法分享文件
-      await platform.invokeMethod('shareMultipleFiles', {
-        'filePaths': existingFilePaths,
-      });
+      // 如果只有一个文件，使用单文件分享方法以获得更好的兼容性
+      if (existingFilePaths.length == 1) {
+        await platform.invokeMethod('shareFile', {
+          'filePath': existingFilePaths[0],
+          'mimeType': '*/*', // 让原生代码自动检测
+        });
+        logger.i('Share completed for single file');
+      } else {
+        // 多个文件使用批量分享
+        await platform.invokeMethod('shareMultipleFiles', {
+          'filePaths': existingFilePaths,
+        });
+        logger.i('Share completed for ${existingFilePaths.length} files');
+      }
 
-      logger.i('Share completed for ${existingFilePaths.length} files');
       return true;
     } catch (e) {
       logger.e('Error sharing files: $e');
@@ -327,15 +389,42 @@ class FilePresenter {
 
   Future<bool> renameFile(FileItem file, String newName) async {
     logger.i('FilePresenter.renameFile called for ${file.path} to $newName');
-    final success = await repository.renameFile(file, newName);
-    if (success) {
-      logger.i('File renamed successfully, refreshing list');
-      await loadFiles(viewModel.currentPath);
-      logger.i('File list refreshed after rename');
+    final renamedFile = await repository.renameFile(file, newName);
+    if (renamedFile != null) {
+      logger.i('File renamed successfully, updating in list');
+      
+      // 如果文件被收藏，同步更新收藏记录中的路径
+      if (viewModel.isFavoriteFile(file.path)) {
+        logger.d('File is favorited, updating favorite path');
+        
+        // 获取原收藏信息
+        final oldFavorite = viewModel.favoriteFiles.firstWhere(
+          (f) => f.filePath == file.path,
+        );
+        
+        // 更新数据源中的路径
+        await favoriteFilesSource.updateFavoriteFilePath(
+          file.path,
+          renamedFile.path,
+        );
+        
+        // 同步更新 ViewModel 中的收藏状态
+        viewModel.removeFavoriteFile(file.path);
+        viewModel.addFavoriteFile(FavoriteFileItem(
+          filePath: renamedFile.path,
+          addedTime: oldFavorite.addedTime,
+          accessCount: oldFavorite.accessCount,
+          lastAccessTime: oldFavorite.lastAccessTime,
+        ));
+      }
+      
+      viewModel.updateFileInList(file.path, renamedFile);
+      logger.i('File updated in list instantly');
+      return true;
     } else {
       logger.w('Failed to rename file: ${file.path}');
+      return false;
     }
-    return success;
   }
 
   // 收藏夹相关方法
