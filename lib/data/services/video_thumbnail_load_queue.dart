@@ -126,7 +126,8 @@ class VideoThumbnailLoadQueue {
     final request = _queue.removeFirst();
     _activeLoads++;
 
-    logger.d('Processing request (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
+    logger.d(
+        'Processing request (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
 
     // 异步处理请求
     _handleRequest(request).then((_) {

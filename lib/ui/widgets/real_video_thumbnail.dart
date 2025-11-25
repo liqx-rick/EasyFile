@@ -163,7 +163,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
   @override
   Widget build(BuildContext context) {
     super.build(context); // 必须调用以支持 AutomaticKeepAliveClientMixin
-    
+
     if (_isLoading) {
       return _buildPlaceholder();
     }

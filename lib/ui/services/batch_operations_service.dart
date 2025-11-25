@@ -335,7 +335,11 @@ class BatchOperationsService {
 
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => FolderPickerDialog(currentPath: currentPath),
+      builder: (context) => FolderPickerDialog(
+        currentPath: currentPath,
+        sourceFileName: '${selectedItems.length} 个项目',
+        operationType: '移动',
+      ),
     );
 
     if (destinationPath == null || !_isMounted) return;
@@ -492,7 +496,11 @@ class BatchOperationsService {
 
     final destinationPath = await showDialog<String>(
       context: context,
-      builder: (context) => FolderPickerDialog(currentPath: currentPath),
+      builder: (context) => FolderPickerDialog(
+        currentPath: currentPath,
+        sourceFileName: '${selectedItems.length} 个项目',
+        operationType: '复制',
+      ),
     );
 
     if (destinationPath == null || !_isMounted) return;
@@ -560,8 +568,9 @@ class BatchOperationsService {
                   : baseName;
               var counter = 1;
               do {
+                final suffix = counter > 1 ? counter.toString() : '';
                 targetPath =
-                    '$destinationPath${Platform.pathSeparator}${nameWithoutExt}_副本$counter$ext';
+                    '$destinationPath${Platform.pathSeparator}$nameWithoutExt - 副本$suffix$ext';
                 counter++;
               } while (FileSystemEntity.typeSync(targetPath) !=
                   FileSystemEntityType.notFound);
@@ -841,6 +850,41 @@ class BatchOperationsService {
     }
 
     try {
+      // 检查是否包含非图片文件
+      final hasNonImage = filePaths.any((path) {
+        final extension = path.split('.').last.toLowerCase();
+        return !['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif'].contains(extension);
+      });
+
+      // 如果选择了多个文件且包含非图片文件，显示提示
+      if (filePaths.length > 1 && hasNonImage) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('批量分享提示'),
+            content: const Text(
+              '您选择了多个文件，其中包含非图片文件。\n\n'
+              '⚠️ 请注意：部分应用（如微信、QQ等）对多文件分享有限制，可能只接受图片格式。\n\n'
+              '建议：\n'
+              '• 如需分享非图片文件，建议单独分享\n'
+              '• 或选择支持多种文件类型的应用（如文件管理器、云盘等）',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('继续分享'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) return;
+      }
+
       // Capture messenger before awaiting presenter
       final messenger = ScaffoldMessenger.of(context);
 

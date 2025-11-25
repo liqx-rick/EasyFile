@@ -259,6 +259,7 @@ class CategoryFilePage extends StatefulWidget {
 class _CategoryFilePageState extends State<CategoryFilePage> {
   late CategoryInfo categoryInfo;
   bool _isLoading = true;
+  bool _isRefreshing = false; // 后台刷新状态（不影响列表显示）
   List<FileItem> _files = [];
   String _errorMessage = '';
   String _loadingProgress = '';
@@ -315,9 +316,30 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
     // 监听PageSettingsService变化，当设置改变时重新排序
     PageSettingsService().addListener(_onPageSettingsChanged);
+    // 监听ViewModel变化，当文件列表更新时同步本地状态
+    widget.viewModel.addListener(_onViewModelChanged);
     categoryInfo = CategoryInfo.getInfoByType(widget.categoryType)!;
     _loadFileTypeFilter();
     _loadCategoryFiles();
+  }
+
+  /// ViewModel变化回调 - 同步文件列表
+  void _onViewModelChanged() {
+    if (mounted) {
+      final oldPath = widget.viewModel.lastUpdatedOldPath;
+      final newFile = widget.viewModel.lastUpdatedNewFile;
+      
+      if (oldPath != null && newFile != null) {
+        setState(() {
+          // 在本地列表中找到旧路径的文件并替换
+          final index = _files.indexWhere((f) => f.path == oldPath);
+          if (index != -1) {
+            _files[index] = newFile;
+            logger.d('Updated file in category page: $oldPath -> ${newFile.path}');
+          }
+        });
+      }
+    }
   }
 
   /// 页面设置改变回调
@@ -345,6 +367,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     _selectionController.selectedNotifier.removeListener(_onSelectionChanged);
     _selectionController.dispose();
     PageSettingsService().removeListener(_onPageSettingsChanged);
+    widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
   }
 
@@ -586,12 +609,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         });
       }
     } else {
-      // 强制刷新：清除缓存并显示加载状态
+      // 强制刷新：后台刷新，保持列表可见
       await _clearCache();
       setState(() {
-        _isLoading = true;
+        _isRefreshing = true;
         _errorMessage = '';
-        _loadingProgress = '开始扫描...';
+        _loadingProgress = '正在为您刷新页面列表，请稍等...';
       });
     }
 
@@ -600,9 +623,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       logger.i('Loading files for category: ${categoryInfo.name}');
 
       // 显示扫描进度
-      if (_isLoading) {
+      if (_isLoading || _isRefreshing) {
         setState(() {
-          _loadingProgress = '正在扫描${categoryInfo.name}文件...';
+          _loadingProgress = _isRefreshing 
+            ? '正在为您刷新页面列表，请稍等...'
+            : '正在扫描${categoryInfo.name}文件...';
         });
       }
 
@@ -616,10 +641,20 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       final sortType = PageSettingsService().getSortType(pageId);
       FileComparatorUtil.sortFilesInPlace(files, sortType);
 
+      // 计算总大小
+      int totalSize = 0;
+      for (final file in files) {
+        if (!file.isDirectory) {
+          totalSize += file.size;
+        }
+      }
+      final sizeStr = FileSizeFormatter.formatBytes(totalSize);
+      
       setState(() {
         _files = files;
         _isLoading = false;
-        _loadingProgress = '';
+        _isRefreshing = false;
+        _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
       });
 
       // 保存到缓存
@@ -633,6 +668,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       setState(() {
         _errorMessage = '加载失败: $e';
         _isLoading = false;
+        _isRefreshing = false;
         _loadingProgress = '';
       });
     }
@@ -644,23 +680,34 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       value: widget.viewModel,
       child: Consumer<PageSettingsService>(
         builder: (context, pageSettingsService, _) {
-          return Scaffold(
-            appBar: AppBar(
-              leading: _selectionController.isSelectionMode
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 22),
-                      onPressed: () {
-                        setState(() {
-                          _selectionController.clear();
-                        });
-                      },
-                      tooltip: '退出多选',
-                    )
-                  : IconButton(
-                      icon: const Icon(Icons.home),
-                      onPressed: () => Navigator.of(context).pop(),
-                      tooltip: '返回主页',
-                    ),
+          return PopScope(
+            canPop: !_selectionController.isSelectionMode,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              // 如果在选择模式下，退出选择模式
+              if (_selectionController.isSelectionMode) {
+                setState(() {
+                  _selectionController.clear();
+                });
+              }
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                leading: _selectionController.isSelectionMode
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        onPressed: () {
+                          setState(() {
+                            _selectionController.clear();
+                          });
+                        },
+                        tooltip: '退出多选',
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.home),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: '返回主页',
+                      ),
               title: _selectionController.isSelectionMode
                   ? Text('已选择 ${_selectionController.count} 项')
                   : Builder(
@@ -790,6 +837,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
             bottomNavigationBar: _selectionController.isSelectionMode
                 ? _buildSelectionBottomBar()
                 : null,
+            ),
           );
         },
       ),
@@ -881,14 +929,25 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
     return Column(
       children: [
-        // 统计信息栏
+        // 统计信息栏（刷新时显示提示，完成后显示统计）
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           color: categoryInfo.backgroundColor.withValues(alpha: 0.3),
           child: Row(
             children: [
-              Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
+              // 刷新时显示加载指示器
+              if (_isRefreshing) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(categoryInfo.iconColor),
+                  ),
+                ),
+              ] else
+                Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -896,9 +955,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _isSearchMode && _searchQuery.isNotEmpty
-                          ? '找到 ${_filteredFiles.length} 个匹配文件（共${_files.length}个）'
-                          : '找到 ${_files.length} 个${categoryInfo.name}文件',
+                      _isRefreshing
+                          ? _loadingProgress
+                          : (_isSearchMode && _searchQuery.isNotEmpty
+                              ? '找到 ${_filteredFiles.length} 个匹配文件（共${_files.length}个）'
+                              : _loadingProgress.isNotEmpty
+                                  ? _loadingProgress
+                                  : '找到 ${_files.length} 个${categoryInfo.name}文件    ${_formatTotalSize()}'),
                       style: TextStyle(
                         color: categoryInfo.iconColor,
                         fontWeight: FontWeight.w500,
@@ -907,11 +970,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                     ),
                   ],
                 ),
-              ),
-              // 文件大小
-              Text(
-                _formatTotalSize(),
-                style: TextStyle(color: categoryInfo.iconColor, fontSize: 12),
               ),
             ],
           ),
@@ -1318,7 +1376,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   }
 
   /// 预览文件
-  void _previewFile(FileItem file) {
+  void _previewFile(FileItem file) async {
     logger.d('Previewing file: ${file.path}');
 
     // 对于图片、视频和音频，传递文件列表以支持滑动切换
@@ -1329,15 +1387,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       final fileList = _filteredFiles;
       final initialIndex = fileList.indexWhere((f) => f.path == file.path);
 
-      Navigator.of(context).push(
+      final needsRefresh = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (context) => FilePreviewPage(
             file: file,
             fileList: fileList,
             initialIndex: initialIndex >= 0 ? initialIndex : 0,
+            viewModel: widget.viewModel,
+            presenter: widget.presenter,
           ),
         ),
       );
+      
+      // 如果文件被修改（复制、移动、重命名），刷新列表
+      if (needsRefresh == true) {
+        logger.d('File modified in preview, refreshing category list');
+        await _loadCategoryFiles(forceRefresh: true);
+      }
     } else if (widget.categoryType == CategoryType.downloads &&
         (FileUtils.isImageFile(file.name) ||
             FileUtils.isVideoFile(file.name) ||
@@ -1355,20 +1421,40 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       }).toList();
       final initialIndex = mediaFiles.indexWhere((f) => f.path == file.path);
 
-      Navigator.of(context).push(
+      final needsRefresh = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (context) => FilePreviewPage(
             file: file,
             fileList: mediaFiles,
             initialIndex: initialIndex >= 0 ? initialIndex : 0,
+            viewModel: widget.viewModel,
+            presenter: widget.presenter,
           ),
         ),
       );
+      
+      // 如果文件被修改，刷新列表
+      if (needsRefresh == true) {
+        logger.d('File modified in preview, refreshing category list');
+        await _loadCategoryFiles(forceRefresh: true);
+      }
     } else {
       // 其他类型保持单文件模式
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => FilePreviewPage(file: file)),
+      final needsRefresh = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => FilePreviewPage(
+            file: file,
+            viewModel: widget.viewModel,
+            presenter: widget.presenter,
+          ),
+        ),
       );
+      
+      // 如果文件被修改，刷新列表
+      if (needsRefresh == true) {
+        logger.d('File modified in preview, refreshing category list');
+        await _loadCategoryFiles(forceRefresh: true);
+      }
     }
   }
 }

@@ -83,9 +83,18 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
 
     final statusText = _getStatusText(widget.progress);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = screenWidth > 600 ? 360.0 : screenWidth * 0.85;
-    final circleSize = screenWidth > 600 ? 140.0 : 120.0;
+    final screenSize = MediaQuery.of(context).size;
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+    final isLandscape = screenWidth > screenHeight;
+    
+    // 横屏模式下使用更小的尺寸
+    final cardWidth = isLandscape 
+        ? math.min(screenWidth * 0.6, 480.0)
+        : (screenWidth > 600 ? 360.0 : screenWidth * 0.85);
+    final circleSize = isLandscape ? 80.0 : (screenWidth > 600 ? 140.0 : 120.0);
+    final verticalPadding = isLandscape ? 20.0 : 40.0;
+    final horizontalPadding = isLandscape ? 24.0 : 32.0;
 
     return Positioned.fill(
       child: Container(
@@ -106,7 +115,10 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
             },
             child: Container(
               width: cardWidth,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding, 
+                vertical: verticalPadding,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey[850] : Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -125,7 +137,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                   // 进度圆环
                   _buildProgressCircle(circleSize, isDark),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: isLandscape ? 12 : 24),
 
                   // 状态文案
                   AnimatedSwitcher(
@@ -134,7 +146,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                       statusText,
                       key: ValueKey(statusText),
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: isLandscape ? 14 : 18,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : Colors.grey[800],
                       ),
@@ -142,11 +154,11 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  SizedBox(height: isLandscape ? 12 : 20),
 
                   // 线性进度条
                   SizedBox(
-                    width: 240,
+                    width: isLandscape ? 180 : 240,
                     child: TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0.0, end: widget.progress),
                       duration: const Duration(milliseconds: 300),
@@ -166,13 +178,13 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: isLandscape ? 16 : 32),
 
                   // 品牌标语 - 使用更大更粗的样式和品牌蓝色
                   Text(
                     'EasyFile，让文件管理更简单',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: isLandscape ? 13 : 16,
                       color: Colors.blue[700],
                       letterSpacing: 0.5,
                       fontWeight: FontWeight.w700,

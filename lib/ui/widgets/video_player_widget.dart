@@ -203,10 +203,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (!_videoPlayerController!.value.isInitialized) {
         throw Exception('视频初始化失败');
       }
-      
+
       // 检查视频是否有错误
       if (_videoPlayerController!.value.hasError) {
-        throw Exception('视频加载错误: ${_videoPlayerController!.value.errorDescription}');
+        throw Exception(
+            '视频加载错误: ${_videoPlayerController!.value.errorDescription}');
       }
 
       // 恢复播放位置
@@ -269,7 +270,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       } else {
         errorMsg = '平台错误: ${e.message ?? e.code}';
       }
-      logger.e('PlatformException initializing video player: ${e.code} - ${e.message}');
+      logger.e(
+          'PlatformException initializing video player: ${e.code} - ${e.message}');
       _handleError(errorMsg);
     } on FileSystemException catch (e) {
       final errorMsg = '文件系统错误: ${e.message}';
@@ -387,7 +389,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   /// 切换控制栏显示/隐藏
   void _toggleControls() {
     if (!mounted) return; // 安全检查
-    
+
     logger.i(
         'Toggle controls: $_showControls -> ${!_showControls}, isFullScreen: $_isFullScreen');
 
@@ -452,7 +454,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             status = await Permission.storage.request();
           }
         }
-        
+
         if (!status.isGranted) {
           logger.w('Photo/Storage permission denied');
           if (mounted) {
@@ -502,7 +504,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
       // 使用 gal 保存到相册
       await Gal.putImage(filePath);
-      
+
       // 清理临时文件
       await file.delete();
       await tempDir.delete();
@@ -537,7 +539,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   /// 切换全屏模式
   void _toggleFullScreen() {
     if (!mounted) return; // 安全检查
-    
+
     logger.i('Toggle fullscreen: $_isFullScreen -> ${!_isFullScreen}');
 
     final willBeFullScreen = !_isFullScreen;
@@ -869,15 +871,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   // 【关键逻辑】处理播放/暂停的异步状态更新问题
                   // 问题：VideoPlayerController.value.isPlaying 是异步更新的（50-200ms延迟）
                   // 解决：使用 _localIsPlaying 立即更新UI，避免按钮响应延迟
-                  // 
+                  //
                   // 工作流程：
                   // 1. 基于控制器的实际状态（value.isPlaying）决定操作
                   // 2. 立即设置 _localIsPlaying 提供即时UI反馈
                   // 3. 调用 play()/pause() 触发异步操作
                   // 4. 控制器状态更新后，_onVideoPlayerUpdate() 会清除 _localIsPlaying
                   // 5. UI 切换回使用实际状态（value.isPlaying）
-                  final actuallyPlaying = _videoPlayerController!.value.isPlaying;
-                  
+                  final actuallyPlaying =
+                      _videoPlayerController!.value.isPlaying;
+
                   if (actuallyPlaying) {
                     // 暂停：立即更新本地状态以实现即时UI反馈
                     setState(() {
@@ -1107,15 +1110,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                         overlayShape:
                                             const RoundSliderOverlayShape(
                                                 overlayRadius: 12),
-                                        activeTrackColor:
-                                            Colors.amber,
+                                        activeTrackColor: Colors.amber,
                                         inactiveTrackColor:
                                             Colors.grey.withValues(alpha: 0.3),
-                                        thumbColor:
-                                            Colors.amber,
+                                        thumbColor: Colors.amber,
                                         overlayColor:
-                                            Colors.amber
-                                                .withValues(alpha: 0.3),
+                                            Colors.amber.withValues(alpha: 0.3),
                                       ),
                                       child: Slider(
                                         value: _brightness,
@@ -1186,7 +1186,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   maxWidth: 80,
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Text(
                     '${_playbackSpeed}x',
                     style: const TextStyle(
@@ -1213,42 +1214,48 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     value: 0.5,
                     height: 40,
                     child: Center(
-                      child: Text('0.5x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('0.5x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 0.75,
                     height: 40,
                     child: Center(
-                      child: Text('0.75x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('0.75x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.0,
                     height: 40,
                     child: Center(
-                      child: Text('1.0x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.0x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.25,
                     height: 40,
                     child: Center(
-                      child: Text('1.25x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.25x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.5,
                     height: 40,
                     child: Center(
-                      child: Text('1.5x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.5x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 2.0,
                     height: 40,
                     child: Center(
-                      child: Text('2.0x', style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('2.0x',
+                          style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                 ],

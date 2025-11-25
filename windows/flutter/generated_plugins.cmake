@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   gal
   pdfx
   permission_handler_windows
+  printing
   screen_brightness_windows
 )
 
