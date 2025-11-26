@@ -1,4 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:disk_space_plus/disk_space_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easyfile/core/di/locator.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/data/models/category_info.dart';
+import 'package:easyfile/ui/pages/category_file_page.dart';
+import 'package:easyfile/ui/pages/cache_management_page.dart';
+import 'package:easyfile/ui/pages/storage_page.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
 
 /// 存储管理页面
 /// 用于管理应用缓存和临时文件
@@ -10,37 +23,1066 @@ class StorageManagementPage extends StatefulWidget {
 }
 
 class _StorageManagementPageState extends State<StorageManagementPage> {
+  // 存储空间数据
+  double? _totalSpace; // MB
+  double? _freeSpace; // MB
+  bool _loadingStorage = true;
+  
+  // 分类文件大小数据
+  final Map<CategoryType, int> _categorySizes = {
+    CategoryType.images: 0,
+    CategoryType.video: 0,
+    CategoryType.documents: 0,
+    CategoryType.music: 0,
+  };
+  
+  // 记录哪些分类正在加载
+  final Map<CategoryType, bool> _loadingCategories = {
+    CategoryType.images: true,
+    CategoryType.video: true,
+    CategoryType.documents: true,
+    CategoryType.music: true,
+  };
+  
+  // 缓存key
+  static const String _cacheKeyCategorySizes = 'storage_category_sizes';
+  
+  // 缓存大小数据
+  int _totalCacheSize = 0;
+  bool _loadingCacheSize = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadStorageInfo();
+    _loadCategorySizes();
+    _loadCacheSize();
+  }
+  
+  /// 加载缓存大小
+  Future<void> _loadCacheSize() async {
+    try {
+      final cacheManager = locator<CacheManagerService>();
+      final size = await cacheManager.getTotalCacheSize();
+      
+      if (mounted) {
+        setState(() {
+          _totalCacheSize = size;
+          _loadingCacheSize = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load cache size: $e');
+      if (mounted) {
+        setState(() {
+          _loadingCacheSize = false;
+        });
+      }
+    }
+  }
+  
+  /// 加载存储空间信息
+  Future<void> _loadStorageInfo() async {
+    try {
+      final diskSpace = DiskSpacePlus();
+      final totalSpace = await diskSpace.getTotalDiskSpace;
+      final freeSpace = await diskSpace.getFreeDiskSpace;
+
+      if (mounted) {
+        setState(() {
+          _totalSpace = totalSpace;
+          _freeSpace = freeSpace;
+          _loadingStorage = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load storage info: $e');
+      if (mounted) {
+        setState(() {
+          _loadingStorage = false;
+        });
+      }
+    }
+  }
+  
+  /// 加载分类文件大小（优先从缓存，然后并行扫描）
+  Future<void> _loadCategorySizes() async {
+    if (!mounted) return;
+    
+    // 1. 先从SharedPreferences加载缓存的大小数据
+    await _loadCachedSizes();
+    
+    // 2. 并行扫描所有分类更新数据
+    try {
+      final presenter = locator<FilePresenter>();
+      
+      // 并行加载所有分类
+      final futures = CategoryType.values.map((categoryType) async {
+        try {
+          final files = await presenter.scanFilesByCategory(categoryType);
+          final totalSize = files.fold<int>(
+            0,
+            (sum, file) => sum + file.size,
+          );
+          
+          if (mounted) {
+            setState(() {
+              _categorySizes[categoryType] = totalSize;
+              _loadingCategories[categoryType] = false;
+            });
+          }
+          
+          return MapEntry(categoryType, totalSize);
+        } catch (e) {
+          logger.e('Failed to load size for $categoryType: $e');
+          if (mounted) {
+            setState(() {
+              _loadingCategories[categoryType] = false;
+            });
+          }
+          return MapEntry(categoryType, 0);
+        }
+      });
+      
+      final results = await Future.wait(futures);
+      
+      // 3. 保存到缓存
+      await _saveCachedSizes(Map.fromEntries(results));
+    } catch (e) {
+      logger.e('Failed to load category sizes: $e');
+    }
+  }
+  
+  /// 从SharedPreferences加载缓存的分类大小
+  Future<void> _loadCachedSizes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cacheKeyCategorySizes);
+      
+      if (cached != null) {
+        final Map<String, dynamic> data = jsonDecode(cached);
+        
+        if (mounted) {
+          setState(() {
+            for (final entry in data.entries) {
+              final categoryType = CategoryType.values.firstWhere(
+                (t) => t.name == entry.key,
+                orElse: () => CategoryType.images,
+              );
+              _categorySizes[categoryType] = entry.value as int;
+              _loadingCategories[categoryType] = false;
+            }
+          });
+        }
+        
+        logger.d('Loaded cached category sizes');
+      }
+    } catch (e) {
+      logger.e('Failed to load cached sizes: $e');
+    }
+  }
+  
+  /// 保存分类大小到SharedPreferences
+  Future<void> _saveCachedSizes(Map<CategoryType, int> sizes) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = <String, int>{};
+      
+      sizes.forEach((type, size) {
+        data[type.name] = size;
+      });
+      
+      await prefs.setString(_cacheKeyCategorySizes, jsonEncode(data));
+      logger.d('Saved category sizes to cache');
+    } catch (e) {
+      logger.e('Failed to save cached sizes: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('存储管理'),
         centerTitle: true,
       ),
-      body: Center(
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 1. 存储空间概览（独立分区）
+          _buildSectionTitle('存储空间概览', Icons.pie_chart_rounded, colorScheme),
+          const SizedBox(height: 12),
+          _buildStorageOverviewSection(theme, colorScheme),
+          const SizedBox(height: 24),
+
+          // 2. 文件清理功能区
+          _buildSectionTitle('文件清理', Icons.cleaning_services, colorScheme),
+          const SizedBox(height: 12),
+          _buildLargeFilesCard(theme, colorScheme),
+          const SizedBox(height: 12),
+          _buildDuplicateFilesCard(theme, colorScheme),
+          const SizedBox(height: 12),
+          _buildOldFilesCard(theme, colorScheme),
+          const SizedBox(height: 12),
+          _buildJunkFilesCard(theme, colorScheme),
+          const SizedBox(height: 24),
+
+          // 3. 缓存清理功能区
+          _buildSectionTitle('缓存清理', Icons.delete_sweep, colorScheme),
+          const SizedBox(height: 12),
+          _buildCacheCleanupCard(theme, colorScheme),
+          const SizedBox(height: 12),
+          _buildAppCacheCard(theme, colorScheme),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  /// 构建分区标题
+  Widget _buildSectionTitle(
+    String title,
+    IconData icon,
+    ColorScheme colorScheme,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: colorScheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 1. 存储空间概览区（圆环图 + 网格卡片，合并到同一个卡片）
+  Widget _buildStorageOverviewSection(
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              Icons.construction,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            // 圆环进度图
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _buildCircularProgressSection(theme, colorScheme),
             ),
+            
             const SizedBox(height: 16),
-            Text(
-              '功能开发中',
-              style: Theme.of(context).textTheme.titleLarge,
+            
+            // 分割线
+            Divider(
+              height: 1,
+              color: colorScheme.outlineVariant,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '存储管理功能即将上线',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+            
+            const SizedBox(height: 16),
+            
+            // 分类网格卡片
+            _buildCategoryGridCards(theme, colorScheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 圆环进度图区域
+  Widget _buildCircularProgressSection(
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    // 使用真实的存储数据
+    if (_loadingStorage || _totalSpace == null || _freeSpace == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    final totalSpaceGB = _totalSpace! / 1024; // MB转GB
+    final freeSpaceGB = _freeSpace! / 1024;
+    final usedSpaceGB = totalSpaceGB - freeSpaceGB;
+    final percentage = (usedSpaceGB / totalSpaceGB * 100);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 判断是否横屏（宽度大于高度）
+        final isLandscape = MediaQuery.of(context).size.width > 
+                           MediaQuery.of(context).size.height;
+        
+        return Row(
+          mainAxisAlignment: isLandscape 
+              ? MainAxisAlignment.center 
+              : MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 左侧：圆环图（缩小到110x110）
+            SizedBox(
+              width: 110,
+              height: 110,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 圆环进度
+                  SizedBox(
+                    width: 110,
+                    height: 110,
+                    child: TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 1500),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween<double>(begin: 0, end: percentage / 100),
+                      builder: (context, value, child) {
+                        return CircularProgressIndicator(
+                          value: value,
+                          strokeWidth: 10,
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _getStorageColor(percentage),
+                          ),
+                        );
+                      },
+                    ),
                   ),
+                  // 中央文字
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 1500),
+                        curve: Curves.easeOutCubic,
+                        tween: Tween<double>(begin: 0, end: percentage),
+                        builder: (context, value, child) {
+                          return Text(
+                            '${value.toInt()}%',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _getStorageColor(percentage),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '已使用',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            SizedBox(width: isLandscape ? 40 : 20),
+            
+            // 右侧：数据统计
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildStorageStatItem(
+                    '已用空间',
+                    '${usedSpaceGB.toStringAsFixed(1)} GB',
+                    _getStorageColor(percentage),
+                    theme,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildStorageStatItem(
+                    '可用空间',
+                    '${freeSpaceGB.toStringAsFixed(1)} GB',
+                    const Color(0xFF4CAF50),
+                    theme,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildStorageStatItem(
+                    '总容量',
+                    '${totalSpaceGB.toStringAsFixed(1)} GB',
+                    colorScheme.onSurfaceVariant,
+                    theme,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 存储统计项
+  Widget _buildStorageStatItem(
+    String label,
+    String value,
+    Color color,
+    ThemeData theme,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+        Text(
+          value,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 分类网格卡片（3列布局，去掉标题）
+  Widget _buildCategoryGridCards(
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    // 计算其他文件大小（总已用空间 - 已分类的空间）
+    int otherSize = 0;
+    if (_totalSpace != null && _freeSpace != null) {
+      final usedBytes = ((_totalSpace! - _freeSpace!) * 1024 * 1024).toInt();
+      final categorizedSize = _categorySizes.values.fold<int>(0, (sum, size) => sum + size);
+      otherSize = (usedBytes - categorizedSize).clamp(0, usedBytes);
+    }
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 3列布局：(总宽度 - 2个间距) / 3
+        final itemWidth = (constraints.maxWidth - 16) / 3;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildCategoryCard(
+              icon: '📷',
+              label: '图片',
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.images] ?? 0),
+              color: const Color(0xFF2196F3),
+              categoryType: CategoryType.images,
+              width: itemWidth,
+              theme: theme,
+              colorScheme: colorScheme,
+              isLoading: _loadingCategories[CategoryType.images] ?? false,
+            ),
+            _buildCategoryCard(
+              icon: '📹',
+              label: '视频',
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.video] ?? 0),
+              color: const Color(0xFF9C27B0),
+              categoryType: CategoryType.video,
+              width: itemWidth,
+              theme: theme,
+              colorScheme: colorScheme,
+              isLoading: _loadingCategories[CategoryType.video] ?? false,
+            ),
+            _buildCategoryCard(
+              icon: '📄',
+              label: '文档',
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.documents] ?? 0),
+              color: const Color(0xFF4CAF50),
+              categoryType: CategoryType.documents,
+              width: itemWidth,
+              theme: theme,
+              colorScheme: colorScheme,
+              isLoading: _loadingCategories[CategoryType.documents] ?? false,
+            ),
+            _buildCategoryCard(
+              icon: '🎵',
+              label: '音乐',
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.music] ?? 0),
+              color: const Color(0xFFFF9800),
+              categoryType: CategoryType.music,
+              width: itemWidth,
+              theme: theme,
+              colorScheme: colorScheme,
+              isLoading: _loadingCategories[CategoryType.music] ?? false,
+            ),
+            _buildCategoryCard(
+              icon: '📦',
+              label: '其他',
+              size: FileSizeFormatter.formatBytes(otherSize),
+              color: const Color(0xFF607D8B),
+              categoryType: null, // 其他没有对应的CategoryType
+              width: itemWidth,
+              theme: theme,
+              colorScheme: colorScheme,
+              isLoading: false, // 其他分类不显示加载状态
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 单个分类卡片
+  Widget _buildCategoryCard({
+    required String icon,
+    required String label,
+    required String size,
+    required Color color,
+    required CategoryType? categoryType, // 可为null（其他分类）
+    required double width,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+    required bool isLoading,
+  }) {
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _onCategoryCardTap(categoryType, label),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      icon,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 10,
+                      color: color,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                isLoading
+                    ? SizedBox(
+                        height: 20,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  color.withOpacity(0.6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '计算中',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(
+                        size,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 处理分类卡片点击
+  void _onCategoryCardTap(CategoryType? categoryType, String label) {
+    if (categoryType == null) {
+      // "其他"分类：显示详细说明对话框
+      _showOtherCategoryDialog();
+    } else {
+      // 正常分类：跳转到分类页面（临时显示模式）
+      _navigateToCategoryPage(categoryType);
+    }
+  }
+
+  /// 跳转到分类页面（按大小排序、列表模式、不分组）
+  void _navigateToCategoryPage(CategoryType categoryType) {
+    try {
+      final presenter = locator<FilePresenter>();
+      final viewModel = locator<FileViewModel>();
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => CategoryFilePage(
+            categoryType: categoryType,
+            presenter: presenter,
+            viewModel: viewModel,
+            isFromStorageManagement: true, // 标记从存储管理进入
+          ),
+        ),
+      );
+    } catch (e) {
+      logger.e('Failed to navigate to category page: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法打开分类页面: $e')),
+      );
+    }
+  }
+
+  /// 显示“其他”分类说明对话框
+  void _showOtherCategoryDialog() {
+    // 使用 locator 获取 Presenter 和 ViewModel
+    final presenter = locator<FilePresenter>();
+    final viewModel = locator<FileViewModel>();
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 标题栏
+                  Padding(
+                    padding: const EdgeInsets.only(right: 32), // 为关闭按钮留出空间
+                    child: Row(
+                      children: [
+                        const Text('📦', style: TextStyle(fontSize: 24)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '其他文件说明',
+                            style: Theme.of(dialogContext).textTheme.titleLarge,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // 内容
+                  SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '其他文件包含：',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildOtherFileTypeItem('应用数据和缓存'),
+                        _buildOtherFileTypeItem('压缩文件 (ZIP, RAR...)'),
+                        _buildOtherFileTypeItem('APK 安装包'),
+                        _buildOtherFileTypeItem('系统临时文件'),
+                        _buildOtherFileTypeItem('其他未分类的文件'),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(dialogContext).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.lightbulb_outline,
+                                size: 20,
+                                color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '可以在"大文件查找"功能中按大小查看这些文件',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // 操作按钮
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          // 跳转到存储页面浏览
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => StoragePage(
+                                presenter: presenter,
+                                viewModel: viewModel,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.folder_open, size: 16),
+                        label: const Text('浏览', style: TextStyle(fontSize: 13)),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          // TODO: 跳转到大文件查找页面
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('大文件查找功能开发中')),
+                          );
+                        },
+                        icon: const Icon(Icons.search, size: 16),
+                        label: const Text('查找', style: TextStyle(fontSize: 13)),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // 关闭按钮 - 位于卡片右上角内部
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                onPressed: () => Navigator.pop(dialogContext),
+                tooltip: '关闭',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(),
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 构建"其他"文件类型列表项
+  Widget _buildOtherFileTypeItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 2. 本应用缓存清理卡片
+  Widget _buildCacheCleanupCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.cached,
+      title: '本应用缓存',
+      subtitle: '清理缩略图、扫描缓存等',
+      badge: _loadingCacheSize 
+          ? '加载中' 
+          : FileSizeFormatter.formatBytes(_totalCacheSize),
+      badgeColor: Colors.orange,
+      onTap: () {
+        // 跳转到缓存管理页面
+        final cacheManager = locator<CacheManagerService>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CacheManagementPage(
+              cacheManager: cacheManager,
+            ),
+          ),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 3. 大文件查找卡片
+  Widget _buildLargeFilesCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.file_present,
+      title: '大文件查找',
+      subtitle: '查找占用空间大的文件',
+      badge: '待扫描',
+      badgeColor: colorScheme.primary,
+      onTap: () {
+        // TODO: 跳转到大文件查找页
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('大文件查找功能开发中')),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 4. 重复文件检测卡片
+  Widget _buildDuplicateFilesCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.content_copy,
+      title: '重复文件检测',
+      subtitle: '查找并清理重复的文件',
+      badge: '待扫描',
+      badgeColor: colorScheme.secondary,
+      onTap: () {
+        // TODO: 跳转到重复文件检测页
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('重复文件检测功能开发中')),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 5. 旧文件分析卡片
+  Widget _buildOldFilesCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.history,
+      title: '旧文件分析',
+      subtitle: '查找长期未使用的文件',
+      badge: '待扫描',
+      badgeColor: colorScheme.secondary,
+      onTap: () {
+        // TODO: 跳转到旧文件分析页
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('旧文件分析功能开发中')),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 6. 垃圾文件清理卡片
+  Widget _buildJunkFilesCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.delete_sweep,
+      title: '垃圾文件清理',
+      subtitle: '清理系统垃圾和无用文件',
+      badge: '待扫描',
+      badgeColor: colorScheme.secondary,
+      onTap: () {
+        // TODO: 跳转到垃圾文件清理页
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('垃圾文件清理功能开发中')),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 7. 应用缓存清理卡片
+  Widget _buildAppCacheCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.apps,
+      title: '其他应用缓存',
+      subtitle: '清理其他应用的缓存数据',
+      badge: '待扫描',
+      badgeColor: colorScheme.primary,
+      onTap: () {
+        // TODO: 跳转到应用缓存清理页
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('应用缓存清理功能开发中')),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 通用功能卡片构建器
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String badge,
+    required Color badgeColor,
+    required VoidCallback onTap,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // 图标
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // 标题和副标题
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 徽章和箭头
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      badge,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: badgeColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 根据使用率获取颜色
+  Color _getStorageColor(double percentage) {
+    if (percentage < 60) {
+      return const Color(0xFF4CAF50); // 绿色
+    } else if (percentage < 80) {
+      return const Color(0xFFFF9800); // 橙色
+    } else {
+      return const Color(0xFFF44336); // 红色
+    }
   }
 }

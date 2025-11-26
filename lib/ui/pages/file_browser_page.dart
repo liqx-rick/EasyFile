@@ -21,6 +21,7 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/settings_page.dart';
+import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
@@ -660,24 +661,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         _navigateToQuickAccessManagePage();
         break;
       case 'about':
-        _showAboutDialog();
+        _navigateToAbout();
         break;
     }
   }
 
-  /// 显示关于对话框
-  void _showAboutDialog() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'EasyFile',
-      applicationVersion: '1.1.0',
-      applicationLegalese: '© 2025 EasyFile Team',
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 16),
-          child: Text('一个简单易用的跨平台文件管理器'),
-        ),
-      ],
+  /// 导航到关于页面
+  void _navigateToAbout() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AboutPage(),
+      ),
     );
   }
 
