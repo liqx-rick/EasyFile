@@ -190,14 +190,14 @@ class FavoriteFilesLocalSource {
         accessCount: oldFavorite.accessCount,
         lastAccessTime: oldFavorite.lastAccessTime,
       );
-      
+
       favoriteFiles[index] = updatedFavorite;
       final success = await saveFavoriteFiles(favoriteFiles);
-      
+
       if (success) {
         logger.i('Updated favorite file path: $oldPath -> $newPath');
       }
-      
+
       return success;
     } catch (e) {
       logger.e('Error updating favorite file path: $e');

@@ -15,7 +15,7 @@ import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
-import 'package:easyfile/data/sources/search_history_local_source.dart';
+import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 class FilePresenter {
@@ -25,7 +25,6 @@ class FilePresenter {
   final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
   final ThemeLocalSource themeSource;
-  final SearchHistoryLocalSource searchHistorySource;
 
   FilePresenter({
     required this.repository,
@@ -34,7 +33,6 @@ class FilePresenter {
     required this.favoriteFilesSource,
     required this.recentFilesSource,
     required this.themeSource,
-    required this.searchHistorySource,
   }) {
     logger.d('FilePresenter constructor called');
     logger.d('favoriteFilesSource type: ${favoriteFilesSource.runtimeType}');
@@ -127,7 +125,7 @@ class FilePresenter {
     logger.i('Search completed: ${files.length} results found');
 
     // 保存搜索历史
-    await searchHistorySource.addSearchRecord(query, resultCount: files.length);
+    await SearchHistoryService().addSearch(query);
 
     viewModel.setFiles(files);
     viewModel.setLoading(false);
@@ -202,10 +200,10 @@ class FilePresenter {
     final copiedFile = await repository.copyFile(file, destinationPath);
     if (copiedFile != null) {
       logger.i('File copied successfully: ${copiedFile.path}');
-      
+
       // 智能判断是否应该将复制的文件添加到当前列表
       bool shouldAddToList = false;
-      
+
       // 场景1：复制到当前浏览目录（文件浏览模式）
       if (destinationPath == viewModel.currentPath) {
         logger.d('File copied to current browsing directory');
@@ -214,21 +212,24 @@ class FilePresenter {
       // 场景2：原文件在当前列表中（分类模式、收藏模式等）
       // 复制的文件类型与原文件相同，应该也在当前列表中
       else if (viewModel.files.any((f) => f.path == file.path)) {
-        logger.d('Source file is in current list (${viewModel.files.length} items), copied file should be added too');
+        logger.d(
+            'Source file is in current list (${viewModel.files.length} items), copied file should be added too');
         shouldAddToList = true;
       } else {
-        logger.d('Source file NOT in current list. Current list has ${viewModel.files.length} items');
+        logger.d(
+            'Source file NOT in current list. Current list has ${viewModel.files.length} items');
         logger.d('Current path: ${viewModel.currentPath}');
       }
-      
+
       if (shouldAddToList) {
         logger.i('Adding copied file to current list: ${copiedFile.path}');
         viewModel.addFileToList(copiedFile);
-        logger.i('File added to list. New list size: ${viewModel.files.length}');
+        logger
+            .i('File added to list. New list size: ${viewModel.files.length}');
       } else {
         logger.d('File not added to list (different directory/category)');
       }
-      
+
       return true;
     } else {
       logger.w('Failed to copy file: ${file.path}');
@@ -243,22 +244,22 @@ class FilePresenter {
     final movedFile = await repository.moveFile(file, destinationPath);
     if (movedFile != null) {
       logger.i('File moved successfully, updating in list');
-      
+
       // 如果文件被收藏，同步更新收藏记录中的路径
       if (viewModel.isFavoriteFile(file.path)) {
         logger.d('File is favorited, updating favorite path');
-        
+
         // 获取原收藏信息
         final oldFavorite = viewModel.favoriteFiles.firstWhere(
           (f) => f.filePath == file.path,
         );
-        
+
         // 更新数据源中的路径
         await favoriteFilesSource.updateFavoriteFilePath(
           file.path,
           movedFile.path,
         );
-        
+
         // 同步更新 ViewModel 中的收藏状态
         viewModel.removeFavoriteFile(file.path);
         viewModel.addFavoriteFile(FavoriteFileItem(
@@ -268,7 +269,7 @@ class FilePresenter {
           lastAccessTime: oldFavorite.lastAccessTime,
         ));
       }
-      
+
       viewModel.updateFileInList(file.path, movedFile);
       logger.i('File updated in list instantly');
       return true;
@@ -392,22 +393,22 @@ class FilePresenter {
     final renamedFile = await repository.renameFile(file, newName);
     if (renamedFile != null) {
       logger.i('File renamed successfully, updating in list');
-      
+
       // 如果文件被收藏，同步更新收藏记录中的路径
       if (viewModel.isFavoriteFile(file.path)) {
         logger.d('File is favorited, updating favorite path');
-        
+
         // 获取原收藏信息
         final oldFavorite = viewModel.favoriteFiles.firstWhere(
           (f) => f.filePath == file.path,
         );
-        
+
         // 更新数据源中的路径
         await favoriteFilesSource.updateFavoriteFilePath(
           file.path,
           renamedFile.path,
         );
-        
+
         // 同步更新 ViewModel 中的收藏状态
         viewModel.removeFavoriteFile(file.path);
         viewModel.addFavoriteFile(FavoriteFileItem(
@@ -417,7 +418,7 @@ class FilePresenter {
           lastAccessTime: oldFavorite.lastAccessTime,
         ));
       }
-      
+
       viewModel.updateFileInList(file.path, renamedFile);
       logger.i('File updated in list instantly');
       return true;

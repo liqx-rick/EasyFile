@@ -6,10 +6,10 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
-import 'package:easyfile/ui/pages/storage_page.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/ui/widgets/files_browse_card.dart';
+import 'package:easyfile/ui/widgets/storage_management_card.dart';
 
 /// 快速访问区域组件（可展开/折叠）
 ///
@@ -186,7 +186,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           final screenWidth = MediaQuery.of(context).size.width;
           final isSmallScreen = screenWidth < 360;
 
-          // 根据模式计算实际高度
+          // 根据模式计算快速访问区域实际高度
           double quickAccessHeight;
           if (isSingleButtonMode || isCompactMode) {
             // 单行模式：高度=分类图片高度
@@ -194,8 +194,28 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           } else {
             // 双行模式：高度=分类图片高度×2 + 行间距 + 底部间距
             final spacing = isSmallScreen ? 2.0 : 3.0;
-            quickAccessHeight =
-                widget.categoryCardSize * 2 + spacing + 3.0; // 加上底部3px间距
+            quickAccessHeight = widget.categoryCardSize * 2 + spacing + 3.0;
+          }
+
+          // 动态计算flex比例，使所有卡片宽度一致
+          // flex比例决定了快速访问区域和功能卡片区域的宽度分配
+          int quickAccessFlex;
+          int functionCardsFlex;
+          
+          if (isSingleButtonMode) {
+            // 单按钮模式：1个快速访问按钮 + 2个功能卡片并排 = 1:2
+            quickAccessFlex = 1;
+            functionCardsFlex = 2;
+          } else if (isCompactMode) {
+            // 单行模式：2-3个快速访问按钮 + 2个功能卡片并排
+            // flex比例 = 快速访问数量:2（例如2:2=1:1，3:2）
+            quickAccessFlex = totalDisplayCount;
+            functionCardsFlex = 2;
+          } else {
+            // 双行模式：4-6个快速访问按钮 + 2个功能卡片上下排列
+            // 固定比例2:1（功能卡片较窄，因为上下排列占用更多纵向空间）
+            quickAccessFlex = 2;
+            functionCardsFlex = 1;
           }
 
           return Row(
@@ -203,7 +223,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             children: [
               // 快速访问区域 - 根据模式调整比例
               Expanded(
-                flex: isSingleButtonMode ? 1 : 2, // 单按钮模式1:1，其他2:1
+                flex: quickAccessFlex,
                 child: _buildQuickAccessCards(
                   context,
                   displayFoldersForHome,
@@ -235,12 +255,12 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                 ),
               ),
 
-              // 存储空间信息 - 根据模式调整比例和显示
+              // 功能卡片区域 - 根据模式调整比例和显示
               Expanded(
-                flex: isSingleButtonMode ? 1 : 1, // 保持1:1或2:1比例
+                flex: functionCardsFlex,
                 child: SizedBox(
                   height: quickAccessHeight, // 固定高度以匹配快速访问区域
-                  child: _buildStorageInfoResponsive(
+                  child: _buildFunctionCards(
                       context, isCompactMode || isSingleButtonMode),
                 ),
               ),
@@ -824,236 +844,81 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     }
   }
 
-  /// 响应式存储信息显示（根据模式自动切换）
-  Widget _buildStorageInfoResponsive(BuildContext context, bool isCompactMode) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => StoragePage(
+  /// 构建功能卡片区域（文件浏览卡片 + 存储管理卡片）
+  /// 
+  /// 根据快速访问按钮数量自动调整布局：
+  /// - 单按钮模式：两个功能卡片并排显示（单行模式）
+  /// - 多按钮模式：两个功能卡片上下排列（双行模式）
+  /// 
+  /// 参数：
+  /// - [isCompactMode]: true为单行模式（并排显示），false为双行模式（上下排列）
+  Widget _buildFunctionCards(BuildContext context, bool isCompactMode) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    
+    // 计算单个卡片的可用高度，用于内部元素的动态尺寸计算
+    double availableHeight;
+    if (isCompactMode) {
+      // 单行模式：卡片高度等于分类图片卡片高度
+      availableHeight = widget.categoryCardSize;
+    } else {
+      // 双行模式：两个卡片平分总高度
+      // 总高度 = 分类图片高度×2 + 间距
+      // 单个卡片高度 = (总高度 - 卡片间间距) / 2 - 内边距
+      final spacing = isSmallScreen ? 2.0 : 3.0;
+      final totalHeight = widget.categoryCardSize * 2 + spacing + 3.0;
+      final cardSpacing = 3.0;
+      availableHeight = (totalHeight - cardSpacing) / 2 - 12;
+    }
+
+    if (isCompactMode) {
+      // 单行模式：两个卡片并排显示
+      return Row(
+        children: [
+          Expanded(
+            child: FilesBrowseCard(
+              totalSpace: _totalSpace,
+              freeSpace: _freeSpace,
+              isLoading: _loadingStorage,
               presenter: widget.filePresenter,
               viewModel: widget.fileViewModel,
+              isCompactMode: isCompactMode,
+              availableHeight: availableHeight,
             ),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 2, 4, 4), // 上边距减少到2px，其他保持4px
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest
-              .withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: isCompactMode
-            ? _buildStorageContentCompact(context)
-            : _buildStorageContentExpanded(context),
-      ),
-    );
-  }
-
-  /// 紧凑模式存储内容（单行 - 横向进度条）
-  Widget _buildStorageContentCompact(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min, // 使用最小尺寸，避免溢出
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.storage,
-              size: 12,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '存储',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3), // 减少间距
-        if (_loadingStorage)
-          const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else if (_totalSpace != null && _freeSpace != null) ...[
-          // 横向进度条
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: (_totalSpace! - _freeSpace!) / _totalSpace!,
-              backgroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.1) // 深色模式
-                  : Colors.grey[300], // 浅色模式
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _getStorageColor(_freeSpace! / _totalSpace!),
-              ),
-              minHeight: 4,
+          const SizedBox(width: 4),
+          Expanded(
+            child: StorageManagementCard(
+              isCompactMode: isCompactMode,
+              availableHeight: availableHeight,
             ),
           ),
-          const SizedBox(height: 2), // 减少间距
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用 / 共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-            ),
-          ),
-        ] else
-          Text(
-            '加载失败',
-            style: TextStyle(
-              fontSize: 10,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// 扩展模式存储内容（双行 - 圆形进度环）
-  Widget _buildStorageContentExpanded(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start, // 左对齐
-      mainAxisAlignment: MainAxisAlignment.start, // 顶部对齐
-      children: [
-        // "存储"标题在左上角
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.storage,
-              size: 14,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '存储',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4), // 减少间距，让圆环向上移动
-        if (_loadingStorage)
-          const Center(
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else if (_totalSpace != null && _freeSpace != null)
-          // 圆环和文字信息居中
-          Center(
-            child: Column(
-              children: [
-                // 圆形进度环
-                SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 50,
-                        height: 50,
-                        child: CircularProgressIndicator(
-                          value: (_totalSpace! - _freeSpace!) / _totalSpace!,
-                          strokeWidth: 5,
-                          backgroundColor:
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white.withValues(alpha: 0.1) // 深色模式
-                                  : Colors.grey[300], // 浅色模式
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            _getStorageColor(_freeSpace! / _totalSpace!),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${(((_totalSpace! - _freeSpace!) / _totalSpace!) * 100).toInt()}%',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: _getStorageColor(_freeSpace! / _totalSpace!),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // 文字信息
-                Text(
-                  '${FileSizeFormatter.formatStorageSize(_freeSpace!)} 可用',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '共 ${FileSizeFormatter.formatStorageSize(_totalSpace!)}',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.color
-                        ?.withValues(alpha: 0.5),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          )
-        else
-          Text(
-            '加载失败',
-            style: TextStyle(
-              fontSize: 11,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Color _getStorageColor(double freePercentage) {
-    // 可用空间百分比分级显示
-    if (freePercentage < 0.1) {
-      // 少于10% - 危险（红色）
-      return Colors.red;
-    } else if (freePercentage < 0.2) {
-      // 10%-20% - 警告（橙色）
-      return Colors.orange;
-    } else if (freePercentage < 0.3) {
-      // 20%-30% - 注意（黄色）
-      return Colors.amber;
+        ],
+      );
     } else {
-      // 大于30% - 充足（绿色）
-      return Colors.green;
+      // 双行模式：两个卡片上下排列
+      return Column(
+        children: [
+          Expanded(
+            child: FilesBrowseCard(
+              totalSpace: _totalSpace,
+              freeSpace: _freeSpace,
+              isLoading: _loadingStorage,
+              presenter: widget.filePresenter,
+              viewModel: widget.fileViewModel,
+              isCompactMode: isCompactMode,
+              availableHeight: availableHeight,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Expanded(
+            child: StorageManagementCard(
+              isCompactMode: isCompactMode,
+              availableHeight: availableHeight,
+            ),
+          ),
+        ],
+      );
     }
   }
 

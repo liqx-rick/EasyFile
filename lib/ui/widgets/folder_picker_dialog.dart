@@ -94,8 +94,9 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
   Future<void> _navigateUp() async {
     final parentPath = Directory(_currentPath).parent.path;
     // 允许向上导航，但不超出内部存储根目录
-    if (parentPath != _currentPath && 
-        (parentPath == _rootPath || parentPath.startsWith(_rootPath + Platform.pathSeparator))) {
+    if (parentPath != _currentPath &&
+        (parentPath == _rootPath ||
+            parentPath.startsWith(_rootPath + Platform.pathSeparator))) {
       await _navigateToFolder(parentPath);
     }
   }
@@ -105,63 +106,67 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final screenSize = MediaQuery.of(context).size;
-    
+
     // 判断是否为横屏模式
-    final isLandscape = screenSize.width > 700 && 
-                       screenSize.width / screenSize.height > 1.4;
-    
+    final isLandscape =
+        screenSize.width > 700 && screenSize.width / screenSize.height > 1.4;
+
     return AlertDialog(
       contentPadding: const EdgeInsets.all(0),
       content: SizedBox(
         width: isLandscape ? 800 : double.maxFinite,
         height: 500,
-        child: isLandscape 
+        child: isLandscape
             ? _buildLandscapeLayout(theme, isDark)
             : _buildPortraitLayout(theme, isDark),
       ),
-      actions: isLandscape ? null : [
-        // 操作信息
-        if (widget.sourceFileName != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '正在${widget.operationType}：',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+      actions: isLandscape
+          ? null
+          : [
+              // 操作信息
+              if (widget.sourceFileName != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0, vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '正在${widget.operationType}：',
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_getDisplayPath(widget.currentPath)}/${widget.sourceFileName!}',
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_getDisplayPath(widget.currentPath)}/${widget.sourceFileName!}',
-                  style: const TextStyle(fontSize: 13),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              // 按钮行
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(_currentPath),
+                      child: const Text('选择此文件夹'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        // 按钮行
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(_currentPath),
-                child: const Text('选择此文件夹'),
               ),
             ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -176,7 +181,9 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
           Row(
             children: [
               Icon(
-                widget.operationType == '复制' ? Icons.copy : Icons.drive_file_move,
+                widget.operationType == '复制'
+                    ? Icons.copy
+                    : Icons.drive_file_move,
                 size: 24,
                 color: theme.colorScheme.primary,
               ),
@@ -184,7 +191,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
                 ),
               ),
               if (_currentPath != _rootPath)
@@ -193,18 +201,19 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                   onPressed: _navigateUp,
                   tooltip: '返回上级',
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? Colors.grey[800] : Colors.grey[100],
+                    backgroundColor:
+                        isDark ? Colors.grey[800] : Colors.grey[100],
                     padding: const EdgeInsets.all(6),
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // 当前浏览路径
           _buildCurrentPathCard(theme, isDark),
           const SizedBox(height: 12),
-          
+
           // 文件夹列表
           Expanded(child: _buildFolderList()),
         ],
@@ -226,114 +235,117 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                  // 提示文字
+                // 提示文字
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '请在右侧选择文件夹',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    if (_currentPath != _rootPath)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_upward, size: 20),
+                        onPressed: _navigateUp,
+                        tooltip: '返回上级',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              isDark ? Colors.grey[800] : Colors.grey[100],
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 当前浏览路径卡片
+                _buildCurrentPathCard(theme, isDark),
+                const SizedBox(height: 16),
+
+                // 底部按钮
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(_currentPath),
+                        child: const Text('选择此文件夹'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 操作标识（图标和文字在同一行）
+                if (widget.sourceFileName != null) ...[
+                  const SizedBox(height: 25),
                   Row(
                     children: [
+                      Icon(
+                        widget.operationType == '复制'
+                            ? Icons.copy
+                            : Icons.drive_file_move,
+                        size: 40,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '请在右侧选择文件夹',
+                          '您正在${widget.operationType}：${widget.sourceFileName!}',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.primary,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (_currentPath != _rootPath)
-                        IconButton(
-                          icon: const Icon(Icons.arrow_upward, size: 20),
-                          onPressed: _navigateUp,
-                          tooltip: '返回上级',
-                          style: IconButton.styleFrom(
-                            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[100],
-                            padding: const EdgeInsets.all(8),
-                          ),
-                        ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // 当前浏览路径卡片
-                  _buildCurrentPathCard(theme, isDark),
-                  const SizedBox(height: 16),
-                  
-                  // 底部按钮
+                  const SizedBox(height: 10),
+
+                  // 当前位置
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.of(context).pop(_currentPath),
-                          child: const Text('选择此文件夹'),
+                      Text(
+                        '当前位置：',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey[400] : Colors.grey[700],
                         ),
                       ),
-                      
-                      const SizedBox(width: 12),
                       Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  // 操作标识（图标和文字在同一行）
-                  if (widget.sourceFileName != null) ...[
-                    const SizedBox(height: 25),
-                    Row(
-                      children: [
-                        Icon(
-                          widget.operationType == '复制' ? Icons.copy : Icons.drive_file_move,
-                          size: 40,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '您正在${widget.operationType}：${widget.sourceFileName!}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    
-                    // 当前位置
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '当前位置：',
+                        child: Text(
+                          _getDisplayPath(widget.currentPath),
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.grey[400] : Colors.grey[700],
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Expanded(
-                          child: Text(
-                            _getDisplayPath(widget.currentPath),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.grey[400] : Colors.grey[600],
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
+        ),
         // 分割线
         Container(
           width: 1,
@@ -391,7 +403,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     if (_folders.isEmpty) {
       return const Center(
         child: Column(
@@ -404,7 +416,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         ),
       );
     }
-    
+
     return ListView.builder(
       itemCount: _folders.length,
       itemBuilder: (context, index) {

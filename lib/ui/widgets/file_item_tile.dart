@@ -72,33 +72,11 @@ class _FileItemTileState extends State<FileItemTile> {
         !widget.file.isDirectory && FileUtils.isDocumentFile(widget.file.name);
 
     return ListTile(
-      dense: widget.dense,
+      //dense: widget.dense,
       contentPadding: widget.contentPaddingOverride,
-      minVerticalPadding: 0,
-      leading: isImage
-          ? ImageThumbnail(
-              imagePath: widget.file.path, size: widget.leadingSize)
-          : isVideo
-              ? RealVideoThumbnail(
-                  videoPath: widget.file.path,
-                  size: widget.leadingSize,
-                  showDuration: false, // 列表模式不显示时长标签
-                )
-              : isAudio
-                  ? AudioCoverWidget(
-                      audioPath: widget.file.path, size: widget.leadingSize)
-                  : isDocument
-                      ? DocumentIconWidgetRounded(
-                          fileName: widget.file.name, size: widget.leadingSize)
-                      : Icon(
-                          widget.file.isDirectory
-                              ? Icons.folder
-                              : _getFileIcon(),
-                          color: widget.file.isDirectory
-                              ? Colors.amber
-                              : _getFileColor(),
-                          size: widget.leadingSize,
-                        ),
+      minVerticalPadding: widget.showFullPath ? 8 : 0,
+      leading: _buildLeadingWidget(
+          isImage, isVideo, isAudio, isDocument, widget.showFullPath),
       title: Text(
         widget.file.name,
         style: TextStyle(
@@ -110,32 +88,32 @@ class _FileItemTileState extends State<FileItemTile> {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: widget.showFullPath
-          ? SizedBox(
-              height: 28,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.file.path,
-                      style: TextStyle(
-                          fontSize: widget.subtitleFontSize,
-                          color: Colors.blue),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.file.path,
+                  style: TextStyle(
+                    fontSize: widget.subtitleFontSize,
+                    color: Colors.blue[700],
                   ),
-                  Text(
-                    widget.file.isDirectory
-                        ? '文件夹'
-                        : FileUtils.formatFileSize(widget.file.size),
-                    style: TextStyle(fontSize: widget.subtitleFontSize),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.file.isDirectory
+                      ? '文件夹'
+                      : FileUtils.formatFileSize(widget.file.size),
+                  style: TextStyle(
+                    fontSize: widget.subtitleFontSize,
+                    color: Colors.grey[600],
                   ),
-                ],
-              ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             )
           : Text(
               _buildSubtitleText(),
@@ -152,6 +130,37 @@ class _FileItemTileState extends State<FileItemTile> {
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
     );
+  }
+
+  /// 构建leading图标/缩略图
+  ///
+  /// 根据文件类型和显示模式选择合适的图标或缩略图。
+  /// 当显示完整路径时，会使用更大的缩略图尺寸（72px）来匹配3行文本的高度。
+  Widget _buildLeadingWidget(bool isImage, bool isVideo, bool isAudio,
+      bool isDocument, bool showFullPath) {
+    // 显示路径时使用更大的缩略图尺寸（约3行高度：标题+路径+大小）
+    final thumbnailSize = showFullPath ? 72.0 : widget.leadingSize;
+
+    if (isImage) {
+      return ImageThumbnail(imagePath: widget.file.path, size: thumbnailSize);
+    } else if (isVideo) {
+      return RealVideoThumbnail(
+        videoPath: widget.file.path,
+        size: thumbnailSize,
+        showDuration: false, // 列表模式不显示时长标签
+      );
+    } else if (isAudio) {
+      return AudioCoverWidget(audioPath: widget.file.path, size: thumbnailSize);
+    } else if (isDocument) {
+      return DocumentIconWidgetRounded(
+          fileName: widget.file.name, size: thumbnailSize);
+    } else {
+      return Icon(
+        widget.file.isDirectory ? Icons.folder : _getFileIcon(),
+        color: widget.file.isDirectory ? Colors.amber : _getFileColor(),
+        size: thumbnailSize,
+      );
+    }
   }
 
   /// 构建trailing部分（收藏按钮 + 复选框，或文件夹图标）
