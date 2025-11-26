@@ -6,8 +6,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/utils/path_security.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
 
 class LocalFileRepository implements FileRepository {
+  final _displaySettings = FileDisplaySettingsService();
+
   @override
   Future<List<FileItem>> getFiles(String path) async {
     try {
@@ -29,12 +32,37 @@ class LocalFileRepository implements FileRepository {
       }
 
       logger.d('Reading directory contents...');
+      
+      // 获取显示设置
+      final showHidden = await _displaySettings.getShowHiddenFiles();
+      final showSystem = await _displaySettings.getShowSystemFiles();
+      logger.d('Display settings - showHidden: $showHidden, showSystem: $showSystem');
+      
       final entities = dir
           .listSync()
-          .where(
-            (entity) =>
-                !entity.path.split(Platform.pathSeparator).last.startsWith('.'),
-          )
+          .where((entity) {
+            final fileName = entity.path.split(Platform.pathSeparator).last;
+            
+            // 过滤隐藏文件（以.开头）
+            if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+              return false;
+            }
+            
+            // 过滤系统文件夹和文件
+            if (!showSystem) {
+              if (FileSystemEntity.isDirectorySync(entity.path)) {
+                if (FileDisplaySettingsService.isSystemFolder(fileName)) {
+                  return false;
+                }
+              } else {
+                if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                  return false;
+                }
+              }
+            }
+            
+            return true;
+          })
           .toList();
 
       logger.d('Found ${entities.length} entities');

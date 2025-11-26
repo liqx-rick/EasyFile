@@ -9,6 +9,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_category.dart';
@@ -277,6 +278,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
 
+  // 文件显示设置
+  bool _showFullPath = false;
+
   // 过滤后的文件列表（按搜索和文件类型筛选）
   List<FileItem> get _filteredFiles {
     var result = _files;
@@ -318,9 +322,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     PageSettingsService().addListener(_onPageSettingsChanged);
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
+    
+    // 加载显示设置
+    _loadDisplaySettings();
     categoryInfo = CategoryInfo.getInfoByType(widget.categoryType)!;
     _loadFileTypeFilter();
     _loadCategoryFiles();
+  }
+
+  /// 加载显示设置
+  Future<void> _loadDisplaySettings() async {
+    final displaySettings = FileDisplaySettingsService();
+    final showFullPath = await displaySettings.getShowFullPath();
+    if (mounted) {
+      setState(() {
+        _showFullPath = showFullPath;
+      });
+    }
   }
 
   /// ViewModel变化回调 - 同步文件列表
@@ -676,6 +694,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 每次构建时检查并更新显示设置
+    _loadDisplaySettings();
+    
     return ChangeNotifierProvider<FileViewModel>.value(
       value: widget.viewModel,
       child: Consumer<PageSettingsService>(
@@ -1058,7 +1079,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       cacheExtent: _isGridView ? 1000.0 : 600.0,
                       selectionController: _selectionController,
                       // 列表模式显示选项
-                      showFullPath: false, // 搜索模式下不显示路径文本
+                      showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
                       showFavoriteButton: true,
                       isFavorite: (path) =>
                           widget.viewModel.isFavoriteFile(path),
@@ -1274,7 +1295,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
       // 显示选项
-      showFullPath: false, // 搜索模式下不显示路径文本
+      showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
       showFavoriteButton: true,
       isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
       onFavoriteToggle: (file) async {

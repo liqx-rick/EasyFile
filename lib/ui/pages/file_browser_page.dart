@@ -653,9 +653,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 处理菜单操作
   void _handleMenuAction(String action) {
     switch (action) {
-      case 'theme':
-        presenter.toggleTheme();
-        break;
       case 'settings':
         _navigateToSettings();
         break;
@@ -707,12 +704,21 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 导航到设置页面
-  void _navigateToSettings() {
-    Navigator.of(context).push(
+  void _navigateToSettings() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const SettingsPage(),
       ),
     );
+    
+    // 从设置页面返回后，刷新当前视图
+    if (viewModel.currentTab == TabView.browse && viewModel.currentPath.isNotEmpty) {
+      await presenter.loadFiles(viewModel.currentPath);
+    } else if (viewModel.currentTab == TabView.recent) {
+      await presenter.loadRecentFiles();
+    } else if (viewModel.currentTab == TabView.favorite) {
+      await presenter.loadFavoriteFiles();
+    }
   }
 
   /// 导航到快速访问管理页面
@@ -730,30 +736,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         ),
       ),
     );
-  }
-
-  /// 获取主题图标
-  IconData _getThemeIcon(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.light:
-        return Icons.light_mode; // 浅色模式：太阳
-      case ThemeMode.dark:
-        return Icons.dark_mode; // 深色模式：月亮
-      case ThemeMode.system:
-        return Icons.brightness_auto; // 跟随系统：自动亮度图标
-    }
-  }
-
-  /// 获取主题菜单文本
-  String _getThemeMenuText(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.light:
-        return '切换主题（当前：浅色）';
-      case ThemeMode.dark:
-        return '切换主题（当前：深色）';
-      case ThemeMode.system:
-        return '切换主题（跟随系统）';
-    }
   }
 
   /// 构建 Tab 按钮
@@ -1768,17 +1750,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         PopupMenuButton<String>(
                           onSelected: _handleMenuAction,
                           itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'theme',
-                              child: Row(
-                                children: [
-                                  Icon(_getThemeIcon(vm.themeMode)),
-                                  const SizedBox(width: 8),
-                                  Text(_getThemeMenuText(vm.themeMode)),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuDivider(),
                             const PopupMenuItem(
                               value: 'settings',
                               child: Row(

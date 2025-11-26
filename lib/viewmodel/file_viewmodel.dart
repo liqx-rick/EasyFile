@@ -50,6 +50,7 @@ class FileViewModel extends ChangeNotifier {
   // SharedPreferences keys
   static const String _keyCurrentTab = 'current_tab';
   static const String _keyLastBrowsePath = 'last_browse_path';
+  static const String _keyThemeMode = 'theme_mode';
 
   FileViewModel() {
     _loadSavedState();
@@ -75,6 +76,16 @@ class FileViewModel extends ChangeNotifier {
       if (_lastBrowsePath != null) {
         logger.d('Restored last browse path: $_lastBrowsePath');
       }
+
+      // 加载主题模式
+      final savedThemeMode = prefs.getString(_keyThemeMode);
+      if (savedThemeMode != null) {
+        _themeMode = ThemeMode.values.firstWhere(
+          (e) => e.toString() == savedThemeMode,
+          orElse: () => ThemeMode.system,
+        );
+        logger.d('Restored theme mode: $_themeMode');
+      }
     } catch (e) {
       logger.e('Error loading saved state: $e');
     }
@@ -85,12 +96,13 @@ class FileViewModel extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyCurrentTab, _currentTab.toString());
+      await prefs.setString(_keyThemeMode, _themeMode.toString());
 
       if (_currentTab == TabView.browse && _currentPath.isNotEmpty) {
         await prefs.setString(_keyLastBrowsePath, _currentPath);
       }
 
-      logger.d('Saved current state: tab=$_currentTab, path=$_currentPath');
+      logger.d('Saved current state: tab=$_currentTab, path=$_currentPath, theme=$_themeMode');
     } catch (e) {
       logger.e('Error saving current state: $e');
     }
@@ -377,8 +389,9 @@ class FileViewModel extends ChangeNotifier {
 
   // 主题相关方法
   void setThemeMode(ThemeMode mode) {
-    logger.d('Setting theme mode: $mode');
+    logger.i('Setting theme mode: $mode');
     _themeMode = mode;
+    _saveCurrentState(); // 保存主题模式
     notifyListeners();
   }
 
@@ -396,6 +409,7 @@ class FileViewModel extends ChangeNotifier {
         _themeMode = ThemeMode.light;
         break;
     }
+    _saveCurrentState(); // 保存主题模式
     notifyListeners();
   }
 

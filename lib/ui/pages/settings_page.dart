@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 
@@ -15,7 +17,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _settingsService = PageSettingsService();
+  final _displaySettings = FileDisplaySettingsService();
+  
   bool _gridShowFileInfo = true; // 默认值，会在initState中加载
+  bool _showHiddenFiles = false;
+  bool _showSystemFiles = false;
+  bool _showFullPath = false;
 
   @override
   void initState() {
@@ -28,8 +35,17 @@ class _SettingsPageState extends State<SettingsPage> {
     // 使用categoryImages作为参考页面来获取默认行为
     final showInfo =
         _settingsService.getGridShowFileInfo(PageId.categoryImages);
+    
+    // 加载文件显示设置
+    final showHidden = await _displaySettings.getShowHiddenFiles();
+    final showSystem = await _displaySettings.getShowSystemFiles();
+    final showFullPath = await _displaySettings.getShowFullPath();
+    
     setState(() {
       _gridShowFileInfo = showInfo;
+      _showHiddenFiles = showHidden;
+      _showSystemFiles = showSystem;
+      _showFullPath = showFullPath;
     });
   }
 
@@ -45,29 +61,26 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
-          // 显示设置部分
-          _buildSectionHeader('显示设置', Icons.display_settings),
+          // 视图与排序部分
+          _buildSectionHeader('视图与排序', Icons.view_module),
           _buildRestoreDefaultsTile(context),
           _buildCurrentSettingsTile(context),
           _buildRecommendedSettingsTile(context),
-          _buildGridFileInfoToggle(context),
 
           const Divider(height: 32),
 
-          // 文件管理（预留）
+          // 显示设置部分
+          _buildSectionHeader('显示设置', Icons.visibility),
+          _buildThemeModeTile(context),
+          _buildGridFileInfoToggle(context),
+          _buildShowFullPathToggle(context),
+
+          const Divider(height: 32),
+
+          // 文件管理部分
           _buildSectionHeader('文件管理', Icons.folder_open),
-          _buildComingSoonTile(
-            context,
-            '隐藏系统文件',
-            '过滤系统和隐藏文件',
-            Icons.visibility_off,
-          ),
-          _buildComingSoonTile(
-            context,
-            '显示隐藏文件',
-            '显示以点开头的隐藏文件',
-            Icons.visibility,
-          ),
+          _buildShowHiddenFilesToggle(context),
+          _buildShowSystemFilesToggle(context),
 
           const Divider(height: 32),
 
@@ -276,6 +289,112 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// 主题模式设置
+  Widget _buildThemeModeTile(BuildContext context) {
+    final viewModel = context.watch<FileViewModel>();
+    final currentTheme = viewModel.themeMode;
+    
+    String getThemeText(ThemeMode mode) {
+      switch (mode) {
+        case ThemeMode.light:
+          return '浅色';
+        case ThemeMode.dark:
+          return '深色';
+        case ThemeMode.system:
+          return '跟随系统';
+      }
+    }
+    
+    IconData getThemeIcon(ThemeMode mode) {
+      switch (mode) {
+        case ThemeMode.light:
+          return Icons.light_mode;
+        case ThemeMode.dark:
+          return Icons.dark_mode;
+        case ThemeMode.system:
+          return Icons.brightness_auto;
+      }
+    }
+
+    return ListTile(
+      leading: Icon(getThemeIcon(currentTheme)),
+      title: const Text('主题模式'),
+      subtitle: Text('当前：${getThemeText(currentTheme)}'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showThemeDialog(context, viewModel),
+    );
+  }
+
+  /// 显示主题选择对话框
+  void _showThemeDialog(BuildContext context, FileViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('选择主题模式'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<ThemeMode>(
+              title: const Row(
+                children: [
+                  Icon(Icons.light_mode, size: 20),
+                  SizedBox(width: 12),
+                  Text('浅色'),
+                ],
+              ),
+              value: ThemeMode.light,
+              groupValue: viewModel.themeMode,
+              onChanged: (value) {
+                if (value != null) {
+                  viewModel.setThemeMode(value);
+                  Navigator.pop(context);
+                }
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Row(
+                children: [
+                  Icon(Icons.dark_mode, size: 20),
+                  SizedBox(width: 12),
+                  Text('深色'),
+                ],
+              ),
+              value: ThemeMode.dark,
+              groupValue: viewModel.themeMode,
+              onChanged: (value) {
+                if (value != null) {
+                  viewModel.setThemeMode(value);
+                  Navigator.pop(context);
+                }
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: const Row(
+                children: [
+                  Icon(Icons.brightness_auto, size: 20),
+                  SizedBox(width: 12),
+                  Text('跟随系统'),
+                ],
+              ),
+              subtitle: const Text(
+                '根据系统设置自动切换',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: ThemeMode.system,
+              groupValue: viewModel.themeMode,
+              onChanged: (value) {
+                if (value != null) {
+                  viewModel.setThemeMode(value);
+                  Navigator.pop(context);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 网格模式文件信息显示开关
   Widget _buildGridFileInfoToggle(BuildContext context) {
     return SwitchListTile(
@@ -302,6 +421,84 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           );
         }
+      },
+    );
+  }
+
+  /// 显示隐藏文件开关
+  Widget _buildShowHiddenFilesToggle(BuildContext context) {
+    return SwitchListTile(
+      secondary: Icon(
+        _showHiddenFiles ? Icons.visibility : Icons.visibility_off,
+      ),
+      title: const Text('显示隐藏文件'),
+      subtitle: Text(
+        _showHiddenFiles 
+            ? '当前显示以 . 开头的隐藏文件' 
+            : '当前隐藏以 . 开头的文件',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      value: _showHiddenFiles,
+      onChanged: (value) async {
+        setState(() {
+          _showHiddenFiles = value;
+        });
+        await _displaySettings.setShowHiddenFiles(value);
+      },
+    );
+  }
+
+  /// 显示系统文件开关
+  Widget _buildShowSystemFilesToggle(BuildContext context) {
+    return SwitchListTile(
+      secondary: Icon(
+        _showSystemFiles ? Icons.folder_special : Icons.folder_off,
+      ),
+      title: const Text('显示系统文件'),
+      subtitle: Text(
+        _showSystemFiles 
+            ? '当前显示 Android、.thumbnails 等系统文件夹' 
+            : '当前隐藏系统文件夹和文件',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      value: _showSystemFiles,
+      onChanged: (value) async {
+        setState(() {
+          _showSystemFiles = value;
+        });
+        await _displaySettings.setShowSystemFiles(value);
+      },
+    );
+  }
+
+  /// 显示完整路径开关
+  Widget _buildShowFullPathToggle(BuildContext context) {
+    return SwitchListTile(
+      secondary: Icon(
+        _showFullPath ? Icons.folder_open : Icons.folder,
+      ),
+      title: const Text('显示文件路径'),
+      subtitle: Text(
+        _showFullPath 
+            ? '分类列表模式下显示文件完整路径' 
+            : '分类列表模式下不显示路径',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      value: _showFullPath,
+      onChanged: (value) async {
+        setState(() {
+          _showFullPath = value;
+        });
+        await _displaySettings.setShowFullPath(value);
       },
     );
   }
