@@ -97,6 +97,48 @@ class AppLogger {
   void w(String msg) => _write('WARN', msg);
   void e(String msg) => _write('ERROR', msg);
 
+  /// Get the size of the log file in bytes
+  Future<int> getLogSize() async {
+    try {
+      if (logPath == null) return 0;
+      final file = File(logPath!);
+      if (await file.exists()) {
+        return await file.length();
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Clear the log file
+  Future<void> clearLogs() async {
+    try {
+      if (logPath == null) return;
+      final file = File(logPath!);
+      if (await file.exists()) {
+        // Close current sink
+        await _sink?.flush();
+        await _sink?.close();
+
+        // Delete the file
+        await file.delete();
+
+        // Reopen the file (empty)
+        _sink = file.openWrite(mode: FileMode.append);
+
+        // Don't log here to keep the file empty after clearing
+      }
+    } catch (e) {
+      // If clearing fails, try to continue logging
+      // Reopen sink to continue logging
+      if (logPath != null) {
+        final file = File(logPath!);
+        _sink = file.openWrite(mode: FileMode.append);
+      }
+    }
+  }
+
   Future<void> dispose() async {
     try {
       await _sink?.flush();

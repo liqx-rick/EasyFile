@@ -298,7 +298,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 bottom: 0,
                 child: Center(
                   child: Container(
-                      decoration: BoxDecoration(
+                    decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.25),
                       shape: BoxShape.circle,
                       border: Border.all(
@@ -306,7 +306,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                         width: 2,
                       ),
                       boxShadow: [
-                          BoxShadow(
+                        BoxShadow(
                           color: Colors.black.withOpacity(0.2),
                           blurRadius: 12,
                           spreadRadius: 2,
@@ -342,7 +342,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 bottom: 0,
                 child: Center(
                   child: Container(
-                      decoration: BoxDecoration(
+                    decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.25),
                       shape: BoxShape.circle,
                       border: Border.all(
@@ -350,7 +350,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                         width: 2,
                       ),
                       boxShadow: [
-                          BoxShadow(
+                        BoxShadow(
                           color: Colors.black.withOpacity(0.2),
                           blurRadius: 12,
                           spreadRadius: 2,
@@ -478,7 +478,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         FileUtils.isPdfFile(currentFile.name);
 
     // If previewing media (black background) keep icons white for visibility.
-    final iconColor = (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
+    final iconColor =
+        (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
 
     return AppBar(
       backgroundColor: Colors.black.withOpacity(0.6), // 半透明黑色背景（60%不透明度）
@@ -501,7 +502,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       iconTheme: IconThemeData(color: iconColor),
       actions: [
         // 打印按钮（只对支持打印的文件显示，且服务可用时）
-        if (!currentFile.isDirectory && _operationsService != null && _canPrint(currentFile))
+        if (!currentFile.isDirectory &&
+            _operationsService != null &&
+            _canPrint(currentFile))
           IconButton(
             icon: const Icon(Icons.print),
             onPressed: () => _printFile(currentFile),
@@ -522,7 +525,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
             tooltip: _isFavorite ? '取消收藏' : '添加到收藏',
           ),
         // 三点菜单（只在服务可用时显示）
-          if (_operationsService != null)
+        if (_operationsService != null)
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: iconColor),
             tooltip: '更多操作',
@@ -539,9 +542,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.info_outline,
+                          size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('文件详情', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('文件详情',
+                          style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -552,9 +557,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.edit, size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.edit,
+                          size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('重命名', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('重命名',
+                          style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -565,9 +572,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.drive_file_move, size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.drive_file_move,
+                          size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('移动', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('移动',
+                          style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -578,9 +587,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.content_copy, size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.content_copy,
+                          size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('复制', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('复制',
+                          style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -610,7 +621,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     // 确保在执行操作前重新获取有效的 context
     // 这样可以避免 PopupMenu 关闭时的 context 问题
     if (!mounted) return;
-    
+
     bool operationSuccess = false;
     switch (action) {
       case 'details':
@@ -658,7 +669,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   }
 
   /// 打印文件
-  /// 
+  ///
   /// 根据文件类型调用对应的打印方法：
   /// - 图片：转换为 PDF 后打印
   /// - PDF：直接打印原始文件
@@ -683,7 +694,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   }
 
   /// 打印图片
-  /// 
+  ///
   /// 将图片文件转换为 PDF 格式后打印
   /// 图片会自动缩放以适配页面大小，居中显示
   Future<void> _printImage(FileItem file) async {
@@ -714,7 +725,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   }
 
   /// 打印 PDF
-  /// 
+  ///
   /// 直接使用原始 PDF 文件字节进行打印
   /// 保留 PDF 原始格式和布局
   Future<void> _printPdf(FileItem file) async {
@@ -732,7 +743,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   }
 
   /// 打印文本
-  /// 
+  ///
   /// 将文本文件格式化为 PDF 后打印
   /// 功能特性：
   /// - 带文件名标题
@@ -755,8 +766,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
       // 限制内容长度，避免生成过大的 PDF
       const maxLength = 50000; // 约 50KB 文本
       if (content.length > maxLength) {
-        content = content.substring(0, maxLength) +
-            '\n\n... (内容过长，已截断) ...';
+        content = '${content.substring(0, maxLength)}\n\n... (内容过长，已截断) ...';
       }
 
       await Printing.layoutPdf(

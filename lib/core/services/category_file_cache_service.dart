@@ -134,18 +134,83 @@ class CategoryFileCacheService {
     }
   }
 
-  /// 清除缓存
+  /// 清除缓存（包括统计数据和文件列表）
   Future<bool> clearCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // 清除统计数据
       await prefs.remove(_keyCategoryCounts);
       await prefs.remove(_keyLastScanTime);
       await prefs.remove(_keyTotalFilesScanned);
-      logger.i('Category cache cleared');
+
+      // 清除文件列表缓存
+      await clearFileListsCache();
+
+      logger.i('Category cache cleared (including file lists)');
       return true;
     } catch (e, stackTrace) {
       logger.e('Error clearing category cache: $e\n$stackTrace');
       return false;
+    }
+  }
+
+  /// 清除分类文件列表缓存
+  Future<bool> clearFileListsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // 分类文件列表的缓存键
+      final fileListKeys = [
+        'category_cache_images',
+        'category_cache_video',
+        'category_cache_music',
+        'category_cache_documents',
+        'category_cache_downloads',
+      ];
+
+      int clearedCount = 0;
+      for (final key in fileListKeys) {
+        if (prefs.containsKey(key)) {
+          await prefs.remove(key);
+          clearedCount++;
+        }
+      }
+
+      logger.i('Cleared $clearedCount file list caches');
+      return true;
+    } catch (e, stackTrace) {
+      logger.e('Error clearing file lists cache: $e\n$stackTrace');
+      return false;
+    }
+  }
+
+  /// 获取文件列表缓存大小（估算）
+  Future<int> getFileListsCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final fileListKeys = [
+        'category_cache_images',
+        'category_cache_video',
+        'category_cache_music',
+        'category_cache_documents',
+        'category_cache_downloads',
+      ];
+
+      int totalSize = 0;
+      for (final key in fileListKeys) {
+        final value = prefs.getString(key);
+        if (value != null) {
+          // 估算：字符串长度 × 2（UTF-16编码）
+          totalSize += value.length * 2;
+        }
+      }
+
+      return totalSize;
+    } catch (e) {
+      logger.e('Error getting file lists cache size: $e');
+      return 0;
     }
   }
 

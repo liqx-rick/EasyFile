@@ -710,9 +710,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         builder: (context) => const SettingsPage(),
       ),
     );
-    
+
     // 从设置页面返回后，刷新当前视图
-    if (viewModel.currentTab == TabView.browse && viewModel.currentPath.isNotEmpty) {
+    if (viewModel.currentTab == TabView.browse &&
+        viewModel.currentPath.isNotEmpty) {
       await presenter.loadFiles(viewModel.currentPath);
     } else if (viewModel.currentTab == TabView.recent) {
       await presenter.loadRecentFiles();

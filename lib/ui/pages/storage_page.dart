@@ -47,7 +47,7 @@ class _StoragePageState extends State<StoragePage> {
   // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  
+
   // 缓存的设置值，用于检测变化
   bool? _cachedShowHidden;
   bool? _cachedShowSystem;
@@ -368,20 +368,21 @@ class _StoragePageState extends State<StoragePage> {
     widget.viewModel.addListener(_onViewModelChanged);
     _loadStorageFiles();
   }
-  
+
   /// ViewModel变化回调 - 同步文件列表
   void _onViewModelChanged() {
     if (mounted) {
       final oldPath = widget.viewModel.lastUpdatedOldPath;
       final newFile = widget.viewModel.lastUpdatedNewFile;
-      
+
       if (oldPath != null && newFile != null) {
         setState(() {
           // 在本地列表中找到旧路径的文件并替换
           final index = _files.indexWhere((f) => f.path == oldPath);
           if (index != -1) {
             _files[index] = newFile;
-            logger.d('Updated file in storage page: $oldPath -> ${newFile.path}');
+            logger
+                .d('Updated file in storage page: $oldPath -> ${newFile.path}');
           }
         });
       }
@@ -411,18 +412,19 @@ class _StoragePageState extends State<StoragePage> {
   /// 返回存储页面时会自动刷新文件列表。
   void _checkAndRefreshIfSettingsChanged() {
     final displaySettings = FileDisplaySettingsService();
-    
+
     // 异步检查设置
     displaySettings.getShowHiddenFiles().then((showHidden) {
       displaySettings.getShowSystemFiles().then((showSystem) {
         // 检查设置是否变化
         if (_cachedShowHidden != null && _cachedShowSystem != null) {
-          if (_cachedShowHidden != showHidden || _cachedShowSystem != showSystem) {
+          if (_cachedShowHidden != showHidden ||
+              _cachedShowSystem != showSystem) {
             // 设置已变化，更新缓存并刷新
             _cachedShowHidden = showHidden;
             _cachedShowSystem = showSystem;
             logger.i('Display settings changed, refreshing storage page');
-            
+
             // 刷新当前视图
             if (_currentPath.isNotEmpty && _currentPath != _rootPath) {
               _loadFilesInPath(_currentPath);
@@ -464,37 +466,35 @@ class _StoragePageState extends State<StoragePage> {
         final displaySettings = FileDisplaySettingsService();
         final showHidden = await displaySettings.getShowHiddenFiles();
         final showSystem = await displaySettings.getShowSystemFiles();
-        
+
         // 更新缓存
         _cachedShowHidden = showHidden;
         _cachedShowSystem = showSystem;
-        
-        final entities = directory
-            .listSync()
-            .where((entity) {
-              final fileName = entity.path.split(Platform.pathSeparator).last;
-              
-              // 过滤隐藏文件
-              if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+
+        final entities = directory.listSync().where((entity) {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+
+          // 过滤隐藏文件
+          if (!showHidden &&
+              FileDisplaySettingsService.isHiddenFile(fileName)) {
+            return false;
+          }
+
+          // 过滤系统文件夹和文件
+          if (!showSystem) {
+            if (FileSystemEntity.isDirectorySync(entity.path)) {
+              if (FileDisplaySettingsService.isSystemFolder(fileName)) {
                 return false;
               }
-              
-              // 过滤系统文件夹和文件
-              if (!showSystem) {
-                if (FileSystemEntity.isDirectorySync(entity.path)) {
-                  if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-                    return false;
-                  }
-                } else {
-                  if (FileDisplaySettingsService.isSystemFile(fileName)) {
-                    return false;
-                  }
-                }
+            } else {
+              if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                return false;
               }
-              
-              return true;
-            })
-            .toList();
+            }
+          }
+
+          return true;
+        }).toList();
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
 
@@ -597,37 +597,35 @@ class _StoragePageState extends State<StoragePage> {
         final displaySettings = FileDisplaySettingsService();
         final showHidden = await displaySettings.getShowHiddenFiles();
         final showSystem = await displaySettings.getShowSystemFiles();
-        
+
         // 更新缓存
         _cachedShowHidden = showHidden;
         _cachedShowSystem = showSystem;
-        
-        final entities = directory
-            .listSync()
-            .where((entity) {
-              final fileName = entity.path.split(Platform.pathSeparator).last;
-              
-              // 过滤隐藏文件
-              if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+
+        final entities = directory.listSync().where((entity) {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+
+          // 过滤隐藏文件
+          if (!showHidden &&
+              FileDisplaySettingsService.isHiddenFile(fileName)) {
+            return false;
+          }
+
+          // 过滤系统文件夹和文件
+          if (!showSystem) {
+            if (FileSystemEntity.isDirectorySync(entity.path)) {
+              if (FileDisplaySettingsService.isSystemFolder(fileName)) {
                 return false;
               }
-              
-              // 过滤系统文件夹和文件
-              if (!showSystem) {
-                if (FileSystemEntity.isDirectorySync(entity.path)) {
-                  if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-                    return false;
-                  }
-                } else {
-                  if (FileDisplaySettingsService.isSystemFile(fileName)) {
-                    return false;
-                  }
-                }
+            } else {
+              if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                return false;
               }
-              
-              return true;
-            })
-            .toList();
+            }
+          }
+
+          return true;
+        }).toList();
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
@@ -714,7 +712,7 @@ class _StoragePageState extends State<StoragePage> {
   Widget build(BuildContext context) {
     // 检查设置是否变化，如果变化则重新加载
     _checkAndRefreshIfSettingsChanged();
-    
+
     return WillPopScope(
       onWillPop: () async {
         // 优先级1: 退出批量选择模式

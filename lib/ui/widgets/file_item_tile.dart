@@ -75,7 +75,8 @@ class _FileItemTileState extends State<FileItemTile> {
       //dense: widget.dense,
       contentPadding: widget.contentPaddingOverride,
       minVerticalPadding: widget.showFullPath ? 8 : 0,
-      leading: _buildLeadingWidget(isImage, isVideo, isAudio, isDocument, widget.showFullPath),
+      leading: _buildLeadingWidget(
+          isImage, isVideo, isAudio, isDocument, widget.showFullPath),
       title: Text(
         widget.file.name,
         style: TextStyle(
@@ -135,13 +136,13 @@ class _FileItemTileState extends State<FileItemTile> {
   ///
   /// 根据文件类型和显示模式选择合适的图标或缩略图。
   /// 当显示完整路径时，会使用更大的缩略图尺寸（72px）来匹配3行文本的高度。
-  Widget _buildLeadingWidget(bool isImage, bool isVideo, bool isAudio, bool isDocument, bool showFullPath) {
+  Widget _buildLeadingWidget(bool isImage, bool isVideo, bool isAudio,
+      bool isDocument, bool showFullPath) {
     // 显示路径时使用更大的缩略图尺寸（约3行高度：标题+路径+大小）
     final thumbnailSize = showFullPath ? 72.0 : widget.leadingSize;
-    
+
     if (isImage) {
-      return ImageThumbnail(
-          imagePath: widget.file.path, size: thumbnailSize);
+      return ImageThumbnail(imagePath: widget.file.path, size: thumbnailSize);
     } else if (isVideo) {
       return RealVideoThumbnail(
         videoPath: widget.file.path,
@@ -149,8 +150,7 @@ class _FileItemTileState extends State<FileItemTile> {
         showDuration: false, // 列表模式不显示时长标签
       );
     } else if (isAudio) {
-      return AudioCoverWidget(
-          audioPath: widget.file.path, size: thumbnailSize);
+      return AudioCoverWidget(audioPath: widget.file.path, size: thumbnailSize);
     } else if (isDocument) {
       return DocumentIconWidgetRounded(
           fileName: widget.file.name, size: thumbnailSize);

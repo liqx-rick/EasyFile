@@ -32,38 +32,36 @@ class LocalFileRepository implements FileRepository {
       }
 
       logger.d('Reading directory contents...');
-      
+
       // 获取显示设置
       final showHidden = await _displaySettings.getShowHiddenFiles();
       final showSystem = await _displaySettings.getShowSystemFiles();
-      logger.d('Display settings - showHidden: $showHidden, showSystem: $showSystem');
-      
-      final entities = dir
-          .listSync()
-          .where((entity) {
-            final fileName = entity.path.split(Platform.pathSeparator).last;
-            
-            // 过滤隐藏文件（以.开头）
-            if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+      logger.d(
+          'Display settings - showHidden: $showHidden, showSystem: $showSystem');
+
+      final entities = dir.listSync().where((entity) {
+        final fileName = entity.path.split(Platform.pathSeparator).last;
+
+        // 过滤隐藏文件（以.开头）
+        if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+          return false;
+        }
+
+        // 过滤系统文件夹和文件
+        if (!showSystem) {
+          if (FileSystemEntity.isDirectorySync(entity.path)) {
+            if (FileDisplaySettingsService.isSystemFolder(fileName)) {
               return false;
             }
-            
-            // 过滤系统文件夹和文件
-            if (!showSystem) {
-              if (FileSystemEntity.isDirectorySync(entity.path)) {
-                if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-                  return false;
-                }
-              } else {
-                if (FileDisplaySettingsService.isSystemFile(fileName)) {
-                  return false;
-                }
-              }
+          } else {
+            if (FileDisplaySettingsService.isSystemFile(fileName)) {
+              return false;
             }
-            
-            return true;
-          })
-          .toList();
+          }
+        }
+
+        return true;
+      }).toList();
 
       logger.d('Found ${entities.length} entities');
       final files = entities.map((e) => FileItem.fromEntity(e)).toList();
@@ -164,31 +162,36 @@ class LocalFileRepository implements FileRepository {
       // 构建完整的目标路径（目录 + 文件/文件夹名）
       final fileName = path.basename(file.path);
       final sourceDir = path.dirname(file.path);
-      
+
       // 检查是否复制到同一目录
       if (path.normalize(sourceDir) == path.normalize(destinationPath)) {
         logger.w('Cannot copy to same directory: $destinationPath');
-        
+
         // 生成新文件名（添加副本后缀）
         final extension = path.extension(fileName);
         final nameWithoutExt = path.basenameWithoutExtension(fileName);
         String newFileName;
         String fullDestinationPath;
         int copyNumber = 1;
-        
+
         // 查找可用的文件名
         do {
           if (file.isDirectory) {
-            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}';
+            newFileName =
+                '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}';
           } else {
-            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}$extension';
+            newFileName =
+                '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}$extension';
           }
           fullDestinationPath = path.join(destinationPath, newFileName);
           copyNumber++;
-        } while ((file.isDirectory ? Directory(fullDestinationPath) : File(fullDestinationPath)).existsSync());
-        
+        } while ((file.isDirectory
+                ? Directory(fullDestinationPath)
+                : File(fullDestinationPath))
+            .existsSync());
+
         logger.i('Using new name: $newFileName');
-        
+
         // 使用新文件名进行复制
         bool success;
         if (file.isDirectory) {
@@ -196,13 +199,13 @@ class LocalFileRepository implements FileRepository {
         } else {
           success = await _copyFileInternal(file.path, fullDestinationPath);
         }
-        
+
         if (success) {
-          final copiedEntity = file.isDirectory 
-              ? Directory(fullDestinationPath) 
+          final copiedEntity = file.isDirectory
+              ? Directory(fullDestinationPath)
               : File(fullDestinationPath);
           final stat = await copiedEntity.stat();
-          
+
           return FileItem(
             path: fullDestinationPath,
             name: newFileName,
@@ -213,7 +216,7 @@ class LocalFileRepository implements FileRepository {
         }
         return null;
       }
-      
+
       // 正常复制到不同目录
       final fullDestinationPath = path.join(destinationPath, fileName);
 
@@ -226,11 +229,11 @@ class LocalFileRepository implements FileRepository {
 
       if (success) {
         // 获取复制后的文件信息
-        final copiedEntity = file.isDirectory 
-            ? Directory(fullDestinationPath) 
+        final copiedEntity = file.isDirectory
+            ? Directory(fullDestinationPath)
             : File(fullDestinationPath);
         final stat = await copiedEntity.stat();
-        
+
         return FileItem(
           path: fullDestinationPath,
           name: fileName,
@@ -329,7 +332,7 @@ class LocalFileRepository implements FileRepository {
       await source.rename(fullDestinationPath);
 
       logger.i('File moved successfully: ${file.path} -> $fullDestinationPath');
-      
+
       // 返回更新后的 FileItem
       return FileItem(
         path: fullDestinationPath,
@@ -345,11 +348,11 @@ class LocalFileRepository implements FileRepository {
         final copiedFile = await copyFile(file, destinationPath);
         if (copiedFile != null) {
           await deleteFile(file);
-          
+
           logger.i(
             'File moved using copy+delete: ${file.path} -> ${copiedFile.path}',
           );
-          
+
           // 返回复制的文件信息
           return copiedFile;
         }
@@ -441,7 +444,7 @@ class LocalFileRepository implements FileRepository {
       await source.rename(newPath);
 
       logger.i('File renamed successfully: ${file.path} -> $newPath');
-      
+
       // Return updated FileItem with new path and name
       return FileItem(
         path: newPath,

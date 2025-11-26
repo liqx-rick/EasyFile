@@ -176,7 +176,8 @@ class SelectionBottomBar extends StatelessWidget {
                 PopupMenuItem<String>(
                   value: 'rename',
                   enabled: stats.isSingleSelection && onRename != null,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: SizedBox(
                     width: 120,
                     child: Row(
@@ -217,7 +218,8 @@ class SelectionBottomBar extends StatelessWidget {
                   PopupMenuItem<String>(
                     value: 'share',
                     enabled: stats.hasOnlyFiles && hasSelection,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: SizedBox(
                       width: 120,
                       child: Row(
@@ -258,7 +260,8 @@ class SelectionBottomBar extends StatelessWidget {
                   PopupMenuItem<String>(
                     value: 'favorite',
                     enabled: stats.hasFiles && hasSelection,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: SizedBox(
                       width: 140,
                       child: Row(

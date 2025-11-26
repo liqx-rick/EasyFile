@@ -322,7 +322,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     PageSettingsService().addListener(_onPageSettingsChanged);
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
-    
+
     // 加载显示设置
     _loadDisplaySettings();
     categoryInfo = CategoryInfo.getInfoByType(widget.categoryType)!;
@@ -346,14 +346,15 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     if (mounted) {
       final oldPath = widget.viewModel.lastUpdatedOldPath;
       final newFile = widget.viewModel.lastUpdatedNewFile;
-      
+
       if (oldPath != null && newFile != null) {
         setState(() {
           // 在本地列表中找到旧路径的文件并替换
           final index = _files.indexWhere((f) => f.path == oldPath);
           if (index != -1) {
             _files[index] = newFile;
-            logger.d('Updated file in category page: $oldPath -> ${newFile.path}');
+            logger.d(
+                'Updated file in category page: $oldPath -> ${newFile.path}');
           }
         });
       }
@@ -643,9 +644,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 显示扫描进度
       if (_isLoading || _isRefreshing) {
         setState(() {
-          _loadingProgress = _isRefreshing 
-            ? '正在为您刷新页面列表，请稍等...'
-            : '正在扫描${categoryInfo.name}文件...';
+          _loadingProgress = _isRefreshing
+              ? '正在为您刷新页面列表，请稍等...'
+              : '正在扫描${categoryInfo.name}文件...';
         });
       }
 
@@ -667,12 +668,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         }
       }
       final sizeStr = FileSizeFormatter.formatBytes(totalSize);
-      
+
       setState(() {
         _files = files;
         _isLoading = false;
         _isRefreshing = false;
-        _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
+        _loadingProgress =
+            '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
       });
 
       // 保存到缓存
@@ -696,7 +698,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   Widget build(BuildContext context) {
     // 每次构建时检查并更新显示设置
     _loadDisplaySettings();
-    
+
     return ChangeNotifierProvider<FileViewModel>.value(
       value: widget.viewModel,
       child: Consumer<PageSettingsService>(
@@ -729,135 +731,138 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         onPressed: () => Navigator.of(context).pop(),
                         tooltip: '返回主页',
                       ),
-              title: _selectionController.isSelectionMode
-                  ? Text('已选择 ${_selectionController.count} 项')
-                  : Builder(
-                      builder: (context) {
-                        final isDark =
-                            Theme.of(context).brightness == Brightness.dark;
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? categoryInfo.iconColor.withValues(
-                                        alpha: 0.2) // 深色模式：20%主题色透明度
-                                    : categoryInfo.backgroundColor, // 浅色模式：原背景色
-                                borderRadius: BorderRadius.circular(6),
+                title: _selectionController.isSelectionMode
+                    ? Text('已选择 ${_selectionController.count} 项')
+                    : Builder(
+                        builder: (context) {
+                          final isDark =
+                              Theme.of(context).brightness == Brightness.dark;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? categoryInfo.iconColor.withValues(
+                                          alpha: 0.2) // 深色模式：20%主题色透明度
+                                      : categoryInfo
+                                          .backgroundColor, // 浅色模式：原背景色
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(
+                                  categoryInfo.icon,
+                                  size: 20,
+                                  color: isDark
+                                      ? categoryInfo
+                                          .backgroundColor // 深色模式：使用原背景色（更浅）
+                                      : categoryInfo.iconColor, // 浅色模式：原图标色
+                                ),
                               ),
-                              child: Icon(
-                                categoryInfo.icon,
-                                size: 20,
-                                color: isDark
-                                    ? categoryInfo
-                                        .backgroundColor // 深色模式：使用原背景色（更浅）
-                                    : categoryInfo.iconColor, // 浅色模式：原图标色
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(categoryInfo.name),
-                          ],
-                        );
-                      },
-                    ),
-              titleSpacing: 0,
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: _selectionController.isSelectionMode
-                        ? [
-                            // 多选模式下的操作按钮
-                            // 全选/取消全选按钮
-                            IconButton(
-                              icon: Icon(
-                                _selectionController.count ==
+                              const SizedBox(width: 8),
+                              Text(categoryInfo.name),
+                            ],
+                          );
+                        },
+                      ),
+                titleSpacing: 0,
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: _selectionController.isSelectionMode
+                          ? [
+                              // 多选模式下的操作按钮
+                              // 全选/取消全选按钮
+                              IconButton(
+                                icon: Icon(
+                                  _selectionController.count ==
+                                          _filteredFiles.length
+                                      ? Icons.deselect
+                                      : Icons.select_all,
+                                ),
+                                onPressed: () {
+                                  if (_selectionController.count ==
+                                      _filteredFiles.length) {
+                                    // 取消全选
+                                    _selectionController.clear();
+                                  } else {
+                                    // 全选 - 直接使用selectAll方法
+                                    _selectionController.selectAll(
+                                      _filteredFiles
+                                          .map((f) => f.path)
+                                          .toList(),
+                                    );
+                                  }
+                                },
+                                tooltip: _selectionController.count ==
                                         _filteredFiles.length
-                                    ? Icons.deselect
-                                    : Icons.select_all,
+                                    ? '取消全选'
+                                    : '全选',
                               ),
-                              onPressed: () {
-                                if (_selectionController.count ==
-                                    _filteredFiles.length) {
-                                  // 取消全选
-                                  _selectionController.clear();
-                                } else {
-                                  // 全选 - 直接使用selectAll方法
-                                  _selectionController.selectAll(
-                                    _filteredFiles.map((f) => f.path).toList(),
-                                  );
-                                }
-                              },
-                              tooltip: _selectionController.count ==
-                                      _filteredFiles.length
-                                  ? '取消全选'
-                                  : '全选',
-                            ),
-                          ]
-                        : [
-                            // 正常模式下的操作按钮（使用统一的FileToolbar组件）
-                            FileToolbar(
-                              pageId: _getPageIdForCategory(),
-                              showBackButton: false, // 类别页不需要返回按钮
-                              showSearchButton: true,
-                              onSearchPressed: () {
-                                setState(() {
-                                  _isSearchMode = !_isSearchMode;
-                                  if (!_isSearchMode) _searchQuery = '';
-                                });
-                              },
-                              isSearchMode: _isSearchMode,
-                              showSortButton: true,
-                              onSortPressed: _showSortOptions,
-                              showGroupButton: true,
-                              onGroupToggle: () => setState(() {}),
-                              iconSize: 22,
-                            ),
-                          ],
+                            ]
+                          : [
+                              // 正常模式下的操作按钮（使用统一的FileToolbar组件）
+                              FileToolbar(
+                                pageId: _getPageIdForCategory(),
+                                showBackButton: false, // 类别页不需要返回按钮
+                                showSearchButton: true,
+                                onSearchPressed: () {
+                                  setState(() {
+                                    _isSearchMode = !_isSearchMode;
+                                    if (!_isSearchMode) _searchQuery = '';
+                                  });
+                                },
+                                isSearchMode: _isSearchMode,
+                                showSortButton: true,
+                                onSortPressed: _showSortOptions,
+                                showGroupButton: true,
+                                onGroupToggle: () => setState(() {}),
+                                iconSize: 22,
+                              ),
+                            ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            body: Column(
-              children: [
-                // 搜索框（使用统一的FileSearchBar组件）
-                if (_isSearchMode)
-                  FileSearchBar(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    hintText: '搜索${categoryInfo.name}...',
-                    onSearch: (query) async {
-                      if (query.isNotEmpty) {
+                ],
+              ),
+              body: Column(
+                children: [
+                  // 搜索框（使用统一的FileSearchBar组件）
+                  if (_isSearchMode)
+                    FileSearchBar(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      hintText: '搜索${categoryInfo.name}...',
+                      onSearch: (query) async {
+                        if (query.isNotEmpty) {
+                          setState(() {
+                            _searchQuery = query;
+                          });
+                        }
+                      },
+                      onClose: () {
+                        setState(() {
+                          _searchQuery = '';
+                          _searchController.clear();
+                          _isSearchMode = false;
+                        });
+                      },
+                      onChanged: (query) {
                         setState(() {
                           _searchQuery = query;
                         });
-                      }
-                    },
-                    onClose: () {
-                      setState(() {
-                        _searchQuery = '';
-                        _searchController.clear();
-                        _isSearchMode = false;
-                      });
-                    },
-                    onChanged: (query) {
-                      setState(() {
-                        _searchQuery = query;
-                      });
-                    },
-                  ),
+                      },
+                    ),
 
-                // 主体内容
-                Expanded(child: _buildBody()),
-              ],
-            ),
-            // 批量操作底部工具栏
-            bottomNavigationBar: _selectionController.isSelectionMode
-                ? _buildSelectionBottomBar()
-                : null,
+                  // 主体内容
+                  Expanded(child: _buildBody()),
+                ],
+              ),
+              // 批量操作底部工具栏
+              bottomNavigationBar: _selectionController.isSelectionMode
+                  ? _buildSelectionBottomBar()
+                  : null,
             ),
           );
         },
@@ -964,11 +969,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(categoryInfo.iconColor),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(categoryInfo.iconColor),
                   ),
                 ),
               ] else
-                Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
+                Icon(categoryInfo.icon,
+                    size: 16, color: categoryInfo.iconColor),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1079,7 +1086,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                       cacheExtent: _isGridView ? 1000.0 : 600.0,
                       selectionController: _selectionController,
                       // 列表模式显示选项
-                      showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
+                      showFullPath:
+                          !_isGridView && _showFullPath, // 只在列表模式下显示路径
                       showFavoriteButton: true,
                       isFavorite: (path) =>
                           widget.viewModel.isFavoriteFile(path),
@@ -1419,7 +1427,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           ),
         ),
       );
-      
+
       // 如果文件被修改（复制、移动、重命名），刷新列表
       if (needsRefresh == true) {
         logger.d('File modified in preview, refreshing category list');
@@ -1453,7 +1461,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           ),
         ),
       );
-      
+
       // 如果文件被修改，刷新列表
       if (needsRefresh == true) {
         logger.d('File modified in preview, refreshing category list');
@@ -1470,7 +1478,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           ),
         ),
       );
-      
+
       // 如果文件被修改，刷新列表
       if (needsRefresh == true) {
         logger.d('File modified in preview, refreshing category list');

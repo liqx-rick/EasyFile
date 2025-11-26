@@ -87,9 +87,9 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
     final screenWidth = screenSize.width;
     final screenHeight = screenSize.height;
     final isLandscape = screenWidth > screenHeight;
-    
+
     // 横屏模式下使用更小的尺寸
-    final cardWidth = isLandscape 
+    final cardWidth = isLandscape
         ? math.min(screenWidth * 0.6, 480.0)
         : (screenWidth > 600 ? 360.0 : screenWidth * 0.85);
     final circleSize = isLandscape ? 80.0 : (screenWidth > 600 ? 140.0 : 120.0);
@@ -116,7 +116,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
             child: Container(
               width: cardWidth,
               padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding, 
+                horizontal: horizontalPadding,
                 vertical: verticalPadding,
               ),
               decoration: BoxDecoration(

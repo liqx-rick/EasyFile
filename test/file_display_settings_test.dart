@@ -3,7 +3,6 @@ import 'package:easyfile/core/services/file_display_settings_service.dart';
 
 void main() {
   group('FileDisplaySettingsService 测试', () {
-    
     group('隐藏文件判断测试', () {
       test('应该正确识别隐藏文件（以.开头）', () {
         expect(FileDisplaySettingsService.isHiddenFile('.hidden'), true);

@@ -931,21 +931,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   minWidth: 80,
                   maxWidth: 80,
                 ),
-                child: SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: Center(
-                    child: Icon(
-                      _isMuted || _volume == 0
-                          ? Icons.volume_off
-                          : _volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                ),
                 color: Colors.grey[900],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1042,6 +1027,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     ),
                   ),
                 ],
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Center(
+                    child: Icon(
+                      _isMuted || _volume == 0
+                          ? Icons.volume_off
+                          : _volume < 0.5
+                              ? Icons.volume_down
+                              : Icons.volume_up,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
               ),
               const Spacer(),
               // 亮度控制按钮（仅全屏模式显示）
@@ -1052,21 +1052,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   constraints: const BoxConstraints(
                     minWidth: 80,
                     maxWidth: 80,
-                  ),
-                  child: SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: Center(
-                      child: Icon(
-                        _brightness < 0.3
-                            ? Icons.brightness_low
-                            : _brightness < 0.7
-                                ? Icons.brightness_medium
-                                : Icons.brightness_high,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
                   ),
                   color: Colors.grey[900],
                   shape: RoundedRectangleBorder(
@@ -1152,6 +1137,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                       ),
                     ),
                   ],
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Center(
+                      child: Icon(
+                        _brightness < 0.3
+                            ? Icons.brightness_low
+                            : _brightness < 0.7
+                                ? Icons.brightness_medium
+                                : Icons.brightness_high,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
                 ),
               // 视频比例按钮 - 仅非全屏模式显示
               if (!_isFullScreen)
@@ -1184,18 +1184,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 constraints: const BoxConstraints(
                   minWidth: 80,
                   maxWidth: 80,
-                ),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text(
-                    '${_playbackSpeed}x',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
                 ),
                 color: Colors.grey[900],
                 shape: RoundedRectangleBorder(
@@ -1259,6 +1247,18 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     ),
                   ),
                 ],
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(
+                    '${_playbackSpeed}x',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
               // 全屏/退出全屏按钮
               IconButton(

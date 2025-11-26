@@ -9,7 +9,6 @@ import 'package:easyfile/data/sources/local_file_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
-import 'package:easyfile/data/sources/search_history_local_source.dart';
 import 'package:easyfile/data/services/folder_analyzer.dart';
 import 'package:easyfile/data/services/smart_app_scanner.dart';
 import 'package:easyfile/data/services/user_folder_detector.dart';
@@ -63,11 +62,6 @@ void setupLocator() {
   locator.registerLazySingleton<QuickAccessLocalSource>(() {
     logger.d('Creating QuickAccessLocalSource');
     return QuickAccessLocalSource();
-  });
-
-  locator.registerLazySingleton<SearchHistoryLocalSource>(() {
-    logger.d('Creating SearchHistoryLocalSource');
-    return SearchHistoryLocalSource();
   });
 
   // Services
@@ -141,10 +135,9 @@ void setupLocator() {
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
     final themeSource = locator<ThemeLocalSource>();
-    final searchHistorySource = locator<SearchHistoryLocalSource>();
 
     logger.d(
-      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, searchHistorySource=$searchHistorySource',
+      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource',
     );
 
     return FilePresenter(
@@ -154,7 +147,6 @@ void setupLocator() {
       favoriteFilesSource: favoriteFilesSource,
       recentFilesSource: recentFilesSource,
       themeSource: themeSource,
-      searchHistorySource: searchHistorySource,
     );
   });
 

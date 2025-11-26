@@ -102,7 +102,8 @@ class FileViewModel extends ChangeNotifier {
         await prefs.setString(_keyLastBrowsePath, _currentPath);
       }
 
-      logger.d('Saved current state: tab=$_currentTab, path=$_currentPath, theme=$_themeMode');
+      logger.d(
+          'Saved current state: tab=$_currentTab, path=$_currentPath, theme=$_themeMode');
     } catch (e) {
       logger.e('Error saving current state: $e');
     }
@@ -176,18 +177,18 @@ class FileViewModel extends ChangeNotifier {
   /// 更新单个文件信息（用于重命名等操作后即时更新UI，无需重新加载列表）
   void updateFileInList(String oldPath, FileItem updatedFile) {
     logger.d('Updating file in list: $oldPath -> ${updatedFile.path}');
-    
+
     // 记录本次更新，供页面监听器使用
     _lastUpdatedOldPath = oldPath;
     _lastUpdatedNewFile = updatedFile;
-    
+
     // 更新 _allFiles
     final allIndex = _allFiles.indexWhere((f) => f.path == oldPath);
     if (allIndex != -1) {
       _allFiles[allIndex] = updatedFile;
       logger.d('Updated file in _allFiles at index $allIndex');
     }
-    
+
     // 更新 _files
     final index = _files.indexWhere((f) => f.path == oldPath);
     if (index != -1) {
@@ -203,24 +204,24 @@ class FileViewModel extends ChangeNotifier {
   /// 添加文件到列表（用于复制操作后即时更新UI）
   void addFileToList(FileItem newFile) {
     logger.d('Adding file to list: ${newFile.path}');
-    
+
     // 添加到 _allFiles 和 _files
     _allFiles.add(newFile);
     _files.add(newFile);
-    
+
     // 按当前排序方式重新排序（文件夹优先，然后按名称）
     _files.sort((a, b) {
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    
+
     _allFiles.sort((a, b) {
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    
+
     logger.d('Added and sorted file in list');
     notifyListeners();
   }
@@ -228,10 +229,10 @@ class FileViewModel extends ChangeNotifier {
   /// 从列表中移除文件（用于删除操作后即时更新UI）
   void removeFileFromList(String filePath) {
     logger.d('Removing file from list: $filePath');
-    
+
     _allFiles.removeWhere((f) => f.path == filePath);
     _files.removeWhere((f) => f.path == filePath);
-    
+
     logger.d('File removed, remaining: ${_files.length} items');
     notifyListeners();
   }
