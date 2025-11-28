@@ -76,11 +76,22 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
 
       logger.d('Loaded ${folders.length} folders');
     } catch (e) {
-      logger.e('Error loading folders: $e');
-      setState(() {
-        _folders = [];
-        _isLoading = false;
-      });
+      // 捕获权限拒绝错误（如 Android/data 目录）
+      if (e.toString().contains('Permission denied') || 
+          e.toString().contains('errno = 13')) {
+        logger.w('Permission denied for directory: $_currentPath');
+        // 返回空列表，不显示错误
+        setState(() {
+          _folders = [];
+          _isLoading = false;
+        });
+      } else {
+        logger.e('Error loading folders: $e');
+        setState(() {
+          _folders = [];
+          _isLoading = false;
+        });
+      }
     }
   }
 

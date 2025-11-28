@@ -183,7 +183,18 @@ class _StoragePageState extends State<StoragePage> {
       final directory = Directory(path);
       if (!directory.existsSync()) return results;
 
-      final entities = directory.listSync();
+      List<FileSystemEntity> entities;
+      try {
+        entities = directory.listSync();
+      } catch (e) {
+        // 捕获权限拒绝错误，跳过该目录
+        if (e.toString().contains('Permission denied') || 
+            e.toString().contains('errno = 13')) {
+          logger.w('Permission denied for directory: $path');
+          return results;
+        }
+        rethrow;
+      }
 
       for (var entity in entities) {
         try {
@@ -471,30 +482,44 @@ class _StoragePageState extends State<StoragePage> {
         _cachedShowHidden = showHidden;
         _cachedShowSystem = showSystem;
 
-        final entities = directory.listSync().where((entity) {
-          final fileName = entity.path.split(Platform.pathSeparator).last;
+        List<FileSystemEntity> entities;
+        try {
+          entities = directory.listSync().where((entity) {
+            final fileName = entity.path.split(Platform.pathSeparator).last;
 
-          // 过滤隐藏文件
-          if (!showHidden &&
-              FileDisplaySettingsService.isHiddenFile(fileName)) {
-            return false;
-          }
+            // 过滤隐藏文件
+            if (!showHidden &&
+                FileDisplaySettingsService.isHiddenFile(fileName)) {
+              return false;
+            }
 
-          // 过滤系统文件夹和文件
-          if (!showSystem) {
-            if (FileSystemEntity.isDirectorySync(entity.path)) {
-              if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-                return false;
-              }
-            } else {
-              if (FileDisplaySettingsService.isSystemFile(fileName)) {
-                return false;
+            // 过滤系统文件夹和文件
+            if (!showSystem) {
+              if (FileSystemEntity.isDirectorySync(entity.path)) {
+                if (FileDisplaySettingsService.isSystemFolder(fileName)) {
+                  return false;
+                }
+              } else {
+                if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                  return false;
+                }
               }
             }
-          }
 
-          return true;
-        }).toList();
+            return true;
+          }).toList();
+        } catch (e) {
+          // 捕获权限拒绝错误（如 Android/data 目录）
+          if (e.toString().contains('Permission denied') || 
+              e.toString().contains('errno = 13')) {
+            logger.w('Permission denied for directory: $rootPath');
+            // 返回空列表，不显示错误 SnackBar
+            entities = [];
+          } else {
+            // 其他错误继续抛出
+            rethrow;
+          }
+        }
 
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
 
@@ -602,30 +627,44 @@ class _StoragePageState extends State<StoragePage> {
         _cachedShowHidden = showHidden;
         _cachedShowSystem = showSystem;
 
-        final entities = directory.listSync().where((entity) {
-          final fileName = entity.path.split(Platform.pathSeparator).last;
+        List<FileSystemEntity> entities;
+        try {
+          entities = directory.listSync().where((entity) {
+            final fileName = entity.path.split(Platform.pathSeparator).last;
 
-          // 过滤隐藏文件
-          if (!showHidden &&
-              FileDisplaySettingsService.isHiddenFile(fileName)) {
-            return false;
-          }
+            // 过滤隐藏文件
+            if (!showHidden &&
+                FileDisplaySettingsService.isHiddenFile(fileName)) {
+              return false;
+            }
 
-          // 过滤系统文件夹和文件
-          if (!showSystem) {
-            if (FileSystemEntity.isDirectorySync(entity.path)) {
-              if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-                return false;
-              }
-            } else {
-              if (FileDisplaySettingsService.isSystemFile(fileName)) {
-                return false;
+            // 过滤系统文件夹和文件
+            if (!showSystem) {
+              if (FileSystemEntity.isDirectorySync(entity.path)) {
+                if (FileDisplaySettingsService.isSystemFolder(fileName)) {
+                  return false;
+                }
+              } else {
+                if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                  return false;
+                }
               }
             }
-          }
 
-          return true;
-        }).toList();
+            return true;
+          }).toList();
+        } catch (e) {
+          // 捕获权限拒绝错误（如 Android/data 目录）
+          if (e.toString().contains('Permission denied') || 
+              e.toString().contains('errno = 13')) {
+            logger.w('Permission denied for directory: $path');
+            // 返回空列表，不显示错误 SnackBar
+            entities = [];
+          } else {
+            // 其他错误继续抛出
+            rethrow;
+          }
+        }
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
@@ -652,6 +691,86 @@ class _StoragePageState extends State<StoragePage> {
 
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
+    // 检查是否是受保护的目录且为空
+    final isProtectedDir = _currentPath.contains('/Android/data') || 
+        _currentPath.contains('/Android/obb') || 
+        _currentPath.contains('/Android/media');
+    
+    if (_files.isEmpty && isProtectedDir && !_isSearchMode) {
+      // 显示受保护目录的友好提示
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '无法访问此目录',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange[200]!, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 48,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '此目录受 Android 系统保护，无法访问',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.orange[900],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Android 11+ 系统限制了对某些系统目录的直接访问',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange[800],
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextButton.icon(
+                onPressed: _navigateUp,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('返回上级'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     final isGridView =
         PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
     final isGroupEnabled =

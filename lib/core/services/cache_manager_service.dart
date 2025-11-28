@@ -3,6 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
+import 'package:easyfile/core/services/large_file_cache_manager.dart';
 
 /// 缓存管理服务
 /// 统一管理应用中的各种缓存
@@ -13,6 +14,7 @@ class CacheManagerService {
 
   final _thumbnailCache = ThumbnailCacheManager();
   final _categoryCache = CategoryFileCacheService();
+  final _largeFileCache = LargeFileCacheManager();
 
   /// 获取所有缓存信息
   Future<List<CacheItem>> getAllCacheItems() async {
@@ -128,6 +130,31 @@ class CacheManagerService {
       ));
     }
 
+    // 6. 大文件扫描缓存
+    try {
+      final cacheSize = await _largeFileCache.getCacheSize();
+      final cache = await _largeFileCache.loadCache();
+      
+      final description = cache != null
+          ? '包含 ${cache.files.length} 个大文件记录（${cache.formattedAge}）'
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '大文件扫描缓存',
+        description: description,
+        size: cacheSize,
+        type: CacheType.largeFileScan,
+      ));
+    } catch (e) {
+      logger.e('Failed to get large file cache info: $e');
+      items.add(CacheItem(
+        name: '大文件扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.largeFileScan,
+      ));
+    }
+
     return items;
   }
 
@@ -170,6 +197,11 @@ class CacheManagerService {
           logger.i('>>> Entering videoPlayback case');
           await _clearVideoPlaybackData();
           logger.i('>>> Video playback data cleared successfully');
+          return true;
+
+        case CacheType.largeFileScan:
+          await _largeFileCache.clearCache();
+          logger.i('Large file scan cache cleared');
           return true;
       }
     } catch (e) {
@@ -323,6 +355,7 @@ enum CacheType {
   categoryScan,
   searchHistory,
   videoPlayback,
+  largeFileScan, // 大文件扫描缓存
 }
 
 extension CacheTypeExtension on CacheType {
@@ -338,6 +371,8 @@ extension CacheTypeExtension on CacheType {
         return '搜索历史';
       case CacheType.videoPlayback:
         return '视频播放数据';
+      case CacheType.largeFileScan:
+        return '大文件扫描缓存';
     }
   }
 }

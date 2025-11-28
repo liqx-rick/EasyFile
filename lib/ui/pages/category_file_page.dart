@@ -1592,11 +1592,24 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
         throw Exception('目录不存在');
       }
 
-      final entities = directory
-          .listSync()
-          .whereType<Directory>()
-          .where((dir) => !path.basename(dir.path).startsWith('.'))
-          .toList();
+      List<Directory> entities;
+      try {
+        entities = directory
+            .listSync()
+            .whereType<Directory>()
+            .where((dir) => !path.basename(dir.path).startsWith('.'))
+            .toList();
+      } catch (e) {
+        // 捕获权限拒绝错误（如 Android/data 目录）
+        if (e.toString().contains('Permission denied') || 
+            e.toString().contains('errno = 13')) {
+          logger.w('Permission denied for directory: $_currentPath');
+          // 返回空列表，不显示 SnackBar
+          entities = [];
+        } else {
+          rethrow;
+        }
+      }
 
       entities.sort(
         (a, b) => path.basename(a.path).compareTo(path.basename(b.path)),
@@ -1609,9 +1622,13 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));
+        // 只有非权限错误才显示 SnackBar
+        if (!e.toString().contains('Permission denied') &&
+            !e.toString().contains('errno = 13')) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));
+        }
       }
     }
   }

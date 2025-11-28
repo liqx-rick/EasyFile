@@ -4,11 +4,16 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/core/services/large_file_cache_manager.dart';
+import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/ui/pages/category_file_page.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
+import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/storage_page.dart';
+import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
@@ -27,7 +32,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   double? _totalSpace; // MB
   double? _freeSpace; // MB
   bool _loadingStorage = true;
-  
+
   // 分类文件大小数据
   final Map<CategoryType, int> _categorySizes = {
     CategoryType.images: 0,
@@ -35,7 +40,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     CategoryType.documents: 0,
     CategoryType.music: 0,
   };
-  
+
   // 记录哪些分类正在加载
   final Map<CategoryType, bool> _loadingCategories = {
     CategoryType.images: true,
@@ -43,28 +48,33 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     CategoryType.documents: true,
     CategoryType.music: true,
   };
-  
+
   // 缓存key
   static const String _cacheKeyCategorySizes = 'storage_category_sizes';
-  
+
   // 缓存大小数据
   int _totalCacheSize = 0;
   bool _loadingCacheSize = true;
-  
+
+  // 大文件扫描配置缓存（用于显示最新配置）
+  LargeFileScanConfig? _cachedLargeFileScanConfig;
+  bool _loadingLargeFileConfig = true;
+
   @override
   void initState() {
     super.initState();
     _loadStorageInfo();
     _loadCategorySizes();
     _loadCacheSize();
+    _loadLargeFileScanConfig();
   }
-  
+
   /// 加载缓存大小
   Future<void> _loadCacheSize() async {
     try {
       final cacheManager = locator<CacheManagerService>();
       final size = await cacheManager.getTotalCacheSize();
-      
+
       if (mounted) {
         setState(() {
           _totalCacheSize = size;
@@ -80,7 +90,29 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
       }
     }
   }
-  
+
+  /// 加载大文件扫描配置
+  Future<void> _loadLargeFileScanConfig() async {
+    try {
+      final cacheManager = LargeFileCacheManager();
+      final cache = await cacheManager.loadCache();
+      
+      if (mounted) {
+        setState(() {
+          _cachedLargeFileScanConfig = cache?.config;
+          _loadingLargeFileConfig = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load large file scan config: $e');
+      if (mounted) {
+        setState(() {
+          _loadingLargeFileConfig = false;
+        });
+      }
+    }
+  }
+
   /// 加载存储空间信息
   Future<void> _loadStorageInfo() async {
     try {
@@ -104,18 +136,18 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
       }
     }
   }
-  
+
   /// 加载分类文件大小（优先从缓存，然后并行扫描）
   Future<void> _loadCategorySizes() async {
     if (!mounted) return;
-    
+
     // 1. 先从SharedPreferences加载缓存的大小数据
     await _loadCachedSizes();
-    
+
     // 2. 并行扫描所有分类更新数据
     try {
       final presenter = locator<FilePresenter>();
-      
+
       // 并行加载所有分类
       final futures = CategoryType.values.map((categoryType) async {
         try {
@@ -124,14 +156,14 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             0,
             (sum, file) => sum + file.size,
           );
-          
+
           if (mounted) {
             setState(() {
               _categorySizes[categoryType] = totalSize;
               _loadingCategories[categoryType] = false;
             });
           }
-          
+
           return MapEntry(categoryType, totalSize);
         } catch (e) {
           logger.e('Failed to load size for $categoryType: $e');
@@ -143,25 +175,25 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           return MapEntry(categoryType, 0);
         }
       });
-      
+
       final results = await Future.wait(futures);
-      
+
       // 3. 保存到缓存
       await _saveCachedSizes(Map.fromEntries(results));
     } catch (e) {
       logger.e('Failed to load category sizes: $e');
     }
   }
-  
+
   /// 从SharedPreferences加载缓存的分类大小
   Future<void> _loadCachedSizes() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString(_cacheKeyCategorySizes);
-      
+
       if (cached != null) {
         final Map<String, dynamic> data = jsonDecode(cached);
-        
+
         if (mounted) {
           setState(() {
             for (final entry in data.entries) {
@@ -174,24 +206,24 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             }
           });
         }
-        
+
         logger.d('Loaded cached category sizes');
       }
     } catch (e) {
       logger.e('Failed to load cached sizes: $e');
     }
   }
-  
+
   /// 保存分类大小到SharedPreferences
   Future<void> _saveCachedSizes(Map<CategoryType, int> sizes) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final data = <String, int>{};
-      
+
       sizes.forEach((type, size) {
         data[type.name] = size;
       });
-      
+
       await prefs.setString(_cacheKeyCategorySizes, jsonEncode(data));
       logger.d('Saved category sizes to cache');
     } catch (e) {
@@ -288,17 +320,17 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: _buildCircularProgressSection(theme, colorScheme),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // 分割线
             Divider(
               height: 1,
               color: colorScheme.outlineVariant,
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // 分类网格卡片
             _buildCategoryGridCards(theme, colorScheme),
           ],
@@ -321,7 +353,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         ),
       );
     }
-    
+
     final totalSpaceGB = _totalSpace! / 1024; // MB转GB
     final freeSpaceGB = _freeSpace! / 1024;
     final usedSpaceGB = totalSpaceGB - freeSpaceGB;
@@ -330,12 +362,12 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 判断是否横屏（宽度大于高度）
-        final isLandscape = MediaQuery.of(context).size.width > 
-                           MediaQuery.of(context).size.height;
-        
+        final isLandscape = MediaQuery.of(context).size.width >
+            MediaQuery.of(context).size.height;
+
         return Row(
-          mainAxisAlignment: isLandscape 
-              ? MainAxisAlignment.center 
+          mainAxisAlignment: isLandscape
+              ? MainAxisAlignment.center
               : MainAxisAlignment.spaceAround,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -397,9 +429,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                 ],
               ),
             ),
-            
+
             SizedBox(width: isLandscape ? 40 : 20),
-            
+
             // 右侧：数据统计
             Flexible(
               child: Column(
@@ -483,10 +515,11 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     int otherSize = 0;
     if (_totalSpace != null && _freeSpace != null) {
       final usedBytes = ((_totalSpace! - _freeSpace!) * 1024 * 1024).toInt();
-      final categorizedSize = _categorySizes.values.fold<int>(0, (sum, size) => sum + size);
+      final categorizedSize =
+          _categorySizes.values.fold<int>(0, (sum, size) => sum + size);
       otherSize = (usedBytes - categorizedSize).clamp(0, usedBytes);
     }
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // 3列布局：(总宽度 - 2个间距) / 3
@@ -498,7 +531,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📷',
               label: '图片',
-              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.images] ?? 0),
+              size: FileSizeFormatter.formatBytes(
+                  _categorySizes[CategoryType.images] ?? 0),
               color: const Color(0xFF2196F3),
               categoryType: CategoryType.images,
               width: itemWidth,
@@ -509,7 +543,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📹',
               label: '视频',
-              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.video] ?? 0),
+              size: FileSizeFormatter.formatBytes(
+                  _categorySizes[CategoryType.video] ?? 0),
               color: const Color(0xFF9C27B0),
               categoryType: CategoryType.video,
               width: itemWidth,
@@ -520,7 +555,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📄',
               label: '文档',
-              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.documents] ?? 0),
+              size: FileSizeFormatter.formatBytes(
+                  _categorySizes[CategoryType.documents] ?? 0),
               color: const Color(0xFF4CAF50),
               categoryType: CategoryType.documents,
               width: itemWidth,
@@ -531,7 +567,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '🎵',
               label: '音乐',
-              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.music] ?? 0),
+              size: FileSizeFormatter.formatBytes(
+                  _categorySizes[CategoryType.music] ?? 0),
               color: const Color(0xFFFF9800),
               categoryType: CategoryType.music,
               width: itemWidth,
@@ -692,7 +729,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     // 使用 locator 获取 Presenter 和 ViewModel
     final presenter = locator<FilePresenter>();
     final viewModel = locator<FileViewModel>();
-    
+
     showDialog(
       context: context,
       builder: (dialogContext) => Dialog(
@@ -744,7 +781,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Theme.of(dialogContext).colorScheme.primaryContainer,
+                            color: Theme.of(dialogContext)
+                                .colorScheme
+                                .primaryContainer,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -752,7 +791,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                               Icon(
                                 Icons.lightbulb_outline,
                                 size: 20,
-                                color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
+                                color: Theme.of(dialogContext)
+                                    .colorScheme
+                                    .onPrimaryContainer,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -760,7 +801,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                                   '可以在"大文件查找"功能中按大小查看这些文件',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
+                                    color: Theme.of(dialogContext)
+                                        .colorScheme
+                                        .onPrimaryContainer,
                                   ),
                                 ),
                               ),
@@ -791,22 +834,29 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                         icon: const Icon(Icons.folder_open, size: 16),
                         label: const Text('浏览', style: TextStyle(fontSize: 13)),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                         ),
                       ),
                       const SizedBox(width: 8),
                       FilledButton.icon(
                         onPressed: () {
                           Navigator.pop(dialogContext);
-                          // TODO: 跳转到大文件查找页面
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('大文件查找功能开发中')),
+                          // 跳转到大文件查找页面
+                          final largeFileService = LargeFileService(presenter);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => LargeFilesPage(
+                                largeFileService: largeFileService,
+                              ),
+                            ),
                           );
                         },
                         icon: const Icon(Icons.search, size: 16),
                         label: const Text('查找', style: TextStyle(fontSize: 13)),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                         ),
                       ),
                     ],
@@ -865,8 +915,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
       icon: Icons.cached,
       title: '本应用缓存',
       subtitle: '清理缩略图、扫描缓存等',
-      badge: _loadingCacheSize 
-          ? '加载中' 
+      badge: _loadingCacheSize
+          ? '加载中'
           : FileSizeFormatter.formatBytes(_totalCacheSize),
       badgeColor: Colors.orange,
       onTap: () {
@@ -885,23 +935,205 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     );
   }
 
-  /// 3. 大文件查找卡片
+  /// 3. 大文件查找卡片（双入口设计）
   Widget _buildLargeFilesCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.file_present,
-      title: '大文件查找',
-      subtitle: '查找占用空间大的文件',
-      badge: '待扫描',
-      badgeColor: colorScheme.primary,
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16), // 减小内边距：20 → 16
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Text(
+              '大文件查找',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12), // 减小间距：20 → 12
+            
+            // 快速扫描入口
+            _buildQuickScanEntry(theme, colorScheme),
+            
+            // 分隔线
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12), // 减小间距：16 → 12
+              child: Divider(
+                thickness: 1,
+                height: 1,
+                color: Colors.grey[300],
+              ),
+            ),
+            
+            // 自定义扫描入口
+            _buildCustomScanEntry(theme, colorScheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 快速扫描入口
+  Widget _buildQuickScanEntry(ThemeData theme, ColorScheme colorScheme) {
+    return InkWell(
       onTap: () {
-        // TODO: 跳转到大文件查找页
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('大文件查找功能开发中')),
+        // 快速扫描：使用固定的默认配置
+        final presenter = locator<FilePresenter>();
+        final largeFileService = LargeFileService(presenter);
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => LargeFilesPage(
+              largeFileService: largeFileService,
+              // 不传 initialConfig，让页面使用固定默认配置
+            ),
+          ),
         );
       },
-      theme: theme,
-      colorScheme: colorScheme,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4), // 减小间距：8 → 4
+        child: Row(
+          children: [
+            // 图标
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.search,
+                color: colorScheme.onPrimaryContainer,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 文字内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '快速扫描',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2), // 减小间距：4 → 2
+                  Text(
+                    '全面扫描所有大于 50MB 的文件',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  /// 自定义扫描入口
+  Widget _buildCustomScanEntry(ThemeData theme, ColorScheme colorScheme) {
+    // 判断是否有自定义配置
+    final hasConfig = _cachedLargeFileScanConfig != null && 
+                      !_cachedLargeFileScanConfig!.isEquivalent(const LargeFileScanConfig());
+    
+    return InkWell(
+      onTap: () async {
+        // 加载当前配置
+        final cacheManager = LargeFileCacheManager();
+        final cache = await cacheManager.loadCache();
+        final currentConfig = cache?.config ?? const LargeFileScanConfig();
+
+        // 显示配置对话框
+        if (!mounted) return;
+        final newConfig = await showDialog<LargeFileScanConfig>(
+          context: context,
+          builder: (context) => LargeFileScanConfigDialog(
+            initialConfig: currentConfig,
+          ),
+        );
+
+        // 如果用户确认了配置，跳转到扫描页
+        if (newConfig != null) {
+          // 如果配置改变，清除缓存
+          if (!newConfig.isEquivalent(currentConfig)) {
+            await cacheManager.clearCache();
+          }
+          
+          if (!mounted) return;
+          final presenter = locator<FilePresenter>();
+          final largeFileService = LargeFileService(presenter);
+
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => LargeFilesPage(
+                largeFileService: largeFileService,
+                initialConfig: newConfig,
+              ),
+            ),
+          );
+          
+          // 从扫描页返回后，重新加载配置以更新显示
+          if (mounted) {
+            await _loadLargeFileScanConfig();
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4), // 减小间距：8 → 4
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '自定义扫描',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2), // 减小间距：4 → 2
+            if (_loadingLargeFileConfig)
+              Text(
+                '加载中...',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              Text(
+                hasConfig
+                    ? '当前配置：${_formatScanConfig(_cachedLargeFileScanConfig!)}'
+                    : '全部类型 · 大于 50MB', // 显示默认配置
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: hasConfig
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                  fontWeight: hasConfig ? FontWeight.w500 : FontWeight.normal,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 格式化扫描配置为简短描述
+  String _formatScanConfig(LargeFileScanConfig config) {
+    final types = config.fileTypes.map((t) => t.label).take(3).join('|');
+    final size = config.minSizeInMB;
+    return '$types · >${size}MB';
   }
 
   /// 4. 重复文件检测卡片

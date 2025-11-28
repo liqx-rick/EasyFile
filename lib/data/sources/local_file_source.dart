@@ -39,29 +39,44 @@ class LocalFileRepository implements FileRepository {
       logger.d(
           'Display settings - showHidden: $showHidden, showSystem: $showSystem');
 
-      final entities = dir.listSync().where((entity) {
-        final fileName = entity.path.split(Platform.pathSeparator).last;
+      // 尝试读取目录内容，捕获权限拒绝错误
+      List<FileSystemEntity> entities;
+      try {
+        entities = dir.listSync().where((entity) {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
 
-        // 过滤隐藏文件（以.开头）
-        if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
-          return false;
-        }
+          // 过滤隐藏文件（以.开头）
+          if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+            return false;
+          }
 
-        // 过滤系统文件夹和文件
-        if (!showSystem) {
-          if (FileSystemEntity.isDirectorySync(entity.path)) {
-            if (FileDisplaySettingsService.isSystemFolder(fileName)) {
-              return false;
-            }
-          } else {
-            if (FileDisplaySettingsService.isSystemFile(fileName)) {
-              return false;
+          // 过滤系统文件夹和文件
+          if (!showSystem) {
+            if (FileSystemEntity.isDirectorySync(entity.path)) {
+              if (FileDisplaySettingsService.isSystemFolder(fileName)) {
+                return false;
+              }
+            } else {
+              if (FileDisplaySettingsService.isSystemFile(fileName)) {
+                return false;
+              }
             }
           }
-        }
 
-        return true;
-      }).toList();
+          return true;
+        }).toList();
+      } catch (e) {
+        // 捕获权限拒绝错误（如 Android/data 目录）
+        if (e.toString().contains('Permission denied') || 
+            e.toString().contains('errno = 13')) {
+          logger.w('Permission denied for directory: $path');
+          logger.w('This directory is protected by Android system security');
+          // 返回空列表，让UI显示"此目录受系统保护"的提示
+          return [];
+        }
+        // 其他错误继续抛出
+        rethrow;
+      }
 
       logger.d('Found ${entities.length} entities');
       final files = entities.map((e) => FileItem.fromEntity(e)).toList();

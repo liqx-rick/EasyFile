@@ -83,9 +83,12 @@ class FileDisplaySettingsService {
   }
 
   /// 判断是否为系统文件夹
+  /// 
+  /// 注意：不再将 'android' 作为系统文件夹过滤，允许用户访问 Android/data 等目录
+  /// 但删除、移动等操作仍然受 PathSecurity 保护
   static bool isSystemFolder(String folderName) {
     const systemFolders = [
-      'android',
+      // 'android', // 已移除：允许用户浏览 Android 目录及其子目录（如 Android/data）
       'lost+found',
       '.thumbnails',
       '.cache',

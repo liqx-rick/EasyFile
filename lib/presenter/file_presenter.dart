@@ -59,14 +59,36 @@ class FilePresenter {
 
     // 重置文件类型筛选
     viewModel.resetCategoryFilter();
+    
+    // 清除之前的错误消息
+    viewModel.clearError();
 
     logger.d('Current path set, loading files...');
     final files = await repository.getFiles(path);
     logger.i('Files loaded: ${files.length} items');
+    
+    // 检测是否是受系统保护的目录（Android/data等）
+    final isProtectedDir = path.contains('/Android/data') || 
+        path.contains('/Android/obb') || 
+        path.contains('/Android/media');
+    
+    logger.d('isProtectedDir: $isProtectedDir, files.isEmpty: ${files.isEmpty}');
+    
+    // 先设置错误消息（如果有）
+    if (files.isEmpty && isProtectedDir) {
+      logger.w('Setting error for protected system directory: $path');
+      viewModel.setError('此目录受 Android 系统保护，无法访问');
+      logger.w('Error set, errorMessage: ${viewModel.errorMessage}');
+    }
+    
+    // 然后设置文件列表
     viewModel.setFiles(files);
+    
+    // 最后设置加载状态
     viewModel.setLoading(false);
+    
     logger.d(
-      'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}',
+      'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}, hasError: ${viewModel.errorMessage != null}',
     );
   }
 
@@ -1030,7 +1052,7 @@ class FilePresenter {
         scanPaths = await _getDownloadPaths();
       } else {
         // 其他类型扫描常见目录
-        scanPaths = await _getCommonScanPaths();
+        scanPaths = await getCommonScanPaths();
       }
 
       logger.d('Scanning paths for ${categoryInfo.name}: $scanPaths');
@@ -1135,7 +1157,9 @@ class FilePresenter {
   ];
 
   /// 应该排除的文件夹（系统/应用数据）
-  static const List<String> _excludedFolders = [
+  ///
+  /// ⚠️ 注意：此字段暴露为public以供文件清理功能使用
+  static const List<String> excludedFolders = [
     'Android', // Android应用数据
     '.thumbnails', // 缩略图缓存
     '.cache', // 缓存
@@ -1148,7 +1172,10 @@ class FilePresenter {
   ];
 
   /// 获取常见扫描路径（混合策略：系统目录 + 用户自定义文件夹）
-  Future<List<String>> _getCommonScanPaths() async {
+  ///
+  /// ⚠️ 注意：此方法暴露为public以供文件清理功能使用
+  /// 外部调用时请注意遵循相同的扫描策略
+  Future<List<String>> getCommonScanPaths() async {
     final paths = <String>[];
 
     try {
@@ -1258,7 +1285,7 @@ class FilePresenter {
         if (_knownSystemFolders.contains(folderName)) continue;
 
         // 跳过应用/系统数据目录
-        if (_excludedFolders.contains(folderName)) continue;
+        if (excludedFolders.contains(folderName)) continue;
 
         // 这是用户自定义文件夹，添加到列表
         discovered.add(entity.path);
@@ -1346,7 +1373,7 @@ class FilePresenter {
             }
           } else if (entity is Directory) {
             // 跳过应用/系统数据目录
-            if (_excludedFolders.contains(name)) continue;
+            if (excludedFolders.contains(name)) continue;
 
             // 递归扫描子目录
             await _scanDirectory(

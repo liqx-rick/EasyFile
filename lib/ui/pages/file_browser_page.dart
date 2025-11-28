@@ -1268,7 +1268,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建空状态UI
-  Widget _buildEmptyState(TabView tab, bool isSearchMode) {
+  Widget _buildEmptyState(TabView tab, bool isSearchMode, FileViewModel vm) {
+    logger.d('_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
+    
     IconData icon;
     String title;
     Widget subtitleWidget;
@@ -1465,6 +1467,60 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             textAlign: TextAlign.center,
           );
           actionButton = null;
+        } else if (vm.errorMessage != null) {
+          // 显示错误消息（如系统保护的目录）
+          icon = Icons.lock_outline;
+          title = '无法访问此目录';
+          subtitleWidget = Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange[200]!, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 48,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      vm.errorMessage!,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.orange[900],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Android 11+ 系统限制了对某些系统目录的直接访问',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange[800],
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          actionButton = TextButton.icon(
+            onPressed: () => presenter.navigateUp(),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('返回上级'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
         } else {
           icon = Icons.folder_open;
           title = '此文件夹为空';
@@ -1527,12 +1583,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建文件列表视图
   Widget _buildFileList(FileViewModel vm) {
+    logger.d('_buildFileList - files.isEmpty: ${vm.files.isEmpty}, errorMessage: ${vm.errorMessage}, currentPath: ${vm.currentPath}');
+    
     if (vm.files.isEmpty) {
       // 使用新的空状态UI
       final isSearchMode =
           (vm.currentTab == TabView.browse && vm.isSearchMode) ||
               (vm.currentTab == TabView.favorite && _favoriteSearchMode);
-      return _buildEmptyState(vm.currentTab, isSearchMode);
+      return _buildEmptyState(vm.currentTab, isSearchMode, vm);
     }
 
     return RefreshIndicator(

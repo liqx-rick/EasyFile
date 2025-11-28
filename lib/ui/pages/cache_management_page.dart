@@ -93,6 +93,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
+            if (item.type == CacheType.largeFileScan) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ 清理后，下次打开大文件查找时需要重新扫描',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -196,6 +203,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
             Text('• 分类统计和文件列表', style: TextStyle(fontSize: 13)),
             Text('• 搜索历史记录', style: TextStyle(fontSize: 13)),
             Text('• 视频播放数据', style: TextStyle(fontSize: 13)),
+            Text('• 大文件扫描缓存', style: TextStyle(fontSize: 13)),
             SizedBox(height: 8),
             Text(
               '⚠️ 缩略图和文件列表将重新生成，视频将从头播放',
@@ -272,6 +280,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.history;
       case CacheType.videoPlayback:
         return Icons.play_circle_outline;
+      case CacheType.largeFileScan:
+        return Icons.folder_special;
     }
   }
 
