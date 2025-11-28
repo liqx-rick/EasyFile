@@ -4,15 +4,21 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/core/services/duplicate_file_cache_manager.dart';
+import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
-import 'package:easyfile/ui/pages/category_file_page.dart';
+import 'package:easyfile/ui/pages/category_file_page.dart'
+    hide FileTypeFilter; // 隐藏CategoryFilePage中的FileTypeFilter
 import 'package:easyfile/ui/pages/cache_management_page.dart';
+import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/storage_page.dart';
+import 'package:easyfile/ui/widgets/duplicate_file_scan_type_dialog.dart';
 import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -60,6 +66,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   LargeFileScanConfig? _cachedLargeFileScanConfig;
   bool _loadingLargeFileConfig = true;
 
+  // 重复文件扫描配置缓存（用于显示最新配置）
+  DuplicateFileScanConfig? _cachedDuplicateScanConfig;
+  bool _loadingDuplicateConfig = true;
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +77,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     _loadCategorySizes();
     _loadCacheSize();
     _loadLargeFileScanConfig();
+    _loadDuplicateScanConfig();
   }
 
   /// 加载缓存大小
@@ -108,6 +119,28 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
       if (mounted) {
         setState(() {
           _loadingLargeFileConfig = false;
+        });
+      }
+    }
+  }
+
+  /// 加载重复文件扫描配置
+  Future<void> _loadDuplicateScanConfig() async {
+    try {
+      final cacheManager = DuplicateFileCacheManager();
+      final config = await cacheManager.loadConfig();
+      
+      if (mounted) {
+        setState(() {
+          _cachedDuplicateScanConfig = config;
+          _loadingDuplicateConfig = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load duplicate scan config: $e');
+      if (mounted) {
+        setState(() {
+          _loadingDuplicateConfig = false;
         });
       }
     }
@@ -1138,20 +1171,198 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
   /// 4. 重复文件检测卡片
   Widget _buildDuplicateFilesCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.content_copy,
-      title: '重复文件检测',
-      subtitle: '查找并清理重复的文件',
-      badge: '待扫描',
-      badgeColor: colorScheme.secondary,
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Text(
+              '重复文件清理',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // 完整检测入口
+            _buildFullDuplicateScanEntry(theme, colorScheme),
+            
+            // 分隔线
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                thickness: 1,
+                height: 1,
+                color: Colors.grey[300],
+              ),
+            ),
+            
+            // 分类检测入口
+            _buildCategoryDuplicateScanEntry(theme, colorScheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 完整检测入口
+  Widget _buildFullDuplicateScanEntry(ThemeData theme, ColorScheme colorScheme) {
+    return InkWell(
       onTap: () {
-        // TODO: 跳转到重复文件检测页
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('重复文件检测功能开发中')),
+        // 完整检测：扫描所有类型的重复文件
+        final presenter = locator<FilePresenter>();
+        final duplicateFileService = DuplicateFileService(presenter);
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DuplicateFilesPage(
+              duplicateFileService: duplicateFileService,
+              initialConfig: const DuplicateFileScanConfig(
+                scanMode: DuplicateScanMode.full,
+              ),
+            ),
+          ),
         );
       },
-      theme: theme,
-      colorScheme: colorScheme,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            // 图标
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.content_copy,
+                color: colorScheme.onPrimaryContainer,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 文字内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '完整检测',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '全面扫描重复文件并智能推荐清理（>100KB）',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 分类检测入口
+  Widget _buildCategoryDuplicateScanEntry(ThemeData theme, ColorScheme colorScheme) {
+    // 判断是否有分类检测配置
+    final hasConfig = _cachedDuplicateScanConfig != null && 
+                      _cachedDuplicateScanConfig!.scanMode == DuplicateScanMode.category;
+    
+    return InkWell(
+      onTap: () async {
+        // 显示类型选择对话框
+        if (!mounted) return;
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) => const DuplicateFileScanTypeDialog(),
+        );
+
+        // 如果用户选择了类型，跳转到扫描页
+        if (result != null) {
+          final selectedType = result['type'] as FileTypeFilter;
+          final minSizeKB = result['minSizeKB'] as int;
+          
+          final config = DuplicateFileScanConfig(
+            scanMode: DuplicateScanMode.category,
+            selectedType: selectedType,
+            minSizeInKB: minSizeKB,
+          );
+
+          // 保存新配置
+          final cacheManager = DuplicateFileCacheManager();
+          await cacheManager.saveConfig(config);
+          
+          if (!mounted) return;
+          final presenter = locator<FilePresenter>();
+          final duplicateFileService = DuplicateFileService(presenter);
+
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => DuplicateFilesPage(
+                duplicateFileService: duplicateFileService,
+                initialConfig: config,
+              ),
+            ),
+          );
+          
+          // 从扫描页返回后，重新加载配置以更新显示
+          if (mounted) {
+            await _loadDuplicateScanConfig();
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '分类清理',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            if (_loadingDuplicateConfig)
+              Text(
+                '加载中...',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              Text(
+                hasConfig
+                    ? '上次扫描：${_cachedDuplicateScanConfig!.selectedType!.label} · >${_cachedDuplicateScanConfig!.minSizeInKB}KB'
+                    : '选择文件类型进行精准清理（>100KB）',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: hasConfig
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                  fontWeight: hasConfig ? FontWeight.w500 : FontWeight.normal,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+      ),
     );
   }
 
