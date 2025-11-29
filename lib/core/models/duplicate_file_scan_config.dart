@@ -37,13 +37,14 @@ class DuplicateFileScanConfig {
   /// 获取要扫描的文件类型集合
   Set<FileTypeFilter> get fileTypes {
     if (scanMode == DuplicateScanMode.full) {
-      // 完整检测：所有类型
+      // 完整检测：所有类型（包括 other）
       return {
         FileTypeFilter.video,
         FileTypeFilter.audio,
         FileTypeFilter.image,
         FileTypeFilter.document,
         FileTypeFilter.archive,
+        FileTypeFilter.other,  // ✅ 包含其他类型（CAD、设计文件、无扩展名等）
       };
     } else {
       // 分类检测：单一类型

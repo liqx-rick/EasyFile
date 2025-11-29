@@ -7,7 +7,8 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_cache_manager.dart';
-import 'package:easyfile/core/services/duplicate_file_service.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -28,12 +29,12 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 /// - ✅ 批量操作：支持批量删除
 /// - 🎯 智能推荐：自动推荐保留/删除
 class DuplicateFilesPage extends StatefulWidget {
-  final DuplicateFileService duplicateFileService;
+  final EnhancedDuplicateFileScanService enhancedScanService;
   final DuplicateFileScanConfig initialConfig;
 
   const DuplicateFilesPage({
     super.key,
-    required this.duplicateFileService,
+    required this.enhancedScanService,
     required this.initialConfig,
   });
 
@@ -51,10 +52,14 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   // 状态管理
   List<DuplicateFileGroup> _allGroups = [];
   bool _isScanning = false;
+  bool _isCheckingUpdates = false; // 新增：是否正在检查更新
+  String _updateStatus = ''; // 新增：更新状态文案
   int _currentStage = 0;
   int _currentProgress = 0;
   int _totalProgress = 0;
   String _currentFile = '';
+  DateTime? _scanStartTime; // 扫描开始时间（用于估算剩余时间）
+  int _lastProgressValue = 0; // 上次进度值（用于检测进度变化）
 
   // 选择状态（用于批量删除）
   final Set<String> _selectedFilePaths = {};
@@ -68,7 +73,83 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   void initState() {
     super.initState();
     _config = widget.initialConfig;
+    _setupScanListeners();
     _initializeAndScan();
+  }
+
+  /// 设置扫描监听器
+  void _setupScanListeners() {
+    final manager = widget.enhancedScanService.scanManager;
+    
+    // 监听状态变化
+    manager.addStateListener(_onStateChange);
+    
+    // 监听进度更新
+    manager.addProgressListener(_onProgressUpdate);
+    
+    // 监听完成
+    manager.addCompletionListener(_onScanComplete);
+    
+    // 监听错误
+    manager.addErrorListener(_onScanError);
+  }
+
+  /// 状态变化回调
+  void _onStateChange() {
+    if (!mounted) return;
+    final state = widget.enhancedScanService.scanManager.state;
+    setState(() {
+      _isScanning = state == DuplicateScanState.scanning;
+    });
+  }
+
+  /// 进度更新回调
+  void _onProgressUpdate(ScanProgress progress) {
+    if (!mounted) return;
+    
+    setState(() {
+      _currentStage = progress.stage;
+      _currentProgress = progress.current;
+      _totalProgress = progress.total;
+      _currentFile = progress.currentFile;
+      
+      // 记录进度变化（用于检测扫描是否还在进行）
+      if (_lastProgressValue != progress.current) {
+        _lastProgressValue = progress.current;
+      }
+    });
+  }
+
+  /// 扫描完成回调
+  void _onScanComplete(List<DuplicateFileGroup> groups) {
+    if (!mounted) return;
+    setState(() {
+      _allGroups = groups;
+      _isScanning = false;
+    });
+    _initializeDefaultSelection();
+  }
+
+  /// 扫描错误回调
+  void _onScanError(String error) {
+    if (!mounted) return;
+    setState(() => _isScanning = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('扫描失败: $error'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    final manager = widget.enhancedScanService.scanManager;
+    manager.removeStateListener(_onStateChange);
+    manager.removeProgressListener(_onProgressUpdate);
+    manager.removeCompletionListener(_onScanComplete);
+    manager.removeErrorListener(_onScanError);
+    super.dispose();
   }
 
   /// 初始化并开始扫描
@@ -77,19 +158,20 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     await _startScan();
   }
 
-  /// 初始化默认选中状态（推荐删除的文件默认选中）
+  /// 初始化默认选中状态（默认不选中，让用户主动选择）
   void _initializeDefaultSelection() {
     _selectedFilePaths.clear();
-    for (final group in _allGroups) {
-      for (final file in group.recommendedToDelete) {
-        _selectedFilePaths.add(file.path);
-      }
-    }
-    _isSelectionMode = _selectedFilePaths.isNotEmpty;
+    _isSelectionMode = false;
   }
 
   /// 开始扫描
   Future<void> _startScan() async {
+    // 防止重复调用
+    if (_isScanning) {
+      logger.w('Scan already in progress, ignoring duplicate call');
+      return;
+    }
+    
     setState(() {
       _isScanning = true;
       _allGroups = [];
@@ -97,22 +179,25 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       _currentProgress = 0;
       _totalProgress = 0;
       _currentFile = '';
+      _isCheckingUpdates = false;
+      _updateStatus = '';
+      _scanStartTime = DateTime.now(); // 记录扫描开始时间
+      _lastProgressValue = 0;
     });
 
     try {
-      final groups = await widget.duplicateFileService.scanDuplicateFiles(
-        config: _config,
-        onProgress: (stage, current, total, file) {
-          if (mounted) {
-            setState(() {
-              _currentStage = stage;
-              _currentProgress = current;
-              _totalProgress = total;
-              _currentFile = file;
-            });
-          }
-        },
+      // 记录扫描开始时间，用于判断是否使用了缓存
+      final scanStartTime = DateTime.now();
+      
+      // 使用增强扫描服务（自动整合缓存 + 后台扫描）
+      final groups = await widget.enhancedScanService.smartScan(
+        _config,
+        forceFullScan: false, // 优先使用缓存
       );
+      
+      // 计算扫描耗时，如果很快（< 1秒）说明使用了缓存
+      final scanDuration = DateTime.now().difference(scanStartTime);
+      final isFromCache = scanDuration.inMilliseconds < 1000;
 
       if (mounted) {
         setState(() {
@@ -133,6 +218,12 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
               duration: Duration(seconds: 2),
             ),
           );
+        } else {
+          // 只有在使用缓存时才启动增量更新检测
+          // 如果是刚完成的完整扫描，数据已经是最新的，无需再检查更新
+          if (isFromCache) {
+            _startIncrementalUpdateCheck();
+          }
         }
       }
     } catch (e) {
@@ -146,6 +237,117 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
           ),
         );
       }
+    }
+  }
+
+  /// 启动增量更新检测
+  void _startIncrementalUpdateCheck() {
+    if (!mounted) return;
+    
+    setState(() {
+      _isCheckingUpdates = true;
+      _updateStatus = '正在检查文件更新...';
+    });
+    
+    // 延迟500ms开始，让用户先看到缓存结果
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _checkForUpdates();
+    });
+  }
+  
+  /// 检查文件更新
+  Future<void> _checkForUpdates() async {
+    // 监听后台增量更新的真实状态
+    final scanManager = widget.enhancedScanService.scanManager;
+    
+    // 等待增量更新完成（最多60秒超时）
+    // 注意：如果用户复制了大量文件，增量扫描可能需要较长时间
+    final timeout = DateTime.now().add(const Duration(seconds: 60));
+    
+    while (mounted && DateTime.now().isBefore(timeout)) {
+      final state = scanManager.state;
+      
+      if (state == DuplicateScanState.completed) {
+        // 扫描完成，重新加载最新结果
+        if (!mounted) return;
+        
+        // 从缓存加载最新的扫描结果
+        final updatedGroups = await widget.enhancedScanService.smartScan(
+          _config,
+          forceFullScan: false,
+        );
+        
+        if (!mounted) return;
+        
+        setState(() {
+          _allGroups = updatedGroups;
+          _isCheckingUpdates = false;
+          _updateStatus = '检查完成，数据已是最新';
+        });
+        
+        // 重新初始化默认选中状态
+        _initializeDefaultSelection();
+        
+        // 3秒后清除状态文案
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _updateStatus = '';
+            });
+          }
+        });
+        
+        return;
+      } else if (state == DuplicateScanState.error) {
+        // 扫描出错
+        if (!mounted) return;
+        
+        setState(() {
+          _isCheckingUpdates = false;
+          _updateStatus = '检查更新失败';
+        });
+        
+        // 3秒后清除错误信息
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _updateStatus = '';
+            });
+          }
+        });
+        
+        return;
+      } else if (state == DuplicateScanState.idle) {
+        // 没有后台扫描在进行
+        if (!mounted) return;
+        
+        setState(() {
+          _isCheckingUpdates = false;
+          _updateStatus = '';
+        });
+        
+        return;
+      }
+      
+      // 状态是 scanning，继续等待
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    
+    // 超时处理
+    if (mounted) {
+      setState(() {
+        _isCheckingUpdates = false;
+        _updateStatus = '检查超时，请稍后重试';
+      });
+      
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _updateStatus = '';
+          });
+        }
+      });
     }
   }
 
@@ -377,7 +579,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
           },
         ),
         title: Text(
-          _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整）' : '重复文件清理（${_config.selectedType!.label}）',
+          _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整检测）' : '重复文件清理（${_config.selectedType!.label}）',
         ),
         centerTitle: true,
       );
@@ -385,7 +587,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     return AppBar(
       title: Text(
-        _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整）' : '重复文件清理（${_config.selectedType!.label}）',
+        _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整检测）' : '重复文件清理（${_config.selectedType!.label}）',
       ),
       centerTitle: true,
     );
@@ -476,40 +678,164 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 构建扫描进度指示器
   Widget _buildScanningIndicator(ThemeData theme, ColorScheme colorScheme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text(
-              _getStageName(_currentStage),
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            if (_totalProgress > 0)
-              Text(
-                '$_currentProgress / $_totalProgress',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+    return Column(
+      children: [
+        // 主内容区域（可滚动）
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 顶部说明卡片
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: colorScheme.primary.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    '您正在执行首次完整扫描，完整扫描将会系统的扫描您的设备，最大限度的为您找到所有类型的重复文件，以帮助您释放宝贵的存储空间',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
+                const SizedBox(height: 32),
+                // 进度指示器（带百分比）
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(strokeWidth: 5),
+                    ),
+                    if (_totalProgress > 0)
+                      Text(
+                        '${_getProgressPercentage().toStringAsFixed(0)}%',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // 阶段名称和进度
+                Text(
+                  _totalProgress > 0 
+                    ? '${_getStageName(_currentStage)} ($_currentProgress/$_totalProgress)'
+                    : _getStageName(_currentStage),
+                  style: theme.textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                // 预计剩余时间
+                if (_getEstimatedTimeRemaining().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '预计剩余: ${_getEstimatedTimeRemaining()}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (_currentFile.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      _currentFile.split('/').last.split('\\').last, // 只显示文件名
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                const SizedBox(height: 24), // 底部留白，确保底部提示不会遮挡
+              ],
+            ),
+          ),
+        ),
+        // 底部提示文案
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest.withOpacity(0.8),
+            border: Border(
+              top: BorderSide(
+                color: colorScheme.outlineVariant,
+                width: 1,
               ),
-            const SizedBox(height: 16),
-            if (_currentFile.isNotEmpty)
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end, // 改为底部对齐
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 24,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        children: [
+                          const TextSpan(text: '扫描正在进行，预计需要'),
+                          TextSpan(
+                            text: '几分钟到十几分钟',
+                            style: TextStyle(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Text(
-                _currentFile,
+                '具体时长取决于系统文件数量。您可以返回继续其他工作，扫描会持续进行，您可以随时回到这里查看扫描进度',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left, // 改为左对齐
               ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -523,6 +849,36 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         return '正在确认重复...';
       default:
         return '正在处理...';
+    }
+  }
+  
+  /// 计算扫描进度百分比
+  double _getProgressPercentage() {
+    if (_totalProgress == 0) return 0;
+    return (_currentProgress / _totalProgress * 100).clamp(0, 100);
+  }
+  
+  /// 估算剩余时间
+  String _getEstimatedTimeRemaining() {
+    if (_scanStartTime == null || _totalProgress == 0 || _currentProgress == 0) {
+      return ''; // 没有足够信息估算
+    }
+    
+    final elapsed = DateTime.now().difference(_scanStartTime!);
+    final progress = _currentProgress / _totalProgress;
+    
+    if (progress < 0.05) {
+      return ''; // 进度太少，估算不准确
+    }
+    
+    final totalEstimated = elapsed.inSeconds / progress;
+    final remaining = totalEstimated - elapsed.inSeconds;
+    
+    if (remaining < 60) {
+      return '约${remaining.round()}秒';
+    } else {
+      final minutes = (remaining / 60).round();
+      return '约${minutes}分钟';
     }
   }
 
@@ -547,11 +903,47 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '📊 扫描结果',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  // 标题行：扫描结果 + 更新状态
+                  Row(
+                    children: [
+                      Text(
+                        '📊 扫描结果',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_isCheckingUpdates) ...[
+                        const SizedBox(width: 12),
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '检查更新中...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ] else if (_updateStatus.isNotEmpty) ...[
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _updateStatus,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Text('找到 ${_allGroups.length} 组重复文件 (共 $totalFiles 个文件)'),
@@ -645,11 +1037,47 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '📊 扫描结果',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  // 标题行：扫描结果 + 更新状态
+                  Row(
+                    children: [
+                      Text(
+                        '📊 扫描结果',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_isCheckingUpdates) ...[
+                        const SizedBox(width: 12),
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '检查更新中...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ] else if (_updateStatus.isNotEmpty) ...[
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _updateStatus,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Text('找到 ${_allGroups.length} 组重复${_config.selectedType!.label} (共 $totalFiles 个文件)'),

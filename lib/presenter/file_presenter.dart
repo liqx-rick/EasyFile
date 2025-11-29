@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
@@ -1143,31 +1144,54 @@ class FilePresenter {
     return existingPaths;
   }
 
-  /// 已知的系统文件夹名称（避免重复扫描）
-  static const List<String> _knownSystemFolders = [
+  /// Android 系统预定义目录名称（单一数据源）
+  /// 
+  /// 这些目录会在 _getSystemPaths() 中构建完整路径
+  /// 也会在 _discoverUserFolders() 中用于跳过重复扫描
+  static const List<String> _androidSystemFolderNames = [
     'DCIM',
     'Pictures',
     'Music',
     'Movies',
     'Videos',
+    'Video',  // 有些设备用 Video 而不是 Videos
     'Documents',
     'Download',
     'Downloads',
+    'Podcasts',
+    'Audiobooks',
+    'Recordings',
+    'Sounds',
+    'Voice Recorder',
+    'Screenshots',
+    'Screen recordings',
+    'Screenrecords',
+    'Books',
+  ];
+
+  /// Windows/Linux 系统预定义目录名称
+  static const List<String> _desktopSystemFolderNames = [
+    'Documents',
+    'Pictures',
+    'Music',
+    'Videos',
     'Desktop',
+    'Downloads',
   ];
 
   /// 应该排除的文件夹（系统/应用数据）
   ///
   /// ⚠️ 注意：此字段暴露为public以供文件清理功能使用
+  /// ⚠️ 不要在此列表中添加已在系统目录列表中的文件夹（会被提前过滤）
   static const List<String> excludedFolders = [
     'Android', // Android应用数据
     '.thumbnails', // 缩略图缓存
-    '.cache', // 缓存
+    '.cache', // 缓存（隐藏）
+    'cache', // 缓存（普通）
     '.trash', // 回收站
     'Alarms', // 系统铃声
     'Notifications', // 通知音
     'Ringtones', // 铃声
-    'Podcasts', // 播客
     'lost+found', // Android系统目录
   ];
 
@@ -1179,18 +1203,30 @@ class FilePresenter {
     final paths = <String>[];
 
     try {
+      debugPrint('\n========== getCommonScanPaths() 开始 ==========');
+      
       // 阶段1: 添加系统预定义目录（已知的高价值路径）
       final systemPaths = await _getSystemPaths();
       paths.addAll(systemPaths);
       logger.d('System paths: ${systemPaths.length}');
+      debugPrint('[路径发现] 阶段1-系统路径: ${systemPaths.length} 个');
+      for (var i = 0; i < systemPaths.length && i < 5; i++) {
+        debugPrint('  系统路径示例 ${i + 1}: ${systemPaths[i]}');
+      }
 
       // 阶段2: 发现用户自定义文件夹（根目录第一层扫描）
       final discoveredPaths = await _discoverUserFolders();
       paths.addAll(discoveredPaths);
       logger.d('Discovered user folders: ${discoveredPaths.length}');
+      debugPrint('[路径发现] 阶段2-用户文件夹: ${discoveredPaths.length} 个');
+      for (var i = 0; i < discoveredPaths.length; i++) {
+        debugPrint('  用户文件夹 ${i + 1}: ${discoveredPaths[i]}');
+      }
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
+
+    debugPrint('[路径发现] 合并前总数: ${paths.length} 个');
 
     // 去重并过滤存在的路径
     final existingPaths = <String>[];
@@ -1203,6 +1239,8 @@ class FilePresenter {
     }
 
     logger.i('Total scan paths: ${existingPaths.length}');
+    debugPrint('[路径发现] 最终结果: ${existingPaths.length} 个有效路径');
+    debugPrint('==========================================\n');
     return existingPaths;
   }
 
@@ -1213,37 +1251,17 @@ class FilePresenter {
     if (Platform.isWindows) {
       final userProfile = Platform.environment['USERPROFILE'];
       if (userProfile != null) {
-        paths.addAll([
-          '$userProfile\\Documents',
-          '$userProfile\\Pictures',
-          '$userProfile\\Music',
-          '$userProfile\\Videos',
-          '$userProfile\\Desktop',
-          '$userProfile\\Downloads',
-        ]);
+        // 使用统一定义的系统目录列表
+        for (final folderName in _desktopSystemFolderNames) {
+          paths.add('$userProfile\\$folderName');
+        }
       }
     } else if (Platform.isAndroid) {
-      // ✅ 优化1: 扩展标准目录
-      paths.addAll([
-        '/storage/emulated/0/DCIM',
-        '/storage/emulated/0/Pictures',
-        '/storage/emulated/0/Music',
-        '/storage/emulated/0/Movies',
-        '/storage/emulated/0/Documents',
-        '/storage/emulated/0/Download',
-        '/storage/emulated/0/Downloads', // 兼容不同厂商
-        '/storage/emulated/0/Podcasts',
-        '/storage/emulated/0/Audiobooks',
-        '/storage/emulated/0/Recordings', // 录音文件
-        '/storage/emulated/0/Sounds',
-        '/storage/emulated/0/Voice Recorder',
-        '/storage/emulated/0/Screenshots', //屏幕截图
-        '/storage/emulated/0/Screen recordings', // 屏幕录制
-        '/storage/emulated/0/Screenrecords', // 屏幕录制
-        '/storage/emulated/0/Videos', 
-        '/storage/emulated/0/Video', 
-        '/storage/emulated/0/Books', 
-      ]);
+      // 使用统一定义的系统目录列表
+      const baseAndroidPath = '/storage/emulated/0';
+      for (final folderName in _androidSystemFolderNames) {
+        paths.add('$baseAndroidPath/$folderName');
+      }
       
       // ✅ 优化2: 扫描所有外部存储设备（SD卡等）
       try {
@@ -1263,6 +1281,7 @@ class FilePresenter {
                 paths.add(externalPath);
                 
                 // 添加外部存储的标准子目录
+                // 未完成，待优化（外部存储里的所有的目录 应被认为是扫描路径）
                 paths.addAll([
                   '$externalPath/DCIM',
                   '$externalPath/Pictures',
@@ -1282,14 +1301,10 @@ class FilePresenter {
     } else {
       final home = Platform.environment['HOME'];
       if (home != null) {
-        paths.addAll([
-          '$home/Documents',
-          '$home/Pictures',
-          '$home/Music',
-          '$home/Videos',
-          '$home/Desktop',
-          '$home/Downloads',
-        ]);
+        // 使用统一定义的系统目录列表
+        for (final folderName in _desktopSystemFolderNames) {
+          paths.add('$home/$folderName');
+        }
       }
     }
 
@@ -1301,6 +1316,8 @@ class FilePresenter {
     final discovered = <String>[];
 
     try {
+      debugPrint('\n[用户文件夹发现] 开始扫描根目录...');
+      
       // 确定扫描根目录
       String? rootPath;
       if (Platform.isAndroid) {
@@ -1313,13 +1330,21 @@ class FilePresenter {
 
       if (rootPath == null || !Directory(rootPath).existsSync()) {
         logger.w('Root path not found or not exists');
+        debugPrint('[用户文件夹发现] ⚠️ 根目录不存在: $rootPath');
         return discovered;
       }
 
       logger.d('Discovering user folders in: $rootPath');
+      debugPrint('[用户文件夹发现] 扫描根目录: $rootPath');
 
       // 扫描根目录第一层（只扫描一层，不递归）
       final entities = Directory(rootPath).listSync(followLinks: false);
+      debugPrint('[用户文件夹发现] listSync() 返回了 ${entities.length} 个项目');
+
+      var skippedHidden = 0;
+      var skippedSystem = 0;
+      var skippedExcluded = 0;
+      var foundCount = 0;
 
       for (final entity in entities) {
         if (entity is! Directory) continue;
@@ -1327,22 +1352,41 @@ class FilePresenter {
         final folderName = path.basename(entity.path);
 
         // 跳过隐藏文件夹
-        if (folderName.startsWith('.')) continue;
+        if (folderName.startsWith('.')) {
+          skippedHidden++;
+          continue;
+        }
 
         // 跳过已知系统目录（避免重复）
-        if (_knownSystemFolders.contains(folderName)) continue;
+        // 根据平台选择对应的系统目录列表
+        final systemFolders = Platform.isAndroid 
+            ? _androidSystemFolderNames 
+            : _desktopSystemFolderNames;
+        if (systemFolders.contains(folderName)) {
+          skippedSystem++;
+          debugPrint('[用户文件夹发现] 跳过系统目录: $folderName');
+          continue;
+        }
 
         // 跳过应用/系统数据目录
-        if (excludedFolders.contains(folderName)) continue;
+        if (excludedFolders.contains(folderName)) {
+          skippedExcluded++;
+          debugPrint('[用户文件夹发现] 跳过排除目录: $folderName');
+          continue;
+        }
 
         // 这是用户自定义文件夹，添加到列表
         discovered.add(entity.path);
+        foundCount++;
         logger.d('Found user folder: ${entity.path}');
+        debugPrint('[用户文件夹发现] ✅ 发现用户文件夹 ${foundCount}: ${entity.path}');
       }
 
+      debugPrint('[用户文件夹发现] 统计: 总计=${entities.length}, 隐藏=$skippedHidden, 系统=$skippedSystem, 排除=$skippedExcluded, 发现=$foundCount');
       logger.i('Discovered ${discovered.length} user-defined folders');
     } catch (e) {
       logger.w('Error discovering user folders: $e');
+      debugPrint('[用户文件夹发现] ❌ 错误: $e');
     }
 
     return discovered;

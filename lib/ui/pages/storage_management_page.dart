@@ -9,6 +9,7 @@ import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/duplicate_file_cache_manager.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
@@ -1218,11 +1219,12 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         // 完整检测：扫描所有类型的重复文件
         final presenter = locator<FilePresenter>();
         final duplicateFileService = DuplicateFileService(presenter);
+        final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
 
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => DuplicateFilesPage(
-              duplicateFileService: duplicateFileService,
+              enhancedScanService: enhancedScanService,
               initialConfig: const DuplicateFileScanConfig(
                 scanMode: DuplicateScanMode.full,
               ),
@@ -1313,11 +1315,12 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           if (!mounted) return;
           final presenter = locator<FilePresenter>();
           final duplicateFileService = DuplicateFileService(presenter);
+          final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
 
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => DuplicateFilesPage(
-                duplicateFileService: duplicateFileService,
+                enhancedScanService: enhancedScanService,
                 initialConfig: config,
               ),
             ),

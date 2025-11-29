@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/duplicate_file_service.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -18,16 +23,36 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _settingsService = PageSettingsService();
   final _displaySettings = FileDisplaySettingsService();
+  late final EnhancedDuplicateFileScanService _enhancedScanService;
 
   bool _gridShowFileInfo = true; // 默认值，会在initState中加载
   bool _showHiddenFiles = false;
   bool _showSystemFiles = false;
   bool _showFullPath = false;
+  int _cacheSize = 0;
 
   @override
   void initState() {
     super.initState();
+    final presenter = locator<FilePresenter>();
+    final duplicateFileService = DuplicateFileService(presenter);
+    _enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
     _loadSettings();
+    _loadCacheSize();
+  }
+
+  /// 加载缓存大小
+  Future<void> _loadCacheSize() async {
+    try {
+      final size = await _enhancedScanService.getCacheSize();
+      if (mounted) {
+        setState(() {
+          _cacheSize = size;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load cache size: $e');
+    }
   }
 
   /// 加载设置
@@ -73,6 +98,13 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildShowFullPathToggle(context),
           _buildShowHiddenFilesToggle(context),
           _buildShowSystemFilesToggle(context),
+
+          const Divider(height: 32),
+
+          // 缓存管理部分
+          _buildSectionHeader('缓存管理', Icons.storage),
+          _buildCacheSizeTile(context),
+          _buildClearCacheTile(context),
 
           const SizedBox(height: 32),
         ],
@@ -565,5 +597,98 @@ class _SettingsPageState extends State<SettingsPage> {
       default:
         return '默认';
     }
+  }
+
+  /// 缓存大小显示
+  Widget _buildCacheSizeTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.pie_chart_outline),
+      title: const Text('扫描缓存大小'),
+      subtitle: Text(
+        _cacheSize > 0 
+          ? FileSizeFormatter.formatBytes(_cacheSize)
+          : '无缓存',
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.refresh),
+        onPressed: _loadCacheSize,
+        tooltip: '刷新',
+      ),
+    );
+  }
+
+  /// 清除缓存
+  Widget _buildClearCacheTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return ListTile(
+      leading: Icon(Icons.cleaning_services, color: colorScheme.error),
+      title: const Text('清除扫描缓存'),
+      subtitle: const Text('清除重复文件扫描结果缓存，下次扫描将重新计算'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showClearCacheDialog(context),
+    );
+  }
+
+  /// 显示清除缓存确认对话框
+  void _showClearCacheDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除扫描缓存'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('将清除所有重复文件扫描结果的缓存。'),
+            SizedBox(height: 12),
+            Text('清除后：'),
+            SizedBox(height: 4),
+            Text('• 下次扫描将重新计算所有文件'),
+            Text('• 扫描时间可能会更长'),
+            Text('• 不会删除任何实际文件'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await _enhancedScanService.clearAllCaches();
+                await _loadCacheSize();
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('缓存已清除'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                logger.e('Failed to clear cache: $e');
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('清除失败: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
   }
 }
