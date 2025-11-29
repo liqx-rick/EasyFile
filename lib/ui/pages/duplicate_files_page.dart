@@ -154,8 +154,54 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 初始化并开始扫描
   Future<void> _initializeAndScan() async {
-    // 直接开始扫描（不使用缓存，确保数据实时性）
-    await _startScan();
+    // 🔍 检查后台扫描管理器的状态
+    final manager = widget.enhancedScanService.scanManager;
+    
+    logger.i('📱 _initializeAndScan: manager.state = ${manager.state}, cachedGroups = ${manager.cachedGroups.length}');
+    
+    // 🔧 优先策略：无论什么状态，先尝试调用smartScan获取结果
+    // smartScan会智能处理各种场景（缓存/增量更新/正在扫描等）
+    try {
+      final groups = await widget.enhancedScanService.smartScan(
+        _config,
+        forceFullScan: false,
+      );
+      
+      logger.i('📊 smartScan returned ${groups.length} groups');
+      
+      if (mounted) {
+        setState(() {
+          _allGroups = groups;
+          _isScanning = manager.state == DuplicateScanState.scanning;
+          
+          if (_isScanning) {
+            if (groups.isEmpty) {
+              _updateStatus = '正在首次扫描，请稍候...';
+            } else {
+              _updateStatus = '正在更新扫描结果...';
+            }
+          } else {
+            _updateStatus = '';
+          }
+        });
+        
+        if (groups.isNotEmpty) {
+          _initializeDefaultSelection();
+        } else if (!_isScanning) {
+          // 扫描已完成但没有结果
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('未找到重复文件'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      logger.e('smartScan failed: $e');
+      // 如果smartScan失败，开始新的扫描
+      await _startScan();
+    }
   }
 
   /// 初始化默认选中状态（默认不选中，让用户主动选择）
@@ -166,9 +212,21 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 开始扫描
   Future<void> _startScan() async {
-    // 防止重复调用
+    // 检查后台扫描管理器状态
+    final manager = widget.enhancedScanService.scanManager;
+    
+    // 如果后台已经在扫描中，不要重复启动
+    if (manager.state == DuplicateScanState.scanning) {
+      logger.w('Scan already in progress in background, waiting for completion');
+      setState(() {
+        _isScanning = true;
+      });
+      return;
+    }
+    
+    // 防止UI层面的重复调用
     if (_isScanning) {
-      logger.w('Scan already in progress, ignoring duplicate call');
+      logger.w('Scan already in progress (UI state), ignoring duplicate call');
       return;
     }
     
