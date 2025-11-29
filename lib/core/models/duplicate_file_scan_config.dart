@@ -2,7 +2,7 @@ import 'package:easyfile/core/models/large_file_scan_config.dart';
 
 /// 重复文件扫描配置
 class DuplicateFileScanConfig {
-  /// 最小文件大小（KB），固定为100KB
+  /// 最小文件大小（KB），可配置，默认10KB
   final int minSizeInKB;
   
   /// 扫描模式
@@ -12,7 +12,7 @@ class DuplicateFileScanConfig {
   final FileTypeFilter? selectedType;
   
   const DuplicateFileScanConfig({
-    this.minSizeInKB = 100, // 固定100KB
+    this.minSizeInKB = 10, // ✅ 默认最小扫描文件大小
     required this.scanMode,
     this.selectedType,
   }) : assert(
@@ -21,15 +21,16 @@ class DuplicateFileScanConfig {
        );
   
   /// 完整检测配置
-  const DuplicateFileScanConfig.fullScan()
-      : minSizeInKB = 100,
+  const DuplicateFileScanConfig.fullScan({int minSizeInKB = 10})
+      : minSizeInKB = minSizeInKB,
         scanMode = DuplicateScanMode.full,
         selectedType = null;
   
   /// 分类检测配置
   const DuplicateFileScanConfig.categoryScan({
     required FileTypeFilter type,
-  })  : minSizeInKB = 100,
+    int minSizeInKB = 10,
+  })  : minSizeInKB = minSizeInKB,
         scanMode = DuplicateScanMode.category,
         selectedType = type;
   

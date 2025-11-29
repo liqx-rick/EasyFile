@@ -152,7 +152,7 @@ class DuplicateFileService {
         minSizeInBytes,
         fileTypes,
         0,
-        10, // 最大深度
+        15, // ✅ 优化: 最大深度从10增加到15
       );
     } catch (e) {
       logger.w('Error scanning path $pathStr: $e');
@@ -206,7 +206,7 @@ class DuplicateFileService {
                     minSizeInBytes,
                     fileTypes,
                     currentDepth + 1,
-                    maxDepth + 5,
+                    maxDepth + 5, // ✅ 优化: Android/data额外增加5层深度 (总共20层)
                   );
                 }
               }
@@ -254,7 +254,8 @@ class DuplicateFileService {
       '.aac',
       '.ogg',
       '.wma',
-      '.opus'
+      '.opus',
+      '.amr'
     ];
     const imageExtensions = [
       '.jpg',
@@ -264,6 +265,7 @@ class DuplicateFileService {
       '.bmp',
       '.webp',
       '.heic',
+      '.heif',
       '.svg'
     ];
     const documentExtensions = [

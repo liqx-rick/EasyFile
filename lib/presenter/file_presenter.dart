@@ -1223,6 +1223,7 @@ class FilePresenter {
         ]);
       }
     } else if (Platform.isAndroid) {
+      // ✅ 优化1: 扩展标准目录
       paths.addAll([
         '/storage/emulated/0/DCIM',
         '/storage/emulated/0/Pictures',
@@ -1230,7 +1231,54 @@ class FilePresenter {
         '/storage/emulated/0/Movies',
         '/storage/emulated/0/Documents',
         '/storage/emulated/0/Download',
+        '/storage/emulated/0/Downloads', // 兼容不同厂商
+        '/storage/emulated/0/Podcasts',
+        '/storage/emulated/0/Audiobooks',
+        '/storage/emulated/0/Recordings', // 录音文件
+        '/storage/emulated/0/Sounds',
+        '/storage/emulated/0/Voice Recorder',
+        '/storage/emulated/0/Screenshots', //屏幕截图
+        '/storage/emulated/0/Screen recordings', // 屏幕录制
+        '/storage/emulated/0/Screenrecords', // 屏幕录制
+        '/storage/emulated/0/Videos', 
+        '/storage/emulated/0/Video', 
+        '/storage/emulated/0/Books', 
       ]);
+      
+      // ✅ 优化2: 扫描所有外部存储设备（SD卡等）
+      try {
+        final storageRoot = Directory('/storage');
+        if (storageRoot.existsSync()) {
+          await for (final entity in storageRoot.list()) {
+            if (entity is Directory) {
+              final name = path.basename(entity.path);
+              // 跳过特殊目录
+              if (name == 'self' || name == 'emulated') continue;
+              
+              // 这是外部存储设备（SD卡等）
+              final externalPath = entity.path;
+              if (Directory(externalPath).existsSync()) {
+                logger.d('Found external storage: $externalPath');
+                // 添加外部存储根目录
+                paths.add(externalPath);
+                
+                // 添加外部存储的标准子目录
+                paths.addAll([
+                  '$externalPath/DCIM',
+                  '$externalPath/Pictures',
+                  '$externalPath/Music',
+                  '$externalPath/Movies',
+                  '$externalPath/Documents',
+                  '$externalPath/Download',
+                  '$externalPath/Downloads',
+                ]);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        logger.w('Error scanning external storage: $e');
+      }
     } else {
       final home = Platform.environment['HOME'];
       if (home != null) {

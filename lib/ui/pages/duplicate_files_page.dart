@@ -391,29 +391,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     );
   }
 
+  /// 清空所有选择
+  void _clearSelection() {
+    setState(() {
+      _selectedFilePaths.clear();
+      _isSelectionMode = false;
+    });
+  }
+
   /// 应用推荐选择（选中所有推荐删除的文件，取消选中推荐保留的）
   Future<void> _applyRecommendedSelection() async {
-    // 弹出确认对话框
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('恢复推荐选择？'),
-        content: const Text('将恢复到系统推荐的删除选项，当前的手动调整将被覆盖。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('确定恢复'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
     setState(() {
       _selectedFilePaths.clear();
       
@@ -817,51 +804,22 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 缩略图（40px）
-                  _buildThumbnail(file, 40),
+                  // 缩略图（图片/视频 80px，其他 40px）
+                  _buildThumbnail(file),
                   const SizedBox(width: 12),
-                  // 文件名和大小（两行布局）
+                  // 文件名和大小（三行布局）
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 第一行：文件名 + 建议保留徽章
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                file.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                            ),
-                            if (isRecommended)
-                              Container(
-                                margin: const EdgeInsets.only(left: 4),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: Colors.green.withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Text(
-                                  '建议保留',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        // 第一行：文件名
+                        Text(
+                          file.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 4),
                         // 第二行：文件大小 + 展开状态提示
@@ -888,6 +846,36 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                             ),
                           ],
                         ),
+                        // 第三行：建议保留徽章
+                        if (isRecommended) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.green.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Text(
+                                  '建议保留',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -929,7 +917,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             height: isExpanded ? null : 0,
             child: isExpanded
                 ? Container(
-                      margin: const EdgeInsets.only(left: 52, top: 8),
+                      margin: const EdgeInsets.only(top: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
@@ -959,16 +947,20 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                             colorScheme,
                           ),
                           const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: () => _openFilePreview(file),
-                            icon: const Icon(Icons.open_in_new, size: 16),
-                            label: const Text('打开文件'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                          // 打开文件按钮 - 右对齐
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openFilePreview(file),
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('打开文件'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                minimumSize: const Size(0, 32),
                               ),
-                              minimumSize: const Size(0, 32),
                             ),
                           ),
                         ],
@@ -992,7 +984,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 70,
+          width: 80,
           child: Text(
             '$label：',
             style: theme.textTheme.bodySmall?.copyWith(
@@ -1013,37 +1005,115 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 构建底部操作栏
   Widget _buildBottomBar(ColorScheme colorScheme) {
-    // 检查当前选择是否为推荐状态
     final isRecommended = _isCurrentSelectionRecommended();
+    final hasSelection = _selectedFilePaths.isNotEmpty;
     
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Text('已选择 ${_selectedFilePaths.length} 项'),
-          const Spacer(),
-          // 系统推荐按钮：推荐状态时禁用，修改后启用
-          OutlinedButton(
-            onPressed: isRecommended ? null : _applyRecommendedSelection,
-            child: const Text('系统推荐'),
+        color: colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: colorScheme.outlineVariant.withOpacity(0.5),
+            width: 1,
           ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: _selectedFilePaths.isEmpty ? null : _deleteSelectedFiles,
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('删除'),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
           ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // 左侧：选择计数
+            Text(
+              '已选择 ${_selectedFilePaths.length} 项',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const Spacer(),
+            
+            // 右侧：操作按钮组
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 推荐按钮（始终显示，推荐状态时禁用）
+                TextButton(
+                  onPressed: isRecommended ? null : _applyRecommendedSelection,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: colorScheme.primary,
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withOpacity(0.38),
+                  ),
+                  child: const Text('推荐', style: TextStyle(fontSize: 14)),
+                ),
+                const SizedBox(width: 8),
+                
+                // 清空按钮（始终显示，无选择时禁用）
+                TextButton(
+                  onPressed: hasSelection ? _clearSelection : null,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withOpacity(0.38),
+                  ),
+                  child: const Text('清空', style: TextStyle(fontSize: 14)),
+                ),
+                const SizedBox(width: 8),
+                
+                // 删除按钮（始终显示，无选择时禁用）
+                FilledButton(
+                  onPressed: hasSelection ? _deleteSelectedFiles : null,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: colorScheme.onError,
+                    disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withOpacity(0.38),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.delete_outline, size: 16),
+                      const SizedBox(width: 4),
+                      const Text('删除', style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   /// 构建缩略图
-  Widget _buildThumbnail(FileItem file, double size) {
+  /// 
+  /// 图片和视频使用 80px 大尺寸（便于识别内容）
+  /// 其他文件类型使用 40px 小尺寸（图标化显示）
+  Widget _buildThumbnail(FileItem file) {
+    // 根据文件类型确定缩略图尺寸
+    final isImageOrVideo = FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
+    final size = isImageOrVideo ? 80.0 : 40.0;
+    
     if (FileUtils.isImageFile(file.name)) {
       return ImageThumbnail(imagePath: file.path, size: size);
     } else if (FileUtils.isVideoFile(file.name)) {

@@ -1289,7 +1289,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         if (!mounted) return;
         final result = await showDialog<Map<String, dynamic>>(
           context: context,
-          builder: (context) => const DuplicateFileScanTypeDialog(),
+          builder: (context) => DuplicateFileScanTypeDialog(
+            initialType: _cachedDuplicateScanConfig?.selectedType,
+            initialMinSizeKB: _cachedDuplicateScanConfig?.minSizeInKB,
+          ),
         );
 
         // 如果用户选择了类型，跳转到扫描页

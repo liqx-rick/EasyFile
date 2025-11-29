@@ -3,7 +3,14 @@ import 'package:easyfile/core/models/large_file_scan_config.dart';
 
 /// 重复文件类型选择对话框
 class DuplicateFileScanTypeDialog extends StatefulWidget {
-  const DuplicateFileScanTypeDialog({super.key});
+  final FileTypeFilter? initialType;
+  final int? initialMinSizeKB;
+  
+  const DuplicateFileScanTypeDialog({
+    super.key,
+    this.initialType,
+    this.initialMinSizeKB,
+  });
 
   @override
   State<DuplicateFileScanTypeDialog> createState() =>
@@ -12,8 +19,16 @@ class DuplicateFileScanTypeDialog extends StatefulWidget {
 
 class _DuplicateFileScanTypeDialogState
     extends State<DuplicateFileScanTypeDialog> {
-  FileTypeFilter _selectedType = FileTypeFilter.video; // 默认选视频
-  double _minFileSizeKB = 100; // 默认100KB
+  late FileTypeFilter _selectedType;
+  late double _minFileSizeKB;
+
+  @override
+  void initState() {
+    super.initState();
+    // 使用传入的初始值，否则使用默认值
+    _selectedType = widget.initialType ?? FileTypeFilter.video;
+    _minFileSizeKB = (widget.initialMinSizeKB ?? 100).toDouble();
+  }
 
   @override
   Widget build(BuildContext context) {
