@@ -46,7 +46,8 @@ class LocalFileRepository implements FileRepository {
           final fileName = entity.path.split(Platform.pathSeparator).last;
 
           // 过滤隐藏文件（以.开头）
-          if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
+          if (!showHidden &&
+              FileDisplaySettingsService.isHiddenFile(fileName)) {
             return false;
           }
 
@@ -67,7 +68,7 @@ class LocalFileRepository implements FileRepository {
         }).toList();
       } catch (e) {
         // 捕获权限拒绝错误（如 Android/data 目录）
-        if (e.toString().contains('Permission denied') || 
+        if (e.toString().contains('Permission denied') ||
             e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $path');
           logger.w('This directory is protected by Android system security');

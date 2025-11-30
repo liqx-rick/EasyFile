@@ -21,12 +21,14 @@ class LargeFileCacheManager {
       final prefs = await SharedPreferences.getInstance();
 
       // 保存文件列表（转为简化的JSON格式）
-      final filesJson = files.map((file) => {
-        'name': file.name,
-        'path': file.path,
-        'size': file.size,
-        'modified': file.modified.millisecondsSinceEpoch,
-      }).toList();
+      final filesJson = files
+          .map((file) => {
+                'name': file.name,
+                'path': file.path,
+                'size': file.size,
+                'modified': file.modified.millisecondsSinceEpoch,
+              })
+          .toList();
 
       await prefs.setString(_cacheKey, jsonEncode(filesJson));
       await prefs.setString(_configKey, jsonEncode(config.toJson()));
@@ -78,7 +80,8 @@ class LargeFileCacheManager {
       final config = LargeFileScanConfig.fromJson(
           jsonDecode(configJson) as Map<String, dynamic>);
 
-      logger.i('Cache loaded: ${filesList.length} files, age: ${age.inMinutes} minutes');
+      logger.i(
+          'Cache loaded: ${filesList.length} files, age: ${age.inMinutes} minutes');
 
       return LargeFileScanCache(
         files: filesList,
@@ -109,25 +112,25 @@ class LargeFileCacheManager {
   Future<int> getCacheSize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       int totalSize = 0;
-      
+
       // 估算 SharedPreferences 中的存储大小
       final filesJson = prefs.getString(_cacheKey);
       final configJson = prefs.getString(_configKey);
-      
+
       if (filesJson != null) {
         totalSize += filesJson.length * 2; // UTF-16编码
       }
       if (configJson != null) {
         totalSize += configJson.length * 2;
       }
-      
+
       // 加上时间戳（约8字节）
       if (prefs.getInt(_timestampKey) != null) {
         totalSize += 8;
       }
-      
+
       return totalSize;
     } catch (e) {
       logger.e('Failed to get cache size: $e');

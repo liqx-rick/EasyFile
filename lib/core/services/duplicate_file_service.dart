@@ -11,10 +11,10 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 
 /// 重复文件检测服务
-/// 
+///
 /// 使用三阶段检测算法（大小分组 → 头部哈希 → 完整哈希），
 /// 提供高效的重复文件检测功能
-/// 
+///
 /// 特性：
 /// - ✅ 三阶段检测（大小分组 → 头部哈希 → 完整哈希）
 /// - ✅ 智能跳过（系统目录、小文件、隐藏文件）
@@ -26,11 +26,11 @@ class DuplicateFileService {
   DuplicateFileService(this.presenter);
 
   /// 扫描重复文件
-  /// 
+  ///
   /// [config] 扫描配置
   /// [onProgress] 进度回调 (阶段, 当前进度, 总数, 当前处理的文件)
   /// [onFilesCollected] 文件收集完成回调（用于缓存管理）
-  /// 
+  ///
   /// 返回重复文件组列表
   Future<List<DuplicateFileGroup>> scanDuplicateFiles({
     required DuplicateFileScanConfig config,
@@ -56,24 +56,33 @@ class DuplicateFileService {
         return [];
       }
 
-      logger.i('Stage 1 completed: ${allFiles.length} files collected');
+      // ✅ 方案2：第一阶段已经只扫描目标类型，无需再过滤
+      logger.i(
+          'Stage 1 completed: ${allFiles.length} target type files collected');
+      debugPrint('[文件收集] ✅ 完成：共收集 ${allFiles.length} 个目标类型文件');
+
+      final filteredFiles = allFiles;
+
+      if (filteredFiles.isEmpty) {
+        logger.i('No target type files found');
+        return [];
+      }
 
       // 阶段2: 按大小分组（快速预筛）
-      final sizeGroups = _groupBySize(allFiles);
+      final sizeGroups = _groupBySize(filteredFiles);
       logger.i('Stage 2: ${sizeGroups.length} size groups');
 
       // 只处理有多个文件的组（可能重复）
-      final suspiciousGroups = sizeGroups.values
-          .where((files) => files.length >= 2)
-          .toList();
+      final suspiciousGroups =
+          sizeGroups.values.where((files) => files.length >= 2).toList();
 
       if (suspiciousGroups.isEmpty) {
         logger.i('No suspicious size groups found');
         return [];
       }
 
-      final totalSuspiciousFiles = suspiciousGroups
-          .fold<int>(0, (sum, group) => sum + group.length);
+      final totalSuspiciousFiles =
+          suspiciousGroups.fold<int>(0, (sum, group) => sum + group.length);
       logger.i(
         'Stage 2 completed: ${suspiciousGroups.length} groups with $totalSuspiciousFiles files',
       );
@@ -86,7 +95,8 @@ class DuplicateFileService {
         },
       );
 
-      logger.i('Stage 3 completed: ${headerHashGroups.length} header hash groups');
+      logger.i(
+          'Stage 3 completed: ${headerHashGroups.length} header hash groups');
 
       // 阶段4: 计算完整哈希（只处理头部哈希相同的文件）
       final duplicateGroups = await _groupByFullHash(
@@ -117,35 +127,44 @@ class DuplicateFileService {
 
     // 获取扫描路径（动态发现）
     final scanPaths = await presenter.getCommonScanPaths();
-    
+
     logger.d('Scan paths: ${scanPaths.length} paths');
     debugPrint('\n[文件收集] 📁 使用的扫描路径 (${scanPaths.length} 个):');
     for (var i = 0; i < scanPaths.length; i++) {
       debugPrint('  [扫描路径 ${i + 1}] ${scanPaths[i]}');
     }
 
+    // ✅ 方案2：按需扫描，只扫描配置指定的文件类型
+    // 优势：扫描更快、缓存更精简、逻辑更清晰
+    final targetFileTypes = config.fileTypes;
+
+    logger.i(
+        '📊 Strategy: Scanning ONLY target file types (${targetFileTypes.map((t) => t.name).join(", ")})');
+    debugPrint('[文件收集] 📊 策略：按需扫描，只扫描目标类型 (${targetFileTypes.length} 种)');
+
     // ✅ 优化1: 并行扫描多个根目录，提升速度
     final scanFutures = scanPaths.map((scanPath) {
       return _scanPathForFiles(
         scanPath,
         minSizeInBytes,
-        config.fileTypes,
+        targetFileTypes, // ✅ 只扫描目标文件类型
       );
     }).toList();
-    
+
     // 批量等待所有扫描完成，并定期更新进度
     final allResults = <List<FileItem>>[];
     for (int i = 0; i < scanFutures.length; i++) {
       final result = await scanFutures[i];
       allResults.add(result);
-      
+
       // 更新进度（每完成一个路径）
       onProgress?.call(i + 1, scanPaths.length, scanPaths[i]);
     }
-    
+
     // 合并所有结果
     final allFiles = allResults.expand((files) => files).toList();
-    logger.d('Collected ${allFiles.length} files from ${scanPaths.length} paths');
+    logger
+        .d('Collected ${allFiles.length} files from ${scanPaths.length} paths');
 
     // 📊 调用回调，通知文件收集完成
     onFilesCollected?.call(allFiles);
@@ -205,10 +224,10 @@ class DuplicateFileService {
 
           if (entity is File) {
             final stat = entity.statSync();
-            
+
             // 🔧 跳过临时下载文件
             final fileName = path.basename(entity.path).toLowerCase();
-            if (fileName.endsWith('.downloading') || 
+            if (fileName.endsWith('.downloading') ||
                 fileName.endsWith('.download') ||
                 fileName.endsWith('.tmp') ||
                 fileName.endsWith('.temp') ||
@@ -266,7 +285,7 @@ class DuplicateFileService {
   bool _matchesFileType(String filePath, Set<FileTypeFilter> fileTypes) {
     // 🔧 如果没有指定文件类型（所有类型），接受所有文件
     if (fileTypes.isEmpty) return true;
-    
+
     final ext = path.extension(filePath).toLowerCase();
 
     const videoExtensions = [
@@ -311,13 +330,13 @@ class DuplicateFileService {
       '.ppt',
       '.pptx',
       '.txt',
-      '.html',   // 网页文件
+      '.html', // 网页文件
       '.htm',
-      '.md',     // Markdown
-      '.rtf',    // 富文本
-      '.csv',    // 数据表格
-      '.json',   // 配置文件
-      '.xml',    // 配置文件
+      '.md', // Markdown
+      '.rtf', // 富文本
+      '.csv', // 数据表格
+      '.json', // 配置文件
+      '.xml', // 配置文件
     ];
     const archiveExtensions = [
       '.zip',
@@ -326,9 +345,9 @@ class DuplicateFileService {
       '.tar',
       '.gz',
       '.bz2',
-      '.apk',    // Android 安装包（实际是 zip 格式）
-      '.xz',     // 现代压缩格式
-      '.zst',    // Zstandard 压缩
+      '.apk', // Android 安装包（实际是 zip 格式）
+      '.xz', // 现代压缩格式
+      '.zst', // Zstandard 压缩
     ];
 
     for (final type in fileTypes) {
@@ -382,16 +401,17 @@ class DuplicateFileService {
     final headerHashGroups = <String, List<FileItem>>{};
 
     int processedFiles = 0;
-    final totalFiles = sizeGroups.fold<int>(0, (sum, group) => sum + group.length);
+    final totalFiles =
+        sizeGroups.fold<int>(0, (sum, group) => sum + group.length);
 
     // ✅ 优化2: 批量并行计算哈希，每批最多50个文件并发
     const batchSize = 50;
-    
+
     for (final group in sizeGroups) {
       // 将每组文件分成小批次
       for (int i = 0; i < group.length; i += batchSize) {
         final batch = group.skip(i).take(batchSize).toList();
-        
+
         // 并行计算这一批文件的哈希
         final hashFutures = batch.map((file) async {
           try {
@@ -402,21 +422,23 @@ class DuplicateFileService {
             return (file: file, hash: null, error: e.toString());
           }
         }).toList();
-        
+
         // 等待这一批完成
         final results = await Future.wait(hashFutures);
-        
+
         // 更新结果和进度
         for (final result in results) {
           processedFiles++;
-          
+
           // 降低进度更新频率，避免UI卡顿
           if (processedFiles % 10 == 0 || processedFiles == totalFiles) {
             onProgress?.call(processedFiles, totalFiles, result.file.name);
           }
-          
+
           if (result.hash != null) {
-            headerHashGroups.putIfAbsent(result.hash!, () => []).add(result.file);
+            headerHashGroups
+                .putIfAbsent(result.hash!, () => [])
+                .add(result.file);
           }
         }
       }
@@ -436,19 +458,19 @@ class DuplicateFileService {
     final duplicateGroups = <DuplicateFileGroup>[];
 
     int processedFiles = 0;
-    final totalFiles =
-        headerHashGroups.values.fold<int>(0, (sum, group) => sum + group.length);
+    final totalFiles = headerHashGroups.values
+        .fold<int>(0, (sum, group) => sum + group.length);
 
     // ✅ 优化3: 批量并行计算完整哈希，每批最多30个文件并发（完整哈希更耗时）
     const batchSize = 30;
-    
+
     for (final headerGroup in headerHashGroups.values) {
       final fullHashGroups = <String, List<FileItem>>{};
 
       // 将文件分成小批次
       for (int i = 0; i < headerGroup.length; i += batchSize) {
         final batch = headerGroup.skip(i).take(batchSize).toList();
-        
+
         // 并行计算这一批文件的完整哈希
         final hashFutures = batch.map((file) async {
           try {
@@ -459,19 +481,19 @@ class DuplicateFileService {
             return (file: file, hash: null, error: e.toString());
           }
         }).toList();
-        
+
         // 等待这一批完成
         final results = await Future.wait(hashFutures);
-        
+
         // 更新结果和进度
         for (final result in results) {
           processedFiles++;
-          
+
           // 降低进度更新频率，避免UI卡顿
           if (processedFiles % 10 == 0 || processedFiles == totalFiles) {
             onProgress?.call(processedFiles, totalFiles, result.file.name);
           }
-          
+
           if (result.hash != null) {
             fullHashGroups.putIfAbsent(result.hash!, () => []).add(result.file);
           }
@@ -490,6 +512,13 @@ class DuplicateFileService {
         }
       }
     }
+
+    // ✅ 对重复文件组排序：按可释放空间从大到小
+    duplicateGroups
+        .sort((a, b) => b.reclaimableSpace.compareTo(a.reclaimableSpace));
+
+    logger.i(
+        'Sorted ${duplicateGroups.length} groups by reclaimable space (descending)');
 
     return duplicateGroups;
   }
@@ -532,5 +561,3 @@ class DuplicateFileService {
     return digest.toString();
   }
 }
-
-

@@ -127,14 +127,16 @@ class _AppNavigatorState extends State<AppNavigator>
   Future<void> _initializeApp() async {
     try {
       logger.i('_initializeApp: Starting initialization...');
-      
+
       // 检查是否从后台恢复
       bool isRestoringFromBackground = false;
       try {
         logger.i('_initializeApp: Checking background restore state...');
-        isRestoringFromBackground = await platform
-            .invokeMethod<bool>('isRestoringFromBackground') ?? false;
-        logger.i('_initializeApp: isRestoringFromBackground = $isRestoringFromBackground');
+        isRestoringFromBackground =
+            await platform.invokeMethod<bool>('isRestoringFromBackground') ??
+                false;
+        logger.i(
+            '_initializeApp: isRestoringFromBackground = $isRestoringFromBackground');
       } catch (e) {
         logger.w('_initializeApp: Platform method failed (using default): $e');
         isRestoringFromBackground = false;
@@ -178,7 +180,7 @@ class _AppNavigatorState extends State<AppNavigator>
           }
         }
       }
-      
+
       logger.i('_initializeApp: Initialization complete');
     } catch (e, stackTrace) {
       logger.e('Error in _initializeApp: $e\n$stackTrace');

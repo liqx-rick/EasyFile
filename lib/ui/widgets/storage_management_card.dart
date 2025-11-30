@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../../ui/pages/storage_management_page.dart';
 
 /// 存储管理功能卡片
-/// 
+///
 /// 用于主页快速访问区域，提供存储管理功能的快捷入口。
 /// 点击后跳转到存储管理页面，查看存储概览、缓存管理、分类统计等功能。
-/// 
+///
 /// 特性：
 /// - 支持单行/双行两种布局模式
 /// - 所有尺寸（图标、文字、间距、padding）均根据可用高度动态计算
@@ -13,7 +13,7 @@ import '../../ui/pages/storage_management_page.dart';
 class StorageManagementCard extends StatelessWidget {
   /// 是否为紧凑模式（单行并排显示）
   final bool isCompactMode;
-  
+
   /// 卡片可用高度，用于动态计算内部元素尺寸
   final double availableHeight;
 
@@ -27,7 +27,7 @@ class StorageManagementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // 根据可用高度动态计算padding（避免固定padding导致溢出）
     final cardPadding = (availableHeight * 0.04).clamp(3.0, 6.0);
-    
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -44,18 +44,28 @@ class StorageManagementCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.6),
-              Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+              Theme.of(context)
+                  .colorScheme
+                  .tertiaryContainer
+                  .withValues(alpha: 0.6),
+              Theme.of(context)
+                  .colorScheme
+                  .tertiaryContainer
+                  .withValues(alpha: 0.3),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.2),
+            color:
+                Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.15),
+              color: Theme.of(context)
+                  .colorScheme
+                  .tertiary
+                  .withValues(alpha: 0.15),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -96,11 +106,17 @@ class StorageManagementCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(iconSize * 0.25),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.35),
+              color: Theme.of(context)
+                  .colorScheme
+                  .tertiary
+                  .withValues(alpha: 0.35),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.35),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.35),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -131,11 +147,17 @@ class StorageManagementCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(iconSize * 0.25),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.35),
+              color: Theme.of(context)
+                  .colorScheme
+                  .tertiary
+                  .withValues(alpha: 0.35),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.35),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.35),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),

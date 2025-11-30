@@ -5,7 +5,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 
 /// 重复文件扫描配置缓存管理器
-/// 
+///
 /// 只缓存用户的扫描配置（记住上次选择），不缓存扫描结果
 /// 原因：文件系统随时变化，缓存的扫描结果可能过期导致误删
 class DuplicateFileCacheManager {

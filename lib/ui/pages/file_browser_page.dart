@@ -1269,8 +1269,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建空状态UI
   Widget _buildEmptyState(TabView tab, bool isSearchMode, FileViewModel vm) {
-    logger.d('_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
-    
+    logger.d(
+        '_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
+
     IconData icon;
     String title;
     Widget subtitleWidget;
@@ -1583,8 +1584,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建文件列表视图
   Widget _buildFileList(FileViewModel vm) {
-    logger.d('_buildFileList - files.isEmpty: ${vm.files.isEmpty}, errorMessage: ${vm.errorMessage}, currentPath: ${vm.currentPath}');
-    
+    logger.d(
+        '_buildFileList - files.isEmpty: ${vm.files.isEmpty}, errorMessage: ${vm.errorMessage}, currentPath: ${vm.currentPath}');
+
     if (vm.files.isEmpty) {
       // 使用新的空状态UI
       final isSearchMode =

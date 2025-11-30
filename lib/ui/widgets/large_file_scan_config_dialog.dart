@@ -29,8 +29,7 @@ class LargeFileScanConfigDialog extends StatefulWidget {
       _LargeFileScanConfigDialogState();
 }
 
-class _LargeFileScanConfigDialogState
-    extends State<LargeFileScanConfigDialog> {
+class _LargeFileScanConfigDialogState extends State<LargeFileScanConfigDialog> {
   late int _minSizeInMB;
   late Set<FileTypeFilter> _fileTypes;
 
@@ -73,9 +72,9 @@ class _LargeFileScanConfigDialogState
                     ),
                     child: Slider(
                       value: _minSizeInMB.toDouble(),
-                      min: 10,
+                      min: 1,
                       max: 500,
-                      divisions: 49,
+                      divisions: 499,
                       label: '$_minSizeInMB MB',
                       onChanged: (value) {
                         setState(() => _minSizeInMB = value.toInt());
@@ -169,9 +168,7 @@ class _LargeFileScanConfigDialogState
     final color = _getColorForType(type);
 
     return Material(
-      color: isSelected 
-          ? color.withOpacity(0.15)
-          : Colors.grey[100],
+      color: isSelected ? color.withOpacity(0.15) : Colors.grey[100],
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () {
@@ -211,7 +208,8 @@ class _LargeFileScanConfigDialogState
                     type.label,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                       color: isSelected ? color : Colors.grey[700],
                     ),
                     textAlign: TextAlign.center,

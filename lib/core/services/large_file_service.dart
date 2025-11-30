@@ -49,7 +49,8 @@ class LargeFileService {
       for (final scanPath in scanPaths) {
         // 智能深度：根据路径选择深度
         final depth = _getDepthForPath(scanPath);
-        logger.d('Scanning $scanPath with depth $depth, pruning=$useSizePruning');
+        logger
+            .d('Scanning $scanPath with depth $depth, pruning=$useSizePruning');
 
         final files = await _scanLargeFilesInPath(
           scanPath,
@@ -59,7 +60,8 @@ class LargeFileService {
           fileTypes: fileTypes,
         );
         largeFiles.addAll(files);
-        logger.d('Found ${files.length} large files in $scanPath, total so far: ${largeFiles.length}');
+        logger.d(
+            'Found ${files.length} large files in $scanPath, total so far: ${largeFiles.length}');
       }
 
       // 3. 去重（同一文件可能在多个路径）
@@ -186,12 +188,15 @@ class LargeFileService {
             final stat = entity.statSync();
             if (stat.size >= minSizeInBytes) {
               // 根据文件类型过滤
-              if (fileTypes == null || _matchesFileType(entity.path, fileTypes)) {
+              if (fileTypes == null ||
+                  _matchesFileType(entity.path, fileTypes)) {
                 final fileItem = FileItem.fromEntity(entity);
                 files.add(fileItem);
-                logger.d('✅ Found large file at depth $currentDepth: ${fileItem.name} (${stat.size ~/ (1024 * 1024)}MB) in ${path.dirname(entity.path)}');
+                logger.d(
+                    '✅ Found large file at depth $currentDepth: ${fileItem.name} (${stat.size ~/ (1024 * 1024)}MB) in ${path.dirname(entity.path)}');
               } else {
-                logger.d('⏭️ Skipping file (type not matched) at depth $currentDepth: $name (${stat.size ~/ (1024 * 1024)}MB)');
+                logger.d(
+                    '⏭️ Skipping file (type not matched) at depth $currentDepth: $name (${stat.size ~/ (1024 * 1024)}MB)');
               }
             }
           } else if (entity is Directory) {
@@ -201,7 +206,7 @@ class LargeFileService {
               if (name == 'Android') {
                 final dataDir = Directory(path.join(entity.path, 'data'));
                 final obbDir = Directory(path.join(entity.path, 'obb'));
-                
+
                 if (dataDir.existsSync()) {
                   await _scanDirectoryWithPruning(
                     dataDir,
@@ -213,7 +218,7 @@ class LargeFileService {
                     fileTypes: fileTypes,
                   );
                 }
-                
+
                 if (obbDir.existsSync()) {
                   await _scanDirectoryWithPruning(
                     obbDir,
@@ -243,9 +248,10 @@ class LargeFileService {
               // 目录很大（10倍阈值），值得深入扫描，延长深度
               final extendedDepth =
                   estimatedSize > minSizeInBytes * 10 ? maxDepth + 3 : maxDepth;
-              
+
               if (estimatedSize > minSizeInBytes * 10) {
-                logger.d('📂 Large directory at depth $currentDepth: $name (${estimatedSize ~/ (1024 * 1024)}MB), extending depth to $extendedDepth');
+                logger.d(
+                    '📂 Large directory at depth $currentDepth: $name (${estimatedSize ~/ (1024 * 1024)}MB), extending depth to $extendedDepth');
               }
 
               await _scanDirectoryWithPruning(
@@ -283,14 +289,59 @@ class LargeFileService {
   /// 判断文件是否匹配指定的文件类型
   bool _matchesFileType(String filePath, Set<FileTypeFilter> fileTypes) {
     final ext = path.extension(filePath).toLowerCase();
-    
+
     // 定义每种类型的扩展名
-    const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.3gp'];
-    const audioExtensions = ['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg', '.wma', '.opus'];
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.svg'];
-    const documentExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'];
-    const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz'];
-    
+    const videoExtensions = [
+      '.mp4',
+      '.avi',
+      '.mkv',
+      '.mov',
+      '.wmv',
+      '.flv',
+      '.webm',
+      '.m4v',
+      '.3gp'
+    ];
+    const audioExtensions = [
+      '.mp3',
+      '.m4a',
+      '.wav',
+      '.flac',
+      '.aac',
+      '.ogg',
+      '.wma',
+      '.opus'
+    ];
+    const imageExtensions = [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.bmp',
+      '.webp',
+      '.heic',
+      '.svg'
+    ];
+    const documentExtensions = [
+      '.pdf',
+      '.doc',
+      '.docx',
+      '.xls',
+      '.xlsx',
+      '.ppt',
+      '.pptx',
+      '.txt'
+    ];
+    const archiveExtensions = [
+      '.zip',
+      '.rar',
+      '.7z',
+      '.tar',
+      '.gz',
+      '.bz2',
+      '.xz'
+    ];
+
     for (final type in fileTypes) {
       switch (type) {
         case FileTypeFilter.video:
@@ -320,7 +371,7 @@ class LargeFileService {
           break;
       }
     }
-    
+
     return false;
   }
 

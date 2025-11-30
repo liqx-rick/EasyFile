@@ -46,11 +46,11 @@ class LargeFilesPage extends StatefulWidget {
 class _LargeFilesPageState extends State<LargeFilesPage> {
   // 扫描配置
   late LargeFileScanConfig _config;
-  
+
   // 缓存管理
   final _cacheManager = LargeFileCacheManager();
   LargeFileScanCache? _cache;
-  
+
   // 状态管理
   List<FileItem> _largeFiles = [];
   int _totalSize = 0;
@@ -84,11 +84,11 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   }
 
   /// 初始化并开始扫描
-  /// 
+  ///
   /// 双入口架构：
   /// 1. 快速扫描：initialConfig = null，使用固定的默认配置（全部类型，>50MB）
   /// 2. 自定义扫描：initialConfig != null，使用用户自定义的配置
-  /// 
+  ///
   /// 扫描策略：
   /// - 优先加载缓存并显示，提供即时响应
   /// - 如果有有效缓存，启动后台差异扫描检测变化
@@ -96,7 +96,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   Future<void> _initializeAndScan() async {
     // 1. 先尝试加载缓存
     await _loadCache();
-    
+
     // 2. 确定使用的配置
     if (widget.initialConfig != null) {
       // 自定义扫描：使用传入的配置
@@ -107,10 +107,11 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       _config = const LargeFileScanConfig();
       logger.i('Using default config for quick scan');
     }
-    
+
     // 记录当前配置
     logger.i('Scan config: ${_config.toString()}');
-    logger.i('File types enabled: ${_config.fileTypes.map((t) => t.label).join(", ")}');
+    logger.i(
+        'File types enabled: ${_config.fileTypes.map((t) => t.label).join(", ")}');
 
     // 3. 根据缓存状态决定扫描策略
     if (_cache != null && _cache!.config.isEquivalent(_config)) {
@@ -121,8 +122,9 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
           _totalSize = _largeFiles.fold<int>(0, (sum, f) => sum + f.size);
         });
       }
-      
-      logger.i('Cache loaded: ${_largeFiles.length} files, starting differential scan...');
+
+      logger.i(
+          'Cache loaded: ${_largeFiles.length} files, starting differential scan...');
       // 启动差异扫描（不阻塞，后台运行）
       unawaited(_startDifferentialScan());
     } else {
@@ -137,7 +139,8 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
     try {
       _cache = await _cacheManager.loadCache();
       if (_cache != null) {
-        logger.i('Cache loaded: ${_cache!.files.length} files, age: ${_cache!.formattedAge}');
+        logger.i(
+            'Cache loaded: ${_cache!.files.length} files, age: ${_cache!.formattedAge}');
       }
     } catch (e) {
       logger.e('Failed to load cache: $e');
@@ -154,7 +157,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   /// 智能刷新：只移除已删除的文件，不重新扫描
   Future<void> _refresh() async {
     final originalCount = _largeFiles.length;
-    
+
     // 过滤出仍然存在的文件
     final existingFiles = <FileItem>[];
     for (final file in _largeFiles) {
@@ -175,10 +178,10 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         _totalSize = existingFiles.fold<int>(0, (sum, f) => sum + f.size);
         _deletedFilesCount = deletedCount;
       });
-      
+
       // 保存到缓存
       await _cacheManager.saveCache(files: _largeFiles, config: _config);
-      
+
       // 3秒后清除删除提示
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -259,7 +262,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   }
 
   /// 执行差异扫描（后台）
-  /// 
+  ///
   /// 差异扫描会在后台执行完整的文件扫描，然后与缓存的结果进行对比，
   /// 找出新增、删除和修改的文件。这样可以在显示缓存结果的同时，
   /// 检测文件系统的变化，提供更好的用户体验。
@@ -294,18 +297,20 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
 
       // 新增的文件
       final addedPaths = newPaths.difference(currentPaths);
-      final addedFiles = allFiles.where((f) => addedPaths.contains(f.path)).toList();
+      final addedFiles =
+          allFiles.where((f) => addedPaths.contains(f.path)).toList();
 
       logger.i('Differential scan results:');
       logger.i('  Current files: ${currentPaths.length}');
       logger.i('  Scanned files: ${newPaths.length}');
       logger.i('  New files found: ${addedFiles.length}');
-      
+
       // 记录新文件的详细信息
       if (addedFiles.isNotEmpty) {
         logger.i('  New files details:');
         for (final file in addedFiles) {
-          logger.i('    - ${file.name} (${FileSizeFormatter.formatBytes(file.size)}, ${file.path})');
+          logger.i(
+              '    - ${file.name} (${FileSizeFormatter.formatBytes(file.size)}, ${file.path})');
         }
       }
 
@@ -319,9 +324,9 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       final modifiedFiles = <FileItem>[];
       for (final newFile in allFiles) {
         if (!currentPaths.contains(newFile.path)) continue;
-        
+
         final oldFile = _largeFiles.firstWhere((f) => f.path == newFile.path);
-        if (oldFile.size != newFile.size || 
+        if (oldFile.size != newFile.size ||
             oldFile.modified != newFile.modified) {
           modifiedFiles.add(newFile);
         }
@@ -338,26 +343,26 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       logger.i('  Removing ${removedPaths.length} deleted files');
       logger.i('  Updating ${modifiedFiles.length} modified files');
       logger.i('  Adding ${addedFiles.length} new files');
-      
+
       final updatedFiles = _largeFiles
           .where((f) => !removedPaths.contains(f.path)) // 移除已删除的文件
           .map((f) {
-            // 用新数据更新修改的文件
-            final modified = modifiedFiles.firstWhere(
-              (mf) => mf.path == f.path,
-              orElse: () => f,
-            );
-            return modified;
-          })
-          .toList()
+        // 用新数据更新修改的文件
+        final modified = modifiedFiles.firstWhere(
+          (mf) => mf.path == f.path,
+          orElse: () => f,
+        );
+        return modified;
+      }).toList()
         ..addAll(addedFiles); // 添加新发现的文件
-      
+
       // 【关键】重新按大小降序排序
       // 原因：新文件被添加到列表末尾，如果不排序，小文件会出现在底部看不到
       // 必须重新排序才能保证所有文件按大小正确排列
       updatedFiles.sort((a, b) => b.size.compareTo(a.size));
-      
-      logger.i('Updated file list built: ${updatedFiles.length} total files (sorted by size)');
+
+      logger.i(
+          'Updated file list built: ${updatedFiles.length} total files (sorted by size)');
 
       if (mounted) {
         setState(() {
@@ -366,31 +371,36 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
           _isDifferentialScanning = false;
           _newFilesCount = addedFiles.length;
         });
-        
-        logger.i('UI updated with ${_largeFiles.length} files, newFilesCount=$_newFilesCount');
+
+        logger.i(
+            'UI updated with ${_largeFiles.length} files, newFilesCount=$_newFilesCount');
 
         // 保存到缓存
         await _cacheManager.saveCache(files: _largeFiles, config: _config);
 
         // 如果有变化，显示提示
-        if (addedFiles.isNotEmpty || removedPaths.isNotEmpty || modifiedFiles.isNotEmpty) {
-          logger.i('Differential scan: +${addedFiles.length} -${removedPaths.length} ~${modifiedFiles.length}');
-          
+        if (addedFiles.isNotEmpty ||
+            removedPaths.isNotEmpty ||
+            modifiedFiles.isNotEmpty) {
+          logger.i(
+              'Differential scan: +${addedFiles.length} -${removedPaths.length} ~${modifiedFiles.length}');
+
           // 记录新文件信息
           if (addedFiles.isNotEmpty) {
             logger.i('New files added:');
             for (final file in addedFiles) {
-              logger.i('  - ${file.name} (${FileSizeFormatter.formatBytes(file.size)})');
+              logger.i(
+                  '  - ${file.name} (${FileSizeFormatter.formatBytes(file.size)})');
             }
           }
-          
+
           if (mounted && (addedFiles.isNotEmpty || removedPaths.isNotEmpty)) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  addedFiles.isNotEmpty 
-                    ? '发现 ${addedFiles.length} 个新文件'
-                    : '${removedPaths.length} 个文件已不存在',
+                  addedFiles.isNotEmpty
+                      ? '发现 ${addedFiles.length} 个新文件'
+                      : '${removedPaths.length} 个文件已不存在',
                 ),
                 duration: const Duration(seconds: 2),
               ),
@@ -639,7 +649,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                   ),
               ],
             ),
-            
+
             // 分隔线
             const SizedBox(height: 12),
             Divider(
@@ -647,7 +657,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
               color: colorScheme.outlineVariant,
             ),
             const SizedBox(height: 12),
-            
+
             // 第二行：扫描状态（放在分隔线下方）
             Row(
               children: [
@@ -666,13 +676,13 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                 ),
               ],
             ),
-            
+
             // 进度条（仅完全扫描时显示）
             if (_isScanning) ...[
               const SizedBox(height: 8),
               const LinearProgressIndicator(),
             ],
-            
+
             // 详细信息
             if (_largeFiles.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -706,7 +716,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                 ],
               ),
             ],
-            
+
             // 空状态提示
             if (_largeFiles.isEmpty && !_isScanning) ...[
               const SizedBox(height: 12),
@@ -766,12 +776,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
     // 扫描完成状态
     return '扫描完成';
   }
-  
+
   /// 构建扫描类型次标题
   String _buildScanTypeSubtitle() {
     // 判断是快速扫描还是自定义扫描
     final isQuickScan = widget.initialConfig == null;
-    
+
     if (isQuickScan) {
       return '快速扫描';
     } else {
@@ -890,10 +900,19 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   /// 获取文件图标（与分类页面保持一致）
   IconData _getFileIcon(FileItem file) {
     final ext = path.extension(file.name).toLowerCase();
-    
+
     // 视频
-    if (['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.3gp', '.m4v']
-        .contains(ext)) {
+    if ([
+      '.mp4',
+      '.avi',
+      '.mkv',
+      '.mov',
+      '.wmv',
+      '.flv',
+      '.webm',
+      '.3gp',
+      '.m4v'
+    ].contains(ext)) {
       return Icons.videocam;
     }
     // 音频

@@ -188,7 +188,7 @@ class _StoragePageState extends State<StoragePage> {
         entities = directory.listSync();
       } catch (e) {
         // 捕获权限拒绝错误，跳过该目录
-        if (e.toString().contains('Permission denied') || 
+        if (e.toString().contains('Permission denied') ||
             e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $path');
           return results;
@@ -510,7 +510,7 @@ class _StoragePageState extends State<StoragePage> {
           }).toList();
         } catch (e) {
           // 捕获权限拒绝错误（如 Android/data 目录）
-          if (e.toString().contains('Permission denied') || 
+          if (e.toString().contains('Permission denied') ||
               e.toString().contains('errno = 13')) {
             logger.w('Permission denied for directory: $rootPath');
             // 返回空列表，不显示错误 SnackBar
@@ -655,7 +655,7 @@ class _StoragePageState extends State<StoragePage> {
           }).toList();
         } catch (e) {
           // 捕获权限拒绝错误（如 Android/data 目录）
-          if (e.toString().contains('Permission denied') || 
+          if (e.toString().contains('Permission denied') ||
               e.toString().contains('errno = 13')) {
             logger.w('Permission denied for directory: $path');
             // 返回空列表，不显示错误 SnackBar
@@ -692,10 +692,10 @@ class _StoragePageState extends State<StoragePage> {
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
     // 检查是否是受保护的目录且为空
-    final isProtectedDir = _currentPath.contains('/Android/data') || 
-        _currentPath.contains('/Android/obb') || 
+    final isProtectedDir = _currentPath.contains('/Android/data') ||
+        _currentPath.contains('/Android/obb') ||
         _currentPath.contains('/Android/media');
-    
+
     if (_files.isEmpty && isProtectedDir && !_isSearchMode) {
       // 显示受保护目录的友好提示
       return Center(
@@ -770,7 +770,7 @@ class _StoragePageState extends State<StoragePage> {
         ),
       );
     }
-    
+
     final isGridView =
         PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
     final isGroupEnabled =

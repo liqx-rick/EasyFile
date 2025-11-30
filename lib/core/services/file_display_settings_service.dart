@@ -10,6 +10,14 @@ class FileDisplaySettingsService {
   static const String _keyShowHiddenFiles = 'show_hidden_files';
   static const String _keyShowSystemFiles = 'show_system_files';
   static const String _keyShowFullPath = 'show_full_path';
+  static const String _keyMinFileSize = 'duplicate_scan_min_file_size';
+
+  // 默认最小文件大小：100KB
+  static const int defaultMinFileSize = 100 * 1024; // 100KB
+
+  // 最小文件大小范围
+  static const int minFileSizeMin = 10 * 1024; // 10KB
+  static const int minFileSizeMax = 10 * 1024 * 1024; // 10MB
 
   /// 获取是否显示隐藏文件
   Future<bool> getShowHiddenFiles() async {
@@ -77,13 +85,49 @@ class FileDisplaySettingsService {
     }
   }
 
+  /// 获取重复文件扫描最小文件大小（字节）
+  Future<int> getMinFileSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_keyMinFileSize) ?? defaultMinFileSize;
+    } catch (e) {
+      logger.e('Error getting min file size setting: $e');
+      return defaultMinFileSize;
+    }
+  }
+
+  /// 设置重复文件扫描最小文件大小（字节）
+  Future<void> setMinFileSize(int size) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_keyMinFileSize, size);
+      logger.i('Min file size set to: ${_formatFileSize(size)}');
+    } catch (e) {
+      logger.e('Error setting min file size: $e');
+    }
+  }
+
+  /// 格式化文件大小显示
+  static String _formatFileSize(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else if (bytes >= 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    } else {
+      return '$bytes B';
+    }
+  }
+
+  /// 格式化文件大小显示（公开方法，供UI使用）
+  static String formatFileSize(int bytes) => _formatFileSize(bytes);
+
   /// 判断文件名是否为隐藏文件
   static bool isHiddenFile(String fileName) {
     return fileName.startsWith('.');
   }
 
   /// 判断是否为系统文件夹
-  /// 
+  ///
   /// 注意：不再将 'android' 作为系统文件夹过滤，允许用户访问 Android/data 等目录
   /// 但删除、移动等操作仍然受 PathSecurity 保护
   static bool isSystemFolder(String folderName) {

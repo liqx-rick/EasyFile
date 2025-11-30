@@ -65,8 +65,8 @@ class LargeFileScanConfig {
     return LargeFileScanConfig(
       minSizeInMB: json['minSizeInMB'] as int? ?? 50,
       fileTypes: (json['fileTypes'] as List<dynamic>?)
-              ?.map((e) => FileTypeFilter.values
-                  .firstWhere((type) => type.name == e))
+              ?.map((e) =>
+                  FileTypeFilter.values.firstWhere((type) => type.name == e))
               .toSet() ??
           const {
             FileTypeFilter.video,

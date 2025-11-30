@@ -282,7 +282,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   // 文件显示设置
   bool _showFullPath = false;
-  
+
   // 临时显示模式（从存储管理进入时）
   bool _isTemporaryMode = false;
 
@@ -542,7 +542,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   bool get _isGridView {
     // 临时模式强制使用列表视图
     if (_isTemporaryMode) return false;
-    
+
     final pageId = _getPageIdForCategory();
     return PageSettingsService().getViewMode(pageId) == ViewMode.grid;
   }
@@ -551,7 +551,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   bool get _isGroupEnabled {
     // 临时模式强制禁用分组
     if (_isTemporaryMode) return false;
-    
+
     final pageId = _getPageIdForCategory();
     return PageSettingsService().getGroupEnabled(pageId);
   }
@@ -673,8 +673,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       if (cached.isNotEmpty) {
         // 应用页面级排序（临时模式强制按大小排序）
         final pageId = _getPageIdForCategory();
-        final sortType = _isTemporaryMode 
-            ? SortType.size 
+        final sortType = _isTemporaryMode
+            ? SortType.size
             : PageSettingsService().getSortType(pageId);
         FileComparatorUtil.sortFilesInPlace(cached, sortType);
 
@@ -721,8 +721,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // Step 3: 更新UI和缓存
       // 应用页面级排序（临时模式强制按大小排序）
       final pageId = _getPageIdForCategory();
-      final sortType = _isTemporaryMode 
-          ? SortType.size 
+      final sortType = _isTemporaryMode
+          ? SortType.size
           : PageSettingsService().getSortType(pageId);
       FileComparatorUtil.sortFilesInPlace(files, sortType);
 
@@ -896,7 +896,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 children: [
                   // 临时显示模式提示条（从存储管理进入时显示）
                   if (_isTemporaryMode) _buildTemporaryModeBanner(),
-                  
+
                   // 搜索框（使用统一的FileSearchBar组件）
                   if (_isSearchMode)
                     FileSearchBar(
@@ -1601,7 +1601,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
             .toList();
       } catch (e) {
         // 捕获权限拒绝错误（如 Android/data 目录）
-        if (e.toString().contains('Permission denied') || 
+        if (e.toString().contains('Permission denied') ||
             e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $_currentPath');
           // 返回空列表，不显示 SnackBar

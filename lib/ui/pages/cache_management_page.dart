@@ -3,7 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 
 /// 缓存管理页面
-/// 
+///
 /// 用于查看和清理应用的各类缓存数据，包括：
 /// - 缩略图缓存
 /// - 日志文件
@@ -97,6 +97,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
               const SizedBox(height: 8),
               const Text(
                 '⚠️ 清理后，下次打开大文件查找时需要重新扫描',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+            if (item.type == CacheType.duplicateFileScan) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ 清理后，所有重复文件扫描结果将被清除，下次需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
@@ -204,6 +211,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
             Text('• 搜索历史记录', style: TextStyle(fontSize: 13)),
             Text('• 视频播放数据', style: TextStyle(fontSize: 13)),
             Text('• 大文件扫描缓存', style: TextStyle(fontSize: 13)),
+            Text('• 重复文件扫描缓存', style: TextStyle(fontSize: 13)),
             SizedBox(height: 8),
             Text(
               '⚠️ 缩略图和文件列表将重新生成，视频将从头播放',
@@ -282,6 +290,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.play_circle_outline;
       case CacheType.largeFileScan:
         return Icons.folder_special;
+      case CacheType.duplicateFileScan:
+        return Icons.content_copy;
     }
   }
 

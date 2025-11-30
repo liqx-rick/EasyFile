@@ -153,7 +153,8 @@ class _AboutPageState extends State<AboutPage> {
             children: [
               _buildInfoRow('版本号', 'v$_version'),
               const Divider(height: 24),
-              _buildInfoRow('构建号', _buildNumber.isNotEmpty ? _buildNumber : 'N/A'),
+              _buildInfoRow(
+                  '构建号', _buildNumber.isNotEmpty ? _buildNumber : 'N/A'),
               const Divider(height: 24),
               _buildInfoRow('发布日期', '2025-11'),
               const Divider(height: 24),

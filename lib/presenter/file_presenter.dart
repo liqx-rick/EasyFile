@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
@@ -60,34 +59,35 @@ class FilePresenter {
 
     // 重置文件类型筛选
     viewModel.resetCategoryFilter();
-    
+
     // 清除之前的错误消息
     viewModel.clearError();
 
     logger.d('Current path set, loading files...');
     final files = await repository.getFiles(path);
     logger.i('Files loaded: ${files.length} items');
-    
+
     // 检测是否是受系统保护的目录（Android/data等）
-    final isProtectedDir = path.contains('/Android/data') || 
-        path.contains('/Android/obb') || 
+    final isProtectedDir = path.contains('/Android/data') ||
+        path.contains('/Android/obb') ||
         path.contains('/Android/media');
-    
-    logger.d('isProtectedDir: $isProtectedDir, files.isEmpty: ${files.isEmpty}');
-    
+
+    logger
+        .d('isProtectedDir: $isProtectedDir, files.isEmpty: ${files.isEmpty}');
+
     // 先设置错误消息（如果有）
     if (files.isEmpty && isProtectedDir) {
       logger.w('Setting error for protected system directory: $path');
       viewModel.setError('此目录受 Android 系统保护，无法访问');
       logger.w('Error set, errorMessage: ${viewModel.errorMessage}');
     }
-    
+
     // 然后设置文件列表
     viewModel.setFiles(files);
-    
+
     // 最后设置加载状态
     viewModel.setLoading(false);
-    
+
     logger.d(
       'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}, hasError: ${viewModel.errorMessage != null}',
     );
@@ -1145,7 +1145,7 @@ class FilePresenter {
   }
 
   /// Android 系统预定义目录名称（单一数据源）
-  /// 
+  ///
   /// 这些目录会在 _getSystemPaths() 中构建完整路径
   /// 也会在 _discoverUserFolders() 中用于跳过重复扫描
   static const List<String> _androidSystemFolderNames = [
@@ -1154,7 +1154,7 @@ class FilePresenter {
     'Music',
     'Movies',
     'Videos',
-    'Video',  // 有些设备用 Video 而不是 Videos
+    'Video', // 有些设备用 Video 而不是 Videos
     'Documents',
     'Download',
     'Downloads',
@@ -1204,7 +1204,7 @@ class FilePresenter {
 
     try {
       debugPrint('\n========== getCommonScanPaths() 开始 ==========');
-      
+
       // 阶段1: 添加系统预定义目录（已知的高价值路径）
       final systemPaths = await _getSystemPaths();
       paths.addAll(systemPaths);
@@ -1262,7 +1262,7 @@ class FilePresenter {
       for (final folderName in _androidSystemFolderNames) {
         paths.add('$baseAndroidPath/$folderName');
       }
-      
+
       // ✅ 优化2: 扫描所有外部存储设备（SD卡等）
       try {
         final storageRoot = Directory('/storage');
@@ -1272,14 +1272,14 @@ class FilePresenter {
               final name = path.basename(entity.path);
               // 跳过特殊目录
               if (name == 'self' || name == 'emulated') continue;
-              
+
               // 这是外部存储设备（SD卡等）
               final externalPath = entity.path;
               if (Directory(externalPath).existsSync()) {
                 logger.d('Found external storage: $externalPath');
                 // 添加外部存储根目录
                 paths.add(externalPath);
-                
+
                 // 添加外部存储的标准子目录
                 // 未完成，待优化（外部存储里的所有的目录 应被认为是扫描路径）
                 paths.addAll([
@@ -1317,7 +1317,7 @@ class FilePresenter {
 
     try {
       debugPrint('\n[用户文件夹发现] 开始扫描根目录...');
-      
+
       // 确定扫描根目录
       String? rootPath;
       if (Platform.isAndroid) {
@@ -1359,8 +1359,8 @@ class FilePresenter {
 
         // 跳过已知系统目录（避免重复）
         // 根据平台选择对应的系统目录列表
-        final systemFolders = Platform.isAndroid 
-            ? _androidSystemFolderNames 
+        final systemFolders = Platform.isAndroid
+            ? _androidSystemFolderNames
             : _desktopSystemFolderNames;
         if (systemFolders.contains(folderName)) {
           skippedSystem++;
@@ -1379,10 +1379,11 @@ class FilePresenter {
         discovered.add(entity.path);
         foundCount++;
         logger.d('Found user folder: ${entity.path}');
-        debugPrint('[用户文件夹发现] ✅ 发现用户文件夹 ${foundCount}: ${entity.path}');
+        debugPrint('[用户文件夹发现] ✅ 发现用户文件夹 $foundCount: ${entity.path}');
       }
 
-      debugPrint('[用户文件夹发现] 统计: 总计=${entities.length}, 隐藏=$skippedHidden, 系统=$skippedSystem, 排除=$skippedExcluded, 发现=$foundCount');
+      debugPrint(
+          '[用户文件夹发现] 统计: 总计=${entities.length}, 隐藏=$skippedHidden, 系统=$skippedSystem, 排除=$skippedExcluded, 发现=$foundCount');
       logger.i('Discovered ${discovered.length} user-defined folders');
     } catch (e) {
       logger.w('Error discovering user folders: $e');
