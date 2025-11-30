@@ -2118,24 +2118,40 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return SelectionBottomBar(
       selectedPaths: _selectedItems,
       isAllFavorite: batchService.isAllSelectedFavorite(_selectedItems),
-      onCopy: () =>
-          batchService.batchCopy(_selectedItems, viewModel.currentPath),
-      onRename: () => batchService.batchRename(_selectedItems),
-      onShare: () => batchService.batchShare(_selectedItems),
-      onMove: () =>
-          batchService.batchMove(_selectedItems, viewModel.currentPath),
-      onToggleFavorite: () => batchService.batchToggleFavorite(_selectedItems),
-      onDelete: () => batchService.batchDelete(_selectedItems),
+      onCopy: () {
+        if (!mounted) return;
+        batchService.batchCopy(context, _selectedItems, viewModel.currentPath);
+      },
+      onRename: () {
+        if (!mounted) return;
+        batchService.batchRename(context, _selectedItems);
+      },
+      onShare: () {
+        if (!mounted) return;
+        batchService.batchShare(context, _selectedItems);
+      },
+      onMove: () {
+        if (!mounted) return;
+        batchService.batchMove(context, _selectedItems, viewModel.currentPath);
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        batchService.batchToggleFavorite(context, _selectedItems);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        batchService.batchDelete(context, _selectedItems);
+      },
     );
   }
 
   /// 获取批量操作服务实例
   BatchOperationsService _getBatchOperationsService() {
     return BatchOperationsService(
-      context: context,
       viewModel: viewModel,
       presenter: presenter,
       onRefresh: () async {
+        if (!mounted) return;
         if (viewModel.currentTab == TabView.browse) {
           await presenter.loadFiles(viewModel.currentPath);
         } else if (viewModel.currentTab == TabView.favorite) {
@@ -2143,6 +2159,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         }
       },
       onExitSelectionMode: () {
+        if (!mounted) return;
         setState(() {
           _selectionController.clear();
         });

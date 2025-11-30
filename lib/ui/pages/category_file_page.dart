@@ -1189,28 +1189,47 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       selectedPaths: _selectionController.selected,
       isAllFavorite:
           batchService.isAllSelectedFavorite(_selectionController.selected),
-      onCopy: () =>
-          batchService.batchCopy(_selectionController.selected, storagePath),
-      onRename: () => batchService.batchRename(_selectionController.selected),
-      onShare: () => batchService.batchShare(_selectionController.selected),
-      onMove: () =>
-          batchService.batchMove(_selectionController.selected, storagePath),
-      onToggleFavorite: () =>
-          batchService.batchToggleFavorite(_selectionController.selected),
-      onDelete: () => batchService.batchDelete(_selectionController.selected),
+      onCopy: () {
+        if (!mounted) return;
+        batchService.batchCopy(
+            context, _selectionController.selected, storagePath);
+      },
+      onRename: () {
+        if (!mounted) return;
+        batchService.batchRename(context, _selectionController.selected);
+      },
+      onShare: () {
+        if (!mounted) return;
+        batchService.batchShare(context, _selectionController.selected);
+      },
+      onMove: () {
+        if (!mounted) return;
+        batchService.batchMove(
+            context, _selectionController.selected, storagePath);
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        batchService.batchToggleFavorite(
+            context, _selectionController.selected);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        batchService.batchDelete(context, _selectionController.selected);
+      },
     );
   }
 
   /// 获取批量操作服务实例
   BatchOperationsService _getBatchOperationsService() {
     return BatchOperationsService(
-      context: context,
       viewModel: widget.viewModel,
       presenter: widget.presenter,
       onRefresh: () async {
+        if (!mounted) return;
         await _loadCategoryFiles(forceRefresh: true);
       },
       onExitSelectionMode: () {
+        if (!mounted) return;
         setState(() {
           _selectionController.clear();
         });

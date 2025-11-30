@@ -82,7 +82,10 @@ class SingleFileOperationsService {
 
       if (operationSucceeded) {
         _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏');
-        onRefresh?.call();
+        // 刷新前再次检查 mounted 状态，因为 showSnackBar 可能导致 widget 重建
+        if (_isMounted) {
+          onRefresh?.call();
+        }
       } else {
         final action = wasOriginallyFavorite ? '取消收藏' : '添加到收藏';
         _showErrorSnackBar('$action失败');

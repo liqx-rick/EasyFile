@@ -70,11 +70,11 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
 
     // 初始化批量操作服务
     _batchService = BatchOperationsService(
-      context: context,
       viewModel: locator<FileViewModel>(),
       presenter: locator<FilePresenter>(),
       onRefresh: _refresh,
       onExitSelectionMode: () {
+        if (!mounted) return;
         _selectionController.clear();
       },
     );
@@ -886,7 +886,10 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
               OutlinedButton.icon(
                 onPressed: selected.isEmpty
                     ? null
-                    : () => _batchService.batchDelete(selected),
+                    : () {
+                        if (!mounted) return;
+                        _batchService.batchDelete(context, selected);
+                      },
                 icon: const Icon(Icons.delete_outline, size: 18),
                 label: const Text('删除'),
               ),

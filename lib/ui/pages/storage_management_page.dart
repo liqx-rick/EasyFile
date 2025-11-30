@@ -849,7 +849,17 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                       const SizedBox(width: 8),
                       FilledButton.icon(
                         onPressed: () async {
+                          // 保存presenter引用，避免在async gap后访问
+                          final presenterRef = presenter;
+
+                          // 先关闭当前对话框
                           Navigator.pop(dialogContext);
+
+                          // 等待一帧，确保对话框完全关闭
+                          await Future.delayed(Duration.zero);
+
+                          // 检查页面是否还在
+                          if (!mounted) return;
 
                           // 打开自定义大文件查找对话框，预设"其他文件类型 + 1MB"
                           final initialConfig = LargeFileScanConfig(
@@ -863,11 +873,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                             initialConfig,
                           );
 
-                          if (config != null) {
+                          if (config != null && mounted) {
                             // 用户确认配置后，跳转到大文件查找页面
                             final largeFileService =
-                                LargeFileService(presenter);
-                            if (!mounted) return;
+                                LargeFileService(presenterRef);
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => LargeFilesPage(
@@ -1215,6 +1224,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         final minSizeBytes = await displaySettings.getMinFileSize();
         final minSizeKB = (minSizeBytes / 1024).round();
 
+        // 检查页面是否还存在
+        if (!mounted) return;
+
         final config = DuplicateFileScanConfig(
           scanMode: DuplicateScanMode.full,
           minSizeInKB: minSizeKB,
@@ -1228,7 +1240,6 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         // 注册到缓存管理服务
         CacheManagerService().setDuplicateFileScanService(enhancedScanService);
 
-        if (!mounted) return;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => DuplicateFilesPage(

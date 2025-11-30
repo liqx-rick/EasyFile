@@ -1166,25 +1166,46 @@ class _StoragePageState extends State<StoragePage> {
     return SelectionBottomBar(
       selectedPaths: _selectedItems,
       isAllFavorite: batchService.isAllSelectedFavorite(_selectedItems),
-      onCopy: () => batchService.batchCopy(_selectedItems, _currentPath),
-      onRename: () => batchService.batchRename(_selectedItems),
-      onShare: () => batchService.batchShare(_selectedItems),
-      onMove: () => batchService.batchMove(_selectedItems, _currentPath),
-      onToggleFavorite: () => batchService.batchToggleFavorite(_selectedItems),
-      onDelete: () => batchService.batchDelete(_selectedItems),
+      onCopy: () {
+        if (!mounted) return;
+        batchService.batchCopy(context, _selectedItems, _currentPath);
+      },
+      onRename: () {
+        if (!mounted) return;
+        batchService.batchRename(context, _selectedItems);
+      },
+      onShare: () {
+        if (!mounted) return;
+        batchService.batchShare(context, _selectedItems);
+      },
+      onMove: () {
+        if (!mounted) return;
+        batchService.batchMove(context, _selectedItems, _currentPath);
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        batchService.batchToggleFavorite(context, _selectedItems);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        batchService.batchDelete(context, _selectedItems);
+      },
     );
   }
 
   /// 获取批量操作服务实例
+  ///
+  /// 注意：服务不再存储BuildContext，context需要在调用方法时传入
   BatchOperationsService _getBatchOperationsService() {
     return BatchOperationsService(
-      context: context,
       viewModel: widget.viewModel,
       presenter: widget.presenter,
       onRefresh: () async {
+        if (!mounted) return;
         await _loadFilesInPath(_currentPath);
       },
       onExitSelectionMode: () {
+        if (!mounted) return;
         setState(() {
           _selectionController.clear();
         });

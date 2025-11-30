@@ -19,15 +19,31 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 /// - 批量复制
 /// - 批量重命名（单个）
 /// - 批量分享
+///
+/// ## BuildContext生命周期管理
+///
+/// 为避免"Looking up a deactivated widget's ancestor is unsafe"异常，
+/// 本服务采用以下安全策略：
+///
+/// 1. **不存储BuildContext**：所有需要context的方法都要求调用者传入
+/// 2. **调用点检查**：调用者需在调用前检查`mounted`状态
+/// 3. **方法内检查**：每次使用context前都通过`_isMounted(context)`检查
+/// 4. **回调保护**：`onExitSelectionMode`等回调在调用前确保widget仍然挂载
+///
+/// ### 典型用法
+/// ```dart
+/// onToggleFavorite: () {
+///   if (!mounted) return;  // 调用点检查
+///   batchService.batchToggleFavorite(context, selectedItems);
+/// },
+/// ```
 class BatchOperationsService {
-  final BuildContext context;
   final FileViewModel viewModel;
   final FilePresenter presenter;
   final VoidCallback onRefresh;
   final VoidCallback onExitSelectionMode;
 
   BatchOperationsService({
-    required this.context,
     required this.viewModel,
     required this.presenter,
     required this.onRefresh,
@@ -41,7 +57,21 @@ class BatchOperationsService {
   }
 
   /// 批量添加/取消收藏
-  Future<void> batchToggleFavorite(Set<String> selectedItems) async {
+  ///
+  /// 根据当前选中文件的收藏状态，智能切换添加或取消收藏操作。
+  ///
+  /// **关键点**：
+  /// - 如果全部已收藏 → 批量取消收藏
+  /// - 如果有未收藏的 → 只添加未收藏的文件（跳过已收藏和文件夹）
+  /// - 异步操作后必须检查`_isMounted(context)`，防止在widget销毁后使用context
+  /// - 操作成功后退出选择模式（`onExitSelectionMode()`）
+  ///
+  /// @param context 用于显示SnackBar的BuildContext，必须从外部传入
+  /// @param selectedItems 选中的文件/文件夹路径集合
+  Future<void> batchToggleFavorite(
+    BuildContext context,
+    Set<String> selectedItems,
+  ) async {
     if (selectedItems.isEmpty) return;
 
     final allFavorite = isAllSelectedFavorite(selectedItems);
@@ -53,21 +83,23 @@ class BatchOperationsService {
         final (successCount, failCount) =
             await presenter.batchRemoveFavoriteFiles(selectedItems.toList());
 
-        if (!_isMounted) return;
+        // ⚠️ 异步操作后必须检查widget是否还存在
+        if (!_isMounted(context)) return;
 
         final message = failCount > 0
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        _showSnackBar(message);
+        _showSnackBar(context, message);
       } else {
         // 有未收藏的，批量添加收藏
-        // 先过滤出未收藏的文件
+        // 智能过滤：只添加未收藏的文件，跳过已收藏的文件和所有文件夹
         final filesToAdd = <FileItem>[];
         for (final path in selectedItems) {
-          // 跳过已收藏的和文件夹
+          // 跳过已收藏的文件
           if (viewModel.isFavoriteFile(path)) continue;
 
+          // 跳过文件夹（收藏功能仅支持文件）
           final entity = FileSystemEntity.typeSync(path);
           if (entity != FileSystemEntityType.file) continue;
 
@@ -85,39 +117,49 @@ class BatchOperationsService {
           }
         }
 
+        // 如果过滤后没有可添加的文件，提示并退出
         if (filesToAdd.isEmpty) {
-          if (_isMounted) {
-            _showSnackBar('没有可添加到收藏的文件');
+          if (_isMounted(context)) {
+            _showSnackBar(context, '没有可添加到收藏的文件');
+            // ⚠️ 在mounted检查内部调用，防止在unmounted状态触发setState
+            onExitSelectionMode();
           }
-          onExitSelectionMode();
           return;
         }
 
         final (successCount, failCount) =
             await presenter.batchAddFavoriteFiles(filesToAdd);
 
-        if (!_isMounted) return;
+        // ⚠️ 异步操作后必须检查widget是否还存在
+        if (!_isMounted(context)) return;
 
         final message = failCount > 0
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        _showSnackBar(message);
+        _showSnackBar(context, message);
+        // ⚠️ 操作完成后退出选择模式
+        // 必须在_isMounted检查之后调用，确保widget仍然挂载
+        // onExitSelectionMode内部会调用setState，如果widget已销毁会抛异常
+        onExitSelectionMode();
       }
-
-      // 操作完成后退出选择模式
-      onExitSelectionMode();
     } catch (e, stackTrace) {
       logger.e('Batch toggle favorite failed: $e\n$stackTrace');
-      if (_isMounted) {
-        _showSnackBar('$action失败：$e');
+      if (_isMounted(context)) {
+        _showSnackBar(context, '$action失败：$e');
+        // ⚠️ 即使失败也要退出选择模式，但必须在mounted检查内
+        onExitSelectionMode();
       }
-      onExitSelectionMode();
     }
   }
 
   /// 批量删除
-  Future<void> batchDelete(Set<String> selectedItems) async {
+  ///
+  /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  Future<void> batchDelete(
+    BuildContext context,
+    Set<String> selectedItems,
+  ) async {
     if (selectedItems.isEmpty) return;
 
     // 🔒 安全检查：验证所有选中项是否允许删除
@@ -199,7 +241,7 @@ class BatchOperationsService {
       folderCount: folderCount,
     );
 
-    if (!confirmed || !_isMounted) return;
+    if (!confirmed || !_isMounted(context)) return;
 
     // 显示进度
     showDialog(
@@ -253,7 +295,7 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop(); // 关闭进度对话框
 
       // 刷新文件列表
@@ -280,7 +322,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop(); // 关闭进度对话框
       messenger.showSnackBar(
         SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
@@ -289,7 +331,13 @@ class BatchOperationsService {
   }
 
   /// 批量移动
-  Future<void> batchMove(Set<String> selectedItems, String currentPath) async {
+  ///
+  /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  Future<void> batchMove(
+    BuildContext context,
+    Set<String> selectedItems,
+    String currentPath,
+  ) async {
     if (selectedItems.isEmpty) return;
 
     // 🔒 安全检查：验证所有选中项是否允许移动
@@ -299,7 +347,7 @@ class BatchOperationsService {
       if (riskLevel == PathRiskLevel.forbidden ||
           riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(Platform.pathSeparator).last;
-        _showErrorSnackBar('无法移动 "$fileName"：这是受保护的系统目录');
+        _showErrorSnackBar(context, '无法移动 "$fileName"：这是受保护的系统目录');
         logger.w('Move blocked by UI: $path (Risk: ${riskLevel.name})');
         return;
       }
@@ -342,7 +390,7 @@ class BatchOperationsService {
       ),
     );
 
-    if (destinationPath == null || !_isMounted) return;
+    if (destinationPath == null || !_isMounted(context)) return;
 
     // 检查是否移动到相同目录
     for (final path in selectedItems) {
@@ -444,7 +492,7 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       onRefresh();
       onExitSelectionMode();
@@ -466,7 +514,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
@@ -475,7 +523,13 @@ class BatchOperationsService {
   }
 
   /// 批量复制
-  Future<void> batchCopy(Set<String> selectedItems, String currentPath) async {
+  ///
+  /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  Future<void> batchCopy(
+    BuildContext context,
+    Set<String> selectedItems,
+    String currentPath,
+  ) async {
     if (selectedItems.isEmpty) return;
 
     // 🔒 安全检查：验证所有源文件是否允许复制
@@ -484,7 +538,7 @@ class BatchOperationsService {
       if (riskLevel == PathRiskLevel.forbidden ||
           riskLevel == PathRiskLevel.danger) {
         final fileName = sourcePath.split(Platform.pathSeparator).last;
-        _showErrorSnackBar('无法复制 "$fileName"：这是受保护的系统目录');
+        _showErrorSnackBar(context, '无法复制 "$fileName"：这是受保护的系统目录');
         logger.w('Copy blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
         return;
       }
@@ -503,7 +557,7 @@ class BatchOperationsService {
       ),
     );
 
-    if (destinationPath == null || !_isMounted) return;
+    if (destinationPath == null || !_isMounted(context)) return;
 
     // 🔒 验证目标路径安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
@@ -599,7 +653,7 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       onRefresh();
       onExitSelectionMode();
@@ -624,7 +678,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
@@ -653,7 +707,12 @@ class BatchOperationsService {
   }
 
   /// 批量重命名（仅支持单个文件/文件夹）
-  Future<void> batchRename(Set<String> selectedItems) async {
+  ///
+  /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  Future<void> batchRename(
+    BuildContext context,
+    Set<String> selectedItems,
+  ) async {
     if (selectedItems.length != 1) return;
 
     final sourcePath = selectedItems.first;
@@ -667,8 +726,9 @@ class BatchOperationsService {
     // 禁止重命名系统关键目录
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       _showErrorSnackBar(
+        context,
         PathSecurity.getOperationDeniedMessage(sourcePath, '重命名'),
       );
       logger.w('Rename blocked by UI: $sourcePath (Risk: ${riskLevel.name})');
@@ -677,7 +737,7 @@ class BatchOperationsService {
 
     // 检查是否为系统关键文件夹名称
     if (PathSecurity.isSystemFolderName(currentName)) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -744,7 +804,8 @@ class BatchOperationsService {
       ),
     );
 
-    if (newName == null || newName.trim().isEmpty || !_isMounted) return;
+    if (newName == null || newName.trim().isEmpty || !_isMounted(context))
+      return;
     if (newName == currentName) return;
 
     // 显示进度
@@ -782,7 +843,7 @@ class BatchOperationsService {
       // 检查目标文件名是否已存在
       if (FileSystemEntity.typeSync(targetPath) !=
           FileSystemEntityType.notFound) {
-        if (!_isMounted) return;
+        if (!_isMounted(context)) return;
         navigator.pop(); // 关闭进度对话框
         messenger.showSnackBar(
           SnackBar(
@@ -797,9 +858,9 @@ class BatchOperationsService {
       final targetRiskLevel = PathSecurity.getPathRiskLevel(targetPath);
       if (targetRiskLevel == PathRiskLevel.forbidden ||
           targetRiskLevel == PathRiskLevel.danger) {
-        if (!_isMounted) return;
+        if (!_isMounted(context)) return;
         Navigator.pop(context); // 关闭进度对话框
-        _showErrorSnackBar('重命名失败：目标路径不安全');
+        _showErrorSnackBar(context, '重命名失败：目标路径不安全');
         logger.w('Rename blocked: target path $targetPath is protected');
         return;
       }
@@ -818,7 +879,7 @@ class BatchOperationsService {
         await File(sourcePath).rename(targetPath);
       }
 
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       onRefresh();
       onExitSelectionMode();
@@ -827,7 +888,7 @@ class BatchOperationsService {
         const SnackBar(content: Text('重命名成功'), backgroundColor: Colors.green),
       );
     } catch (e) {
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
@@ -836,7 +897,12 @@ class BatchOperationsService {
   }
 
   /// 批量分享
-  Future<void> batchShare(Set<String> selectedItems) async {
+  ///
+  /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  Future<void> batchShare(
+    BuildContext context,
+    Set<String> selectedItems,
+  ) async {
     if (selectedItems.isEmpty) return;
 
     // 只分享文件，过滤掉文件夹
@@ -845,7 +911,7 @@ class BatchOperationsService {
     }).toList();
 
     if (filePaths.isEmpty) {
-      _showErrorSnackBar('请选择至少一个文件进行分享', Colors.orange);
+      _showErrorSnackBar(context, '请选择至少一个文件进行分享', Colors.orange);
       return;
     }
 
@@ -892,7 +958,7 @@ class BatchOperationsService {
       // 使用presenter批量分享
       final success = await presenter.batchShareFiles(filePaths);
 
-      if (!_isMounted) return;
+      if (!_isMounted(context)) return;
       if (success) {
         // 分享成功后退出多选模式
         onExitSelectionMode();
@@ -906,14 +972,25 @@ class BatchOperationsService {
       }
     } catch (e) {
       logger.e('Failed to share files: $e');
-      if (!_isMounted) return;
-      _showErrorSnackBar('分享失败：$e');
+      if (!_isMounted(context)) return;
+      _showErrorSnackBar(context, '分享失败：$e');
     }
   }
 
   // ========== 辅助方法 ==========
 
-  bool get _isMounted {
+  /// 检查BuildContext是否仍然有效（widget是否还挂载）
+  ///
+  /// 这是防止"Looking up a deactivated widget's ancestor is unsafe"异常的核心方法。
+  /// 在所有异步操作后、使用context之前，都必须调用此方法检查。
+  ///
+  /// **实现原理**：
+  /// - 使用try-catch包裹`context.mounted`，防止访问已释放的context导致异常
+  /// - 如果context已失效，访问`mounted`属性本身就会抛异常，catch后返回false
+  ///
+  /// @param context 需要检查的BuildContext
+  /// @return true=widget仍然挂载，可以安全使用context；false=widget已销毁
+  bool _isMounted(BuildContext context) {
     try {
       return context.mounted;
     } catch (_) {
@@ -921,8 +998,16 @@ class BatchOperationsService {
     }
   }
 
-  void _showSnackBar(String message, {Duration? duration}) {
-    if (!_isMounted) return;
+  /// 显示成功/信息提示的SnackBar
+  ///
+  /// 自动检查context有效性，如果widget已销毁则静默忽略。
+  ///
+  /// @param context 用于显示SnackBar的BuildContext
+  /// @param message 要显示的消息文本
+  /// @param duration 显示时长，默认2秒
+  void _showSnackBar(BuildContext context, String message,
+      {Duration? duration}) {
+    if (!_isMounted(context)) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -931,8 +1016,16 @@ class BatchOperationsService {
     );
   }
 
-  void _showErrorSnackBar(String message, [Color? backgroundColor]) {
-    if (!_isMounted) return;
+  /// 显示错误提示的SnackBar（红色背景）
+  ///
+  /// 自动检查context有效性，如果widget已销毁则静默忽略。
+  ///
+  /// @param context 用于显示SnackBar的BuildContext
+  /// @param message 错误消息文本
+  /// @param backgroundColor 背景颜色，默认红色
+  void _showErrorSnackBar(BuildContext context, String message,
+      [Color? backgroundColor]) {
+    if (!_isMounted(context)) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
