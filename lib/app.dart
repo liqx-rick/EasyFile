@@ -115,15 +115,32 @@ class _AppNavigatorState extends State<AppNavigator>
       logger.i('AppNavigator: NEW PROCESS started at $_processStartTime');
     }
 
+    // 添加保险措施：5秒后强制移除 native splash
+    Future.delayed(const Duration(seconds: 5), () {
+      logger.w('Force removing native splash after 5 seconds timeout');
+      FlutterNativeSplash.remove();
+    });
+
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
     try {
+      logger.i('_initializeApp: Starting initialization...');
+
       // 检查是否从后台恢复
-      final isRestoringFromBackground =
-          await platform.invokeMethod<bool>('isRestoringFromBackground') ??
-              false;
+      bool isRestoringFromBackground = false;
+      try {
+        logger.i('_initializeApp: Checking background restore state...');
+        isRestoringFromBackground =
+            await platform.invokeMethod<bool>('isRestoringFromBackground') ??
+                false;
+        logger.i(
+            '_initializeApp: isRestoringFromBackground = $isRestoringFromBackground');
+      } catch (e) {
+        logger.w('_initializeApp: Platform method failed (using default): $e');
+        isRestoringFromBackground = false;
+      }
 
       logger.i(
         'App initialization - Restoring from background: $isRestoringFromBackground',
@@ -140,30 +157,48 @@ class _AppNavigatorState extends State<AppNavigator>
           logger.i('New app launch - will show splash and reset to Recent tab');
 
           // 清除保存的状态并重置 FileViewModel
-          final prefs = await SharedPreferences.getInstance();
-          await Future.wait([
-            prefs.remove('last_viewed_file_path'),
-            prefs.remove('current_tab'),
-            prefs.remove('last_browse_path'),
-          ]);
+          try {
+            logger.i('_initializeApp: Clearing saved state...');
+            final prefs = await SharedPreferences.getInstance();
+            await Future.wait([
+              prefs.remove('last_viewed_file_path'),
+              prefs.remove('current_tab'),
+              prefs.remove('last_browse_path'),
+            ]);
+            logger.i('_initializeApp: State cleared');
+          } catch (e) {
+            logger.w('_initializeApp: Could not clear preferences: $e');
+          }
 
           // 重置 FileViewModel 到默认状态（Recent tab）
           try {
+            logger.i('_initializeApp: Resetting FileViewModel...');
             locator<FileViewModel>().resetToDefault();
-            logger.i('Reset FileViewModel to Recent tab');
+            logger.i('FileViewModel reset to Recent tab');
           } catch (e) {
             logger.w('Could not reset FileViewModel: $e');
           }
         }
       }
-    } catch (e) {
-      logger.e('Error checking background restoration: $e');
+
+      logger.i('_initializeApp: Initialization complete');
+    } catch (e, stackTrace) {
+      logger.e('Error in _initializeApp: $e\n$stackTrace');
       _hasCompletedSplash = _hasShownSplashInThisProcess;
     } finally {
-      setState(() {
-        _isLoadingState = false;
-      });
-      FlutterNativeSplash.remove();
+      logger.i('_initializeApp: Updating UI and removing native splash');
+      if (mounted) {
+        setState(() {
+          _isLoadingState = false;
+        });
+      }
+      // 确保移除 native splash
+      try {
+        FlutterNativeSplash.remove();
+        logger.i('_initializeApp: Native splash removed');
+      } catch (e) {
+        logger.e('_initializeApp: Error removing native splash: $e');
+      }
     }
   }
 

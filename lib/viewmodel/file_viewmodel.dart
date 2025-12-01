@@ -30,6 +30,7 @@ class FileViewModel extends ChangeNotifier {
   bool _isSearchMode = false;
   String _searchQuery = '';
   bool _isRecentFilesMode = false;
+  String? _errorMessage; // 错误消息
 
   // 文件更新跟踪（用于页面同步更新）
   String? _lastUpdatedOldPath;
@@ -440,8 +441,18 @@ class FileViewModel extends ChangeNotifier {
   /// 设置错误信息
   void setError(String message) {
     logger.e('ViewModel error: $message');
-    // 可以在这里添加错误状态的处理
+    _errorMessage = message;
+    notifyListeners();
   }
+
+  /// 清除错误信息
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// 获取错误信息
+  String? get errorMessage => _errorMessage;
 
   // Tab 和视图模式相关方法
   void setCurrentTab(TabView tab) {

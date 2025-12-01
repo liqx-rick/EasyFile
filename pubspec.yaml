@@ -29,6 +29,7 @@ dependencies:
   gal: ^2.3.0
   printing: ^5.13.3
   pdf: ^3.11.1
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:

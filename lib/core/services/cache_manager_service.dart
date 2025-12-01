@@ -3,6 +3,8 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
+import 'package:easyfile/core/services/large_file_cache_manager.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 
 /// 缓存管理服务
 /// 统一管理应用中的各种缓存
@@ -13,6 +15,15 @@ class CacheManagerService {
 
   final _thumbnailCache = ThumbnailCacheManager();
   final _categoryCache = CategoryFileCacheService();
+  final _largeFileCache = LargeFileCacheManager();
+
+  // 重复文件扫描服务（需要外部传入）
+  EnhancedDuplicateFileScanService? _duplicateFileScanService;
+
+  /// 设置重复文件扫描服务
+  void setDuplicateFileScanService(EnhancedDuplicateFileScanService service) {
+    _duplicateFileScanService = service;
+  }
 
   /// 获取所有缓存信息
   Future<List<CacheItem>> getAllCacheItems() async {
@@ -128,6 +139,62 @@ class CacheManagerService {
       ));
     }
 
+    // 6. 大文件扫描缓存
+    try {
+      final cacheSize = await _largeFileCache.getCacheSize();
+      final cache = await _largeFileCache.loadCache();
+
+      final description = cache != null
+          ? '包含 ${cache.files.length} 个大文件记录（${cache.formattedAge}）'
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '大文件扫描缓存',
+        description: description,
+        size: cacheSize,
+        type: CacheType.largeFileScan,
+      ));
+    } catch (e) {
+      logger.e('Failed to get large file cache info: $e');
+      items.add(CacheItem(
+        name: '大文件扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.largeFileScan,
+      ));
+    }
+
+    // 7. 重复文件扫描缓存
+    try {
+      if (_duplicateFileScanService != null) {
+        final cacheSize = await _duplicateFileScanService!.getCacheSize();
+        final description = cacheSize > 0 ? '包含多个配置的扫描结果缓存' : '无缓存';
+
+        items.add(CacheItem(
+          name: '重复文件扫描缓存',
+          description: description,
+          size: cacheSize,
+          type: CacheType.duplicateFileScan,
+        ));
+      } else {
+        // 服务未初始化
+        items.add(CacheItem(
+          name: '重复文件扫描缓存',
+          description: '暂无缓存数据',
+          size: 0,
+          type: CacheType.duplicateFileScan,
+        ));
+      }
+    } catch (e) {
+      logger.e('Failed to get duplicate file cache info: $e');
+      items.add(CacheItem(
+        name: '重复文件扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.duplicateFileScan,
+      ));
+    }
+
     return items;
   }
 
@@ -171,6 +238,21 @@ class CacheManagerService {
           await _clearVideoPlaybackData();
           logger.i('>>> Video playback data cleared successfully');
           return true;
+
+        case CacheType.largeFileScan:
+          await _largeFileCache.clearCache();
+          logger.i('Large file scan cache cleared');
+          return true;
+
+        case CacheType.duplicateFileScan:
+          if (_duplicateFileScanService != null) {
+            await _duplicateFileScanService!.clearAllCaches();
+            logger.i('Duplicate file scan cache cleared');
+            return true;
+          } else {
+            logger.w('Duplicate file scan service not initialized');
+            return false;
+          }
       }
     } catch (e) {
       logger.e('>>> EXCEPTION in clearCache for $type: $e');
@@ -323,6 +405,8 @@ enum CacheType {
   categoryScan,
   searchHistory,
   videoPlayback,
+  largeFileScan, // 大文件扫描缓存
+  duplicateFileScan, // 重复文件扫描缓存
 }
 
 extension CacheTypeExtension on CacheType {
@@ -338,6 +422,10 @@ extension CacheTypeExtension on CacheType {
         return '搜索历史';
       case CacheType.videoPlayback:
         return '视频播放数据';
+      case CacheType.largeFileScan:
+        return '大文件扫描缓存';
+      case CacheType.duplicateFileScan:
+        return '重复文件扫描缓存';
     }
   }
 }

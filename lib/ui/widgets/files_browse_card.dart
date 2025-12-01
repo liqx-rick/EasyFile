@@ -4,10 +4,10 @@ import '../../presenter/file_presenter.dart';
 import '../../viewmodel/file_viewmodel.dart';
 
 /// 文件浏览功能卡片
-/// 
+///
 /// 用于主页快速访问区域，提供文件浏览功能的快捷入口。
 /// 点击后跳转到存储页面，查看所有存储空间和文件。
-/// 
+///
 /// 特性：
 /// - 支持单行/双行两种布局模式
 /// - 所有尺寸（图标、文字、间距、padding）均根据可用高度动态计算
@@ -15,22 +15,22 @@ import '../../viewmodel/file_viewmodel.dart';
 class FilesBrowseCard extends StatelessWidget {
   /// 总存储空间（字节）
   final double? totalSpace;
-  
+
   /// 可用存储空间（字节）
   final double? freeSpace;
-  
+
   /// 是否正在加载存储信息
   final bool isLoading;
-  
+
   /// 文件管理Presenter
   final FilePresenter presenter;
-  
+
   /// 文件管理ViewModel
   final FileViewModel viewModel;
-  
+
   /// 是否为紧凑模式（单行并排显示）
   final bool isCompactMode;
-  
+
   /// 卡片可用高度，用于动态计算内部元素尺寸
   final double availableHeight;
 
@@ -49,7 +49,7 @@ class FilesBrowseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // 根据可用高度动态计算padding（避免固定padding导致溢出）
     final cardPadding = (availableHeight * 0.04).clamp(3.0, 6.0);
-    
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -69,8 +69,14 @@ class FilesBrowseCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.6),
-              Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+              Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.6),
+              Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
@@ -80,7 +86,8 @@ class FilesBrowseCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -121,11 +128,15 @@ class FilesBrowseCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(iconSize * 0.25),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.3),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -156,11 +167,15 @@ class FilesBrowseCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(iconSize * 0.25),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.3),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),

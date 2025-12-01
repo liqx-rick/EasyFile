@@ -201,7 +201,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           // flex比例决定了快速访问区域和功能卡片区域的宽度分配
           int quickAccessFlex;
           int functionCardsFlex;
-          
+
           if (isSingleButtonMode) {
             // 单按钮模式：1个快速访问按钮 + 2个功能卡片并排 = 1:2
             quickAccessFlex = 1;
@@ -845,17 +845,17 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   }
 
   /// 构建功能卡片区域（文件浏览卡片 + 存储管理卡片）
-  /// 
+  ///
   /// 根据快速访问按钮数量自动调整布局：
   /// - 单按钮模式：两个功能卡片并排显示（单行模式）
   /// - 多按钮模式：两个功能卡片上下排列（双行模式）
-  /// 
+  ///
   /// 参数：
   /// - [isCompactMode]: true为单行模式（并排显示），false为双行模式（上下排列）
   Widget _buildFunctionCards(BuildContext context, bool isCompactMode) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
-    
+
     // 计算单个卡片的可用高度，用于内部元素的动态尺寸计算
     double availableHeight;
     if (isCompactMode) {

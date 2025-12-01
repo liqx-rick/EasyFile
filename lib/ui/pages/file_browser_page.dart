@@ -21,6 +21,7 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/settings_page.dart';
+import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
@@ -660,24 +661,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         _navigateToQuickAccessManagePage();
         break;
       case 'about':
-        _showAboutDialog();
+        _navigateToAbout();
         break;
     }
   }
 
-  /// 显示关于对话框
-  void _showAboutDialog() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'EasyFile',
-      applicationVersion: '1.1.0',
-      applicationLegalese: '© 2025 EasyFile Team',
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 16),
-          child: Text('一个简单易用的跨平台文件管理器'),
-        ),
-      ],
+  /// 导航到关于页面
+  void _navigateToAbout() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AboutPage(),
+      ),
     );
   }
 
@@ -1274,7 +1268,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建空状态UI
-  Widget _buildEmptyState(TabView tab, bool isSearchMode) {
+  Widget _buildEmptyState(TabView tab, bool isSearchMode, FileViewModel vm) {
+    logger.d(
+        '_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
+
     IconData icon;
     String title;
     Widget subtitleWidget;
@@ -1471,6 +1468,60 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             textAlign: TextAlign.center,
           );
           actionButton = null;
+        } else if (vm.errorMessage != null) {
+          // 显示错误消息（如系统保护的目录）
+          icon = Icons.lock_outline;
+          title = '无法访问此目录';
+          subtitleWidget = Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange[200]!, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 48,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      vm.errorMessage!,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.orange[900],
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Android 11+ 系统限制了对某些系统目录的直接访问',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange[800],
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          actionButton = TextButton.icon(
+            onPressed: () => presenter.navigateUp(),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('返回上级'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
         } else {
           icon = Icons.folder_open;
           title = '此文件夹为空';
@@ -1533,12 +1584,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建文件列表视图
   Widget _buildFileList(FileViewModel vm) {
+    logger.d(
+        '_buildFileList - files.isEmpty: ${vm.files.isEmpty}, errorMessage: ${vm.errorMessage}, currentPath: ${vm.currentPath}');
+
     if (vm.files.isEmpty) {
       // 使用新的空状态UI
       final isSearchMode =
           (vm.currentTab == TabView.browse && vm.isSearchMode) ||
               (vm.currentTab == TabView.favorite && _favoriteSearchMode);
-      return _buildEmptyState(vm.currentTab, isSearchMode);
+      return _buildEmptyState(vm.currentTab, isSearchMode, vm);
     }
 
     return RefreshIndicator(
@@ -2064,24 +2118,40 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return SelectionBottomBar(
       selectedPaths: _selectedItems,
       isAllFavorite: batchService.isAllSelectedFavorite(_selectedItems),
-      onCopy: () =>
-          batchService.batchCopy(_selectedItems, viewModel.currentPath),
-      onRename: () => batchService.batchRename(_selectedItems),
-      onShare: () => batchService.batchShare(_selectedItems),
-      onMove: () =>
-          batchService.batchMove(_selectedItems, viewModel.currentPath),
-      onToggleFavorite: () => batchService.batchToggleFavorite(_selectedItems),
-      onDelete: () => batchService.batchDelete(_selectedItems),
+      onCopy: () {
+        if (!mounted) return;
+        batchService.batchCopy(context, _selectedItems, viewModel.currentPath);
+      },
+      onRename: () {
+        if (!mounted) return;
+        batchService.batchRename(context, _selectedItems);
+      },
+      onShare: () {
+        if (!mounted) return;
+        batchService.batchShare(context, _selectedItems);
+      },
+      onMove: () {
+        if (!mounted) return;
+        batchService.batchMove(context, _selectedItems, viewModel.currentPath);
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        batchService.batchToggleFavorite(context, _selectedItems);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        batchService.batchDelete(context, _selectedItems);
+      },
     );
   }
 
   /// 获取批量操作服务实例
   BatchOperationsService _getBatchOperationsService() {
     return BatchOperationsService(
-      context: context,
       viewModel: viewModel,
       presenter: presenter,
       onRefresh: () async {
+        if (!mounted) return;
         if (viewModel.currentTab == TabView.browse) {
           await presenter.loadFiles(viewModel.currentPath);
         } else if (viewModel.currentTab == TabView.favorite) {
@@ -2089,6 +2159,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         }
       },
       onExitSelectionMode: () {
+        if (!mounted) return;
         setState(() {
           _selectionController.clear();
         });

@@ -245,12 +245,14 @@ class CategoryFilePage extends StatefulWidget {
   final CategoryType categoryType;
   final FilePresenter presenter;
   final FileViewModel viewModel;
+  final bool isFromStorageManagement; // 是否从存储管理进入
 
   const CategoryFilePage({
     super.key,
     required this.categoryType,
     required this.presenter,
     required this.viewModel,
+    this.isFromStorageManagement = false, // 默认false
   });
 
   @override
@@ -280,6 +282,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   // 文件显示设置
   bool _showFullPath = false;
+
+  // 临时显示模式（从存储管理进入时）
+  bool _isTemporaryMode = false;
 
   // 过滤后的文件列表（按搜索和文件类型筛选）
   List<FileItem> get _filteredFiles {
@@ -322,6 +327,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     PageSettingsService().addListener(_onPageSettingsChanged);
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
+
+    // 初始化临时显示模式
+    _isTemporaryMode = widget.isFromStorageManagement;
 
     // 加载显示设置
     _loadDisplaySettings();
@@ -532,12 +540,18 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   /// 获取当前页面是否为网格视图
   bool get _isGridView {
+    // 临时模式强制使用列表视图
+    if (_isTemporaryMode) return false;
+
     final pageId = _getPageIdForCategory();
     return PageSettingsService().getViewMode(pageId) == ViewMode.grid;
   }
 
   /// 获取当前页面是否启用分组
   bool get _isGroupEnabled {
+    // 临时模式强制禁用分组
+    if (_isTemporaryMode) return false;
+
     final pageId = _getPageIdForCategory();
     return PageSettingsService().getGroupEnabled(pageId);
   }
@@ -557,6 +571,54 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     }
 
     return UnifiedViewConfig.fromContext(context);
+  }
+
+  /// 构建临时显示模式提示条
+  Widget _buildTemporaryModeBanner() {
+    return Material(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _isTemporaryMode = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已切换到正常视图模式'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                Icons.storage,
+                size: 18,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '按存储占用查看 (点击切换到正常视图)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.close,
+                size: 18,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 将CategoryType转换为FileCategory枚举
@@ -609,9 +671,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // Step 1: 尝试加载缓存
       final cached = await _loadFromCache();
       if (cached.isNotEmpty) {
-        // 应用页面级排序
+        // 应用页面级排序（临时模式强制按大小排序）
         final pageId = _getPageIdForCategory();
-        final sortType = PageSettingsService().getSortType(pageId);
+        final sortType = _isTemporaryMode
+            ? SortType.size
+            : PageSettingsService().getSortType(pageId);
         FileComparatorUtil.sortFilesInPlace(cached, sortType);
 
         setState(() {
@@ -655,9 +719,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       );
 
       // Step 3: 更新UI和缓存
-      // 应用页面级排序
+      // 应用页面级排序（临时模式强制按大小排序）
       final pageId = _getPageIdForCategory();
-      final sortType = PageSettingsService().getSortType(pageId);
+      final sortType = _isTemporaryMode
+          ? SortType.size
+          : PageSettingsService().getSortType(pageId);
       FileComparatorUtil.sortFilesInPlace(files, sortType);
 
       // 计算总大小
@@ -828,6 +894,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               ),
               body: Column(
                 children: [
+                  // 临时显示模式提示条（从存储管理进入时显示）
+                  if (_isTemporaryMode) _buildTemporaryModeBanner(),
+
                   // 搜索框（使用统一的FileSearchBar组件）
                   if (_isSearchMode)
                     FileSearchBar(
@@ -1120,28 +1189,47 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       selectedPaths: _selectionController.selected,
       isAllFavorite:
           batchService.isAllSelectedFavorite(_selectionController.selected),
-      onCopy: () =>
-          batchService.batchCopy(_selectionController.selected, storagePath),
-      onRename: () => batchService.batchRename(_selectionController.selected),
-      onShare: () => batchService.batchShare(_selectionController.selected),
-      onMove: () =>
-          batchService.batchMove(_selectionController.selected, storagePath),
-      onToggleFavorite: () =>
-          batchService.batchToggleFavorite(_selectionController.selected),
-      onDelete: () => batchService.batchDelete(_selectionController.selected),
+      onCopy: () {
+        if (!mounted) return;
+        batchService.batchCopy(
+            context, _selectionController.selected, storagePath);
+      },
+      onRename: () {
+        if (!mounted) return;
+        batchService.batchRename(context, _selectionController.selected);
+      },
+      onShare: () {
+        if (!mounted) return;
+        batchService.batchShare(context, _selectionController.selected);
+      },
+      onMove: () {
+        if (!mounted) return;
+        batchService.batchMove(
+            context, _selectionController.selected, storagePath);
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        batchService.batchToggleFavorite(
+            context, _selectionController.selected);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        batchService.batchDelete(context, _selectionController.selected);
+      },
     );
   }
 
   /// 获取批量操作服务实例
   BatchOperationsService _getBatchOperationsService() {
     return BatchOperationsService(
-      context: context,
       viewModel: widget.viewModel,
       presenter: widget.presenter,
       onRefresh: () async {
+        if (!mounted) return;
         await _loadCategoryFiles(forceRefresh: true);
       },
       onExitSelectionMode: () {
+        if (!mounted) return;
         setState(() {
           _selectionController.clear();
         });
@@ -1523,11 +1611,24 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
         throw Exception('目录不存在');
       }
 
-      final entities = directory
-          .listSync()
-          .whereType<Directory>()
-          .where((dir) => !path.basename(dir.path).startsWith('.'))
-          .toList();
+      List<Directory> entities;
+      try {
+        entities = directory
+            .listSync()
+            .whereType<Directory>()
+            .where((dir) => !path.basename(dir.path).startsWith('.'))
+            .toList();
+      } catch (e) {
+        // 捕获权限拒绝错误（如 Android/data 目录）
+        if (e.toString().contains('Permission denied') ||
+            e.toString().contains('errno = 13')) {
+          logger.w('Permission denied for directory: $_currentPath');
+          // 返回空列表，不显示 SnackBar
+          entities = [];
+        } else {
+          rethrow;
+        }
+      }
 
       entities.sort(
         (a, b) => path.basename(a.path).compareTo(path.basename(b.path)),
@@ -1540,9 +1641,13 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));
+        // 只有非权限错误才显示 SnackBar
+        if (!e.toString().contains('Permission denied') &&
+            !e.toString().contains('errno = 13')) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));
+        }
       }
     }
   }
