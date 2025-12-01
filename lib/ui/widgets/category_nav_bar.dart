@@ -128,6 +128,12 @@ class CategoryNavBar extends StatelessWidget {
               ),
             ),
           );
+          
+          // 从分类页面返回后,如果当前在最近Tab,刷新最近文件列表
+          // 因为用户可能在分类页面打开了文件,需要在最近Tab中显示
+          if (viewModel.currentTab == TabView.recent) {
+            presenter.loadRecentFiles();
+          }
         },
         child: Container(
           decoration: BoxDecoration(
