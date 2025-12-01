@@ -205,13 +205,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         ),
       );
 
-    // 检查是否有快速访问列表
-    final hasQuickAccessList = widget.viewModel.folders.any(
-      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
-    );
-
-    // 动态上限：有快速访问列表则为5，否则为6
-    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+    // 首页推荐区域最多6个文件夹（不再有"更多"按钮）
+    const maxHomeItems = 6;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 16, 10, 8),
@@ -753,7 +748,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 ),
                 children: [
                   TextSpan(text: folder.originalName),
-                  if (folder.displayName != folder.originalName) ...[
+                  if (folder.userAlias != null) ...[
                     TextSpan(
                       text: ' | 别名：',
                       style: TextStyle(
@@ -763,7 +758,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                       ),
                     ),
                     TextSpan(
-                      text: folder.displayName,
+                      text: folder.userAlias!,
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontWeight: FontWeight.normal,
@@ -1055,32 +1050,11 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         break;
 
       case 'add_to_qa':
-        // 检查首页推荐数量
-        final homeFolders = await widget.presenter.getHomeFolders();
-        if (homeFolders.length >= 6) {
-          // 首页推荐已有6项，提示用户需要移除一个
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('需要调整首页推荐'),
-              content: const Text(
-                '首页推荐已有6项。加入快速访问后，首页最多只能显示5项推荐。\n\n请先移除一个首页推荐项目，以便为快速访问按钮腾出空间。',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('知道了'),
-                ),
-              ],
-            ),
-          );
-        } else {
-          final success = await widget.presenter.addToQuickAccess(folder.id);
-          if (!mounted) return;
-          messenger.showSnackBar(
-              SnackBar(content: Text(success ? '已加入快速访问' : '操作失败')));
-        }
+        // 直接加入快速访问，无需检查首页推荐数量（现在支持6个推荐项）
+        final success = await widget.presenter.addToQuickAccess(folder.id);
+        if (!mounted) return;
+        messenger.showSnackBar(
+            SnackBar(content: Text(success ? '已加入快速访问' : '操作失败')));
         break;
 
       case 'remove_from_qa':
@@ -1102,13 +1076,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     final messenger = ScaffoldMessenger.of(context);
     final homeFolders = await widget.presenter.getHomeFolders();
 
-    // 检查是否有快速访问列表
-    final hasQuickAccessList = widget.viewModel.folders.any(
-      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
-    );
-
-    // 动态上限：有快速访问列表则为5，否则为6
-    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+    // 首页推荐区域最多6个文件夹
+    const maxHomeItems = 6;
 
     if (homeFolders.length >= maxHomeItems) {
       // 已满，需要替换
@@ -1116,27 +1085,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         _showReplaceHomeItemDialog(folder, homeFolders);
       }
     } else {
-      // 检查特殊情况：已有快速访问列表，且首页推荐已有5项，无法再添加
-      if (hasQuickAccessList && homeFolders.length >= 5) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('无法添加'),
-            content: const Text(
-              '已有项目加入快速访问时，首页推荐仅能支持5项。\n\n当前已达到最大数量，无法继续添加。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('知道了'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
       // 未满，直接添加
       final order = homeFolders.length;
       final success = await widget.presenter.setHomeDisplayOrder(
@@ -1401,11 +1349,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   ) {
     String? selectedId;
 
-    // 检查是否有快速访问列表以确定动态上限
-    final hasQuickAccessList = widget.viewModel.folders.any(
-      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
-    );
-    final maxHomeItems = hasQuickAccessList ? 5 : 6;
+    // 首页推荐区域最多6个文件夹
+    const maxHomeItems = 6;
 
     showDialog(
       context: context,

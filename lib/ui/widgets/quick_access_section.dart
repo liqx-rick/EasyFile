@@ -45,9 +45,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   double? _freeSpace;
   bool _loadingStorage = true;
 
-  // "更多"卡片的GlobalKey，用于定位菜单弹出位置
-  final GlobalKey _moreCardKey = GlobalKey();
-
   @override
   void initState() {
     super.initState();
@@ -314,7 +311,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         } else if (isCompactMode) {
           // 单行模式：2-3个按钮
           // 高度固定为分类图片高度，宽度根据数量平均分配
-          final totalCards = homeFolders.length + (hasQuickAccessList ? 1 : 0);
+          final totalCards = homeFolders.length;
 
           final minSpacing = isSmallScreen ? 2.0 : 3.0;
 
@@ -336,20 +333,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                     widget.categoryCardSize, isSmallScreen),
                 SizedBox(width: spacing),
               ],
-              if (hasQuickAccessList) ...[
-                _buildMoreCard(
-                    context, cardWidth, widget.categoryCardSize, isSmallScreen),
-                SizedBox(width: spacing),
-              ],
             ],
           );
         } else {
           // 双行模式：4-6个按钮
           // 高度固定为分类图片高度，宽度根据数量和行数动态分配
-          final maxFolders = hasQuickAccessList ? 5 : 6;
-          final displayFolders = homeFolders.take(maxFolders).toList();
-          final totalCards =
-              displayFolders.length + (hasQuickAccessList ? 1 : 0);
+          final displayFolders = homeFolders.take(6).toList();
+          final totalCards = displayFolders.length;
 
           final minSpacing = isSmallScreen ? 2.0 : 3.0;
 
@@ -399,12 +389,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                         isSmallScreen),
                     SizedBox(width: spacing),
                   ],
-                  if (firstRowCount >= displayFolders.length &&
-                      hasQuickAccessList) ...[
-                    _buildMoreCard(context, firstRowCardWidth,
-                        widget.categoryCardSize, isSmallScreen),
-                    SizedBox(width: spacing),
-                  ],
                 ],
               ),
               if (secondRowCount > 0) ...[
@@ -424,12 +408,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                           isSmallScreen),
                       SizedBox(width: spacing),
                     ],
-                    if (displayFolders.length >= firstRowCount &&
-                        hasQuickAccessList) ...[
-                      _buildMoreCard(context, secondRowCardWidth,
-                          widget.categoryCardSize, isSmallScreen),
-                      SizedBox(width: spacing),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 3), // 增加底部间距
@@ -438,211 +416,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           );
         }
       },
-    );
-  }
-
-  Future<void> _showFolderMenu(BuildContext context) async {
-    // 获取"更多"卡片的位置
-    final RenderBox? moreCardBox =
-        _moreCardKey.currentContext?.findRenderObject() as RenderBox?;
-    if (moreCardBox == null) return;
-
-    final RenderBox overlay =
-        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final Offset moreCardPosition = moreCardBox.localToGlobal(
-      Offset.zero,
-      ancestor: overlay,
-    );
-    final Size moreCardSize = moreCardBox.size;
-
-    // 计算菜单位置：从"更多"卡片的右侧展开
-    final RelativeRect position = RelativeRect.fromLTRB(
-      moreCardPosition.dx + moreCardSize.width, // 左边界：卡片右侧
-      moreCardPosition.dy, // 顶部对齐卡片顶部
-      overlay.size.width -
-          (moreCardPosition.dx + moreCardSize.width + 200), // 右边界：留出菜单宽度
-      overlay.size.height - moreCardPosition.dy, // 底部
-    );
-
-    final QuickAccessFolder? selected = await showMenu<QuickAccessFolder>(
-      context: context,
-      position: position,
-      items: _buildPopupMenuItems(context),
-    );
-
-    if (selected != null && mounted) {
-      _navigateToFolder(selected);
-    }
-  }
-
-  List<PopupMenuEntry<QuickAccessFolder>> _buildPopupMenuItems(
-    BuildContext context,
-  ) {
-    final allFolders = widget.quickAccessViewModel.folders;
-
-    // 按类型分组
-    final systemFolders = allFolders
-        .where(
-          (f) =>
-              f.type == QuickAccessFolderType.system && f.isAddedToQuickAccess,
-        )
-        .toList();
-    final appFolders = allFolders
-        .where(
-          (f) =>
-              (f.type == QuickAccessFolderType.appRoot ||
-                  f.type == QuickAccessFolderType.appSubfolder) &&
-              f.isAddedToQuickAccess,
-        )
-        .toList();
-    final userFolders = allFolders
-        .where(
-          (f) =>
-              f.type == QuickAccessFolderType.userCustom &&
-              f.isAddedToQuickAccess,
-        )
-        .toList();
-
-    List<PopupMenuEntry<QuickAccessFolder>> items = [];
-
-    // 系统文件夹
-    if (systemFolders.isNotEmpty) {
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          enabled: false,
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '系统 (${systemFolders.length})',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      for (var folder in systemFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.blue));
-      }
-      if (appFolders.isNotEmpty || userFolders.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
-    }
-
-    // 应用文件夹
-    if (appFolders.isNotEmpty) {
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          enabled: false,
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '应用 (${appFolders.length})',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.orange,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      for (var folder in appFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.orange));
-      }
-      if (userFolders.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
-    }
-
-    // 自定义文件夹
-    if (userFolders.isNotEmpty) {
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          enabled: false,
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '我的 (${userFolders.length})',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      for (var folder in userFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.green));
-      }
-    }
-
-    return items;
-  }
-
-  PopupMenuItem<QuickAccessFolder> _buildFolderMenuItem(
-    QuickAccessFolder folder,
-    Color color,
-  ) {
-    final exists = Directory(folder.path).existsSync();
-
-    return PopupMenuItem<QuickAccessFolder>(
-      value: folder,
-      enabled: exists,
-      child: Row(
-        children: [
-          Icon(
-            _getFolderIcon(folder),
-            size: 18,
-            color: exists ? color : Colors.grey,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              folder.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color: exists ? null : Colors.grey,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -657,11 +430,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final exists = Directory(folder.path).existsSync();
     final color = _getFolderColorByType(folder.type);
 
-    // 检查是否被选中（当前路径是否在此文件夹内）
+    // 检查是否被选中（只有在浏览Tab时才高亮，其他Tab不高亮）
     final currentPath = widget.fileViewModel.currentPath;
-    final isSelected = currentPath == folder.path ||
-        (currentPath.isNotEmpty &&
-            currentPath.startsWith(folder.path + Platform.pathSeparator));
+    final currentTab = widget.fileViewModel.currentTab;
+    final isSelected = currentTab == TabView.browse &&
+        (currentPath == folder.path ||
+            (currentPath.isNotEmpty &&
+                currentPath.startsWith(folder.path + Platform.pathSeparator)));
 
     // 根据卡片高度动态调整图标和文字大小
     final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
@@ -726,84 +501,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   }
 
   /// 构建"更多"卡片
-  /// 构建"更多"卡片（宽度动态调整，高度固定为分类图片高度）
-  Widget _buildMoreCard(
-    BuildContext context,
-    double cardWidth,
-    double cardHeight,
-    bool isSmallScreen,
-  ) {
-    // 检查当前路径是否在快速访问列表中（但不在首页推荐中）
-    final currentPath = widget.fileViewModel.currentPath;
-    final folders = widget.quickAccessViewModel.folders;
-
-    final isMoreSelected = folders.any((f) =>
-        f.isAddedToQuickAccess &&
-        f.homeDisplayOrder == null &&
-        (currentPath == f.path ||
-            (currentPath.isNotEmpty &&
-                currentPath.startsWith(f.path + Platform.pathSeparator))));
-
-    // 根据卡片高度动态调整图标和文字大小
-    final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
-    final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
-
-    // "更多"按钮使用不同的背景色 - 适配深色/浅色主题
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isMoreSelected
-        ? Theme.of(context).colorScheme.secondaryContainer // 选中时高亮
-        : (isDark
-            ? Colors.deepPurple.withValues(alpha: 0.12) // 深色模式：12%深紫色透明度
-            : const Color(0xFFE8EAF6)); // 浅色模式：浅紫色背景
-
-    return SizedBox(
-      key: _moreCardKey, // 添加key用于定位
-      width: cardWidth,
-      height: cardHeight,
-      child: Material(
-        elevation: isMoreSelected ? 4 : 2,
-        borderRadius: BorderRadius.circular(12),
-        color: backgroundColor,
-        child: InkWell(
-          onTap: () => _showFolderMenu(context),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.more_horiz,
-                  size: iconSize,
-                  color: isMoreSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                SizedBox(height: cardHeight * 0.02),
-                Text(
-                  '更多',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight:
-                        isMoreSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isMoreSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Color _getFolderColorByType(QuickAccessFolderType type) {
     switch (type) {
       case QuickAccessFolderType.system:

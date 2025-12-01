@@ -927,12 +927,19 @@ class FilePresenter {
           await favoriteFilesSource.batchAddFavoriteFiles(favoriteFiles);
       final failedCount = favoriteFiles.length - addedCount;
 
-      // 更新ViewModel
+      // 更新ViewModel（批量添加，延迟通知避免UI冲突）
       if (addedCount > 0) {
+        // 收集需要添加的文件
+        final filesToAdd = <FavoriteFileItem>[];
         for (final favoriteFile in favoriteFiles) {
           if (!viewModel.isFavoriteFile(favoriteFile.filePath)) {
-            viewModel.addFavoriteFile(favoriteFile);
+            filesToAdd.add(favoriteFile);
           }
+        }
+        
+        // 批量添加到viewModel（内部延迟通知）
+        if (filesToAdd.isNotEmpty) {
+          viewModel.batchAddFavoriteFiles(filesToAdd);
         }
 
         // 如果当前在收藏Tab，重新加载
@@ -980,13 +987,14 @@ class FilePresenter {
 
       // 更新ViewModel
       if (removedCount > 0) {
-        for (final path in filesToRemove) {
-          viewModel.removeFavoriteFile(path);
-        }
+        // 使用批量移除方法，避免多次notifyListeners触发"deactivated widget's ancestor"错误
+        viewModel.batchRemoveFavoriteFiles(filesToRemove);
 
-        // 如果当前在收藏Tab，重新加载
+        // 如果当前在收藏Tab，延迟重新加载以避免在PopupMenu关闭前触发notifyListeners
         if (viewModel.currentTab == TabView.favorite) {
-          await loadFavoriteFiles();
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await loadFavoriteFiles();
+          });
         }
       }
 

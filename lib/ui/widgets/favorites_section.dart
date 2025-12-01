@@ -138,8 +138,8 @@ class _FavoritesSectionState extends State<FavoritesSection> {
 
   Widget _buildStorageInfo(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => StoragePage(
               presenter: widget.presenter,
@@ -147,6 +147,11 @@ class _FavoritesSectionState extends State<FavoritesSection> {
             ),
           ),
         );
+        
+        // 从存储页面返回后,如果当前在最近Tab,刷新最近文件列表
+        if (widget.viewModel.currentTab == TabView.recent) {
+          widget.presenter.loadRecentFiles();
+        }
       },
       child: Container(
         width: 100,

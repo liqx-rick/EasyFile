@@ -357,6 +357,26 @@ class FileViewModel extends ChangeNotifier {
     }
   }
 
+  /// 批量添加收藏文件（只通知一次）
+  void batchAddFavoriteFiles(List<FavoriteFileItem> favoriteFiles) {
+    logger.d('Batch adding ${favoriteFiles.length} favorite files');
+    int addedCount = 0;
+    for (final favoriteFile in favoriteFiles) {
+      if (!_favoriteFiles.any((f) => f.filePath == favoriteFile.filePath)) {
+        _favoriteFiles.add(favoriteFile);
+        addedCount++;
+      }
+    }
+    if (addedCount > 0) {
+      _favoriteFiles = _sortedFavoriteFiles(_favoriteFiles);
+      logger.i('Batch added $addedCount favorite files. Total count: ${_favoriteFiles.length}');
+      // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
+  }
+
   void removeFavoriteFile(String filePath) {
     logger.d('Removing favorite file: $filePath');
     final beforeCount = _favoriteFiles.length;
@@ -364,6 +384,26 @@ class FileViewModel extends ChangeNotifier {
     final afterCount = _favoriteFiles.length;
     logger.i('Favorite file removed. Count: $beforeCount -> $afterCount');
     notifyListeners();
+  }
+
+  /// 批量移除收藏文件（只通知一次）
+  void batchRemoveFavoriteFiles(List<String> filePaths) {
+    logger.d('Batch removing ${filePaths.length} favorite files');
+    int removedCount = 0;
+    for (final filePath in filePaths) {
+      final beforeCount = _favoriteFiles.length;
+      _favoriteFiles.removeWhere((f) => f.filePath == filePath);
+      if (_favoriteFiles.length < beforeCount) {
+        removedCount++;
+      }
+    }
+    if (removedCount > 0) {
+      logger.i('Batch removed $removedCount favorite files. Total count: ${_favoriteFiles.length}');
+      // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   void updateFavoriteFile(FavoriteFileItem updatedFavoriteFile) {

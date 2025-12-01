@@ -51,8 +51,8 @@ class FilesBrowseCard extends StatelessWidget {
     final cardPadding = (availableHeight * 0.04).clamp(3.0, 6.0);
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => StoragePage(
@@ -61,6 +61,11 @@ class FilesBrowseCard extends StatelessWidget {
             ),
           ),
         );
+        
+        // 从存储页面返回后,如果当前在最近Tab,刷新最近文件列表
+        if (viewModel.currentTab == TabView.recent) {
+          presenter.loadRecentFiles();
+        }
       },
       child: Container(
         padding: EdgeInsets.all(cardPadding),

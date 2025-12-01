@@ -74,6 +74,9 @@ class BatchOperationsService {
   ) async {
     if (selectedItems.isEmpty) return;
 
+    // ⚠️ 在异步操作前获取ScaffoldMessenger，避免异步后widget已销毁
+    final messenger = ScaffoldMessenger.of(context);
+
     final allFavorite = isAllSelectedFavorite(selectedItems);
     final action = allFavorite ? '取消收藏' : '添加到收藏';
 
@@ -90,7 +93,13 @@ class BatchOperationsService {
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        _showSnackBar(context, message);
+        // ⚠️ 先退出选择模式，再显示消息
+        onExitSelectionMode();
+        
+        // 延迟一帧后显示SnackBar，确保setState完成，避免"deactivated widget"错误
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showSnackBarDirect(messenger, message);
+        });
       } else {
         // 有未收藏的，批量添加收藏
         // 智能过滤：只添加未收藏的文件，跳过已收藏的文件和所有文件夹
@@ -120,7 +129,7 @@ class BatchOperationsService {
         // 如果过滤后没有可添加的文件，提示并退出
         if (filesToAdd.isEmpty) {
           if (_isMounted(context)) {
-            _showSnackBar(context, '没有可添加到收藏的文件');
+            _showSnackBarDirect(messenger, '没有可添加到收藏的文件');
             // ⚠️ 在mounted检查内部调用，防止在unmounted状态触发setState
             onExitSelectionMode();
           }
@@ -137,18 +146,23 @@ class BatchOperationsService {
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        _showSnackBar(context, message);
-        // ⚠️ 操作完成后退出选择模式
-        // 必须在_isMounted检查之后调用，确保widget仍然挂载
-        // onExitSelectionMode内部会调用setState，如果widget已销毁会抛异常
+        // ⚠️ 先退出选择模式，再显示消息
         onExitSelectionMode();
+        
+        // 延迟一帧后显示SnackBar，确保setState完成
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showSnackBarDirect(messenger, message);
+        });
       }
     } catch (e, stackTrace) {
       logger.e('Batch toggle favorite failed: $e\n$stackTrace');
       if (_isMounted(context)) {
-        _showSnackBar(context, '$action失败：$e');
-        // ⚠️ 即使失败也要退出选择模式，但必须在mounted检查内
+        // 先退出选择模式
         onExitSelectionMode();
+        // 延迟一帧后显示错误消息
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showSnackBarDirect(messenger, '$action失败：$e');
+        });
       }
     }
   }
@@ -998,24 +1012,6 @@ class BatchOperationsService {
     }
   }
 
-  /// 显示成功/信息提示的SnackBar
-  ///
-  /// 自动检查context有效性，如果widget已销毁则静默忽略。
-  ///
-  /// @param context 用于显示SnackBar的BuildContext
-  /// @param message 要显示的消息文本
-  /// @param duration 显示时长，默认2秒
-  void _showSnackBar(BuildContext context, String message,
-      {Duration? duration}) {
-    if (!_isMounted(context)) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: duration ?? const Duration(seconds: 2),
-      ),
-    );
-  }
-
   /// 显示错误提示的SnackBar（红色背景）
   ///
   /// 自动检查context有效性，如果widget已销毁则静默忽略。
@@ -1026,12 +1022,48 @@ class BatchOperationsService {
   void _showErrorSnackBar(BuildContext context, String message,
       [Color? backgroundColor]) {
     if (!_isMounted(context)) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor ?? Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    try {
+      // 先获取messenger，避免在已销毁的widget树中查找
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor ?? Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      logger.w('Failed to show error snackbar: $e');
+    }
+  }
+
+  /// 直接使用ScaffoldMessengerState显示SnackBar
+  ///
+  /// 用于异步操作后显示消息，避免访问已销毁的widget树。
+  /// 应在异步操作前通过ScaffoldMessenger.of(context)获取messenger。
+  ///
+  /// @param messenger ScaffoldMessengerState实例
+  /// @param message 要显示的消息文本
+  /// @param duration 显示时长，默认2秒
+  void _showSnackBarDirect(ScaffoldMessengerState messenger, String message,
+      {Duration? duration}) {
+    try {
+      // 使用Future.microtask确保在当前帧完成后显示SnackBar
+      // 避免在widget重建过程中访问BuildContext
+      Future.microtask(() {
+        try {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(message),
+              duration: duration ?? const Duration(seconds: 2),
+            ),
+          );
+        } catch (e) {
+          logger.w('Failed to show snackbar in microtask: $e');
+        }
+      });
+    } catch (e) {
+      logger.w('Failed to schedule snackbar: $e');
+    }
   }
 }
