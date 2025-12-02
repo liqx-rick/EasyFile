@@ -3,6 +3,9 @@ import 'package:get_it/get_it.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/core/services/junk_file_service.dart';
+import 'package:easyfile/core/services/junk_file_cache_manager.dart';
+import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -74,6 +77,26 @@ void setupLocator() {
   locator.registerLazySingleton<CacheManagerService>(() {
     logger.d('Creating CacheManagerService');
     return CacheManagerService();
+  });
+
+  locator.registerLazySingleton<JunkFileCacheManager>(() {
+    logger.d('Creating JunkFileCacheManager');
+    return JunkFileCacheManager();
+  });
+
+  locator.registerLazySingleton<JunkFileService>(() {
+    logger.d('Creating JunkFileService');
+    return JunkFileService(
+      filePresenter: locator<FilePresenter>(),
+      cacheManager: locator<JunkFileCacheManager>(),
+    );
+  });
+
+  locator.registerLazySingleton<TrashFileService>(() {
+    logger.d('Creating TrashFileService');
+    return TrashFileService(
+      filePresenter: locator<FilePresenter>(),
+    );
   });
 
   locator.registerLazySingleton<FolderAnalyzer>(() {

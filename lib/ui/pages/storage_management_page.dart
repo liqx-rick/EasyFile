@@ -19,6 +19,8 @@ import 'package:easyfile/ui/pages/category_file_page.dart'
 import 'package:easyfile/ui/pages/cache_management_page.dart';
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
+import 'package:easyfile/ui/pages/junk_files_page.dart';
+import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:easyfile/ui/pages/storage_page.dart';
 
 import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
@@ -258,19 +260,21 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           _buildStorageOverviewSection(theme, colorScheme),
           const SizedBox(height: 24),
 
-          // 2. 文件清理功能区
-          _buildSectionTitle('文件清理', Icons.cleaning_services, colorScheme),
+          // 2. 垃圾清理功能区（新增）
+          _buildSectionTitle('垃圾清理', Icons.cleaning_services, colorScheme),
+          const SizedBox(height: 12),
+          _buildJunkAndTrashCard(theme, colorScheme),
+          const SizedBox(height: 24),
+
+          // 3. 文件清理功能区
+          _buildSectionTitle('文件清理', Icons.folder_outlined, colorScheme),
           const SizedBox(height: 12),
           _buildLargeFilesCard(theme, colorScheme),
           const SizedBox(height: 12),
           _buildDuplicateFilesCard(theme, colorScheme),
-          const SizedBox(height: 12),
-          _buildOldFilesCard(theme, colorScheme),
-          const SizedBox(height: 12),
-          _buildJunkFilesCard(theme, colorScheme),
           const SizedBox(height: 24),
 
-          // 3. 缓存清理功能区
+          // 4. 缓存清理功能区
           _buildSectionTitle('缓存清理', Icons.delete_sweep, colorScheme),
           const SizedBox(height: 12),
           _buildCacheCleanupCard(theme, colorScheme),
@@ -1454,41 +1458,152 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     );
   }
 
-  /// 5. 旧文件分析卡片
-  Widget _buildOldFilesCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.history,
-      title: '旧文件分析',
-      subtitle: '查找长期未使用的文件',
-      badge: '待扫描',
-      badgeColor: colorScheme.secondary,
-      onTap: () {
-        // TODO: 跳转到旧文件分析页
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('旧文件分析功能开发中')),
-        );
-      },
-      theme: theme,
-      colorScheme: colorScheme,
+  /// 6. 垃圾文件清理和回收站管理合并卡片
+  Widget _buildJunkAndTrashCard(ThemeData theme, ColorScheme colorScheme) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 垃圾文件清理入口
+            _buildJunkFilesEntry(theme, colorScheme),
+
+            // 分隔线
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Divider(
+                thickness: 1,
+                height: 1,
+                color: Colors.grey[300],
+              ),
+            ),
+
+            // 管理系统回收站入口
+            _buildTrashFilesEntry(theme, colorScheme),
+          ],
+        ),
+      ),
     );
   }
 
-  /// 6. 垃圾文件清理卡片
-  Widget _buildJunkFilesCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.delete_sweep,
-      title: '垃圾文件清理',
-      subtitle: '清理系统垃圾和无用文件',
-      badge: '待扫描',
-      badgeColor: colorScheme.secondary,
+  /// 垃圾文件清理入口
+  Widget _buildJunkFilesEntry(ThemeData theme, ColorScheme colorScheme) {
+    return InkWell(
       onTap: () {
-        // TODO: 跳转到垃圾文件清理页
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('垃圾文件清理功能开发中')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const JunkFilesPage(),
+          ),
         );
       },
-      theme: theme,
-      colorScheme: colorScheme,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            // 图标
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.delete_sweep,
+                color: colorScheme.onPrimaryContainer,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 文字内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '垃圾文件清理',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '清理APK安装包、临时文件、空文件夹',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 管理系统回收站入口
+  Widget _buildTrashFilesEntry(ThemeData theme, ColorScheme colorScheme) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TrashFilesPage(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            // 图标
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.delete_outline,
+                color: colorScheme.onPrimaryContainer,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 文字内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '管理系统回收站',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '浏览和恢复回收站文件，或彻底清空释放空间',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1516,8 +1631,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     required IconData icon,
     required String title,
     required String subtitle,
-    required String badge,
+    String? badge,
     required Color badgeColor,
+    bool showArrow = true,
     required VoidCallback onTap,
     required ThemeData theme,
     required ColorScheme colorScheme,
@@ -1570,35 +1686,38 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   ],
                 ),
               ),
-              // 徽章和箭头
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      badge,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: badgeColor,
-                        fontWeight: FontWeight.w600,
+              // 徽章和箭头（可选）
+              if (badge != null || showArrow)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (badge != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          badge,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: badgeColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
+                    if (badge != null && showArrow) const SizedBox(height: 4),
+                    if (showArrow)
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                  ],
+                ),
             ],
           ),
         ),
