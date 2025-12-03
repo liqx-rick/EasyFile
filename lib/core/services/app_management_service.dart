@@ -16,12 +16,18 @@ class AppManagementService {
   final UsageStatsPermissionService _permissionService;
   final UsageStatsService _usageStatsService;
 
+  /// 设备基准时间（用户最早安装应用的时间）
+  DateTime? _deviceBaselineTime;
+
   AppManagementService(
     this._storageService,
     this._cacheManager,
     this._permissionService,
     this._usageStatsService,
   );
+
+  /// 获取设备基准时间
+  DateTime? get deviceBaselineTime => _deviceBaselineTime;
 
   /// 获取已安装的应用列表
   ///
@@ -56,16 +62,19 @@ class AppManagementService {
     Function(int current, int total)? onProgress,
   }) async {
     try {
+      // 过滤掉 EasyFile 自身
+      apps = apps.where((app) => app.packageName != 'com.example.easyfile').toList();
+      
       logger.i('Loading storage info for ${apps.length} apps');
 
       // 批量获取使用统计（只查询一次）
       final packageNames = apps.map((app) => app.packageName).toList();
       logger.i('======= 开始查询使用统计 =======');
-      logger.i('查询参数: packageNames.length=${packageNames.length}, daysBack=365');
+      logger.i('查询参数: packageNames.length=${packageNames.length}, daysBack=90');
       
       final usageStatsMap = await _usageStatsService.batchGetUsageStats(
         packageNames,
-        daysBack: 365, // 查询365天的数据，覆盖更长时间范围
+        daysBack: 90, // 使用90天而不是365天 - 华为设备在90天时最稳定
       );
       
       logger.i('Got usage stats for ${usageStatsMap.length} apps out of ${packageNames.length}');
@@ -123,22 +132,40 @@ class AppManagementService {
           'Loaded usage stats for ${apps.where((a) => a.usageStats != null).length} apps');
       logger.i(
           'Apps with lastTimeUsed: ${apps.where((a) => a.usageStats?.lastTimeUsed != null).length}');
+      logger.i(
+          'Apps with lastUpdateTime: ${apps.where((a) => a.usageStats?.lastUpdateTime != null).length}');
+      logger.i(
+          'Apps with effectiveLastTime: ${apps.where((a) => a.usageStats?.effectiveLastTime != null).length}');
       
-      // 详细统计各时间段的应用数量
+      // 详细统计各时间段的应用数量（基于effectiveLastTime）
       final now = DateTime.now();
       var within7Days = 0, within30Days = 0, within180Days = 0, beyond180Days = 0, noTime = 0;
+      var usedTimeUsed = 0, usedUpdateTime = 0;
+      
       for (final app in apps) {
-        if (app.usageStats?.lastTimeUsed == null) {
+        final effectiveTime = app.usageStats?.effectiveLastTime;
+        if (effectiveTime == null) {
           noTime++;
         } else {
-          final days = now.difference(app.usageStats!.lastTimeUsed!).inDays;
+          final days = now.difference(effectiveTime).inDays;
           if (days <= 7) within7Days++;
           else if (days <= 30) within30Days++;
           else if (days <= 180) within180Days++;
           else beyond180Days++;
+          
+          // 统计数据来源
+          if (app.usageStats?.lastTimeUsed != null) {
+            usedTimeUsed++;
+          } else if (app.usageStats?.lastUpdateTime != null) {
+            usedUpdateTime++;
+          }
         }
       }
-      logger.i('Time distribution: ≤7天=$within7Days, 8-30天=$within30Days, 31-180天=$within180Days, >180天=$beyond180Days, 无时间=$noTime');
+      logger.i('Time distribution (effectiveLastTime): ≤7天=$within7Days, 8-30天=$within30Days, 31-180天=$within180Days, >180天=$beyond180Days, 无时间=$noTime');
+      logger.i('Data source: lastTimeUsed=$usedTimeUsed, lastUpdateTime=$usedUpdateTime');
+      
+      // 计算设备基准时间：用户安装应用（非系统应用）的最早更新时间
+      _calculateDeviceBaselineTime(apps);
       
       return apps;
     } catch (e) {
@@ -268,7 +295,7 @@ class AppManagementService {
       final packageNames = stillInstalled.map((app) => app.packageName).toList();
       final usageStatsMap = await _usageStatsService.batchGetUsageStats(
         packageNames,
-        daysBack: 365,
+        daysBack: 90, // 使用90天而不是365天 - 华为设备在90天时最稳定
       );
       logger.i('Updated usage stats for ${usageStatsMap.length} apps');
       
@@ -323,6 +350,33 @@ class AppManagementService {
       totalCache: totalCache,
       appsWithStorageInfo: appsWithStorage,
     );
+  }
+
+  /// 计算设备基准时间：用户安装应用（非系统应用）的最早更新时间
+  void _calculateDeviceBaselineTime(List<EasyFileAppInfo> apps) {
+    DateTime? earliestTime;
+    
+    // 只考虑用户安装的应用（非系统应用）
+    for (final app in apps) {
+      if (app.isSystemApp) continue;
+      
+      final time = app.usageStats?.effectiveLastTime;
+      if (time != null) {
+        if (earliestTime == null || time.isBefore(earliestTime)) {
+          earliestTime = time;
+        }
+      }
+    }
+    
+    _deviceBaselineTime = earliestTime;
+    
+    if (_deviceBaselineTime != null) {
+      final years = (DateTime.now().difference(_deviceBaselineTime!).inDays / 365).floor();
+      logger.i('Device baseline time: $_deviceBaselineTime (约${years}年前)');
+      logger.i('系统应用早于此时间的将显示为"${years}+年前"');
+    } else {
+      logger.i('Device baseline time: null (无用户应用数据)');
+    }
   }
 }
 
