@@ -736,6 +736,33 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
+  /// 检查是否有快捷访问项（包括文件夹和已恢复文件）
+  bool _hasQuickAccessItems() {
+    // 检查是否有快捷访问文件夹
+    if (quickAccessViewModel != null &&
+        quickAccessViewModel!.folders.any((f) => f.isAddedToQuickAccess)) {
+      return true;
+    }
+    
+    // 检查是否有已恢复文件
+    return _hasRestoredFiles();
+  }
+
+  /// 检查是否有已恢复文件
+  bool _hasRestoredFiles() {
+    const restoredPath = '/storage/emulated/0/EasyFile/Restored';
+    final restoredDir = Directory(restoredPath);
+    
+    if (!restoredDir.existsSync()) return false;
+    
+    try {
+      final files = restoredDir.listSync();
+      return files.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// 显示快捷访问菜单
   void _showQuickAccessMenu(BuildContext context) async {
     if (quickAccessViewModel == null) return;
@@ -833,6 +860,113 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       for (var folder in userFolders) {
         items.add(_buildFolderMenuItem(folder, Colors.green));
       }
+    }
+
+    // 已恢复文件（固定入口）
+    if (_hasRestoredFiles()) {
+      if (items.isNotEmpty) {
+        items.add(const PopupMenuDivider());
+      }
+      
+      const restoredPath = '/storage/emulated/0/EasyFile/Restored';
+      final restoredDir = Directory(restoredPath);
+      final fileCount = restoredDir.listSync().length;
+      
+      items.add(
+        PopupMenuItem<QuickAccessFolder>(
+          enabled: false,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.purple,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                '已恢复',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$fileCount',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.purple,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      
+      // 添加已恢复文件夹作为可点击项
+      items.add(
+        PopupMenuItem<QuickAccessFolder>(
+          value: QuickAccessFolder(
+            id: 'restored_files',
+            originalName: '回收站恢复',
+            path: restoredPath,
+            type: QuickAccessFolderType.userCustom,
+            createdAt: DateTime.now(),
+            isAddedToQuickAccess: true,
+            pinned: false,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.folder_special, size: 18, color: Colors.purple),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      '回收站恢复',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '$fileCount 个已恢复的文件',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return items;
@@ -969,8 +1103,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             Icons.folder_special,
             false, // 快捷访问不是传统意义的Tab，总是显示为未选中
             onTap: () => _showQuickAccessMenu(context),
-            enabled: quickAccessViewModel != null &&
-                quickAccessViewModel!.folders.any((f) => f.isAddedToQuickAccess),
+            enabled: _hasQuickAccessItems(),
           ),
           Container(
             width: 1,
@@ -1242,6 +1375,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       }
 
       // 如果不在快速访问中，从路径中提取文件夹名
+      // 特殊处理：回收站恢复目录
+      if (vm.currentPath == '/storage/emulated/0/EasyFile/Restored') {
+        const displayName = '回收站恢复';
+        final truncatedName = displayName.length > maxLength
+            ? '${displayName.substring(0, maxLength - 3)}...'
+            : displayName;
+        return truncatedName;
+      }
+      
       final pathSegments = vm.currentPath.split(Platform.pathSeparator);
       final folderName = pathSegments.last.isEmpty
           ? (pathSegments.length > 1

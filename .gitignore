@@ -43,3 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# APK release files
+*.apk
+*.apk.sha256
+
+# Temporary and backup files
+*.bak
+*.tmp
+*.ini
+Untitled-*
+
+# Log files
+consolelog.txt
+docs/consolelog.txt

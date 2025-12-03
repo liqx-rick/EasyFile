@@ -953,11 +953,12 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     return _buildFeatureCard(
       icon: Icons.cached,
       title: '本应用缓存',
-      subtitle: '清理缩略图、扫描缓存等',
+      subtitle: '清理本应用的缩略图，扫描等产生的缓存',
       badge: _loadingCacheSize
           ? '加载中'
           : FileSizeFormatter.formatBytes(_totalCacheSize),
       badgeColor: Colors.orange,
+      showArrow: false,
       onTap: () {
         // 跳转到缓存管理页面
         final cacheManager = locator<CacheManagerService>();
@@ -1303,10 +1304,42 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   /// 分类检测入口
   Widget _buildCategoryDuplicateScanEntry(
       ThemeData theme, ColorScheme colorScheme) {
+    final categories = [
+      (
+        icon: '📷',
+        label: '图片',
+        description: '常见于相册、截图等（支持 JPG / PNG / GIF 等格式）',
+        type: FileTypeFilter.image,
+      ),
+      (
+        icon: '📹',
+        label: '视频',
+        description: '常见于录像、下载等（支持 MP4 / AVI / MKV 等格式）',
+        type: FileTypeFilter.video,
+      ),
+      (
+        icon: '📄',
+        label: '文档',
+        description: '常见于办公文件、电子书等（支持 PDF / DOC / TXT 等格式）',
+        type: FileTypeFilter.document,
+      ),
+      (
+        icon: '🎵',
+        label: '音频',
+        description: '常见于音乐、录音等（支持 MP3 / FLAC / WAV 等格式）',
+        type: FileTypeFilter.audio,
+      ),
+      (
+        icon: '📦',
+        label: '其他',
+        description: '常见于安装包、备份等（支持 ZIP / RAR / 7Z 等格式）',
+        type: FileTypeFilter.other,
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 标题
         Text(
           '分类清理',
           style: theme.textTheme.titleMedium?.copyWith(
@@ -1314,59 +1347,36 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           ),
         ),
         const SizedBox(height: 8),
-
-        // 图片分类
-        _buildCategoryCleanupItem(
-          icon: '📷',
-          label: '图片',
-          description: '常见于相册、截图等（支持 JPG / PNG / GIF 等格式）',
-          fileType: FileTypeFilter.image,
-          theme: theme,
-          colorScheme: colorScheme,
-        ),
-        const SizedBox(height: 8),
-
-        // 视频分类
-        _buildCategoryCleanupItem(
-          icon: '📹',
-          label: '视频',
-          description: '常见于录像、下载等（支持 MP4 / AVI / MKV 等格式）',
-          fileType: FileTypeFilter.video,
-          theme: theme,
-          colorScheme: colorScheme,
-        ),
-        const SizedBox(height: 8),
-
-        // 文档分类
-        _buildCategoryCleanupItem(
-          icon: '📄',
-          label: '文档',
-          description: '常见于办公文件、电子书等（支持 PDF / DOC / TXT 等格式）',
-          fileType: FileTypeFilter.document,
-          theme: theme,
-          colorScheme: colorScheme,
-        ),
-        const SizedBox(height: 8),
-
-        // 音频分类
-        _buildCategoryCleanupItem(
-          icon: '🎵',
-          label: '音频',
-          description: '常见于音乐、录音等（支持 MP3 / FLAC / WAV 等格式）',
-          fileType: FileTypeFilter.audio,
-          theme: theme,
-          colorScheme: colorScheme,
-        ),
-        const SizedBox(height: 8),
-
-        // 其他分类
-        _buildCategoryCleanupItem(
-          icon: '📦',
-          label: '其他',
-          description: '常见于安装包、备份等（支持 ZIP / RAR / 7Z 等格式）',
-          fileType: FileTypeFilter.other,
-          theme: theme,
-          colorScheme: colorScheme,
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: colorScheme.outlineVariant.withOpacity(0.5),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Column(
+              children: [
+                for (int i = 0; i < categories.length; i++) ...[
+                  _buildCategoryCleanupItem(
+                    icon: categories[i].icon,
+                    label: categories[i].label,
+                    description: categories[i].description,
+                    fileType: categories[i].type,
+                    theme: theme,
+                    colorScheme: colorScheme,
+                  ),
+                  if (i < categories.length - 1)
+                    Divider(
+                      height: 1,
+                      color: colorScheme.outlineVariant.withOpacity(0.3),
+                    ),
+                ],
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -1417,39 +1427,43 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         );
       },
       borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: colorScheme.outlineVariant,
-            width: 1,
-          ),
-        ),
-        child: Column(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  icon,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                icon,
+                style: const TextStyle(fontSize: 20),
+              ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              description,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1652,8 +1666,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             children: [
               // 图标
               Container(
-                width: 48,
-                height: 48,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
@@ -1670,11 +1684,35 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: badgeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              badge,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: badgeColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1686,37 +1724,12 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   ],
                 ),
               ),
-              // 徽章和箭头（可选）
-              if (badge != null || showArrow)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (badge != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          badge,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: badgeColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    if (badge != null && showArrow) const SizedBox(height: 4),
-                    if (showArrow)
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                  ],
+              // 箭头（可选）
+              if (showArrow)
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
                 ),
             ],
           ),

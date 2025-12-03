@@ -10,9 +10,11 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.easyfile/share"
     private val STATE_CHANNEL = "com.example.easyfile/state"
+    private val TRASH_CHANNEL = "com.example.easyfile/trash"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
+    private lateinit var trashHelper: MediaStoreTrashHelper
 
     companion object {
         private var isFirstActivityCreate = true
@@ -24,6 +26,9 @@ class MainActivity : FlutterActivity() {
                                    (intent?.flags?.and(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != 0)
         
         Log.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate")
+        
+        // 初始化 MediaStoreTrashHelper
+        trashHelper = MediaStoreTrashHelper(this)
         
         // 决定是否显示 Native Splash
         if (isRestoringFromBackground) {
@@ -84,6 +89,66 @@ class MainActivity : FlutterActivity() {
                 "isRestoringFromBackground" -> {
                     Log.i(TAG, "Flutter query - isRestoring: $isRestoringFromBackground")
                     result.success(isRestoringFromBackground)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // MediaStore回收站 Channel
+        MethodChannel(messenger, TRASH_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isSupported" -> {
+                    result.success(MediaStoreTrashHelper.isSupported())
+                }
+                "queryTrashedFiles" -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            val files = trashHelper.queryTrashedFiles()
+                            result.success(files)
+                        } catch (e: Exception) {
+                            result.error("QUERY_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("UNSUPPORTED", "Requires Android 11+", null)
+                    }
+                }
+                "deleteTrashedFile" -> {
+                    val fileId = call.argument<Long>("fileId")
+                    if (fileId != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            val success = trashHelper.deleteTrashedFile(fileId)
+                            result.success(success)
+                        } catch (e: Exception) {
+                            result.error("DELETE_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File ID required", null)
+                    }
+                }
+                "deleteMultipleTrashedFiles" -> {
+                    val fileIds = call.argument<List<Long>>("fileIds")
+                    if (fileIds != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            val resultMap = trashHelper.deleteMultipleTrashedFiles(fileIds)
+                            result.success(resultMap)
+                        } catch (e: Exception) {
+                            result.error("DELETE_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File IDs required", null)
+                    }
+                }
+                "emptyTrash" -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                        try {
+                            val resultMap = trashHelper.emptyTrash()
+                            result.success(resultMap)
+                        } catch (e: Exception) {
+                            result.error("EMPTY_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("UNSUPPORTED", "Requires Android 11+", null)
+                    }
                 }
                 else -> result.notImplemented()
             }

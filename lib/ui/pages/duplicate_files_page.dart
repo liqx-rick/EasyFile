@@ -1354,11 +1354,14 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Center(
+    final isAtGlobalMin = (_config.minSizeInKB * 1024) <=
+        FileDisplaySettingsService.minFileSizeMin;
+
+    return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.check_circle_outline,
@@ -1367,11 +1370,12 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             ),
             const SizedBox(height: 24),
             Text(
-              '未找到重复文件',
+              '在当前条件下未找到重复文件',
               style: theme.textTheme.titleLarge?.copyWith(
                 color: colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             Container(
@@ -1413,14 +1417,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              '建议：尝试降低最小文件大小或选择其他类型',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+            if (!isAtGlobalMin) ...[
+              const SizedBox(height: 20),
+              Text(
+                '建议：尝试降低最小文件大小或选择其他类型',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
+            ],
           ],
         ),
       ),
@@ -1662,8 +1668,9 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                       setState(() {
                         if (isSelected) {
                           _selectedFilePaths.remove(file.path);
-                          if (_selectedFilePaths.isEmpty)
+                          if (_selectedFilePaths.isEmpty) {
                             _isSelectionMode = false;
+                          }
                         } else {
                           _selectedFilePaths.add(file.path);
                           if (!_isSelectionMode) _isSelectionMode = true;
@@ -1679,8 +1686,9 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                             if (!_isSelectionMode) _isSelectionMode = true;
                           } else {
                             _selectedFilePaths.remove(file.path);
-                            if (_selectedFilePaths.isEmpty)
+                            if (_selectedFilePaths.isEmpty) {
                               _isSelectionMode = false;
+                            }
                           }
                         });
                       },
