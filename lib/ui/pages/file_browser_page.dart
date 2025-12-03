@@ -29,9 +29,12 @@ import 'package:easyfile/ui/widgets/category_nav_bar.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
 import 'package:easyfile/ui/widgets/file_category_tab_bar.dart';
+import 'package:easyfile/ui/widgets/pinned_header_delegate.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/unified_grid_item.dart';
+import 'package:easyfile/ui/widgets/file_item_tile.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
@@ -1162,11 +1165,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5), // 内容区标题栏
+        color: theme.colorScheme.surfaceContainerHighest, // 内容区标题栏（不透明）
         border: Border(
           bottom: BorderSide(
-            color: theme.dividerColor.withOpacity(0.5),
-            width: 0.5,
+            color: theme.dividerColor,
+            width: 1,
           ),
         ),
       ),
@@ -1228,11 +1231,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5), // 内容区标题栏
+        color: theme.colorScheme.surfaceContainerHighest, // 内容区标题栏（不透明）
         border: Border(
           bottom: BorderSide(
-            color: theme.dividerColor.withOpacity(0.5),
-            width: 0.5,
+            color: theme.dividerColor,
+            width: 1,
           ),
         ),
       ),
@@ -1975,6 +1978,450 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
+  /// 构建文件列表的Sliver组件列表（用于CustomScrollView）
+  List<Widget> _buildFileListSlivers(FileViewModel vm) {
+    if (vm.files.isEmpty) {
+      // 空状态
+      final isSearchMode =
+          (vm.currentTab == TabView.browse && vm.isSearchMode) ||
+              (vm.currentTab == TabView.favorite && _favoriteSearchMode);
+      return [
+        SliverFillRemaining(
+          child: _buildEmptyState(vm.currentTab, isSearchMode, vm),
+        ),
+      ];
+    }
+
+    // 获取文件视图的Sliver组件
+    return _buildFileViewSlivers(vm);
+  }
+
+  /// 构建文件视图的Sliver组件（列表/网格/分组）
+  List<Widget> _buildFileViewSlivers(FileViewModel vm) {
+    final pageId = _getPageIdForCurrentTab(vm.currentTab);
+    final isGridView =
+        PageSettingsService().getViewMode(pageId) == ViewMode.grid;
+    final isGroupEnabled = _isGroupEnabledForCurrentTab();
+
+    // 收藏Tab和浏览Tab需要应用排序
+    var displayFiles = vm.files;
+
+    if (vm.currentTab == TabView.favorite) {
+      // 收藏Tab：应用过滤和排序
+      displayFiles = _getFilteredFavoriteFiles(vm.files);
+    } else if (vm.currentTab == TabView.browse) {
+      // 浏览Tab：应用排序
+      displayFiles = _getSortedBrowseFiles(vm.files);
+    }
+
+    // 最近Tab始终使用时间分组显示
+    if (vm.currentTab == TabView.recent) {
+      return _buildRecentGroupedViewSlivers(displayFiles);
+    }
+
+    // 收藏Tab、浏览Tab启用分组时使用分组视图
+    if (isGroupEnabled) {
+      if (vm.currentTab == TabView.favorite) {
+        return _buildFavoriteGroupedViewSlivers(displayFiles);
+      } else if (vm.currentTab == TabView.browse) {
+        return _buildBrowseGroupedViewSlivers(displayFiles);
+      }
+    }
+
+    // 非分组视图：列表或网格
+    return _buildSimpleFileViewSlivers(displayFiles, isGridView, pageId);
+  }
+
+  /// 构建简单列表/网格的Sliver组件
+  List<Widget> _buildSimpleFileViewSlivers(
+      List<FileItem> files, bool isGridView, PageId pageId) {
+    if (isGridView) {
+      // 网格视图
+      final crossAxisCount = _calculateCrossAxisCount();
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.all(8),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.70,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildFileItemWrapper(files[index]),
+              childCount: files.length,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+              addSemanticIndexes: false,
+            ),
+          ),
+        ),
+      ];
+    } else {
+      // 列表视图
+      return [
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: _buildFileItemWrapper(files[index]),
+              );
+            },
+            childCount: files.length,
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: true,
+            addSemanticIndexes: false,
+          ),
+        ),
+      ];
+    }
+  }
+
+  /// 计算网格视图的列数
+  int _calculateCrossAxisCount() {
+    final width = MediaQuery.sizeOf(context).width;
+    const minCardWidth = 100.0;
+    const spacing = 8.0;
+    const horizontalPadding = 16.0;
+    final availableWidth = width - horizontalPadding;
+    int crossAxisCount =
+        ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+    return crossAxisCount.clamp(3, 6);
+  }
+
+  /// 构建文件项的包装器（处理点击、选择等）
+  Widget _buildFileItemWrapper(FileItem item) {
+    final isSelectionMode = _selectionController.isSelectionMode;
+    final isSelected = _selectionController.contains(item.path);
+    final vm = viewModel;
+
+    // 网格模式且使用统一组件
+    final pageId = _getPageIdForCurrentTab(vm.currentTab);
+    final isGridView =
+        PageSettingsService().getViewMode(pageId) == ViewMode.grid;
+
+    if (isGridView) {
+      return UnifiedGridItem(
+        key: ValueKey('grid_item_${item.path}'),
+        file: item,
+        isSelected: isSelected,
+        isFavorite: vm.isFavoriteFile(item.path),
+        showFavoriteButton: true,
+        onTap: () {
+          if (isSelectionMode) {
+            _selectionController.toggle(item.path);
+          } else {
+            _onFileTap(item, vm);
+          }
+        },
+        onLongPress: () {
+          _selectionController.select(item.path);
+        },
+        onFavoriteToggle: !item.isDirectory
+            ? () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final isFav = await presenter.toggleFavoriteFile(item);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+              }
+            : null,
+      );
+    } else {
+      // 列表模式
+      return FileItemTile(
+        file: item,
+        showFullPath: false,
+        showAccessTime: vm.currentTab == TabView.recent,
+        accessTime: vm.currentTab == TabView.recent ? item.accessedAt : null,
+        isFavorite: vm.isFavoriteFile(item.path),
+        isSelected: isSelected,
+        showCheckbox: isSelectionMode,
+        onFavoriteToggle: !item.isDirectory
+            ? () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final isFav = await presenter.toggleFavoriteFile(item);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(isFav ? '已添加到收藏' : '已取消收藏'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
+              }
+            : null,
+        onTap: () {
+          if (isSelectionMode) {
+            _selectionController.toggle(item.path);
+          } else {
+            _onFileTap(item, vm);
+          }
+        },
+        onLongPress: () {
+          _selectionController.select(item.path);
+        },
+      );
+    }
+  }
+
+  /// 构建收藏Tab分组视图的Sliver组件
+  List<Widget> _buildFavoriteGroupedViewSlivers(List<FileItem> files) {
+    final isGridView =
+        PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
+    final groups = _groupFavoriteFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    final crossAxisCount = _calculateCrossAxisCount();
+
+    List<Widget> slivers = [];
+    for (final key in groupKeys) {
+      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
+        final count = groups[key]!.length;
+        // 分组头部
+        slivers.add(
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Text(
+                '$key（$count个文件）',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
+        );
+        // 分组内容
+        if (isGridView) {
+          slivers.add(
+            SliverPadding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 0.70,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildFileItemWrapper(groups[key]![index]),
+                  childCount: groups[key]!.length,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                  addSemanticIndexes: false,
+                ),
+              ),
+            ),
+          );
+        } else {
+          slivers.add(
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: _buildFileItemWrapper(groups[key]![index]),
+                  );
+                },
+                childCount: groups[key]!.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: false,
+              ),
+            ),
+          );
+        }
+      }
+    }
+    return slivers;
+  }
+
+  /// 构建浏览Tab分组视图的Sliver组件
+  List<Widget> _buildBrowseGroupedViewSlivers(List<FileItem> files) {
+    final isGridView =
+        PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
+    final groups = _groupBrowseFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
+    final crossAxisCount = _calculateCrossAxisCount();
+
+    List<Widget> slivers = [];
+    for (final key in groupKeys) {
+      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
+        final count = groups[key]!.length;
+        // 分组头部
+        slivers.add(
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Text(
+                '$key（$count个文件）',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
+        );
+        // 分组内容
+        if (isGridView) {
+          slivers.add(
+            SliverPadding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 0.70,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildFileItemWrapper(groups[key]![index]),
+                  childCount: groups[key]!.length,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                  addSemanticIndexes: false,
+                ),
+              ),
+            ),
+          );
+        } else {
+          slivers.add(
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: _buildFileItemWrapper(groups[key]![index]),
+                  );
+                },
+                childCount: groups[key]!.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: false,
+              ),
+            ),
+          );
+        }
+      }
+    }
+    return slivers;
+  }
+
+  /// 构建最近Tab分组视图的Sliver组件
+  List<Widget> _buildRecentGroupedViewSlivers(List<FileItem> files) {
+    final isGridView =
+        PageSettingsService().getViewMode(PageId.homeRecent) == ViewMode.grid;
+    final groups = _groupRecentFilesByDate(files);
+    final groupKeys = ['今天', '昨天', '本周', '更早'];
+    final crossAxisCount = _calculateCrossAxisCount();
+
+    List<Widget> slivers = [];
+    for (final key in groupKeys) {
+      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
+        final count = groups[key]!.length;
+        // 分组头部
+        slivers.add(
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Text(
+                '$key（$count个文件）',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
+        );
+        // 分组内容
+        if (isGridView) {
+          slivers.add(
+            SliverPadding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 0.70,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildFileItemWrapper(groups[key]![index]),
+                  childCount: groups[key]!.length,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                  addSemanticIndexes: false,
+                ),
+              ),
+            ),
+          );
+        } else {
+          slivers.add(
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: _buildFileItemWrapper(groups[key]![index]),
+                  );
+                },
+                childCount: groups[key]!.length,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: true,
+                addSemanticIndexes: false,
+              ),
+            ),
+          );
+        }
+      }
+    }
+    return slivers;
+  }
+
   /// 构建列表/网格视图（使用FileCollectionView）
   Widget _buildFileView(FileViewModel vm) {
     final pageId = _getPageIdForCurrentTab(vm.currentTab);
@@ -2124,19 +2571,29 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               // 优先级5: 其他情况允许系统默认行为
               return true;
             },
-            child: Scaffold(
-              appBar: AppBar(
-                leading: _selectionController.isSelectionMode
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          setState(() {
-                            _selectionController.clear();
-                          });
-                        },
-                      )
-                    : null,
-                title: _selectionController.isSelectionMode
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // 判断是否为横屏模式
+                final isLandscape = constraints.maxWidth > constraints.maxHeight;
+                // 横屏使用较小的 AppBar 高度
+                final appBarHeight = isLandscape ? 28.0 : 56.0;
+                
+                return Scaffold(
+                  appBar: PreferredSize(
+                    preferredSize: Size.fromHeight(appBarHeight),
+                    child: AppBar(
+                      toolbarHeight: appBarHeight,
+                      leading: _selectionController.isSelectionMode
+                        ? IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              setState(() {
+                                _selectionController.clear();
+                              });
+                            },
+                          )
+                        : null,
+                      title: _selectionController.isSelectionMode
                     ? Text('已选中 ${_selectedItems.length} 项')
                     : Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2212,229 +2669,237 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           ],
                         ),
                       ],
-              ),
-              body: LayoutBuilder(
+                    ),
+                  ),
+                  body: LayoutBuilder(
                 builder: (context, constraints) {
                   return Stack(
                     children: [
-                      Column(
-                        children: [
-                          // 上半部分固定区域 - 在搜索模式下隐藏，避免溢出
-                          if (!(vm.currentTab == TabView.browse &&
-                                  vm.isSearchMode) &&
-                              !(vm.currentTab == TabView.favorite &&
-                                  _favoriteSearchMode))
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight:
-                                    constraints.maxWidth > constraints.maxHeight
-                                        ? constraints.maxHeight * 0.35 // 横屏：35%
-                                        : constraints.maxHeight * 0.5, // 竖屏：50%
-                              ),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // 分类导航区（快速入口）
-                                    CategoryNavBar(
-                                      presenter: presenter,
-                                      viewModel: vm,
-                                      onCardSizeCalculated: (size) {
-                                        if (mounted &&
-                                            _categoryCardSize != size) {
-                                          setState(() {
-                                            _categoryCardSize = size;
-                                          });
-                                        }
-                                      },
-                                    ),
-                                    const Divider(height: 1),
+                      GestureDetector(
+                        // 手势功能说明：
+                        // 1. 浏览Tab - 左右滑切换分类Tab（全部|文档|图片|视频等）
+                        // 2. 最近/收藏Tab - 左右滑切换Tab
+                        onHorizontalDragEnd: (details) {
+                          if (details.primaryVelocity == null) {
+                            return;
+                          }
 
-                                    // 快速访问区域（新）
-                                    QuickAccessSection(
-                                      quickAccessViewModel:
-                                          quickAccessViewModel!,
-                                      quickAccessPresenter:
-                                          quickAccessPresenter!,
-                                      fileViewModel: vm,
-                                      filePresenter: presenter,
-                                      categoryCardSize: _categoryCardSize,
-                                    ),
-                                    const Divider(height: 1),
-                                  ],
+                          final velocity = details.primaryVelocity!;
+                          final isSwipeRight = velocity > 500; // 右滑
+                          final isSwipeLeft = velocity < -500; // 左滑
+
+                          // 搜索模式下禁用所有手势
+                          if (vm.isSearchMode || _favoriteSearchMode) {
+                            return;
+                          }
+
+                          // 功能1: 浏览Tab - 左右滑切换分类Tab
+                          if (vm.currentTab == TabView.browse) {
+                            final visibleCategories = [
+                              FileCategory.all,
+                              ...vm.fileTypeStats.getVisibleCategories(),
+                            ];
+                            if (visibleCategories.length > 1) {
+                              final currentIndex =
+                                  visibleCategories.indexOf(vm.selectedCategory);
+                              if (currentIndex != -1) {
+                                if (isSwipeLeft &&
+                                    currentIndex < visibleCategories.length - 1) {
+                                  // 左滑切换到下一个分类
+                                  vm.setSelectedCategory(
+                                      visibleCategories[currentIndex + 1]);
+                                  return;
+                                } else if (isSwipeRight && currentIndex > 0) {
+                                  // 右滑切换到上一个分类
+                                  vm.setSelectedCategory(
+                                      visibleCategories[currentIndex - 1]);
+                                  return;
+                                }
+                              }
+                            }
+                          }
+
+                          // 功能2: 在最近/收藏Tab之间左右滑动切换
+                          if (vm.currentTab == TabView.recent && isSwipeLeft) {
+                            // 最近Tab左滑 → 切换到收藏Tab
+                            viewModel.setCurrentTab(TabView.favorite);
+                            presenter.loadFavoriteFiles();
+                          } else if (vm.currentTab == TabView.favorite &&
+                              isSwipeRight) {
+                            // 收藏Tab右滑 → 切换到最近Tab
+                            viewModel.setCurrentTab(TabView.recent);
+                            presenter.loadRecentFiles();
+                          }
+                        },
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            await presenter.refreshCurrent();
+                          },
+                          child: CustomScrollView(
+                            slivers: [
+                            // CategoryNavBar 和 QuickAccessSection：可滚动查看（横竖屏都显示）
+                            if (!(vm.currentTab == TabView.browse &&
+                                    vm.isSearchMode) &&
+                                !(vm.currentTab == TabView.favorite &&
+                                    _favoriteSearchMode)) ...[
+                              SliverToBoxAdapter(
+                                child: CategoryNavBar(
+                                  presenter: presenter,
+                                  viewModel: vm,
+                                  onCardSizeCalculated: (size) {
+                                    if (mounted && _categoryCardSize != size) {
+                                      setState(() {
+                                        _categoryCardSize = size;
+                                      });
+                                    }
+                                  },
                                 ),
                               ),
-                            ),
+                              const SliverToBoxAdapter(
+                                child: Divider(height: 1),
+                              ),
+                              SliverToBoxAdapter(
+                                child: QuickAccessSection(
+                                  quickAccessViewModel: quickAccessViewModel!,
+                                  quickAccessPresenter: quickAccessPresenter!,
+                                  fileViewModel: vm,
+                                  filePresenter: presenter,
+                                  categoryCardSize: _categoryCardSize,
+                                ),
+                              ),
+                              const SliverToBoxAdapter(
+                                child: Divider(height: 1),
+                              ),
+                            ],
 
-                          // 第一行：快捷访问栏（导航功能栏）- 始终显示
-                          if (!(vm.currentTab == TabView.browse &&
-                                  vm.isSearchMode) &&
-                              !(vm.currentTab == TabView.favorite &&
-                                  _favoriteSearchMode))
-                            _buildQuickAccessBar(context, vm),
+                            // 快捷访问栏（导航功能栏）- 可滚动隐藏
+                            if (!(vm.currentTab == TabView.browse &&
+                                    vm.isSearchMode) &&
+                                !(vm.currentTab == TabView.favorite &&
+                                    _favoriteSearchMode))
+                              SliverToBoxAdapter(
+                                child: _buildQuickAccessBar(context, vm),
+                              ),
 
-                          // 第二行：浏览控制栏（文件夹名+工具栏）- 仅browse模式显示
-                          if (vm.currentTab == TabView.browse &&
-                              !vm.isSearchMode)
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                return _buildBrowseControlBar(
-                                  context,
-                                  vm,
-                                  constraints.maxWidth,
-                                );
-                              },
-                            ),
+                            // 浏览控制栏（文件夹名+工具栏）- browse模式固定显示
+                            if (vm.currentTab == TabView.browse &&
+                                !vm.isSearchMode)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: PinnedHeaderDelegate(
+                                  child: LayoutBuilder(
+                                    builder: (context, localConstraints) {
+                                      return _buildBrowseControlBar(
+                                        context,
+                                        vm,
+                                        localConstraints.maxWidth,
+                                      );
+                                    },
+                                  ),
+                                  height: 52.0,
+                                ),
+                              ),
 
-                          // 第二行：收藏Tab工具栏 - 仅favorite模式显示
-                          if (vm.currentTab == TabView.favorite &&
-                              !_favoriteSearchMode)
-                            _buildFavoriteToolBar(context, vm),
+                            // 收藏Tab工具栏 - favorite模式固定显示
+                            if (vm.currentTab == TabView.favorite &&
+                                !_favoriteSearchMode)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: PinnedHeaderDelegate(
+                                  child: _buildFavoriteToolBar(context, vm),
+                                  height: 52.0,
+                                ),
+                              ),
 
-                          // 浏览Tab的搜索栏
-                          if (vm.currentTab == TabView.browse &&
-                              vm.isSearchMode)
-                            FileSearchBar(
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              hintText: '搜索文件...',
-                              onSearch: (query) async {
-                                if (query.isNotEmpty) {
-                                  presenter.searchFiles(query);
-                                }
-                              },
-                              onClose: () {
-                                _searchController.clear();
-                                presenter.clearSearch();
-                              },
-                            ),
-
-                          // 收藏Tab的搜索栏
-                          if (vm.currentTab == TabView.favorite &&
-                              _favoriteSearchMode)
-                            FileSearchBar(
-                              controller: _favoriteSearchController,
-                              focusNode: _favoriteSearchFocusNode,
-                              hintText: '搜索收藏的文件...',
-                              onSearch: (query) async {
-                                setState(() {
-                                  _favoriteSearchQuery = query;
-                                });
-                              },
-                              onClose: () {
-                                setState(() {
-                                  _favoriteSearchQuery = '';
-                                  _favoriteSearchController.clear();
-                                  _favoriteSearchMode = false;
-                                });
-                              },
-                              onChanged: (query) {
-                                setState(() {
-                                  _favoriteSearchQuery = query;
-                                });
-                              },
-                            ),
-
-                          // 文件类型筛选Tab栏（仅在浏览模式显示）
-                          if (vm.currentTab == TabView.browse &&
-                              !vm.isSearchMode)
-                            FileCategoryTabBar(
-                              stats: vm.fileTypeStats,
-                              selectedCategory: vm.selectedCategory,
-                              onCategoryChanged: (category) {
-                                vm.setSelectedCategory(category);
-                              },
-                            ),
-
-                          // 文件列表区域（占据剩余空间）
-                          Expanded(
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    // 手势功能说明：
-                                    // 1. 浏览Tab - 左右滑切换分类Tab（全部|文档|图片|视频等）
-                                    // 2. 最近/收藏Tab - 左右滑切换Tab
-                                    onHorizontalDragEnd: (details) {
-                                      if (details.primaryVelocity == null) {
-                                        return;
-                                      }
-
-                                      final velocity = details.primaryVelocity!;
-                                      final isSwipeRight = velocity > 500; // 右滑
-                                      final isSwipeLeft = velocity < -500; // 左滑
-
-                                      // 搜索模式下禁用所有手势
-                                      if (vm.isSearchMode ||
-                                          _favoriteSearchMode) {
-                                        return;
-                                      }
-
-                                      // 功能1: 浏览Tab - 左右滑切换分类Tab
-                                      if (vm.currentTab == TabView.browse) {
-                                        final visibleCategories = [
-                                          FileCategory.all,
-                                          ...vm.fileTypeStats
-                                              .getVisibleCategories(),
-                                        ];
-                                        if (visibleCategories.length > 1) {
-                                          final currentIndex = visibleCategories
-                                              .indexOf(vm.selectedCategory);
-                                          if (currentIndex != -1) {
-                                            if (isSwipeLeft &&
-                                                currentIndex <
-                                                    visibleCategories.length -
-                                                        1) {
-                                              // 左滑切换到下一个分类
-                                              vm.setSelectedCategory(
-                                                  visibleCategories[
-                                                      currentIndex + 1]);
-                                              return;
-                                            } else if (isSwipeRight &&
-                                                currentIndex > 0) {
-                                              // 右滑切换到上一个分类
-                                              vm.setSelectedCategory(
-                                                  visibleCategories[
-                                                      currentIndex - 1]);
-                                              return;
-                                            }
-                                          }
-                                        }
-                                      }
-
-                                      // 功能2: 在最近/收藏Tab之间左右滑动切换
-                                      if (vm.currentTab == TabView.recent &&
-                                          isSwipeLeft) {
-                                        // 最近Tab左滑 → 切换到收藏Tab
-                                        viewModel
-                                            .setCurrentTab(TabView.favorite);
-                                        presenter.loadFavoriteFiles();
-                                      } else if (vm.currentTab ==
-                                              TabView.favorite &&
-                                          isSwipeRight) {
-                                        // 收藏Tab右滑 → 切换到最近Tab
-                                        viewModel.setCurrentTab(TabView.recent);
-                                        presenter.loadRecentFiles();
+                            // 浏览Tab的搜索栏
+                            if (vm.currentTab == TabView.browse && vm.isSearchMode)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: PinnedHeaderDelegate(
+                                  child: FileSearchBar(
+                                    controller: _searchController,
+                                    focusNode: _searchFocusNode,
+                                    hintText: '搜索文件...',
+                                    onSearch: (query) async {
+                                      if (query.isNotEmpty) {
+                                        presenter.searchFiles(query);
                                       }
                                     },
-                                    child: _buildFileList(vm),
+                                    onClose: () {
+                                      _searchController.clear();
+                                      presenter.clearSearch();
+                                    },
                                   ),
+                                  height: 56.0,
                                 ),
+                              ),
 
-                                // 底部文件夹导航栏（子文件夹中显示）
-                                if (vm.currentTab == TabView.browse &&
-                                    !_selectionController.isSelectionMode &&
-                                    !vm.isSearchMode &&
-                                    vm.currentPath.isNotEmpty &&
-                                    _canNavigateUp(vm.currentPath))
-                                  FolderNavigationBar(
-                                    currentPath: vm.currentPath,
-                                    onBackPressed: () => presenter.navigateUp(),
+                            // 收藏Tab的搜索栏
+                            if (vm.currentTab == TabView.favorite &&
+                                _favoriteSearchMode)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: PinnedHeaderDelegate(
+                                  child: FileSearchBar(
+                                    controller: _favoriteSearchController,
+                                    focusNode: _favoriteSearchFocusNode,
+                                    hintText: '搜索收藏的文件...',
+                                    onSearch: (query) async {
+                                      setState(() {
+                                        _favoriteSearchQuery = query;
+                                      });
+                                    },
+                                    onClose: () {
+                                      setState(() {
+                                        _favoriteSearchQuery = '';
+                                        _favoriteSearchController.clear();
+                                        _favoriteSearchMode = false;
+                                      });
+                                    },
+                                    onChanged: (query) {
+                                      setState(() {
+                                        _favoriteSearchQuery = query;
+                                      });
+                                    },
                                   ),
-                              ],
-                            ),
-                          ),
-                        ],
+                                  height: 56.0,
+                                ),
+                              ),
+
+                            // 文件类型筛选Tab栏（browse模式固定显示）
+                            if (vm.currentTab == TabView.browse && !vm.isSearchMode)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: PinnedHeaderDelegate(
+                                  child: FileCategoryTabBar(
+                                    stats: vm.fileTypeStats,
+                                    selectedCategory: vm.selectedCategory,
+                                    onCategoryChanged: (category) {
+                                      vm.setSelectedCategory(category);
+                                    },
+                                  ),
+                                  height: 48.0,
+                                ),
+                              ),
+
+                            // 文件列表区域
+                            ..._buildFileListSlivers(vm),
+
+                            // 底部文件夹导航栏
+                            if (vm.currentTab == TabView.browse &&
+                                !_selectionController.isSelectionMode &&
+                                !vm.isSearchMode &&
+                                vm.currentPath.isNotEmpty &&
+                                _canNavigateUp(vm.currentPath))
+                              SliverToBoxAdapter(
+                                child: FolderNavigationBar(
+                                  currentPath: vm.currentPath,
+                                  onBackPressed: () => presenter.navigateUp(),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                       ),
 
                       // 权限提示横幅（在顶部显示）
@@ -2478,6 +2943,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               bottomNavigationBar: _selectionController.isSelectionMode
                   ? _buildSelectionBottomBar()
                   : null,
+                );
+              },
             ),
           );
         },
