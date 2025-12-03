@@ -11,6 +11,7 @@ import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/ui/pages/cache_management_page.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -95,6 +96,12 @@ class _SettingsPageState extends State<SettingsPage> {
           // 重复文件扫描设置
           _buildSectionHeader('重复文件扫描', Icons.content_copy),
           _buildMinFileSizeSetting(context),
+
+          const Divider(height: 32),
+
+          // 存储与缓存管理
+          _buildSectionHeader('存储与缓存', Icons.storage),
+          _buildCacheManagementTile(context),
 
           const Divider(height: 32),
 
@@ -662,5 +669,27 @@ class _SettingsPageState extends State<SettingsPage> {
       default:
         return '默认';
     }
+  }
+
+  /// 缓存管理入口
+  Widget _buildCacheManagementTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.cleaning_services, color: colorScheme.primary),
+      title: const Text('缓存管理'),
+      subtitle: const Text('清理应用缩略图、扫描等产生的缓存'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        final cacheManager = locator<CacheManagerService>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CacheManagementPage(
+              cacheManager: cacheManager,
+            ),
+          ),
+        );
+      },
+    );
   }
 }

@@ -23,6 +23,7 @@ import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/settings_page.dart';
 import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
+import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
@@ -687,6 +688,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         return PageId.homeFavorite;
       case TabView.browse:
         return PageId.homeBrowse;
+      case TabView.appManagement:
+        return PageId.homeBrowse; // 占位，实际上不会被调用
     }
   }
 
@@ -832,37 +835,32 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         .where((f) => f.type == QuickAccessFolderType.userCustom)
         .toList();
 
-    // 系统文件夹
-    if (systemFolders.isNotEmpty) {
-      items.add(_buildMenuSectionHeader('系统', systemFolders.length, Colors.blue));
-      for (var folder in systemFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.blue));
-      }
-      if (appFolders.isNotEmpty || userFolders.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
+    // 系统文件夹（移除标题，直接显示）
+    for (var folder in systemFolders) {
+      items.add(_buildFolderMenuItem(folder, Colors.blue));
+    }
+    
+    // 添加分隔线（如果有应用文件夹或自定义文件夹）
+    if (systemFolders.isNotEmpty && (appFolders.isNotEmpty || userFolders.isNotEmpty)) {
+      items.add(const PopupMenuDivider());
     }
 
-    // 应用文件夹
-    if (appFolders.isNotEmpty) {
-      items.add(_buildMenuSectionHeader('应用', appFolders.length, Colors.orange));
-      for (var folder in appFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.orange));
-      }
-      if (userFolders.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
+    // 应用文件夹（移除标题，直接显示）
+    for (var folder in appFolders) {
+      items.add(_buildFolderMenuItem(folder, Colors.orange));
+    }
+    
+    // 添加分隔线（如果有自定义文件夹）
+    if (appFolders.isNotEmpty && userFolders.isNotEmpty) {
+      items.add(const PopupMenuDivider());
     }
 
-    // 自定义文件夹
-    if (userFolders.isNotEmpty) {
-      items.add(_buildMenuSectionHeader('我的', userFolders.length, Colors.green));
-      for (var folder in userFolders) {
-        items.add(_buildFolderMenuItem(folder, Colors.green));
-      }
+    // 自定义文件夹（移除标题，直接显示）
+    for (var folder in userFolders) {
+      items.add(_buildFolderMenuItem(folder, Colors.green));
     }
 
-    // 已恢复文件（固定入口）
+    // 已恢复文件（固定入口，移除分组标题）
     if (_hasRestoredFiles()) {
       if (items.isNotEmpty) {
         items.add(const PopupMenuDivider());
@@ -872,51 +870,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final restoredDir = Directory(restoredPath);
       final fileCount = restoredDir.listSync().length;
       
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          enabled: false,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.purple,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                '已恢复',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.purple,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$fileCount',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.purple,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      
-      // 添加已恢复文件夹作为可点击项
+      // 直接添加已恢复文件夹作为可点击项（移除分组标题）
       items.add(
         PopupMenuItem<QuickAccessFolder>(
           value: QuickAccessFolder(
@@ -928,39 +882,23 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             isAddedToQuickAccess: true,
             pinned: false,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(Icons.folder_special, size: 18, color: Colors.purple),
+              Icon(
+                Icons.folder_special,
+                size: 18,
+                color: Colors.purple,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      '回收站恢复',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '$fileCount 个已恢复的文件',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '回收站恢复 ($fileCount)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
@@ -970,38 +908,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
 
     return items;
-  }
-
-  /// 构建菜单分组标题
-  PopupMenuItem<QuickAccessFolder> _buildMenuSectionHeader(
-    String title,
-    int count,
-    Color color,
-  ) {
-    return PopupMenuItem<QuickAccessFolder>(
-      enabled: false,
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$title ($count)',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   /// 构建文件夹菜单项
@@ -1015,6 +921,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return PopupMenuItem<QuickAccessFolder>(
       value: folder,
       enabled: exists,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           Icon(
@@ -1083,7 +990,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final theme = Theme.of(context);
 
     return Container(
-      height: 48,
+      height: 44,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest, // 功能栏背景
         border: Border(
@@ -1093,8 +1000,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           // 快捷访问 Tab
           _buildNavTab(
@@ -1107,9 +1015,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           ),
           Container(
             width: 1,
-            height: 20,
+            height: 16,
             color: theme.dividerColor,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
+            margin: const EdgeInsets.symmetric(horizontal: 6),
           ),
           // 最近 Tab
           _buildNavTab(
@@ -1124,9 +1032,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           ),
           Container(
             width: 1,
-            height: 20,
+            height: 16,
             color: theme.dividerColor,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
+            margin: const EdgeInsets.symmetric(horizontal: 6),
           ),
           // 收藏 Tab
           _buildNavTab(
@@ -1137,6 +1045,28 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             onTap: () {
               viewModel.setCurrentTab(TabView.favorite);
               presenter.loadFavoriteFiles();
+            },
+          ),
+          Container(
+            width: 1,
+            height: 16,
+            color: theme.dividerColor,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+          ),
+          // 应用管理入口（不是真正的Tab，点击跳转到独立页面）
+          _buildNavTab(
+            context,
+            '应用',
+            Icons.apps,
+            false, // 始终不选中状态，因为它是独立页面
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AppManagementPage(
+                    isFromStorageManagement: false,
+                  ),
+                ),
+              );
             },
           ),
         ],
@@ -1158,32 +1088,34 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return InkWell(
       key: label == '快捷访问' ? _quickAccessButtonKey : null,
       onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Opacity(
         opacity: enabled ? 1.0 : 0.4,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
                 ? theme.colorScheme.primaryContainer.withOpacity(0.8)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 6),
+              if (label != '快捷访问') ...[
+                Icon(
+                  icon,
+                  size: 15,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+              ],
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                   color: isSelected
                       ? theme.colorScheme.primary
@@ -1193,7 +1125,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               if (label == '快捷访问' && enabled)
                 Icon(
                   Icons.arrow_drop_down,
-                  size: 18,
+                  size: 16,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
             ],
@@ -1255,7 +1187,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   child: Text(
                     _getBrowseTabLabelWithDynamicLength(vm, dynamicMaxLength),
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.onSurface,
                     ),
@@ -1320,7 +1252,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 Text(
                   '收藏的文件',
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurface,
                   ),
@@ -1967,6 +1899,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           );
           actionButton = null;
         }
+        break;
+
+      case TabView.appManagement:
+        // 应用管理现在是独立页面，不会走到这里
+        icon = Icons.apps;
+        title = '';
+        subtitleWidget = const SizedBox.shrink();
+        actionButton = null;
         break;
     }
 

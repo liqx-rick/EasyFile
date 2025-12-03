@@ -148,8 +148,9 @@ class AppManagementService {
           noTime++;
         } else {
           final days = now.difference(effectiveTime).inDays;
-          if (days <= 7) within7Days++;
-          else if (days <= 30) within30Days++;
+          if (days <= 7) {
+            within7Days++;
+          } else if (days <= 30) within30Days++;
           else if (days <= 180) within180Days++;
           else beyond180Days++;
           
@@ -372,8 +373,8 @@ class AppManagementService {
     
     if (_deviceBaselineTime != null) {
       final years = (DateTime.now().difference(_deviceBaselineTime!).inDays / 365).floor();
-      logger.i('Device baseline time: $_deviceBaselineTime (约${years}年前)');
-      logger.i('系统应用早于此时间的将显示为"${years}+年前"');
+      logger.i('Device baseline time: $_deviceBaselineTime (约$years年前)');
+      logger.i('系统应用早于此时间的将显示为"$years+年前"');
     } else {
       logger.i('Device baseline time: null (无用户应用数据)');
     }

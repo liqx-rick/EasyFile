@@ -84,7 +84,7 @@ class UsageStatsService {
           // 打印解析后的数据
           if (stats.lastTimeUsed != null) {
             final daysAgo = DateTime.now().difference(stats.lastTimeUsed!).inDays;
-            logger.d('[$packageName] 解析后 lastTimeUsed=${stats.lastTimeUsed}, ${daysAgo}天前');
+            logger.d('[$packageName] 解析后 lastTimeUsed=${stats.lastTimeUsed}, $daysAgo天前');
           } else {
             logger.d('[$packageName] 解析后 lastTimeUsed=null');
           }
@@ -127,7 +127,7 @@ class UsageStatsService {
         }
       }
 
-      logger.i('Found ${zombieApps.length} zombie apps (${daysThreshold}+ days)');
+      logger.i('Found ${zombieApps.length} zombie apps ($daysThreshold+ days)');
       return zombieApps;
     } catch (e) {
       logger.e('Error getting zombie apps: $e');

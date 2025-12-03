@@ -9,8 +9,16 @@ import 'package:easyfile/core/services/system_intent_service.dart';
 /// 应用管理页面
 ///
 /// 展示所有已安装应用的存储占用情况
+/// 支持双入口：
+/// - 从存储管理页面进入（isFromStorageManagement=true）
+/// - 从Ta b导航进入（isFromStorageManagement=false）
 class AppManagementPage extends StatefulWidget {
-  const AppManagementPage({super.key});
+  final bool isFromStorageManagement;
+
+  const AppManagementPage({
+    super.key,
+    this.isFromStorageManagement = false,
+  });
 
   @override
   State<AppManagementPage> createState() => _AppManagementPageState();
@@ -39,7 +47,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
 
   // 筛选选项
   bool _showSystemApps = false;
-  double _minSizeMB = 0.0;
+  final double _minSizeMB = 0.0;
 
   @override
   void initState() {

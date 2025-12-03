@@ -13,6 +13,7 @@ enum TabView {
   recent, // 最近访问
   favorite, // 收藏文件
   browse, // 文件浏览
+  appManagement, // 应用管理
 }
 
 /// 视图模式

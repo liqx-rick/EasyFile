@@ -111,7 +111,7 @@ class AppUsageStats {
       final baselineDiff = now.difference(deviceBaselineTime);
       final years = (baselineDiff.inDays / 365).floor();
       if (years >= 1) {
-        return '${years}+年前';
+        return '$years+年前';
       }
     }
     

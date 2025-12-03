@@ -21,7 +21,6 @@ import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/trash_files_page.dart';
-import 'package:easyfile/ui/pages/storage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 
 import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
@@ -63,10 +62,6 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   // 缓存key
   static const String _cacheKeyCategorySizes = 'storage_category_sizes';
 
-  // 缓存大小数据
-  int _totalCacheSize = 0;
-  bool _loadingCacheSize = true;
-
   // 大文件扫描配置缓存（用于显示最新配置）
   LargeFileScanConfig? _cachedLargeFileScanConfig;
   bool _loadingLargeFileConfig = true;
@@ -76,30 +71,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     super.initState();
     _loadStorageInfo();
     _loadCategorySizes();
-    _loadCacheSize();
     _loadLargeFileScanConfig();
-  }
-
-  /// 加载缓存大小
-  Future<void> _loadCacheSize() async {
-    try {
-      final cacheManager = locator<CacheManagerService>();
-      final size = await cacheManager.getTotalCacheSize();
-
-      if (mounted) {
-        setState(() {
-          _totalCacheSize = size;
-          _loadingCacheSize = false;
-        });
-      }
-    } catch (e) {
-      logger.e('Failed to load cache size: $e');
-      if (mounted) {
-        setState(() {
-          _loadingCacheSize = false;
-        });
-      }
-    }
   }
 
   /// 加载大文件扫描配置
@@ -267,21 +239,19 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           _buildJunkAndTrashCard(theme, colorScheme),
           const SizedBox(height: 24),
 
-          // 3. 文件清理功能区
+          // 3. 系统应用功能区
+          _buildSectionTitle('系统应用', Icons.apps, colorScheme),
+          const SizedBox(height: 12),
+          _buildAppManagementCard(theme, colorScheme),
+          const SizedBox(height: 24),
+
+          // 4. 文件清理功能区
           _buildSectionTitle('文件清理', Icons.folder_outlined, colorScheme),
           const SizedBox(height: 12),
           _buildLargeFilesCard(theme, colorScheme),
           const SizedBox(height: 12),
           _buildDuplicateFilesCard(theme, colorScheme),
           const SizedBox(height: 24),
-
-          // 4. 缓存清理功能区
-          _buildSectionTitle('缓存清理', Icons.delete_sweep, colorScheme),
-          const SizedBox(height: 12),
-          _buildCacheCleanupCard(theme, colorScheme),
-          const SizedBox(height: 12),
-          _buildAppManagementCard(theme, colorScheme),
-          const SizedBox(height: 16),
         ],
       ),
     );
@@ -739,9 +709,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
   /// 显示“其他”分类说明对话框
   void _showOtherCategoryDialog() {
-    // 使用 locator 获取 Presenter 和 ViewModel
+    // 使用 locator 获取 Presenter
     final presenter = locator<FilePresenter>();
-    final viewModel = locator<FileViewModel>();
 
     showDialog(
       context: context,
@@ -834,18 +803,17 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                       FilledButton.icon(
                         onPressed: () {
                           Navigator.pop(dialogContext);
-                          // 跳转到存储页面浏览
+                          // 跳转到应用管理页面
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) => StoragePage(
-                                presenter: presenter,
-                                viewModel: viewModel,
+                              builder: (context) => const AppManagementPage(
+                                isFromStorageManagement: true,
                               ),
                             ),
                           );
                         },
-                        icon: const Icon(Icons.folder_open, size: 16),
-                        label: const Text('浏览', style: TextStyle(fontSize: 13)),
+                        icon: const Icon(Icons.apps, size: 16),
+                        label: const Text('应用', style: TextStyle(fontSize: 13)),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 8),
@@ -949,51 +917,68 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     );
   }
 
-  /// 2. 本应用缓存清理卡片
-  Widget _buildCacheCleanupCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.cached,
-      title: '本应用缓存',
-      subtitle: '清理本应用的缩略图，扫描等产生的缓存',
-      badge: _loadingCacheSize
-          ? '加载中'
-          : FileSizeFormatter.formatBytes(_totalCacheSize),
-      badgeColor: Colors.orange,
-      showArrow: false,
-      onTap: () {
-        // 跳转到缓存管理页面
-        final cacheManager = locator<CacheManagerService>();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => CacheManagementPage(
-              cacheManager: cacheManager,
-            ),
-          ),
-        );
-      },
-      theme: theme,
-      colorScheme: colorScheme,
-    );
-  }
-
-  /// 应用管理卡片（新增）
+  /// 2. 应用管理卡片
   Widget _buildAppManagementCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.apps,
-      title: '应用管理',
-      subtitle: '查看应用占用空间，跳转到系统设置清理应用缓存',
-      badge: null,
-      badgeColor: Colors.blue,
-      showArrow: true,
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const AppManagementPage(),
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AppManagementPage(
+                isFromStorageManagement: true,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // 图标
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.apps,
+                  color: Colors.blue,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // 标题和描述
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '应用管理',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '查看应用数量、占用空间和缓存大小',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        );
-      },
-      theme: theme,
-      colorScheme: colorScheme,
+        ),
+      ),
     );
   }
 
@@ -1638,123 +1623,6 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 7. 应用缓存清理卡片
-  Widget _buildAppCacheCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildFeatureCard(
-      icon: Icons.apps,
-      title: '其他应用缓存',
-      subtitle: '清理其他应用的缓存数据',
-      badge: '待扫描',
-      badgeColor: colorScheme.primary,
-      onTap: () {
-        // TODO: 跳转到应用缓存清理页
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('应用缓存清理功能开发中')),
-        );
-      },
-      theme: theme,
-      colorScheme: colorScheme,
-    );
-  }
-
-  /// 通用功能卡片构建器
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    String? badge,
-    required Color badgeColor,
-    bool showArrow = true,
-    required VoidCallback onTap,
-    required ThemeData theme,
-    required ColorScheme colorScheme,
-  }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // 图标
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // 标题和副标题
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: badgeColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              badge,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: badgeColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // 箭头（可选）
-              if (showArrow)
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-            ],
-          ),
         ),
       ),
     );
