@@ -1230,7 +1230,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.5), // 内容区标题栏
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5), // 内容区标题栏
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor.withOpacity(0.5),
@@ -1296,7 +1296,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.5), // 内容区标题栏
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5), // 内容区标题栏
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor.withOpacity(0.5),

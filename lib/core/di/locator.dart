@@ -6,6 +6,12 @@ import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/junk_file_service.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/usage_stats_permission_service.dart';
+import 'package:easyfile/core/services/usage_stats_service.dart';
+import 'package:easyfile/core/services/app_storage_service.dart';
+import 'package:easyfile/core/services/app_storage_cache_manager.dart';
+import 'package:easyfile/core/services/app_management_service.dart';
+import 'package:easyfile/core/services/system_intent_service.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -96,6 +102,42 @@ void setupLocator() {
     logger.d('Creating TrashFileService');
     return TrashFileService(
       filePresenter: locator<FilePresenter>(),
+    );
+  });
+
+  // App Management Services
+  locator.registerLazySingleton<SystemIntentService>(() {
+    logger.d('Creating SystemIntentService');
+    return SystemIntentService();
+  });
+
+  locator.registerLazySingleton<UsageStatsPermissionService>(() {
+    logger.d('Creating UsageStatsPermissionService');
+    return UsageStatsPermissionService();
+  });
+
+  locator.registerLazySingleton<AppStorageCacheManager>(() {
+    logger.d('Creating AppStorageCacheManager');
+    return AppStorageCacheManager();
+  });
+
+  locator.registerLazySingleton<AppStorageService>(() {
+    logger.d('Creating AppStorageService');
+    return AppStorageService();
+  });
+
+  locator.registerLazySingleton<UsageStatsService>(() {
+    logger.d('Creating UsageStatsService');
+    return UsageStatsService();
+  });
+
+  locator.registerLazySingleton<AppManagementService>(() {
+    logger.d('Creating AppManagementService');
+    return AppManagementService(
+      locator<AppStorageService>(),
+      locator<AppStorageCacheManager>(),
+      locator<UsageStatsPermissionService>(),
+      locator<UsageStatsService>(),
     );
   });
 

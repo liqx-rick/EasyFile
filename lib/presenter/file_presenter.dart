@@ -1218,8 +1218,12 @@ class FilePresenter {
       paths.addAll(systemPaths);
       logger.d('System paths: ${systemPaths.length}');
       debugPrint('[路径发现] 阶段1-系统路径: ${systemPaths.length} 个');
-      for (var i = 0; i < systemPaths.length && i < 5; i++) {
-        debugPrint('  系统路径示例 ${i + 1}: ${systemPaths[i]}');
+      if (systemPaths.length <= 5) {
+        for (var i = 0; i < systemPaths.length; i++) {
+          debugPrint('  系统路径示例 ${i + 1}: ${systemPaths[i]}');
+        }
+      } else {
+        debugPrint('  系统路径示例 1-3: ${systemPaths.take(3).join(', ')}');
       }
 
       // 阶段2: 发现用户自定义文件夹（根目录第一层扫描）
@@ -1227,9 +1231,6 @@ class FilePresenter {
       paths.addAll(discoveredPaths);
       logger.d('Discovered user folders: ${discoveredPaths.length}');
       debugPrint('[路径发现] 阶段2-用户文件夹: ${discoveredPaths.length} 个');
-      for (var i = 0; i < discoveredPaths.length; i++) {
-        debugPrint('  用户文件夹 ${i + 1}: ${discoveredPaths[i]}');
-      }
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
@@ -1372,14 +1373,12 @@ class FilePresenter {
             : _desktopSystemFolderNames;
         if (systemFolders.contains(folderName)) {
           skippedSystem++;
-          debugPrint('[用户文件夹发现] 跳过系统目录: $folderName');
           continue;
         }
 
         // 跳过应用/系统数据目录
         if (excludedFolders.contains(folderName)) {
           skippedExcluded++;
-          debugPrint('[用户文件夹发现] 跳过排除目录: $folderName');
           continue;
         }
 
@@ -1387,7 +1386,6 @@ class FilePresenter {
         discovered.add(entity.path);
         foundCount++;
         logger.d('Found user folder: ${entity.path}');
-        debugPrint('[用户文件夹发现] ✅ 发现用户文件夹 $foundCount: ${entity.path}');
       }
 
       debugPrint(

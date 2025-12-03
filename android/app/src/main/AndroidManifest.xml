@@ -18,6 +18,10 @@
     <!-- 亮度调节权限 -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" 
         tools:ignore="ProtectedPermissions" />
+    
+    <!-- 应用使用统计权限（用于获取应用存储信息） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:label="EasyFile"

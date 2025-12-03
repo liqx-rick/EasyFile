@@ -22,6 +22,7 @@ import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:easyfile/ui/pages/storage_page.dart';
+import 'package:easyfile/ui/pages/app_management_page.dart';
 
 import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -279,7 +280,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           const SizedBox(height: 12),
           _buildCacheCleanupCard(theme, colorScheme),
           const SizedBox(height: 12),
-          _buildAppCacheCard(theme, colorScheme),
+          _buildAppManagementCard(theme, colorScheme),
           const SizedBox(height: 16),
         ],
       ),
@@ -967,6 +968,27 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             builder: (context) => CacheManagementPage(
               cacheManager: cacheManager,
             ),
+          ),
+        );
+      },
+      theme: theme,
+      colorScheme: colorScheme,
+    );
+  }
+
+  /// 应用管理卡片（新增）
+  Widget _buildAppManagementCard(ThemeData theme, ColorScheme colorScheme) {
+    return _buildFeatureCard(
+      icon: Icons.apps,
+      title: '应用管理',
+      subtitle: '查看应用占用空间，跳转到系统设置清理应用缓存',
+      badge: null,
+      badgeColor: Colors.blue,
+      showArrow: true,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const AppManagementPage(),
           ),
         );
       },

@@ -818,8 +818,9 @@ class BatchOperationsService {
       ),
     );
 
-    if (newName == null || newName.trim().isEmpty || !_isMounted(context))
+    if (newName == null || newName.trim().isEmpty || !_isMounted(context)) {
       return;
+    }
     if (newName == currentName) return;
 
     // 显示进度
