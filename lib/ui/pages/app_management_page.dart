@@ -294,9 +294,6 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       case SortOption.lastUsed:
         filtered = _sortByLastUsed(filtered);
         break;
-      case SortOption.frequency:
-        filtered = _sortByFrequency(filtered);
-        break;
     }
     
     // 应用排序方向
@@ -460,30 +457,24 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: SizedBox(
         height: 50,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
+        child: Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 5,
+            children: [
             // 排序选项 - 添加方向指示
             _buildSortChip(
               label: '按大小',
               option: SortOption.size,
             ),
-            const SizedBox(width: 4),
             _buildSortChip(
               label: '按名称',
               option: SortOption.name,
             ),
-            const SizedBox(width: 4),
             _buildSortChip(
               label: '按使用',
               option: SortOption.lastUsed,
             ),
-            const SizedBox(width: 4),
-            _buildSortChip(
-              label: '按频率',
-              option: SortOption.frequency,
-            ),
-            const SizedBox(width: 4),
             // 筛选选项
             FilterChip(
               label: const Text('显示系统应用', style: TextStyle(fontSize: 13)),
@@ -501,6 +492,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -527,8 +519,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       ),
       selected: isSelected,
       showCheckmark: false, // 隐藏勾选图标
-      labelPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0), // 进一步减小内边距
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6), // 进一步减小外边距
+      labelPadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 增加内边距
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6), // 增加外边距
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // 收缩点击区域
       onSelected: (selected) {
         setState(() {
@@ -644,20 +636,51 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                 const SizedBox(width: 8),
                 Builder(
                   builder: (context) {
-                    // 添加调试输出
-                    if (app.name == 'QQ' || app.name == '中国移动' || app.name == '云闪付') {
-                      debugPrint('[UI显示] ${app.name}: hasStats=${app.usageStats != null}, lastTimeUsed=${app.usageStats?.lastTimeUsed}');
-                    }
+                    // 添加调试输出（显示lastTimeUsed和lastUpdateTime）
+                    final stats = app.usageStats!;
+                    final deviceBaseline = _appService.deviceBaselineTime;
+                    final description = stats.getLastUsedDescription(
+                      deviceBaselineTime: app.isSystemApp ? deviceBaseline : null,
+                    );
                     
-                    if (app.usageStats!.lastTimeUsed != null) {
+                    debugPrint('[UI显示] ${app.name}: '
+                        'lastTimeUsed=${stats.lastTimeUsed}, '
+                        'lastUpdateTime=${stats.lastUpdateTime}, '
+                        'effective=${stats.effectiveLastTime}, '
+                        'isSystem=${app.isSystemApp}, '
+                        'baseline=$deviceBaseline, '
+                        'description=$description');
+                    
+                    if (stats.effectiveLastTime != null) {
+                      // 根据时间距离决定颜色
+                      final days = stats.daysSinceLastTime ?? 0;
+                      Color timeColor;
+                      
+                      if (days <= 7) {
+                        // 7天内：蓝色（活跃）
+                        timeColor = Colors.blue[600]!;
+                      } else if (days <= 30) {
+                        // 8-30天：根据数据来源选择深浅蓝
+                        timeColor = stats.lastTimeUsed != null 
+                            ? Colors.blue[600]! 
+                            : Colors.blue[400]!;
+                      } else if (days <= 180) {
+                        // 1-6个月：浅蓝色
+                        timeColor = Colors.blue[400]!;
+                      } else if (days <= 365) {
+                        // 6-12个月：橙色
+                        timeColor = Colors.orange[600]!;
+                      } else {
+                        // 12个月以上：红色
+                        timeColor = Colors.red[600]!;
+                      }
+                      
                       return Text(
-                        app.usageStats!.lastUsedDescription,
+                        description,
                         style: TextStyle(
                           fontSize: 11,
-                          color: app.usageStats!.isZombie
-                              ? Colors.grey[400]
-                              : Colors.blue[600],
-                          fontWeight: app.usageStats!.isActive
+                          color: timeColor,
+                          fontWeight: stats.isActive
                               ? FontWeight.w500
                               : FontWeight.normal,
                         ),
@@ -698,26 +721,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                   const SizedBox(width: 12),
                   Text(
                     '缓存 ${_formatSize(app.storageInfo!.cacheSize)}',
-                    style: TextStyle(fontSize: 11, color: Colors.orange[700]),
-                  ),
-                ],
-                // 僵尸应用标识
-                if (app.usageStats?.isZombie == true) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '僵尸',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
               ],
@@ -756,42 +760,15 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   List<EasyFileAppInfo> _sortByLastUsed(List<EasyFileAppInfo> apps) {
     return apps.toList()
       ..sort((a, b) {
-        final aTime = a.usageStats?.lastTimeUsed;
-        final bTime = b.usageStats?.lastTimeUsed;
+        final aTime = a.usageStats?.effectiveLastTime;
+        final bTime = b.usageStats?.effectiveLastTime;
         
-        // 有使用记录的排前面
+        // 有时间记录的排前面
         if (aTime == null && bTime == null) return 0;
         if (aTime == null) return 1;
         if (bTime == null) return -1;
         
-        // 最近使用的排前面
-        return bTime.compareTo(aTime);
-      });
-  }
-
-  /// 按使用频率排序
-  List<EasyFileAppInfo> _sortByFrequency(List<EasyFileAppInfo> apps) {
-    return apps.toList()
-      ..sort((a, b) {
-        final aStats = a.usageStats;
-        final bStats = b.usageStats;
-        
-        // 有使用统计的排前面
-        if (aStats == null && bStats == null) return 0;
-        if (aStats == null) return 1;
-        if (bStats == null) return -1;
-        
-        // 按频率分级排序：常用 > 偶尔 > 很少 > 僵尸
-        final aFreq = aStats.frequency.index;
-        final bFreq = bStats.frequency.index;
-        if (aFreq != bFreq) return aFreq.compareTo(bFreq);
-        
-        // 同一频率级别内，按最近使用时间排序
-        final aTime = aStats.lastTimeUsed;
-        final bTime = bStats.lastTimeUsed;
-        if (aTime == null && bTime == null) return 0;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
+        // 最近使用/更新的排前面
         return bTime.compareTo(aTime);
       });
   }
@@ -883,5 +860,4 @@ enum SortOption {
   size,
   name,
   lastUsed,
-  frequency,
 }

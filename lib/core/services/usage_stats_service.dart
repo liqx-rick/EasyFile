@@ -117,8 +117,13 @@ class UsageStatsService {
       for (final packageName in packageNames) {
         final stats = statsMap[packageName];
         // 没有使用记录，或者超过阈值未使用
-        if (stats == null || stats.isZombie) {
+        if (stats == null) {
           zombieApps.add(packageName);
+        } else {
+          final days = stats.daysSinceLastTime;
+          if (days == null || days > daysThreshold) {
+            zombieApps.add(packageName);
+          }
         }
       }
 
