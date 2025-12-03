@@ -702,8 +702,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   bool _isGroupEnabledForCurrentTab() {
     final pageId = _getPageIdForCurrentTab(
         Provider.of<FileViewModel>(context, listen: false).currentTab);
-    // Recent Tab固定分组
-    if (pageId == PageId.homeRecent) return true;
+    // 最近Tab不分组，始终按时间排序
+    if (pageId == PageId.homeRecent) return false;
     return PageSettingsService().getGroupEnabled(pageId);
   }
 
@@ -996,7 +996,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final theme = Theme.of(context);
 
     return Container(
-      height: 44,
+      height: 52,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest, // 功能栏背景
         border: Border(
@@ -1281,7 +1281,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest, // 内容区标题栏（不透明）
+        color: theme.scaffoldBackgroundColor, // 白色背景，突出当前操作区域
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor,
@@ -1347,7 +1347,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest, // 内容区标题栏（不透明）
+        color: theme.scaffoldBackgroundColor, // 白色背景，突出当前操作区域
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor,
@@ -1490,10 +1490,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 获取最近文件的时间分组（基于访问时间）
-  Map<String, List<FileItem>> _groupRecentFilesByDate(List<FileItem> files) {
-    return FileGroupingUtil.groupByAccessDate(files, removeEmpty: false);
-  }
-
   /// 构建收藏Tab的分组视图
   /// 显示排序选项（收藏Tab）
   void _showFavoriteSortOptions() {
@@ -1960,7 +1956,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建文件列表视图
 
-
   /// 构建文件列表的Sliver组件列表（用于CustomScrollView）
   List<Widget> _buildFileListSlivers(FileViewModel vm) {
     if (vm.files.isEmpty) {
@@ -1986,7 +1981,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getViewMode(pageId) == ViewMode.grid;
     final isGroupEnabled = _isGroupEnabledForCurrentTab();
 
-    // 收藏Tab和浏览Tab需要应用排序
+    // 收藏Tab、浏览Tab、最近Tab需要应用排序
     var displayFiles = vm.files;
 
     if (vm.currentTab == TabView.favorite) {
@@ -1995,11 +1990,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     } else if (vm.currentTab == TabView.browse) {
       // 浏览Tab：应用排序
       displayFiles = _getSortedBrowseFiles(vm.files);
-    }
-
-    // 最近Tab始终使用时间分组显示
-    if (vm.currentTab == TabView.recent) {
-      return _buildRecentGroupedViewSlivers(displayFiles);
+    } else if (vm.currentTab == TabView.recent) {
+      // 最近Tab：始终按访问时间降序显示，不受用户排序设置影响
+      displayFiles = List<FileItem>.from(vm.files)
+        ..sort((a, b) {
+          final aTime = a.accessedAt ?? DateTime(1970);
+          final bTime = b.accessedAt ?? DateTime(1970);
+          return bTime.compareTo(aTime); // 降序：最新的在最前
+        });
     }
 
     // 收藏Tab、浏览Tab启用分组时使用分组视图
@@ -2179,7 +2177,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -2260,88 +2258,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Text(
-                '$key（$count个文件）',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-          ),
-        );
-        // 分组内容
-        if (isGridView) {
-          slivers.add(
-            SliverPadding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 0.70,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _buildFileItemWrapper(groups[key]![index]),
-                  childCount: groups[key]!.length,
-                  addAutomaticKeepAlives: false,
-                  addRepaintBoundaries: true,
-                  addSemanticIndexes: false,
-                ),
-              ),
-            ),
-          );
-        } else {
-          slivers.add(
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 0.5,
-                        ),
-                      ),
-                    ),
-                    child: _buildFileItemWrapper(groups[key]![index]),
-                  );
-                },
-                childCount: groups[key]!.length,
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-                addSemanticIndexes: false,
-              ),
-            ),
-          );
-        }
-      }
-    }
-    return slivers;
-  }
-
-  /// 构建最近Tab分组视图的Sliver组件
-  List<Widget> _buildRecentGroupedViewSlivers(List<FileItem> files) {
-    final isGridView =
-        PageSettingsService().getViewMode(PageId.homeRecent) == ViewMode.grid;
-    final groups = _groupRecentFilesByDate(files);
-    final groupKeys = ['今天', '昨天', '本周', '更早'];
-    final crossAxisCount = _calculateCrossAxisCount();
-
-    List<Widget> slivers = [];
-    for (final key in groupKeys) {
-      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
-        final count = groups[key]!.length;
-        // 分组头部
-        slivers.add(
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -2548,7 +2465,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           );
                         },
                       ),
-                      height: 52.0,
+                      height: 44.0,
                     ),
                   ),
 
@@ -2628,7 +2545,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           vm.setSelectedCategory(category);
                         },
                       ),
-                      height: 48.0,
+                      height: (vm.fileTypeStats.hasMultipleTypes ||
+                              vm.fileTypeStats.totalFileCount > 0)
+                          ? 35.0
+                          : 0.0,
                     ),
                   ),
 
@@ -2917,7 +2837,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                 vm.setSelectedCategory(category);
                               },
                             ),
-                            height: 48.0,
+                            height: (vm.fileTypeStats.hasMultipleTypes ||
+                                    vm.fileTypeStats.totalFileCount > 0)
+                                ? 35.0
+                                : 0.0,
                           ),
                         ),
 

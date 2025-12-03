@@ -38,7 +38,7 @@ class FileCategoryTabBar extends StatelessWidget {
     }
 
     return Container(
-      height: 30,
+      height: 35,
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
