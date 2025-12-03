@@ -370,7 +370,8 @@ class FileViewModel extends ChangeNotifier {
     }
     if (addedCount > 0) {
       _favoriteFiles = _sortedFavoriteFiles(_favoriteFiles);
-      logger.i('Batch added $addedCount favorite files. Total count: ${_favoriteFiles.length}');
+      logger.i(
+          'Batch added $addedCount favorite files. Total count: ${_favoriteFiles.length}');
       // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
@@ -399,7 +400,8 @@ class FileViewModel extends ChangeNotifier {
       }
     }
     if (removedCount > 0) {
-      logger.i('Batch removed $removedCount favorite files. Total count: ${_favoriteFiles.length}');
+      logger.i(
+          'Batch removed $removedCount favorite files. Total count: ${_favoriteFiles.length}');
       // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();

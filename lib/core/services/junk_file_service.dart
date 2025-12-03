@@ -135,7 +135,7 @@ class JunkFileService {
       // 1. 检查APK
       if (config.scanApk && lowerName.endsWith('.apk')) {
         logger.d('发现APK文件: $fileName');
-        
+
         // 注意：由于installed_apps包不支持从文件解析包名，暂时无法判断是否已安装
         // 因此显示所有APK，让用户手动判断
         results.add(JunkFileItem(
@@ -147,7 +147,8 @@ class JunkFileService {
           packageName: null, // 暂时无法获取
           isInstalled: false, // 暂时无法判断
         ));
-        logger.i('已添加APK: $fileName (${FileSizeFormatter.formatBytes(stat.size)})');
+        logger.i(
+            '已添加APK: $fileName (${FileSizeFormatter.formatBytes(stat.size)})');
       }
 
       // 2. 检查临时文件
@@ -215,14 +216,14 @@ class JunkFileService {
     try {
       if (item.type == JunkFileType.emptyFolder) {
         final dir = Directory(item.path);
-        
+
         // 二次验证：确保文件夹仍然为空
         final entities = await dir.list().toList();
         if (entities.isNotEmpty) {
           logger.w('文件夹不为空，取消删除: ${item.path} (包含 ${entities.length} 个项目)');
-          return false;  // 不为空则拒绝删除
+          return false; // 不为空则拒绝删除
         }
-        
+
         // 确认为空后才删除
         await dir.delete();
         logger.i('删除空文件夹: ${item.path}');

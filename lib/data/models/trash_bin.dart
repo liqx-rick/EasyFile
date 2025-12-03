@@ -67,12 +67,14 @@ class TrashBin {
     }
 
     // 荣耀相册回收站
-    if (lowerPath.contains('com.hihonor.gallery') && lowerPath.contains('trash')) {
+    if (lowerPath.contains('com.hihonor.gallery') &&
+        lowerPath.contains('trash')) {
       return '荣耀相册回收站';
     }
 
     // Google相册回收站
-    if (lowerPath.contains('com.google.android.apps.photos') && lowerPath.contains('trash')) {
+    if (lowerPath.contains('com.google.android.apps.photos') &&
+        lowerPath.contains('trash')) {
       return 'Google相册回收站';
     }
 
@@ -82,7 +84,8 @@ class TrashBin {
     }
 
     // QQ回收站
-    if (lowerPath.contains('com.tencent.mobileqq') && lowerPath.contains('trash')) {
+    if (lowerPath.contains('com.tencent.mobileqq') &&
+        lowerPath.contains('trash')) {
       return 'QQ回收站';
     }
 
@@ -96,7 +99,8 @@ class TrashBin {
     }
 
     // 文件管理器回收站
-    if (lowerPath.contains('filemanager') || lowerPath.contains('file_recycle')) {
+    if (lowerPath.contains('filemanager') ||
+        lowerPath.contains('file_recycle')) {
       return '文件管理器回收站';
     }
 
@@ -111,7 +115,7 @@ class TrashBin {
     final lowerPath = path.toLowerCase();
 
     // 相册类回收站
-    if (lowerPath.contains('gallery') || 
+    if (lowerPath.contains('gallery') ||
         lowerPath.contains('photos') ||
         lowerPath.contains('dcim') ||
         lowerPath.contains('.gallery2')) {

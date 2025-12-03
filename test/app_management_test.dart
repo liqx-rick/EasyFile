@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
 import 'package:easyfile/core/services/app_storage_service.dart';
 import 'package:easyfile/core/services/app_storage_cache_manager.dart';
-import 'package:easyfile/core/services/usage_stats_permission_service.dart';
 import 'package:easyfile/core/services/usage_stats_service.dart';
 import 'package:easyfile/data/models/app_info.dart';
 import 'package:easyfile/core/di/locator.dart';
@@ -23,18 +22,15 @@ void main() {
     late AppManagementService appService;
     late AppStorageService storageService;
     late AppStorageCacheManager cacheManager;
-    late UsageStatsPermissionService permissionService;
     late UsageStatsService usageStatsService;
 
     setUp(() {
-      permissionService = UsageStatsPermissionService();
       cacheManager = AppStorageCacheManager();
       storageService = AppStorageService();
       usageStatsService = UsageStatsService();
       appService = AppManagementService(
         storageService,
         cacheManager,
-        permissionService,
         usageStatsService,
       );
     });
@@ -74,7 +70,7 @@ void main() {
       ];
 
       final sorted = appService.sortBySize(testApps);
-      
+
       expect(sorted.length, 2);
       expect(sorted[0].name, 'App2'); // 更大的应该在前面
       expect(sorted[1].name, 'App1');
@@ -99,7 +95,7 @@ void main() {
       ];
 
       final sorted = appService.sortByName(testApps);
-      
+
       expect(sorted.length, 2);
       expect(sorted[0].name, 'Apple');
       expect(sorted[1].name, 'Zebra');
@@ -124,7 +120,7 @@ void main() {
       ];
 
       final filtered = await appService.searchApps(testApps, 'chrome');
-      
+
       expect(filtered.length, 1);
       expect(filtered[0].name, 'Chrome');
     });
@@ -158,7 +154,7 @@ void main() {
       ];
 
       final filtered = appService.filterByMinSize(testApps, 1000000); // 1MB
-      
+
       expect(filtered.length, 1);
       expect(filtered[0].name, 'LargeApp');
     });

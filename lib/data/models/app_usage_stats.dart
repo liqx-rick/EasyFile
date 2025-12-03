@@ -82,10 +82,10 @@ class AppUsageStats {
   UsageFrequency get frequency {
     final time = effectiveLastTime;
     if (time == null) return UsageFrequency.veryRare;
-    
+
     final now = DateTime.now();
     final daysSinceUsed = now.difference(time).inDays;
-    
+
     if (daysSinceUsed <= 7) return UsageFrequency.frequent;
     if (daysSinceUsed <= 30) return UsageFrequency.occasional;
     if (daysSinceUsed <= 180) return UsageFrequency.rare;
@@ -102,10 +102,10 @@ class AppUsageStats {
   String getLastUsedDescription({DateTime? deviceBaselineTime}) {
     final time = effectiveLastTime;
     if (time == null) return '从未使用';
-    
+
     final now = DateTime.now();
     final diff = now.difference(time);
-    
+
     // 如果提供了设备基准时间，且当前时间早于基准时间，使用友好显示
     if (deviceBaselineTime != null && time.isBefore(deviceBaselineTime)) {
       final baselineDiff = now.difference(deviceBaselineTime);
@@ -114,7 +114,7 @@ class AppUsageStats {
         return '$years+年前';
       }
     }
-    
+
     if (diff.inMinutes < 1) return '刚刚';
     if (diff.inHours < 1) return '${diff.inMinutes}分钟前';
     if (diff.inDays < 1) return '${diff.inHours}小时前';

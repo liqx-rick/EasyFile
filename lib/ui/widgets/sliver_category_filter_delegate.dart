@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// 通用的分类筛选Sliver持久化头部代理
-/// 
+///
 /// 用于在滚动列表中置顶显示分类筛选栏
 /// 可在多个页面复用（回收站清理、垃圾文件清理等）
 class SliverCategoryFilterDelegate extends SliverPersistentHeaderDelegate {

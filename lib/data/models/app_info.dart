@@ -53,7 +53,7 @@ class EasyFileAppInfo {
     // 如果时间戳小于 10000000000（2001年之前），则认为是秒，需要转换为毫秒
     final timestamp = app.installedTimestamp;
     final milliseconds = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
-    
+
     return EasyFileAppInfo(
       name: app.name,
       packageName: app.packageName,
@@ -164,12 +164,12 @@ class AppStorageInfo {
   }) : cachedTime = cachedTime ?? DateTime.now();
 
   /// 总大小
-  /// 
+  ///
   /// 根据 Android StorageStats API 文档：
   /// - appBytes = APK + native libraries + OBB files
   /// - dataBytes = all data (INCLUDING cache)
   /// - cacheBytes = cache only (subset of dataBytes)
-  /// 
+  ///
   /// 因此总大小 = appSize + dataSize (不能再加 cacheSize，否则会重复计算)
   /// cacheSize 仅用于单独显示缓存占用
   int get totalSize => appSize + dataSize;

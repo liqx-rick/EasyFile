@@ -95,7 +95,7 @@ class BatchOperationsService {
 
         // ⚠️ 先退出选择模式，再显示消息
         onExitSelectionMode();
-        
+
         // 延迟一帧后显示SnackBar，确保setState完成，避免"deactivated widget"错误
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showSnackBarDirect(messenger, message);
@@ -148,7 +148,7 @@ class BatchOperationsService {
 
         // ⚠️ 先退出选择模式，再显示消息
         onExitSelectionMode();
-        
+
         // 延迟一帧后显示SnackBar，确保setState完成
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showSnackBarDirect(messenger, message);

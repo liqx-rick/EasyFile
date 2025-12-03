@@ -48,7 +48,8 @@ class UsageStatsService {
     int daysBack = 7,
   }) async {
     try {
-      logger.i('Batch getting usage stats for ${packageNames.length} apps (daysBack: $daysBack)');
+      logger.i(
+          'Batch getting usage stats for ${packageNames.length} apps (daysBack: $daysBack)');
       logger.i('>>> 调用Android端 batchGetUsageStats <<<');
 
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
@@ -66,25 +67,28 @@ class UsageStatsService {
       }
 
       logger.i('原始返回数据: ${result.length} 个应用');
-      
+
       // 转换结果
       final statsMap = <String, AppUsageStats>{};
       result.forEach((key, value) {
         if (value is Map) {
           final packageName = key.toString();
           final rawMap = Map<String, dynamic>.from(value);
-          
+
           // 打印原始数据
           final lastTimeUsedRaw = rawMap['lastTimeUsed'];
-          logger.d('[$packageName] 原始 lastTimeUsed=$lastTimeUsedRaw (type=${lastTimeUsedRaw.runtimeType})');
-          
+          logger.d(
+              '[$packageName] 原始 lastTimeUsed=$lastTimeUsedRaw (type=${lastTimeUsedRaw.runtimeType})');
+
           final stats = AppUsageStats.fromJson(rawMap);
           statsMap[packageName] = stats;
-          
+
           // 打印解析后的数据
           if (stats.lastTimeUsed != null) {
-            final daysAgo = DateTime.now().difference(stats.lastTimeUsed!).inDays;
-            logger.d('[$packageName] 解析后 lastTimeUsed=${stats.lastTimeUsed}, $daysAgo天前');
+            final daysAgo =
+                DateTime.now().difference(stats.lastTimeUsed!).inDays;
+            logger.d(
+                '[$packageName] 解析后 lastTimeUsed=${stats.lastTimeUsed}, $daysAgo天前');
           } else {
             logger.d('[$packageName] 解析后 lastTimeUsed=null');
           }

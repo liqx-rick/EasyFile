@@ -16,7 +16,7 @@ import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/ui/pages/category_file_page.dart'
     hide FileTypeFilter; // 隐藏CategoryFilePage中的FileTypeFilter
-import 'package:easyfile/ui/pages/cache_management_page.dart';
+
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';

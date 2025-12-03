@@ -162,7 +162,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             folders: widget.viewModel.userCustomFolders,
             color: Colors.green,
           ),
-          
+
           // 已恢复文件部分（固定快捷入口）
           _buildRestoredFilesSection(),
         ],
@@ -682,18 +682,18 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   Widget _buildRestoredFilesSection() {
     const restoredPath = '/storage/emulated/0/EasyFile/Restored';
     final restoredDir = Directory(restoredPath);
-    
+
     // 检查目录是否存在且有文件
     if (!restoredDir.existsSync()) {
       return const SizedBox.shrink();
     }
-    
+
     try {
       final files = restoredDir.listSync();
       if (files.isEmpty) {
         return const SizedBox.shrink(); // 没有文件则不显示
       }
-      
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -713,7 +713,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.purple.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),

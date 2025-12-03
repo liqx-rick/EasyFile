@@ -4,14 +4,14 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
 
 /// MediaStore回收站平台通道
-/// 
+///
 /// 通过Method Channel调用Android原生代码查询和删除系统回收站文件
 class MediaStoreTrashChannel {
   static const MethodChannel _channel =
       MethodChannel('com.example.easyfile/trash');
 
   /// 检查当前平台是否支持MediaStore Trash
-  /// 
+  ///
   /// 返回true表示支持（Android 11+）
   static Future<bool> isSupported() async {
     if (!Platform.isAndroid) {
@@ -29,7 +29,7 @@ class MediaStoreTrashChannel {
   }
 
   /// 查询回收站中的文件
-  /// 
+  ///
   /// 返回回收站文件列表
   static Future<List<TrashFileItem>> queryTrashedFiles() async {
     try {
@@ -40,7 +40,7 @@ class MediaStoreTrashChannel {
 
       final files = result.map((item) {
         final map = Map<String, dynamic>.from(item as Map);
-        
+
         return TrashFileItem(
           name: map['name'] as String,
           path: map['path'] as String? ?? '',
@@ -68,7 +68,7 @@ class MediaStoreTrashChannel {
   }
 
   /// 删除单个回收站文件
-  /// 
+  ///
   /// [fileId] MediaStore文件ID
   /// 返回删除是否成功
   static Future<bool> deleteTrashedFile(int fileId) async {
@@ -94,7 +94,7 @@ class MediaStoreTrashChannel {
   }
 
   /// 批量删除回收站文件
-  /// 
+  ///
   /// [fileIds] 文件ID列表
   /// 返回删除结果统计
   static Future<Map<String, int>> deleteMultipleTrashedFiles(
@@ -122,7 +122,7 @@ class MediaStoreTrashChannel {
   }
 
   /// 清空整个回收站
-  /// 
+  ///
   /// 返回删除结果统计
   static Future<Map<String, int>> emptyTrash() async {
     try {
@@ -136,7 +136,8 @@ class MediaStoreTrashChannel {
         'failed': result['failed'] as int,
       };
 
-      logger.i('清空回收站完成: 成功 ${resultMap['success']}, 失败 ${resultMap['failed']}');
+      logger
+          .i('清空回收站完成: 成功 ${resultMap['success']}, 失败 ${resultMap['failed']}');
 
       return resultMap;
     } catch (e) {

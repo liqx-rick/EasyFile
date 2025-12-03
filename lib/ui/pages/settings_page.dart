@@ -324,65 +324,67 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('选择主题模式'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<ThemeMode>(
-              title: const Row(
-                children: [
-                  Icon(Icons.light_mode, size: 20),
-                  SizedBox(width: 12),
-                  Text('浅色'),
-                ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<ThemeMode>(
+                title: const Row(
+                  children: [
+                    Icon(Icons.light_mode, size: 20),
+                    SizedBox(width: 12),
+                    Text('浅色'),
+                  ],
+                ),
+                value: ThemeMode.light,
+                groupValue: viewModel.themeMode,
+                onChanged: (value) {
+                  if (value != null) {
+                    viewModel.setThemeMode(value);
+                    Navigator.pop(context);
+                  }
+                },
               ),
-              value: ThemeMode.light,
-              groupValue: viewModel.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  viewModel.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-            RadioListTile<ThemeMode>(
-              title: const Row(
-                children: [
-                  Icon(Icons.dark_mode, size: 20),
-                  SizedBox(width: 12),
-                  Text('深色'),
-                ],
+              RadioListTile<ThemeMode>(
+                title: const Row(
+                  children: [
+                    Icon(Icons.dark_mode, size: 20),
+                    SizedBox(width: 12),
+                    Text('深色'),
+                  ],
+                ),
+                value: ThemeMode.dark,
+                groupValue: viewModel.themeMode,
+                onChanged: (value) {
+                  if (value != null) {
+                    viewModel.setThemeMode(value);
+                    Navigator.pop(context);
+                  }
+                },
               ),
-              value: ThemeMode.dark,
-              groupValue: viewModel.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  viewModel.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-            RadioListTile<ThemeMode>(
-              title: const Row(
-                children: [
-                  Icon(Icons.brightness_auto, size: 20),
-                  SizedBox(width: 12),
-                  Text('跟随系统'),
-                ],
+              RadioListTile<ThemeMode>(
+                title: const Row(
+                  children: [
+                    Icon(Icons.brightness_auto, size: 20),
+                    SizedBox(width: 12),
+                    Text('跟随系统'),
+                  ],
+                ),
+                subtitle: const Text(
+                  '根据系统设置自动切换',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: ThemeMode.system,
+                groupValue: viewModel.themeMode,
+                onChanged: (value) {
+                  if (value != null) {
+                    viewModel.setThemeMode(value);
+                    Navigator.pop(context);
+                  }
+                },
               ),
-              subtitle: const Text(
-                '根据系统设置自动切换',
-                style: TextStyle(fontSize: 12),
-              ),
-              value: ThemeMode.system,
-              groupValue: viewModel.themeMode,
-              onChanged: (value) {
-                if (value != null) {
-                  viewModel.setThemeMode(value);
-                  Navigator.pop(context);
-                }
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

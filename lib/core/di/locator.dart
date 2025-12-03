@@ -136,7 +136,6 @@ void setupLocator() {
     return AppManagementService(
       locator<AppStorageService>(),
       locator<AppStorageCacheManager>(),
-      locator<UsageStatsPermissionService>(),
       locator<UsageStatsService>(),
     );
   });
