@@ -24,7 +24,8 @@ class AppManagementPage extends StatefulWidget {
   State<AppManagementPage> createState() => _AppManagementPageState();
 }
 
-class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindingObserver {
+class _AppManagementPageState extends State<AppManagementPage>
+    with WidgetsBindingObserver {
   final _appService = locator<AppManagementService>();
   final _permissionService = locator<UsageStatsPermissionService>();
   final _intentService = locator<SystemIntentService>();
@@ -69,7 +70,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     // 当应用从后台返回前台时，快速刷新检测卸载
     if (state == AppLifecycleState.resumed) {
       logger.i('App resumed, checking for uninstalled apps');
@@ -89,13 +90,13 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   Future<void> _requestPermission() async {
     // 跳转到设置页面
     await _permissionService.request();
-    
+
     // 等待用户操作完成后返回
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     // 重新检查权限状态
     await _checkPermission();
-    
+
     // 如果已授权，清除缓存并重新加载
     if (_hasPermission) {
       await _refreshApps();
@@ -103,7 +104,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   }
 
   /// 快速刷新（下拉刷新）
-  /// 
+  ///
   /// 检测已卸载的应用并从列表中移除，同时更新使用统计，不重新查询存储信息
   Future<void> _refreshApps() async {
     // 使用 microtask 立即更新 UI
@@ -114,24 +115,24 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
         });
       }
     });
-    
+
     try {
       // 1. 重新检查权限状态
       await _checkPermission();
-      
+
       // 2. 快速检测已卸载的应用并移除
       if (_apps.isNotEmpty) {
         final updatedApps = await _appService.quickRefresh(
           _apps,
           includeSystemApps: _showSystemApps,
         );
-        
+
         setState(() {
           _apps = updatedApps;
           _applyFilters();
         });
       }
-      
+
       // 3. 显示提示
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +159,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   }
 
   /// 完全刷新（点击刷新按钮）
-  /// 
+  ///
   /// 清除所有缓存并重新查询所有应用的存储信息，显示完整扫描进度
   Future<void> _forceRefreshApps() async {
     // 显示确认对话框
@@ -196,13 +197,13 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
     try {
       // 1. 重新检查权限状态
       await _checkPermission();
-      
+
       // 2. 清除所有缓存
       await _appService.refreshCache();
-      
+
       // 3. 重新加载所有应用（会显示完整的扫描进度）
       await _loadApps();
-      
+
       // 4. 显示提示
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -223,7 +224,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
   }
 
   /// 加载应用列表（首次进入或完全刷新时调用）
-  /// 
+  ///
   /// 获取所有已安装应用并加载存储信息（优先使用缓存）
   Future<void> _loadApps() async {
     // 如果还未设置加载状态，则设置
@@ -303,7 +304,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
         filtered = _sortByLastUsed(filtered);
         break;
     }
-    
+
     // 应用排序方向
     if (_sortAscending) {
       filtered = filtered.reversed.toList();
@@ -446,7 +447,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
             ),
             filled: true,
             fillColor: Colors.grey[100],
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
           onChanged: (value) {
             setState(() {
@@ -470,37 +472,38 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
             alignment: WrapAlignment.center,
             spacing: 5,
             children: [
-            // 排序选项 - 添加方向指示
-            _buildSortChip(
-              label: '按大小',
-              option: SortOption.size,
-            ),
-            _buildSortChip(
-              label: '按名称',
-              option: SortOption.name,
-            ),
-            _buildSortChip(
-              label: '按使用',
-              option: SortOption.lastUsed,
-            ),
-            // 筛选选项
-            FilterChip(
-              label: const Text('显示系统应用', style: TextStyle(fontSize: 13)),
-              selected: _showSystemApps,
-              showCheckmark: false, // 隐藏勾选图标
-              labelPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              onSelected: (selected) {
-                setState(() {
-                  _showSystemApps = selected;
-                  _loadApps(); // 重新加载
-                });
-              },
-            ),
-          ],
+              // 排序选项 - 添加方向指示
+              _buildSortChip(
+                label: '按大小',
+                option: SortOption.size,
+              ),
+              _buildSortChip(
+                label: '按名称',
+                option: SortOption.name,
+              ),
+              _buildSortChip(
+                label: '按使用',
+                option: SortOption.lastUsed,
+              ),
+              // 筛选选项
+              FilterChip(
+                label: const Text('显示系统应用', style: TextStyle(fontSize: 13)),
+                selected: _showSystemApps,
+                showCheckmark: false, // 隐藏勾选图标
+                labelPadding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onSelected: (selected) {
+                  setState(() {
+                    _showSystemApps = selected;
+                    _loadApps(); // 重新加载
+                  });
+                },
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -527,7 +530,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       ),
       selected: isSelected,
       showCheckmark: false, // 隐藏勾选图标
-      labelPadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 增加内边距
+      labelPadding:
+          const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 增加内边距
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6), // 增加外边距
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // 收缩点击区域
       onSelected: (selected) {
@@ -542,7 +546,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
           }
           _applyFilters();
         });
-        
+
         // 在下一帧滚动到顶部（确保列表已经更新）
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
@@ -648,9 +652,10 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                     final stats = app.usageStats!;
                     final deviceBaseline = _appService.deviceBaselineTime;
                     final description = stats.getLastUsedDescription(
-                      deviceBaselineTime: app.isSystemApp ? deviceBaseline : null,
+                      deviceBaselineTime:
+                          app.isSystemApp ? deviceBaseline : null,
                     );
-                    
+
                     debugPrint('[UI显示] ${app.name}: '
                         'lastTimeUsed=${stats.lastTimeUsed}, '
                         'lastUpdateTime=${stats.lastUpdateTime}, '
@@ -658,19 +663,19 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                         'isSystem=${app.isSystemApp}, '
                         'baseline=$deviceBaseline, '
                         'description=$description');
-                    
+
                     if (stats.effectiveLastTime != null) {
                       // 根据时间距离决定颜色
                       final days = stats.daysSinceLastTime ?? 0;
                       Color timeColor;
-                      
+
                       if (days <= 7) {
                         // 7天内：蓝色（活跃）
                         timeColor = Colors.blue[600]!;
                       } else if (days <= 30) {
                         // 8-30天：根据数据来源选择深浅蓝
-                        timeColor = stats.lastTimeUsed != null 
-                            ? Colors.blue[600]! 
+                        timeColor = stats.lastTimeUsed != null
+                            ? Colors.blue[600]!
                             : Colors.blue[400]!;
                       } else if (days <= 180) {
                         // 1-6个月：浅蓝色
@@ -682,7 +687,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                         // 12个月以上：红色
                         timeColor = Colors.red[600]!;
                       }
-                      
+
                       return Text(
                         description,
                         style: TextStyle(
@@ -708,7 +713,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.settings, size: 16, color: Colors.grey[600]),
+                  child:
+                      Icon(Icons.settings, size: 16, color: Colors.grey[600]),
                 ),
               ),
             ],
@@ -721,7 +727,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                 Flexible(
                   child: Text(
                     '总占用 ${_formatSize(app.storageInfo!.totalSize)}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -770,12 +777,12 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       ..sort((a, b) {
         final aTime = a.usageStats?.effectiveLastTime;
         final bTime = b.usageStats?.effectiveLastTime;
-        
+
         // 有时间记录的排前面
         if (aTime == null && bTime == null) return 0;
         if (aTime == null) return 1;
         if (bTime == null) return -1;
-        
+
         // 最近使用/更新的排前面
         return bTime.compareTo(aTime);
       });
@@ -813,7 +820,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                   ],
                 ),
               ),
-              
+
               // 搜索框和排序栏（固定在顶部）
               SliverPersistentHeader(
                 pinned: true,
@@ -830,7 +837,7 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
                   ),
                 ),
               ),
-              
+
               // 应用列表
               _buildAppListSliver(),
             ],
@@ -854,7 +861,8 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 114; // 最大高度
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return child;
   }
 

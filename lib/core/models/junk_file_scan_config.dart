@@ -10,7 +10,7 @@ class JunkFileScanConfig {
   final bool scanEmptyFolders;
 
   /// 仅扫描已安装的APK
-  /// 
+  ///
   /// 注意：当前版本由于技术限制（installed_apps包不支持从文件解析包名），
   /// 此选项暂时无法使用，默认为false（显示所有APK）
   final bool onlyInstalledApk;
@@ -19,7 +19,7 @@ class JunkFileScanConfig {
   final int minTempFileDays;
 
   /// 排除路径（小写）
-  /// 
+  ///
   /// 默认排除Android系统关键目录，防止误删系统文件
   final List<String> excludePaths;
 
@@ -30,11 +30,11 @@ class JunkFileScanConfig {
     this.onlyInstalledApk = false, // 默认显示所有APK（因为无法解析包名）
     this.minTempFileDays = 7,
     this.excludePaths = const [
-      'Android/data',      // Android应用私有数据目录
-      'Android/obb',       // Android应用扩展文件
-      'Android/media',     // Android媒体文件目录
-      '.thumbnails',       // 缩略图缓存
-      'lost+found',        // Android系统恢复目录
+      'Android/data', // Android应用私有数据目录
+      'Android/obb', // Android应用扩展文件
+      'Android/media', // Android媒体文件目录
+      '.thumbnails', // 缩略图缓存
+      'lost+found', // Android系统恢复目录
     ],
   });
 

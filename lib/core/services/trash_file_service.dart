@@ -39,50 +39,74 @@ class TrashFileService {
   Future<Map<String, dynamic>> detectFileType(String filePath) async {
     try {
       final file = File(filePath);
-      
+
       if (!await file.exists()) {
         return {
           'error': '文件不存在',
           'path': filePath,
         };
       }
-      
+
       final stat = await file.stat();
       final bytes = await file.openRead(0, 32).first;
-      
+
       String mimeType = 'unknown';
       String description = '未知类型';
-      
+
       // JPEG: FF D8 FF
-      if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      if (bytes.length >= 3 &&
+          bytes[0] == 0xFF &&
+          bytes[1] == 0xD8 &&
+          bytes[2] == 0xFF) {
         mimeType = 'image/jpeg';
         description = 'JPEG图片';
       }
       // PNG: 89 50 4E 47
-      else if (bytes.length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+      else if (bytes.length >= 4 &&
+          bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47) {
         mimeType = 'image/png';
         description = 'PNG图片';
       }
       // WebP: 52 49 46 46 ... 57 45 42 50
-      else if (bytes.length >= 12 && 
-               bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
-               bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) {
+      else if (bytes.length >= 12 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46 &&
+          bytes[8] == 0x57 &&
+          bytes[9] == 0x45 &&
+          bytes[10] == 0x42 &&
+          bytes[11] == 0x50) {
         mimeType = 'image/webp';
         description = 'WebP图片';
       }
       // MP4: 00 00 00 XX 66 74 79 70 (ftyp at offset 4)
-      else if (bytes.length >= 12 && 
-               bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
+      else if (bytes.length >= 12 &&
+          bytes[4] == 0x66 &&
+          bytes[5] == 0x74 &&
+          bytes[6] == 0x79 &&
+          bytes[7] == 0x70) {
         mimeType = 'video/mp4';
         description = 'MP4视频';
       }
       // GIF: 47 49 46 38
-      else if (bytes.length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38) {
+      else if (bytes.length >= 4 &&
+          bytes[0] == 0x47 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x38) {
         mimeType = 'image/gif';
         description = 'GIF图片';
       }
       // PDF: 25 50 44 46
-      else if (bytes.length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
+      else if (bytes.length >= 4 &&
+          bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46) {
         mimeType = 'application/pdf';
         description = 'PDF文档';
       }
@@ -97,14 +121,21 @@ class TrashFileService {
         }
       }
       // RAR: 52 61 72 21
-      else if (bytes.length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x61 && bytes[2] == 0x72 && bytes[3] == 0x21) {
+      else if (bytes.length >= 4 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x61 &&
+          bytes[2] == 0x72 &&
+          bytes[3] == 0x21) {
         mimeType = 'application/x-rar';
         description = 'RAR压缩包';
       }
-      
+
       // 构建文件头十六进制字符串
-      final hexHeader = bytes.take(32).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
-      
+      final hexHeader = bytes
+          .take(32)
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+
       return {
         'path': filePath,
         'size': stat.size,
@@ -127,21 +158,34 @@ class TrashFileService {
   Future<List<String>> searchRecyclePaths() async {
     final foundPaths = <String>[];
     final keywords = [
-      'recycle', 'Recycle', 'RECYCLE',
-      'trash', 'Trash', 'TRASH',
-      'delete', 'Delete', 'DELETE',
-      'deleted', 'Deleted', 'DELETED',
-      '回收', '已删除', '最近删除',
-      '.Trash', '.trash',
-      'bin', 'Bin', 'BIN',
+      'recycle',
+      'Recycle',
+      'RECYCLE',
+      'trash',
+      'Trash',
+      'TRASH',
+      'delete',
+      'Delete',
+      'DELETE',
+      'deleted',
+      'Deleted',
+      'DELETED',
+      '回收',
+      '已删除',
+      '最近删除',
+      '.Trash',
+      '.trash',
+      'bin',
+      'Bin',
+      'BIN',
     ];
 
     logger.i('========== 开始搜索回收站路径 ==========');
-    
+
     // 1. 搜索根目录
     final storageRoot = '/storage/emulated/0';
     final rootDir = Directory(storageRoot);
-    
+
     if (rootDir.existsSync()) {
       logger.i('扫描根目录: $storageRoot');
       try {
@@ -178,13 +222,13 @@ class TrashFileService {
         final entities = dir.listSync(recursive: true, followLinks: false);
         for (final entity in entities) {
           if (entity is! Directory) continue;
-          
+
           final name = entity.path.split('/').last;
           for (final keyword in keywords) {
             if (name.toLowerCase().contains(keyword.toLowerCase())) {
               foundPaths.add(entity.path);
               logger.i('✓ 相册目录发现: ${entity.path}');
-              
+
               // 如果找到，列出里面的文件
               try {
                 final files = Directory(entity.path).listSync(recursive: false);
@@ -195,7 +239,8 @@ class TrashFileService {
                     final name = file.path.split('/').last;
                     if (file is File) {
                       final size = file.lengthSync();
-                      logger.i('    - $name (${FileSizeFormatter.formatBytes(size)})');
+                      logger.i(
+                          '    - $name (${FileSizeFormatter.formatBytes(size)})');
                     } else {
                       logger.i('    - $name (目录)');
                     }
@@ -241,11 +286,13 @@ class TrashFileService {
                   logger.i('     大小: ${FileSizeFormatter.formatBytes(size)}');
                   logger.i('     修改时间: $lastModified');
                   logger.i('     完整路径: ${subItem.path}');
-                  
+
                   // 尝试读取文件头判断类型
                   try {
                     final bytes = subItem.readAsBytesSync().take(16).toList();
-                    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
+                    final hex = bytes
+                        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+                        .join(' ');
                     logger.i('     文件头: $hex');
                   } catch (e) {
                     logger.w('     无法读取文件头: $e');
@@ -286,13 +333,13 @@ class TrashFileService {
         final entities = dir.listSync(recursive: true, followLinks: false);
         for (final entity in entities) {
           if (entity is! Directory) continue;
-          
+
           final name = entity.path.split('/').last;
           for (final keyword in keywords) {
             if (name.toLowerCase().contains(keyword.toLowerCase())) {
               foundPaths.add(entity.path);
               logger.i('✓ 应用数据发现: ${entity.path}');
-              
+
               // 列出文件
               try {
                 final files = Directory(entity.path).listSync(recursive: false);
@@ -327,61 +374,69 @@ class TrashFileService {
 
     final Map<String, List<TrashFileItem>> trashBinFiles = {};
     final Map<String, String> trashBinPaths = {};
-    
+
     // 定义回收站搜索关键字
     final keywords = [
-      'recycle', 'Recycle', 'RECYCLE',
-      'trash', 'Trash', 'TRASH',
-      'delete', 'deleted', 'Deleted',
-      '.Trash', '.trash',
-      'bin', 'bins',
+      'recycle',
+      'Recycle',
+      'RECYCLE',
+      'trash',
+      'Trash',
+      'TRASH',
+      'delete',
+      'deleted',
+      'Deleted',
+      '.Trash',
+      '.trash',
+      'bin',
+      'bins',
     ];
 
     final storageRoot = '/storage/emulated/0';
-    
+
     // 1. 扫描预定义的回收站位置（各厂商实现）
     final knownTrashPaths = [
       // 华为/荣耀系统回收站
       '$storageRoot/.RecycleBinHW',
       '$storageRoot/.\$Trash\$',
       '$storageRoot/.File_Recycle',
-      
+
       // 小米/MIUI
       '$storageRoot/.trashcan',
       '$storageRoot/MIUI/.recycle',
-      
+
       // OPPO/ColorOS
       '$storageRoot/.com.coloros.filemanager/.Trash',
       '$storageRoot/.FileRecycleBin',
-      
+
       // vivo/OriginOS
       '$storageRoot/.vivo_filemanager_recycle',
-      
+
       // 三星/OneUI
       '$storageRoot/.Trash',
       '$storageRoot/.recycle',
-      
+
       // 通用
       '$storageRoot/.RecyclerBin',
       '$storageRoot/.recycleBin',
-      
+
       // 荣耀/华为相册回收站
       '$storageRoot/Pictures/.Gallery2/recycle/bins',
     ];
 
     logger.i('扫描 ${knownTrashPaths.length} 个已知回收站位置');
-    
+
     for (final trashPath in knownTrashPaths) {
       final dir = Directory(trashPath);
       if (dir.existsSync()) {
         final binId = TrashBin.generateId(trashPath);
         logger.i('✓ 发现回收站: $trashPath (ID: $binId)');
-        
+
         trashBinPaths[binId] = trashPath;
         trashBinFiles[binId] = [];
-        
+
         onProgress?.call(0, 1, trashPath);
-        
+
         // 特殊处理相册回收站的子目录结构
         if (trashPath.contains('.Gallery2') && trashPath.endsWith('/bins')) {
           try {
@@ -418,7 +473,7 @@ class TrashFileService {
     ];
 
     logger.i('动态搜索回收站目录: ${searchPaths.length} 个路径');
-    
+
     for (int i = 0; i < searchPaths.length; i++) {
       final searchPath = searchPaths[i];
       final searchDir = Directory(searchPath);
@@ -430,18 +485,19 @@ class TrashFileService {
       try {
         // 使用异步流式API代替同步listSync，避免阻塞UI
         int processedCount = 0;
-        await for (final entity in searchDir.list(recursive: true, followLinks: false)) {
+        await for (final entity
+            in searchDir.list(recursive: true, followLinks: false)) {
           if (entity is! Directory) continue;
-          
+
           // 每处理100个条目让出控制权，让UI有机会更新
           processedCount++;
           if (processedCount % 100 == 0) {
             await Future.delayed(Duration.zero);
           }
-          
+
           final dirPath = entity.path;
           final dirName = dirPath.split('/').last;
-          
+
           // 检查是否匹配关键字
           bool matches = false;
           for (final keyword in keywords) {
@@ -450,19 +506,19 @@ class TrashFileService {
               break;
             }
           }
-          
+
           if (!matches) continue;
-          
+
           // 避免重复添加
           final binId = TrashBin.generateId(dirPath);
           if (trashBinPaths.containsKey(binId)) continue;
-          
+
           logger.i('✓ 动态发现回收站: $dirPath (ID: $binId)');
           trashBinPaths[binId] = dirPath;
           trashBinFiles[binId] = [];
-          
+
           onProgress?.call(0, 1, dirPath);
-          
+
           await _scanTrashDirectory(
             entity,
             results: trashBinFiles[binId]!,
@@ -478,19 +534,19 @@ class TrashFileService {
     final trashBins = <TrashBin>[];
     final allFiles = <TrashFileItem>[];
     final seenFilePaths = <String>{}; // 用于去重
-    
+
     for (final entry in trashBinPaths.entries) {
       final binId = entry.key;
       final binPath = entry.value;
       final files = trashBinFiles[binId] ?? [];
-      
+
       if (files.isEmpty) {
         logger.d('跳过空回收站: $binPath');
         continue;
       }
-      
+
       final totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
-      
+
       final trashBin = TrashBin(
         id: binId,
         path: binPath,
@@ -499,9 +555,9 @@ class TrashFileService {
         fileCount: files.length,
         totalSize: totalSize,
       );
-      
+
       trashBins.add(trashBin);
-      
+
       // 去重添加文件：只添加未见过的文件路径
       int duplicateCount = 0;
       for (final file in files) {
@@ -511,17 +567,19 @@ class TrashFileService {
           duplicateCount++;
         }
       }
-      
+
       if (duplicateCount > 0) {
         logger.w('回收站 [${trashBin.name}] 检测到 $duplicateCount 个重复文件（已去重）');
       }
-      
-      logger.i('回收站 [${trashBin.name}]: ${files.length} 个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+
+      logger.i(
+          '回收站 [${trashBin.name}]: ${files.length} 个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
     }
 
     logger.i('========================================');
     logger.i('扫描完成: 发现 ${trashBins.length} 个回收站, 共 ${allFiles.length} 个文件');
-    logger.i('总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
+    logger.i(
+        '总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
     logger.i('========================================');
 
     return TrashScanResult(
@@ -543,7 +601,7 @@ class TrashFileService {
       try {
         logger.i('使用MediaStore扫描系统回收站');
         final files = await MediaStoreTrashChannel.queryTrashedFiles();
-        
+
         // 如果MediaStore找到文件，直接返回
         if (files.isNotEmpty) {
           final totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
@@ -570,22 +628,22 @@ class TrashFileService {
       '$storageRoot/.RecycleBinHW',
       '$storageRoot/.\$Trash\$',
       '$storageRoot/.File_Recycle',
-      
+
       // 小米/MIUI
       '$storageRoot/.trashcan',
       '$storageRoot/MIUI/.recycle',
-      
+
       // OPPO/ColorOS
       '$storageRoot/.com.coloros.filemanager/.Trash',
       '$storageRoot/.FileRecycleBin',
-      
+
       // vivo/OriginOS
       '$storageRoot/.vivo_filemanager_recycle',
-      
+
       // 三星/OneUI
       '$storageRoot/.Trash',
       '$storageRoot/.recycle',
-      
+
       // 通用
       '$storageRoot/.RecyclerBin',
       '$storageRoot/.recycleBin',
@@ -602,7 +660,7 @@ class TrashFileService {
         await _scanTrashDirectory(dir, results: trashFiles);
       }
     }
-    
+
     // 特别处理：荣耀/华为相册回收站
     // 结构: Pictures/.Gallery2/recycle/bins/0/xxx.hndgp
     final galleryRecycleBins = '$storageRoot/Pictures/.Gallery2/recycle/bins';
@@ -623,7 +681,7 @@ class TrashFileService {
         logger.e('扫描相册回收站失败: $e');
       }
     }
-    
+
     if (foundCount == 0) {
       logger.w('未找到任何已知的回收站目录，可能需要添加新的厂商支持');
     } else {
@@ -666,39 +724,39 @@ class TrashFileService {
   /// 判断文件是否需要进行文件头检测
   bool _shouldDetectMimeType(String fileName) {
     final lowerName = fileName.toLowerCase();
-    
+
     // 1. 特殊扩展名（厂商加密文件）
     final specialExtensions = [
-      '.hndgp',      // 荣耀相册
-      '.tmp',        // 临时文件可能被重命名
-      '.bak',        // 备份文件可能被重命名
+      '.hndgp', // 荣耀相册
+      '.tmp', // 临时文件可能被重命名
+      '.bak', // 备份文件可能被重命名
     ];
-    
+
     for (final ext in specialExtensions) {
       if (lowerName.endsWith(ext)) {
         return true;
       }
     }
-    
+
     // 2. 无扩展名的文件
     if (!fileName.contains('.') || fileName.startsWith('.')) {
       return true;
     }
-    
+
     // 3. 长字符串文件名（可能是加密/哈希命名）
     // 例如：f20040d3a88f40d16eb35276395c19c2
-    final namePart = fileName.contains('.') 
+    final namePart = fileName.contains('.')
         ? fileName.substring(0, fileName.lastIndexOf('.'))
         : fileName;
-    
+
     // 如果文件名是32位或40位十六进制字符串（可能是MD5/SHA1哈希）
     if (namePart.length >= 32 && RegExp(r'^[a-f0-9]+$').hasMatch(namePart)) {
       return true;
     }
-    
+
     // 4. 华为回收站目录下的所有文件（通常都被重命名）
     // 这个由路径判断，暂时不在这里处理
-    
+
     return false;
   }
 
@@ -707,93 +765,143 @@ class TrashFileService {
     try {
       // 读取文件头32字节（足够识别大多数格式）
       final bytes = await file.openRead(0, 32).first;
-      
+
       // JPEG: FF D8 FF
-      if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      if (bytes.length >= 3 &&
+          bytes[0] == 0xFF &&
+          bytes[1] == 0xD8 &&
+          bytes[2] == 0xFF) {
         return 'image/jpeg';
       }
-      
+
       // PNG: 89 50 4E 47
-      if (bytes.length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47) {
         return 'image/png';
       }
-      
+
       // GIF: GIF8
-      if (bytes.length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x47 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x38) {
         return 'image/gif';
       }
-      
+
       // WebP: RIFF....WEBP
-      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
+      if (bytes.length >= 12 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 12));
         if (format == 'WEBP') {
           return 'image/webp';
         }
       }
-      
+
       // MP4/MOV: ....ftyp
-      if (bytes.length >= 8 && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
+      if (bytes.length >= 8 &&
+          bytes[4] == 0x66 &&
+          bytes[5] == 0x74 &&
+          bytes[6] == 0x79 &&
+          bytes[7] == 0x70) {
         return 'video/mp4';
       }
-      
+
       // AVI: RIFF....AVI
-      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
+      if (bytes.length >= 12 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 11));
         if (format == 'AVI') {
           return 'video/x-msvideo';
         }
       }
-      
+
       // PDF: %PDF
-      if (bytes.length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46) {
         return 'application/pdf';
       }
-      
+
       // ZIP/APK: PK
       if (bytes.length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B) {
         if (bytes[2] == 0x03 && bytes[3] == 0x04) {
           return 'application/zip'; // 可能是ZIP或APK
         }
       }
-      
+
       // RAR: Rar!
-      if (bytes.length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x61 && bytes[2] == 0x72 && bytes[3] == 0x21) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x61 &&
+          bytes[2] == 0x72 &&
+          bytes[3] == 0x21) {
         return 'application/x-rar';
       }
-      
+
       // 7Z: 7z
-      if (bytes.length >= 6 && bytes[0] == 0x37 && bytes[1] == 0x7A && bytes[2] == 0xBC && bytes[3] == 0xAF && bytes[4] == 0x27 && bytes[5] == 0x1C) {
+      if (bytes.length >= 6 &&
+          bytes[0] == 0x37 &&
+          bytes[1] == 0x7A &&
+          bytes[2] == 0xBC &&
+          bytes[3] == 0xAF &&
+          bytes[4] == 0x27 &&
+          bytes[5] == 0x1C) {
         return 'application/x-7z-compressed';
       }
-      
+
       // MP3: ID3 or FF FB/FF F3
       if (bytes.length >= 3) {
         if (bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33) {
           return 'audio/mpeg'; // ID3 tag
         }
-        if (bytes[0] == 0xFF && (bytes[1] == 0xFB || bytes[1] == 0xF3 || bytes[1] == 0xF2)) {
+        if (bytes[0] == 0xFF &&
+            (bytes[1] == 0xFB || bytes[1] == 0xF3 || bytes[1] == 0xF2)) {
           return 'audio/mpeg'; // MPEG frame
         }
       }
-      
+
       // WAV: RIFF....WAVE
-      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
+      if (bytes.length >= 12 &&
+          bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 12));
         if (format == 'WAVE') {
           return 'audio/wav';
         }
       }
-      
+
       // OGG: OggS
-      if (bytes.length >= 4 && bytes[0] == 0x4F && bytes[1] == 0x67 && bytes[2] == 0x67 && bytes[3] == 0x53) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x4F &&
+          bytes[1] == 0x67 &&
+          bytes[2] == 0x67 &&
+          bytes[3] == 0x53) {
         return 'audio/ogg';
       }
-      
+
       // FLAC: fLaC
-      if (bytes.length >= 4 && bytes[0] == 0x66 && bytes[1] == 0x4C && bytes[2] == 0x61 && bytes[3] == 0x43) {
+      if (bytes.length >= 4 &&
+          bytes[0] == 0x66 &&
+          bytes[1] == 0x4C &&
+          bytes[2] == 0x61 &&
+          bytes[3] == 0x43) {
         return 'audio/flac';
       }
-      
+
       return null; // 无法识别
     } catch (e) {
       logger.d('检测文件类型失败: ${file.path}, $e');
@@ -824,20 +932,20 @@ class TrashFileService {
           if (entity is File) {
             final fileName = entity.path.split('/').last;
             String? mimeType;
-            
+
             // 智能检测文件类型：
             // 1. 无扩展名的文件
             // 2. .hndgp等特殊扩展名
             // 3. 华为回收站文件（通常是加密/重命名的）
             final needsDetection = _shouldDetectMimeType(fileName);
-            
+
             if (needsDetection) {
               mimeType = await _detectMimeTypeFromContent(entity);
               if (mimeType != null) {
                 logger.d('文件头检测: $fileName → $mimeType');
               }
             }
-            
+
             // 添加文件
             results.add(TrashFileItem(
               name: fileName,
@@ -927,8 +1035,8 @@ class TrashFileService {
         totalSize += mediaStoreItems
             .take(result['success'] as int)
             .fold<int>(0, (sum, item) => sum + item.size);
-        logger.i(
-            'MediaStore批量删除: 成功${result['success']}, 失败${result['failed']}');
+        logger
+            .i('MediaStore批量删除: 成功${result['success']}, 失败${result['failed']}');
       } catch (e) {
         logger.e('MediaStore批量删除失败: $e');
         failed += mediaStoreItems.length;
@@ -955,7 +1063,7 @@ class TrashFileService {
   }
 
   /// 删除指定回收站的所有文件
-  /// 
+  ///
   /// [trashBinIds] 要清空的回收站ID列表
   /// [allFiles] 所有文件列表（用于过滤）
   Future<Map<String, dynamic>> deleteTrashBinFiles({
@@ -966,7 +1074,8 @@ class TrashFileService {
 
     // 过滤出属于指定回收站的文件
     final filesToDelete = allFiles
-        .where((file) => file.trashBinId != null && trashBinIds.contains(file.trashBinId))
+        .where((file) =>
+            file.trashBinId != null && trashBinIds.contains(file.trashBinId))
         .toList();
 
     if (filesToDelete.isEmpty) {
@@ -1019,7 +1128,7 @@ class TrashFileService {
   }
 
   /// 恢复单个文件
-  /// 
+  ///
   /// [item] 要恢复的文件项
   /// 返回恢复结果：success, targetPath, message
   Future<Map<String, dynamic>> restoreFile(TrashFileItem item) async {
@@ -1075,9 +1184,10 @@ class TrashFileService {
   }
 
   /// 批量恢复文件
-  /// 
+  ///
   /// [items] 要恢复的文件列表
-  Future<Map<String, dynamic>> restoreMultiple(List<TrashFileItem> items) async {
+  Future<Map<String, dynamic>> restoreMultiple(
+      List<TrashFileItem> items) async {
     logger.i('开始批量恢复 ${items.length} 个文件');
 
     int success = 0;
@@ -1112,11 +1222,11 @@ class TrashFileService {
   }
 
   /// 获取默认恢复路径
-  /// 
+  ///
   /// 所有文件统一恢复到 EasyFile/Restored/ 目录
   String _getDefaultRestorePath(TrashFileItem item) {
     final basePath = '/storage/emulated/0/EasyFile/Restored';
-    
+
     // 生成有意义的文件名（基于删除时间和文件类型）
     final fileName = _generateRestoreFileName(item);
 
@@ -1124,7 +1234,7 @@ class TrashFileService {
   }
 
   /// 生成恢复文件名
-  /// 
+  ///
   /// 根据MIME类型和删除时间生成有意义的文件名
   /// 例如：IMG_20251203_143012.jpg, VID_20251203_143012.mp4
   String _generateRestoreFileName(TrashFileItem item) {
@@ -1136,12 +1246,13 @@ class TrashFileService {
 
     // 根据MIME类型确定文件扩展名
     final extension = _getExtensionFromMimeType(item.mimeType);
-    
+
     // 使用删除时间或修改时间生成时间戳
     final time = item.trashedTime ?? item.modified;
-    final timestamp = '${time.year}${time.month.toString().padLeft(2, '0')}${time.day.toString().padLeft(2, '0')}_'
-                     '${time.hour.toString().padLeft(2, '0')}${time.minute.toString().padLeft(2, '0')}${time.second.toString().padLeft(2, '0')}';
-    
+    final timestamp =
+        '${time.year}${time.month.toString().padLeft(2, '0')}${time.day.toString().padLeft(2, '0')}_'
+        '${time.hour.toString().padLeft(2, '0')}${time.minute.toString().padLeft(2, '0')}${time.second.toString().padLeft(2, '0')}';
+
     // 根据文件类型生成前缀
     String prefix;
     if (item.mimeType.startsWith('image/')) {
@@ -1155,7 +1266,7 @@ class TrashFileService {
     } else {
       prefix = 'FILE';
     }
-    
+
     return '${prefix}_$timestamp$extension';
   }
 
@@ -1167,26 +1278,29 @@ class TrashFileService {
     if (fileName.toLowerCase().endsWith('.hndgp')) {
       return true;
     }
-    
+
     // 文件名（去除扩展名）如果超过40个字符且主要是大写字母，可能是编码的
-    final nameWithoutExt = fileName.contains('.') 
+    final nameWithoutExt = fileName.contains('.')
         ? fileName.substring(0, fileName.lastIndexOf('.'))
         : fileName;
-    
+
     if (nameWithoutExt.length > 40) {
-      final upperCount = nameWithoutExt.split('').where((c) => c == c.toUpperCase() && c != c.toLowerCase()).length;
+      final upperCount = nameWithoutExt
+          .split('')
+          .where((c) => c == c.toUpperCase() && c != c.toLowerCase())
+          .length;
       if (upperCount > nameWithoutExt.length * 0.8) {
         return true; // 80%以上是大写字母，判定为编码
       }
     }
-    
+
     return false;
   }
 
   /// 根据MIME类型获取合适的文件扩展名
   String _getExtensionFromMimeType(String mimeType) {
     final lower = mimeType.toLowerCase();
-    
+
     // 图片
     if (lower.contains('jpeg') || lower.contains('jpg')) return '.jpg';
     if (lower.contains('png')) return '.png';
@@ -1194,7 +1308,7 @@ class TrashFileService {
     if (lower.contains('webp')) return '.webp';
     if (lower.contains('bmp')) return '.bmp';
     if (lower.contains('heic') || lower.contains('heif')) return '.heic';
-    
+
     // 视频
     if (lower.contains('mp4')) return '.mp4';
     if (lower.contains('avi')) return '.avi';
@@ -1202,7 +1316,7 @@ class TrashFileService {
     if (lower.contains('mkv')) return '.mkv';
     if (lower.contains('webm')) return '.webm';
     if (lower.contains('3gp')) return '.3gp';
-    
+
     // 音频
     if (lower.contains('mp3') || lower.contains('mpeg')) return '.mp3';
     if (lower.contains('wav')) return '.wav';
@@ -1210,25 +1324,25 @@ class TrashFileService {
     if (lower.contains('aac')) return '.aac';
     if (lower.contains('ogg')) return '.ogg';
     if (lower.contains('m4a')) return '.m4a';
-    
+
     // 文档
     if (lower.contains('pdf')) return '.pdf';
     if (lower.contains('word') || lower.contains('doc')) return '.docx';
     if (lower.contains('excel') || lower.contains('xls')) return '.xlsx';
     if (lower.contains('powerpoint') || lower.contains('ppt')) return '.pptx';
     if (lower.contains('text')) return '.txt';
-    
+
     // 压缩
     if (lower.contains('zip')) return '.zip';
     if (lower.contains('rar')) return '.rar';
     if (lower.contains('7z')) return '.7z';
-    
+
     // 默认
     return '.file';
   }
 
   /// 解决文件名冲突（自动重命名）
-  /// 
+  ///
   /// 如果目标文件已存在，自动添加序号：file.jpg → file(1).jpg
   Future<String> _resolveFileConflict(String targetPath) async {
     final file = File(targetPath);

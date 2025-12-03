@@ -20,8 +20,7 @@ bool _isTempFileHelper(String lowerName) {
 int _getMaxDepthHelper(String path) {
   final lowerPath = path.toLowerCase();
 
-  if (lowerPath.contains('android/data') ||
-      lowerPath.contains('android/obb')) {
+  if (lowerPath.contains('android/data') || lowerPath.contains('android/obb')) {
     return 3;
   }
 
@@ -85,8 +84,10 @@ void main() {
         expect(_isTempFileHelper('document.pdf'), false);
         expect(_isTempFileHelper('image.jpg'), false);
         expect(_isTempFileHelper('video.mp4'), false);
-        expect(_isTempFileHelper('template.docx'), false); // contains 'temp' but not temp file
-        expect(_isTempFileHelper('temptation.txt'), false); // starts with 'temp' but not temp_
+        expect(_isTempFileHelper('template.docx'),
+            false); // contains 'temp' but not temp file
+        expect(_isTempFileHelper('temptation.txt'),
+            false); // starts with 'temp' but not temp_
       });
 
       test('should NOT identify APK files as temp', () {
@@ -98,13 +99,16 @@ void main() {
     group('_getMaxDepth logic tests', () {
       test('should return 3 for android/data paths', () {
         expect(_getMaxDepthHelper('/storage/emulated/0/Android/data'), 3);
-        expect(_getMaxDepthHelper('/storage/emulated/0/android/data/com.example'), 3);
+        expect(
+            _getMaxDepthHelper('/storage/emulated/0/android/data/com.example'),
+            3);
         expect(_getMaxDepthHelper('/STORAGE/ANDROID/DATA'), 3);
       });
 
       test('should return 3 for android/obb paths', () {
         expect(_getMaxDepthHelper('/storage/emulated/0/Android/obb'), 3);
-        expect(_getMaxDepthHelper('/storage/emulated/0/android/obb/com.game'), 3);
+        expect(
+            _getMaxDepthHelper('/storage/emulated/0/android/obb/com.game'), 3);
       });
 
       test('should return 5 for DCIM paths', () {
@@ -115,7 +119,8 @@ void main() {
 
       test('should return 5 for Pictures paths', () {
         expect(_getMaxDepthHelper('/storage/emulated/0/Pictures'), 5);
-        expect(_getMaxDepthHelper('/storage/emulated/0/pictures/Screenshots'), 5);
+        expect(
+            _getMaxDepthHelper('/storage/emulated/0/pictures/Screenshots'), 5);
       });
 
       test('should return 10 for other paths', () {
@@ -158,7 +163,7 @@ void main() {
         expect(config.scanEmptyFolders, true);
         expect(config.onlyInstalledApk, false); // 修复后的默认值
         expect(config.minTempFileDays, 7);
-        
+
         // 验证默认排除路径（防止扫描系统目录）
         expect(config.excludePaths.length, 5);
         expect(config.excludePaths, contains('Android/data'));
@@ -206,7 +211,8 @@ void main() {
           onlyInstalledApk: false,
           minTempFileDays: 10,
         );
-        expect(config.description, 'APK:true(仅已装:false)|临时:false(10天+)|空文件夹:true');
+        expect(
+            config.description, 'APK:true(仅已装:false)|临时:false(10天+)|空文件夹:true');
       });
 
       test('should create copy with modified values', () {
@@ -218,14 +224,15 @@ void main() {
         expect(modified.scanApk, false);
         expect(modified.minTempFileDays, 14);
         expect(modified.scanTempFiles, original.scanTempFiles); // unchanged
-        expect(modified.scanEmptyFolders, original.scanEmptyFolders); // unchanged
+        expect(
+            modified.scanEmptyFolders, original.scanEmptyFolders); // unchanged
       });
 
       test('should compare configs by description', () {
         const config1 = JunkFileScanConfig(minTempFileDays: 7);
         const config2 = JunkFileScanConfig(minTempFileDays: 7);
         const config3 = JunkFileScanConfig(minTempFileDays: 14);
-        
+
         expect(config1 == config2, true);
         expect(config1 == config3, false);
         expect(config1.hashCode == config2.hashCode, true);
@@ -342,4 +349,3 @@ void main() {
     });
   });
 }
-

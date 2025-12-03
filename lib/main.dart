@@ -45,7 +45,6 @@ Future<void> main() async {
 
   logger.i('Running EasyFile app');
 
-
   // 启动Flutter应用
   runApp(const EasyFileApp());
 }

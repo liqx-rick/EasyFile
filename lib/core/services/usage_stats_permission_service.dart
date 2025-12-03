@@ -10,13 +10,15 @@ import 'package:easyfile/core/services/system_intent_service.dart';
 /// 2. 查询应用最后使用时间
 class UsageStatsPermissionService {
   final _intentService = locator<SystemIntentService>();
-  static const MethodChannel _channel = MethodChannel('com.easyfile/permission');
+  static const MethodChannel _channel =
+      MethodChannel('com.easyfile/permission');
 
   /// 检查是否已授予使用统计权限
   Future<bool> isGranted() async {
     try {
       logger.d('Checking PACKAGE_USAGE_STATS permission');
-      final granted = await _channel.invokeMethod<bool>('hasUsageStatsPermission');
+      final granted =
+          await _channel.invokeMethod<bool>('hasUsageStatsPermission');
       logger.i('PACKAGE_USAGE_STATS permission: ${granted ?? false}');
       return granted ?? false;
     } catch (e) {

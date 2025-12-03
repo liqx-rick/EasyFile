@@ -61,7 +61,7 @@ class FilesBrowseCard extends StatelessWidget {
             ),
           ),
         );
-        
+
         // 从存储页面返回后,如果当前在最近Tab,刷新最近文件列表
         if (viewModel.currentTab == TabView.recent) {
           presenter.loadRecentFiles();

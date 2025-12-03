@@ -11,7 +11,8 @@ import 'package:easyfile/data/models/app_info.dart';
 ///
 /// 使用Android原生StorageStatsManager API (Android 8.0+)
 class AppStorageService {
-  static const MethodChannel _channel = MethodChannel('com.easyfile/storage_stats');
+  static const MethodChannel _channel =
+      MethodChannel('com.easyfile/storage_stats');
 
   /// 获取应用的首次安装时间
   ///
@@ -35,9 +36,11 @@ class AppStorageService {
   Future<AppStorageInfo?> getAppStorageInfo(String packageName) async {
     try {
       // 检查平台支持
-      final isSupported = await _channel.invokeMethod<bool>('isSupported') ?? false;
+      final isSupported =
+          await _channel.invokeMethod<bool>('isSupported') ?? false;
       if (!isSupported) {
-        logger.w('StorageStatsManager not supported on this device (requires Android 8.0+)');
+        logger.w(
+            'StorageStatsManager not supported on this device (requires Android 8.0+)');
         return null;
       }
 
@@ -53,7 +56,8 @@ class AppStorageService {
         final dataSize = (result['dataSize'] as num?)?.toInt() ?? 0;
         final cacheSize = (result['cacheSize'] as num?)?.toInt() ?? 0;
 
-        logger.d('Got storage stats for $packageName: app=${appSize}B, data=${dataSize}B, cache=${cacheSize}B');
+        logger.d(
+            'Got storage stats for $packageName: app=${appSize}B, data=${dataSize}B, cache=${cacheSize}B');
 
         return AppStorageInfo(
           appSize: appSize,

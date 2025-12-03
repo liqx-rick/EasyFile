@@ -50,19 +50,21 @@ class TrashFileItem {
   /// 根据文件名推断MIME类型
   static String _inferMimeType(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    
+
     // 荣耀/华为相册回收站特殊扩展名 (.hndgp)
     // 需要根据文件内容判断真实类型，这里先标记为图片类型
     if (ext == 'hndgp') {
       return 'image/unknown'; // 将在扫描时根据文件头更新
     }
-    
+
     // 图片
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif'].contains(ext)) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif']
+        .contains(ext)) {
       return 'image/$ext';
     }
     // 视频
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', '3gp', 'webm', 'm4v'].contains(ext)) {
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', '3gp', 'webm', 'm4v']
+        .contains(ext)) {
       return 'video/$ext';
     }
     // 音频
@@ -70,14 +72,15 @@ class TrashFileItem {
       return 'audio/$ext';
     }
     // 文档
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].contains(ext)) {
+    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
+        .contains(ext)) {
       return 'application/$ext';
     }
     // 压缩文件
     if (['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) {
       return 'application/$ext';
     }
-    
+
     return 'application/octet-stream';
   }
 
@@ -162,9 +165,7 @@ class TrashFileItem {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    return other is TrashFileItem &&
-        other.path == path &&
-        other.size == size;
+    return other is TrashFileItem && other.path == path && other.size == size;
   }
 
   @override

@@ -936,7 +936,7 @@ class FilePresenter {
             filesToAdd.add(favoriteFile);
           }
         }
-        
+
         // 批量添加到viewModel（内部延迟通知）
         if (filesToAdd.isNotEmpty) {
           viewModel.batchAddFavoriteFiles(filesToAdd);
