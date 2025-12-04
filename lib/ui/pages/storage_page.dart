@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:path/path.dart' as path;
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -15,7 +16,6 @@ import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
-import 'package:easyfile/utils/android_test_file_creator.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/utils/file_utils.dart';
@@ -39,6 +39,9 @@ class _StoragePageState extends State<StoragePage> {
   String _searchQuery = '';
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
+
+  // 编辑模式状态
+  bool _isEditMode = false;
 
   // 批量操作相关状态（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
@@ -145,6 +148,135 @@ class _StoragePageState extends State<StoragePage> {
         .where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
     return _getSortedFiles(filtered);
+  }
+
+  /// 进入编辑模式
+  void _enterEditMode() {
+    setState(() {
+      _isEditMode = true;
+    });
+  }
+
+  /// 退出编辑模式
+  void _exitEditMode() {
+    setState(() {
+      _isEditMode = false;
+      // 退出编辑模式时，清除所有选中项
+      _selectionController.clear();
+    });
+  }
+
+  /// 显示新建文件夹对话框
+  Future<void> _showCreateFolderDialog() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('新建文件夹'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: '文件夹名称',
+            hintText: '请输入文件夹名称',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+          onSubmitted: (value) {
+            if (value.isNotEmpty) {
+              Navigator.pop(context, value);
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                Navigator.pop(context, name);
+              }
+            },
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      await _createFolder(result);
+    }
+  }
+
+  /// 创建文件夹
+  Future<void> _createFolder(String name) async {
+    try {
+      // 验证文件夹名称
+      if (name.contains('/') || name.contains('\\')) {
+        _showMessage('文件夹名称不能包含 / 或 \\');
+        return;
+      }
+
+      final newPath = path.join(_currentPath, name);
+      final dir = Directory(newPath);
+
+      if (await dir.exists()) {
+        _showMessage('文件夹已存在');
+        return;
+      }
+
+      await dir.create(recursive: true);
+      _showMessage('创建成功');
+      
+      // 刷新文件列表
+      _loadFilesInPath(_currentPath);
+    } catch (e) {
+      logger.e('Failed to create folder: $e');
+      _showMessage('创建失败: $e');
+    }
+  }
+
+  /// 显示提示消息
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// 获取全选复选框的状态（三态）
+  bool? _getSelectAllCheckboxValue() {
+    final totalCount = _filteredFiles.length;
+    final selectedCount = _selectedItems.length;
+    
+    if (selectedCount == 0) {
+      return false;  // 未选中任何项 → 空心框
+    } else if (selectedCount == totalCount && totalCount > 0) {
+      return true;   // 全部选中 → 勾选框
+    } else {
+      return null;   // 部分选中 → 横线框（indeterminate）
+    }
+  }
+
+  /// 处理全选/取消全选
+  void _handleSelectAll() {
+    if (_selectedItems.length == _filteredFiles.length) {
+      // 取消全选：清空选择，但保持在编辑模式和选择模式
+      // 直接调用 clear() 会退出选择模式，所以我们手动清空选择集
+      setState(() {
+        _selectionController.selectedNotifier.value = {};
+        // 确保选择模式保持激活状态（编辑模式下必须保持选择模式）
+        if (!_selectionController.isSelectionMode) {
+          _selectionController.selectionModeNotifier.value = true;
+        }
+      });
+    } else {
+      _selectionController.selectAll(
+        _filteredFiles.map((f) => f.path).toList(),
+      );
+    }
   }
 
   bool _isLoading = true;
@@ -548,7 +680,13 @@ class _StoragePageState extends State<StoragePage> {
   }
 
   void _onFileTap(FileItem file) {
-    // 多选模式下，点击切换选中状态
+    // 编辑模式下，点击文件/文件夹自动进入选择模式并选中
+    if (_isEditMode && !_selectionController.isSelectionMode) {
+      _selectionController.select(file.path);
+      return;
+    }
+    
+    // 选择模式下，点击切换选中状态
     if (_selectionController.isSelectionMode) {
       if (_selectedItems.contains(file.path)) {
         _selectionController.deselect(file.path);
@@ -842,7 +980,13 @@ class _StoragePageState extends State<StoragePage> {
           return false;
         }
 
-        // 优先级2: 退出搜索模式
+        // 优先级2: 退出编辑模式
+        if (_isEditMode) {
+          _exitEditMode();
+          return false;
+        }
+
+        // 优先级3: 退出搜索模式
         if (_isSearchMode) {
           setState(() {
             _searchQuery = '';
@@ -852,13 +996,13 @@ class _StoragePageState extends State<StoragePage> {
           return false;
         }
 
-        // 优先级3: 子文件夹返回上级
+        // 优先级4: 子文件夹返回上级
         if (_canNavigateUp(_currentPath)) {
           _navigateUp();
           return false;
         }
 
-        // 优先级4: 其他情况允许系统默认行为（返回主页）
+        // 优先级5: 其他情况允许系统默认行为（返回主页）
         return true;
       },
       child: Scaffold(
@@ -873,22 +1017,38 @@ class _StoragePageState extends State<StoragePage> {
                   },
                   tooltip: '取消',
                 )
-              : IconButton(
-                  icon: const Icon(Icons.home),
-                  onPressed: () => Navigator.of(context).pop(),
-                  tooltip: '返回主页',
-                  padding: const EdgeInsets.all(4),
-                  visualDensity: VisualDensity.compact,
-                  iconSize: 22,
-                ),
+              : _isEditMode
+                  ? Container(
+                      width: 40,
+                      height: 40,
+                      margin: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.edit,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 20,
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.home),
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: '返回主页',
+                      padding: const EdgeInsets.all(4),
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 22,
+                    ),
+          automaticallyImplyLeading: false,  // 禁用自动 leading
           leadingWidth: 48,
           titleSpacing: 4,
           title: _selectionController.isSelectionMode
               ? Text('已选中 ${_selectedItems.length} 项')
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                     // 主标题：当前文件夹名称
                     Text(
                       _getCurrentFolderName(),
@@ -925,63 +1085,42 @@ class _StoragePageState extends State<StoragePage> {
                 ),
           actions: _selectionController.isSelectionMode
               ? [
-                  // 全选按钮
-                  IconButton(
-                    icon: Icon(
-                      _selectedItems.length == _filteredFiles.length
-                          ? Icons.deselect
-                          : Icons.select_all,
+                  // 全选复选框（三态支持）
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InkWell(
+                      onTap: _handleSelectAll,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: _getSelectAllCheckboxValue(),
+                              tristate: true,
+                              onChanged: (_) => _handleSelectAll(),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '全选',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    onPressed: () {
-                      if (_selectedItems.length == _filteredFiles.length) {
-                        _selectionController.clear();
-                      } else {
-                        _selectionController.selectAll(
-                          _filteredFiles.map((f) => f.path).toList(),
-                        );
-                      }
-                    },
-                    tooltip: _selectedItems.length == _filteredFiles.length
-                        ? '取消全选'
-                        : '全选',
                   ),
                 ]
               : [
-                  // 测试按钮（仅Android）
-                  if (Platform.isAndroid)
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.science, size: 20),
-                      tooltip: '测试工具',
-                      onSelected: (value) async {
-                        if (value == 'create') {
-                          await _createTestFiles();
-                        } else if (value == 'cleanup') {
-                          await _cleanupTestFiles();
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'create',
-                          child: Row(
-                            children: [
-                              Icon(Icons.create_new_folder, size: 18),
-                              SizedBox(width: 8),
-                              Text('创建测试文件'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'cleanup',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete_sweep, size: 18),
-                              SizedBox(width: 8),
-                              Text('清理测试文件'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
                   // 使用Row来控制按钮间距
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
@@ -1005,6 +1144,19 @@ class _StoragePageState extends State<StoragePage> {
                           onSortPressed: _showSortOptions,
                           showGroupButton: true,
                           onGroupToggle: () => setState(() {}),
+                          iconSize: 22,
+                        ),
+                        // 右侧最后按钮：编辑模式显示完成按钮，正常模式显示编辑按钮
+                        IconButton(
+                          icon: Icon(_isEditMode ? Icons.close : Icons.edit_outlined),
+                          onPressed: _isEditMode ? _exitEditMode : _enterEditMode,
+                          tooltip: _isEditMode ? '完成' : '编辑',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
+                          ),
                           iconSize: 22,
                         ),
                       ],
@@ -1043,6 +1195,23 @@ class _StoragePageState extends State<StoragePage> {
                               _searchQuery = query;
                             });
                           },
+                        ),
+
+                      // 编辑模式工具栏（Material You 风格）
+                      if (_isEditMode)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: FilledButton.icon(
+                            onPressed: _showCreateFolderDialog,
+                            icon: const Icon(Icons.create_new_folder),
+                            label: const Text('新建文件夹'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
 
                       // 搜索范围选择器
@@ -1211,120 +1380,5 @@ class _StoragePageState extends State<StoragePage> {
         });
       },
     );
-  }
-
-  /// 创建测试文件
-  Future<void> _createTestFiles() async {
-    // 显示加载对话框
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('正在创建测试文件...'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      await AndroidTestFileCreator.createTestStructure();
-
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 关闭加载对话框
-
-      // 刷新文件列表
-      await _loadStorageFiles();
-
-      // 显示成功提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ 测试文件创建成功！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 关闭加载对话框
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ 创建失败: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  /// 清理测试文件
-  Future<void> _cleanupTestFiles() async {
-    // 显示确认对话框
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: const Text('确定要删除所有测试文件吗？此操作不可恢复。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    // 显示加载对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('正在清理测试文件...'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      await AndroidTestFileCreator.cleanupTestFiles();
-
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 关闭加载对话框
-
-      // 刷新文件列表
-      await _loadStorageFiles();
-
-      // 显示成功提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ 测试文件已清理！'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 关闭加载对话框
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ 清理失败: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 }
