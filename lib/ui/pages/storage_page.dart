@@ -12,7 +12,9 @@ import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
@@ -914,6 +916,21 @@ class _StoragePageState extends State<StoragePage> {
     final isGroupEnabled =
         PageSettingsService().getGroupEnabled(PageId.storage);
 
+    // 获取视图配置：对图片/视频文件应用简洁模式
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+    if (isGridView) {
+      viewConfigBuilder = (file) {
+        final shouldUseCompactMode = !file.isDirectory &&
+            (file.category == FileCategory.image ||
+                file.category == FileCategory.video);
+        if (shouldUseCompactMode) {
+          final showFileInfo = PageSettingsService().getGridShowFileInfo(PageId.storage);
+          return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
+        }
+        return null;
+      };
+    }
+
     // 根据是否启用分组来决定显示方式
     if (isGroupEnabled) {
       final groupMap = _groupFilesByDate(_filteredFiles);
@@ -940,6 +957,7 @@ class _StoragePageState extends State<StoragePage> {
           return await widget.presenter.toggleFavoriteFile(file);
         },
         useUnifiedGridItem: true,
+        viewConfigBuilder: viewConfigBuilder,
         onTap: (file) => _onFileTap(file),
         onLongPress: _selectionController.isSelectionMode
             ? (file) {
@@ -967,6 +985,7 @@ class _StoragePageState extends State<StoragePage> {
         return await widget.presenter.toggleFavoriteFile(file);
       },
       useUnifiedGridItem: true,
+      viewConfigBuilder: viewConfigBuilder,
       onTap: (file) => _onFileTap(file),
       onLongPress: _selectionController.isSelectionMode
           ? (file) {

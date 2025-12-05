@@ -66,14 +66,24 @@ class FileTypeAnalyzer {
   }
 
   /// 根据分类筛选文件列表
-  List<FileItem> filterByCategory(List<FileItem> items, FileCategory category) {
+  List<FileItem> filterByCategory(
+    List<FileItem> items,
+    FileCategory category, {
+    bool hideFolders = false,
+  }) {
     if (category == FileCategory.all) {
       return items;
     }
 
     return items.where((item) {
-      // 文件夹始终显示
-      if (item.isDirectory) return true;
+      // 需要隐藏文件夹时，直接过滤掉所有文件夹
+      if (item.isDirectory && hideFolders) {
+        return false;
+      }
+      // 文件夹显示（当不需要隐藏时）
+      if (item.isDirectory) {
+        return true;
+      }
       // 文件按分类筛选
       return item.category == category;
     }).toList();
