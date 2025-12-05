@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 批量选择操作底部工具栏
@@ -50,10 +49,10 @@ class SelectionBottomBar extends StatelessWidget {
   });
 
   /// 统计选中项的文件和文件夹信息
+  /// 用于判断是否可以执行特定操作（如分享仅支持文件）
   _SelectionStats _calculateStats() {
     int fileCount = 0;
     int folderCount = 0;
-    int totalSize = 0;
 
     for (final path in selectedPaths) {
       try {
@@ -62,11 +61,6 @@ class SelectionBottomBar extends StatelessWidget {
           folderCount++;
         } else if (entity == FileSystemEntityType.file) {
           fileCount++;
-          try {
-            totalSize += File(path).lengthSync();
-          } catch (e) {
-            logger.w('Failed to get file size: $path');
-          }
         }
       } catch (e) {
         logger.w('Failed to check file type: $path');
@@ -76,9 +70,8 @@ class SelectionBottomBar extends StatelessWidget {
     return _SelectionStats(
       fileCount: fileCount,
       folderCount: folderCount,
-      totalSize: totalSize,
       hasOnlyFiles: folderCount == 0 && fileCount > 0,
-      hasFiles: fileCount > 0, // 有文件（不管是否有文件夹）
+      hasFiles: fileCount > 0,
       isSingleSelection: selectedPaths.length == 1,
     );
   }
@@ -97,7 +90,7 @@ class SelectionBottomBar extends StatelessWidget {
             // 显示选中信息
             Expanded(
               child: Text(
-                hasSelection ? _buildSelectionInfo(stats) : '请选择文件或文件夹',
+                hasSelection ? '已选择 ${selectedPaths.length} 项' : '请选择文件或文件夹',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -108,42 +101,33 @@ class SelectionBottomBar extends StatelessWidget {
               ),
             ),
 
-            // 操作按钮区域 - 紧凑靠右显示
-            // 复制按钮（支持多选）
-            IconButton(
-              icon: const Icon(Icons.copy, size: 22),
-              onPressed: hasSelection && onCopy != null ? onCopy : null,
-              tooltip: '复制',
-              color: hasSelection ? null : Colors.grey,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              visualDensity: VisualDensity.compact,
-            ),
-
-            const SizedBox(width: 4),
-
+            // 操作按钮区域 - 移动、删除、更多
+            const SizedBox(width: 8),
+            
             // 移动按钮
-            IconButton(
-              icon: const Icon(Icons.drive_file_move, size: 22),
+            TextButton.icon(
+              icon: const Icon(Icons.drive_file_move, size: 18),
+              label: const Text('移动'),
               onPressed: hasSelection && onMove != null ? onMove : null,
-              tooltip: '移动',
-              color: hasSelection ? null : Colors.grey,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              visualDensity: VisualDensity.compact,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
 
             const SizedBox(width: 4),
 
             // 删除按钮
-            IconButton(
-              icon: const Icon(Icons.delete, size: 22),
+            TextButton.icon(
+              icon: const Icon(Icons.delete, size: 18),
+              label: const Text('删除'),
               onPressed: hasSelection && onDelete != null ? onDelete : null,
-              tooltip: '删除',
-              color: hasSelection ? null : Colors.grey,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              visualDensity: VisualDensity.compact,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
 
             const SizedBox(width: 4),
@@ -160,6 +144,9 @@ class SelectionBottomBar extends StatelessWidget {
               offset: const Offset(0, 8),
               onSelected: (value) {
                 switch (value) {
+                  case 'copy':
+                    onCopy?.call();
+                    break;
                   case 'rename':
                     onRename?.call();
                     break;
@@ -172,6 +159,37 @@ class SelectionBottomBar extends StatelessWidget {
                 }
               },
               itemBuilder: (context) => [
+                // 复制
+                PopupMenuItem<String>(
+                  value: 'copy',
+                  enabled: hasSelection && onCopy != null,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: SizedBox(
+                    width: 120,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.copy,
+                          size: 20,
+                          color: hasSelection
+                              ? Theme.of(context).colorScheme.onSurface
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '复制',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: hasSelection
+                                ? Theme.of(context).colorScheme.onSurface
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 // 重命名（仅单选）
                 PopupMenuItem<String>(
                   value: 'rename',
@@ -306,33 +324,20 @@ class SelectionBottomBar extends StatelessWidget {
       ),
     );
   }
-
-  /// 构建选中信息文本
-  String _buildSelectionInfo(_SelectionStats stats) {
-    final parts = <String>[];
-    if (stats.fileCount > 0) parts.add('${stats.fileCount} 个文件');
-    if (stats.folderCount > 0) parts.add('${stats.folderCount} 个文件夹');
-    final info = parts.join('，');
-    if (stats.totalSize > 0) {
-      return '$info · ${FileUtils.formatFileSize(stats.totalSize)}';
-    }
-    return info;
-  }
 }
 
 /// 选中项统计信息
+/// 用于判断操作按钮的可用性
 class _SelectionStats {
   final int fileCount;
   final int folderCount;
-  final int totalSize;
-  final bool hasOnlyFiles; // 只有文件，没有文件夹
-  final bool hasFiles; // 有文件（不管是否有文件夹）
-  final bool isSingleSelection;
+  final bool hasOnlyFiles; // 只有文件，没有文件夹（用于分享功能判断）
+  final bool hasFiles; // 有文件（不管是否有文件夹，用于收藏功能判断）
+  final bool isSingleSelection; // 单选（用于重命名功能判断）
 
   _SelectionStats({
     required this.fileCount,
     required this.folderCount,
-    required this.totalSize,
     required this.hasOnlyFiles,
     required this.hasFiles,
     required this.isSingleSelection,

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/core/services/category_sort_service.dart';
@@ -941,7 +942,14 @@ class _StoragePageState extends State<StoragePage> {
         },
         useUnifiedGridItem: true,
         onTap: (file) => _onFileTap(file),
-        // onLongPress 移除，由 FileCollectionView 内部处理
+        onLongPress: _selectionController.isSelectionMode
+            ? (file) {
+                // 仅对文件显示详情面板，文件夹保持默认行为
+                if (!file.isDirectory) {
+                  _showFileDetailsBottomSheet(file);
+                }
+              }
+            : null,
       );
     }
 
@@ -961,7 +969,14 @@ class _StoragePageState extends State<StoragePage> {
       },
       useUnifiedGridItem: true,
       onTap: (file) => _onFileTap(file),
-      // onLongPress 移除，由 FileCollectionView 内部处理
+      onLongPress: _selectionController.isSelectionMode
+          ? (file) {
+              // 仅对文件显示详情面板，文件夹保持默认行为
+              if (!file.isDirectory) {
+                _showFileDetailsBottomSheet(file);
+              }
+            }
+          : null,
     );
   }
 
@@ -1043,9 +1058,7 @@ class _StoragePageState extends State<StoragePage> {
           automaticallyImplyLeading: false,  // 禁用自动 leading
           leadingWidth: 48,
           titleSpacing: 4,
-          title: _selectionController.isSelectionMode
-              ? Text('已选中 ${_selectedItems.length} 项')
-              : Column(
+          title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1380,5 +1393,140 @@ class _StoragePageState extends State<StoragePage> {
         });
       },
     );
+  }
+
+  /// 显示文件详情底部面板
+  void _showFileDetailsBottomSheet(FileItem file) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: colorScheme.primary,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '文件详情',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // 文件名
+            _buildDetailRow(
+              '文件名',
+              file.name,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+            
+            // 完整路径
+            _buildDetailRow(
+              '完整路径',
+              file.path,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+            
+            // 文件大小
+            _buildDetailRow(
+              '文件大小',
+              _formatFileSize(file.size),
+              colorScheme,
+            ),
+            const SizedBox(height: 16),
+            
+            // 修改时间
+            _buildDetailRow(
+              '修改时间',
+              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
+              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
+              colorScheme,
+            ),
+            const SizedBox(height: 24),
+            
+            // 关闭按钮
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建详情行
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    ColorScheme colorScheme, {
+    bool isSelectable = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label：',
+          style: TextStyle(
+            fontSize: 14,
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: isSelectable
+              ? SelectableText(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                )
+              : Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// 格式化文件大小
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }

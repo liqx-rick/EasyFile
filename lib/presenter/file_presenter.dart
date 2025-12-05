@@ -1226,11 +1226,26 @@ class FilePresenter {
         debugPrint('  系统路径示例 1-3: ${systemPaths.take(3).join(', ')}');
       }
 
-      // 阶段2: 发现用户自定义文件夹（根目录第一层扫描）
+      // 阶段2: 添加根目录本身（用于扫描根目录直接放置的文件）
+      String? rootPath;
+      if (Platform.isAndroid) {
+        rootPath = '/storage/emulated/0';
+      } else if (Platform.isWindows) {
+        rootPath = Platform.environment['USERPROFILE'];
+      } else {
+        rootPath = Platform.environment['HOME'];
+      }
+      if (rootPath != null && Directory(rootPath).existsSync()) {
+        paths.add(rootPath);
+        logger.d('Added root path itself: $rootPath');
+        debugPrint('[路径发现] 阶段2-根目录本身: $rootPath');
+      }
+
+      // 阶段3: 发现用户自定义文件夹（根目录第一层扫描）
       final discoveredPaths = await _discoverUserFolders();
       paths.addAll(discoveredPaths);
       logger.d('Discovered user folders: ${discoveredPaths.length}');
-      debugPrint('[路径发现] 阶段2-用户文件夹: ${discoveredPaths.length} 个');
+      debugPrint('[路径发现] 阶段3-用户文件夹: ${discoveredPaths.length} 个');
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
