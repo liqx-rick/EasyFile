@@ -143,20 +143,24 @@ class SelectionBottomBar extends StatelessWidget {
               position: PopupMenuPosition.under,
               offset: const Offset(0, 8),
               onSelected: (value) {
-                switch (value) {
-                  case 'copy':
-                    onCopy?.call();
-                    break;
-                  case 'rename':
-                    onRename?.call();
-                    break;
-                  case 'share':
-                    onShare?.call();
-                    break;
-                  case 'favorite':
-                    onToggleFavorite?.call();
-                    break;
-                }
+                // ⚠️ 延迟执行回调，等待 PopupMenu 完全关闭
+                // 避免在 PopupMenu 关闭动画期间触发状态更新，导致"deactivated widget's ancestor"错误
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  switch (value) {
+                    case 'copy':
+                      onCopy?.call();
+                      break;
+                    case 'rename':
+                      onRename?.call();
+                      break;
+                    case 'share':
+                      onShare?.call();
+                      break;
+                    case 'favorite':
+                      onToggleFavorite?.call();
+                      break;
+                  }
+                });
               },
               itemBuilder: (context) => [
                 // 复制

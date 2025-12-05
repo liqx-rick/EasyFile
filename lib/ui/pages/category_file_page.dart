@@ -280,6 +280,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
 
+  // 编辑模式状态
+  bool _isEditMode = false;
+
   // 文件显示设置
   bool _showFullPath = false;
 
@@ -396,6 +399,55 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     PageSettingsService().removeListener(_onPageSettingsChanged);
     widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
+  }
+
+  /// 进入编辑模式
+  void _enterEditMode() {
+    setState(() {
+      _isEditMode = true;
+      // 进入选择模式（显示复选框，但不选中任何文件）
+      _selectionController.enterSelectionMode();
+    });
+  }
+
+  /// 退出编辑模式
+  void _exitEditMode() {
+    if (!mounted) return;
+    setState(() {
+      _isEditMode = false;
+      _selectionController.clear();
+    });
+  }
+
+  /// 获取全选复选框的状态（三态）
+  bool? _getSelectAllCheckboxValue() {
+    final totalCount = _filteredFiles.length;
+    final selectedCount = _selectionController.selected.length;
+    
+    if (selectedCount == 0) {
+      return false;  // 未选中任何项 → 空心框
+    } else if (selectedCount == totalCount && totalCount > 0) {
+      return true;   // 全部选中 → 勾选框
+    } else {
+      return null;   // 部分选中 → 横线框（indeterminate）
+    }
+  }
+
+  /// 处理全选/取消全选
+  void _handleSelectAll() {
+    if (_selectionController.selected.length == _filteredFiles.length) {
+      // 取消全选：清空选择
+      setState(() {
+        _selectionController.selectedNotifier.value = {};
+      });
+    } else {
+      // 全选：选中所有文件
+      setState(() {
+        _selectionController.selectAll(
+          _filteredFiles.map((f) => f.path).toList(),
+        );
+      });
+    }
   }
 
   /// 加载文件类型筛选偏好
@@ -770,124 +822,126 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       child: Consumer<PageSettingsService>(
         builder: (context, pageSettingsService, _) {
           return PopScope(
-            canPop: !_selectionController.isSelectionMode,
+            canPop: !_isSearchMode && !_isEditMode && !_selectionController.isSelectionMode,
             onPopInvokedWithResult: (didPop, result) {
               if (didPop) return;
-              // 如果在选择模式下，退出选择模式
-              if (_selectionController.isSelectionMode) {
+              
+              // 优先级1：退出搜索模式（最临时的状态）
+              if (_isSearchMode) {
                 setState(() {
-                  _selectionController.clear();
+                  _isSearchMode = false;
+                  _searchQuery = '';
+                  _searchController.clear();
                 });
+                return;
+              }
+              
+              // 优先级2：退出编辑模式（选择模式会一起退出）
+              // Category页面特性：编辑和选择捆绑，一起进退
+              if (_isEditMode || _selectionController.isSelectionMode) {
+                _exitEditMode(); // 内部会清除选择
+                return;
               }
             },
             child: Scaffold(
               appBar: AppBar(
-                leading: _selectionController.isSelectionMode
+                leading: (_isEditMode || _selectionController.isSelectionMode)
                     ? IconButton(
                         icon: const Icon(Icons.close, size: 22),
-                        onPressed: () {
-                          setState(() {
-                            _selectionController.clear();
-                          });
-                        },
-                        tooltip: '退出多选',
+                        onPressed: _isEditMode
+                            ? _exitEditMode
+                            : () {
+                                setState(() {
+                                  _selectionController.clear();
+                                });
+                              },
+                        tooltip: '退出',
                       )
                     : IconButton(
                         icon: const Icon(Icons.home),
                         onPressed: () => Navigator.of(context).pop(),
                         tooltip: '返回主页',
                       ),
-                title: _selectionController.isSelectionMode
-                    ? Text('已选择 ${_selectionController.count} 项')
-                    : Builder(
-                        builder: (context) {
-                          final isDark =
-                              Theme.of(context).brightness == Brightness.dark;
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? categoryInfo.iconColor.withValues(
-                                          alpha: 0.2) // 深色模式：20%主题色透明度
-                                      : categoryInfo
-                                          .backgroundColor, // 浅色模式：原背景色
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  categoryInfo.icon,
-                                  size: 20,
-                                  color: isDark
-                                      ? categoryInfo
-                                          .backgroundColor // 深色模式：使用原背景色（更浅）
-                                      : categoryInfo.iconColor, // 浅色模式：原图标色
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(categoryInfo.name),
-                            ],
-                          );
-                        },
-                      ),
+                title: Builder(
+                  builder: (context) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? categoryInfo.iconColor.withValues(
+                                    alpha: 0.2) // 深色模式：20%主题色透明度
+                                : categoryInfo
+                                    .backgroundColor, // 浅色模式：原背景色
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            categoryInfo.icon,
+                            size: 20,
+                            color: isDark
+                                ? categoryInfo
+                                    .backgroundColor // 深色模式：使用原背景色（更浅）
+                                : categoryInfo.iconColor, // 浅色模式：原图标色
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(categoryInfo.name),
+                      ],
+                    );
+                  },
+                ),
                 titleSpacing: 0,
                 actions: [
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: _selectionController.isSelectionMode
-                          ? [
-                              // 多选模式下的操作按钮
-                              // 全选/取消全选按钮
-                              IconButton(
-                                icon: Icon(
-                                  _selectionController.count ==
-                                          _filteredFiles.length
-                                      ? Icons.deselect
-                                      : Icons.select_all,
-                                ),
-                                onPressed: () {
-                                  if (_selectionController.count ==
-                                      _filteredFiles.length) {
-                                    // 取消全选
-                                    _selectionController.clear();
-                                  } else {
-                                    // 全选 - 直接使用selectAll方法
-                                    _selectionController.selectAll(
-                                      _filteredFiles
-                                          .map((f) => f.path)
-                                          .toList(),
-                                    );
-                                  }
-                                },
-                                tooltip: _selectionController.count ==
-                                        _filteredFiles.length
-                                    ? '取消全选'
-                                    : '全选',
-                              ),
-                            ]
-                          : [
-                              // 正常模式下的操作按钮（使用统一的FileToolbar组件）
-                              FileToolbar(
-                                pageId: _getPageIdForCategory(),
-                                showBackButton: false, // 类别页不需要返回按钮
-                                showSearchButton: true,
-                                onSearchPressed: () {
-                                  setState(() {
-                                    _isSearchMode = !_isSearchMode;
-                                    if (!_isSearchMode) _searchQuery = '';
-                                  });
-                                },
-                                isSearchMode: _isSearchMode,
-                                showSortButton: true,
-                                onSortPressed: _showSortOptions,
-                                showGroupButton: true,
-                                onGroupToggle: () => setState(() {}),
-                                iconSize: 22,
-                              ),
-                            ],
+                      children: [
+                        // 始终显示工具栏（搜索、排序、分组）
+                        FileToolbar(
+                          pageId: _getPageIdForCategory(),
+                          showBackButton: false,
+                          showSearchButton: true,
+                          onSearchPressed: () {
+                            setState(() {
+                              _isSearchMode = !_isSearchMode;
+                              if (!_isSearchMode) _searchQuery = '';
+                            });
+                          },
+                          isSearchMode: _isSearchMode,
+                          showSortButton: true,
+                          onSortPressed: _showSortOptions,
+                          showGroupButton: true,
+                          onGroupToggle: () => setState(() {}),
+                          iconSize: 22,
+                        ),
+                        
+                        // 根据模式显示不同按钮
+                        if (_isEditMode || _selectionController.isSelectionMode)
+                          // 编辑/选择模式：三态全选复选框（仅图标，与其他按钮一致）
+                          IconButton(
+                            icon: Checkbox(
+                              value: _getSelectAllCheckboxValue(),
+                              tristate: true,
+                              onChanged: (_) => _handleSelectAll(),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: _handleSelectAll,
+                            tooltip: _getSelectAllCheckboxValue() == true ? '取消全选' : '全选',
+                          )
+                        else
+                          // 普通模式：编辑按钮（始终显示，与其他工具按钮一致）
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: _enterEditMode,
+                            tooltip: '编辑',
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -1171,7 +1225,14 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                           _previewFile(file);
                         }
                       },
-                      // onLongPress 不再需要，FileCollectionView 内部处理
+                      onLongPress: _selectionController.isSelectionMode
+                          ? (file) {
+                              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
+                              if (!file.isDirectory) {
+                                _showFileDetailsBottomSheet(file);
+                              }
+                            }
+                          : null,
                     ),
             ),
           ),
@@ -1230,8 +1291,18 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       onExitSelectionMode: () {
         if (!mounted) return;
-        setState(() {
-          _selectionController.clear();
+        // 延迟到下一帧执行，确保所有 notifyListeners() 完成
+        // 参考：ERROR_DATABASE.md E001
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // 批量操作完成后，完全退出编辑模式
+          if (_isEditMode) {
+            _exitEditMode();
+          } else {
+            setState(() {
+              _selectionController.clear();
+            });
+          }
         });
       },
     );
@@ -1405,7 +1476,14 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           _previewFile(file);
         }
       },
-      // onLongPress 不再需要，FileCollectionView 内部处理
+      onLongPress: _selectionController.isSelectionMode
+          ? (file) {
+              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
+              if (!file.isDirectory) {
+                _showFileDetailsBottomSheet(file);
+              }
+            }
+          : null,
     );
   }
 
@@ -1490,6 +1568,141 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       final sortType = PageSettingsService().getSortType(pageId);
       FileComparatorUtil.sortFilesInPlace(_files, sortType);
     });
+  }
+
+  /// 显示文件详情底部面板
+  void _showFileDetailsBottomSheet(FileItem file) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: colorScheme.primary,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '文件详情',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // 文件名
+            _buildDetailRow(
+              '文件名',
+              file.name,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+
+            // 完整路径
+            _buildDetailRow(
+              '完整路径',
+              file.path,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+
+            // 文件大小
+            _buildDetailRow(
+              '文件大小',
+              _formatFileSize(file.size),
+              colorScheme,
+            ),
+            const SizedBox(height: 16),
+
+            // 修改时间
+            _buildDetailRow(
+              '修改时间',
+              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
+              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
+              colorScheme,
+            ),
+            const SizedBox(height: 24),
+
+            // 关闭按钮
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建详情行
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    ColorScheme colorScheme, {
+    bool isSelectable = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label：',
+          style: TextStyle(
+            fontSize: 14,
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: isSelectable
+              ? SelectableText(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                )
+              : Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// 格式化文件大小
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
   /// 预览文件

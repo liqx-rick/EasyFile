@@ -148,6 +148,19 @@ class SelectionController {
   /// Replaces the current selection with the new set of paths.
   void selectAll(List<String> paths) {
     _selected.value = Set<String>.from(paths);
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
+  }
+
+  /// Enters selection mode without selecting any files.
+  ///
+  /// This is useful when you want to show checkboxes but haven't
+  /// selected any files yet (e.g., when entering edit mode).
+  void enterSelectionMode() {
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
   }
 
   /// Clears all selections and exits selection mode.
