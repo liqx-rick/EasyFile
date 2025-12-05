@@ -611,7 +611,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   /// 获取统一视图配置（包含简洁模式设置）
   UnifiedViewConfig _getViewConfig(BuildContext context) {
     final pageId = _getPageIdForCategory();
-    // 仅图片和视频分类使用简洁模式设置
+    // 仅图片和视频分类使用简洁模式设置（纯图片/纯视频页面）
     final shouldUseCompactMode = (widget.categoryType == CategoryType.images ||
             widget.categoryType == CategoryType.video) &&
         _isGridView;
@@ -1198,42 +1198,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
               // 启用分组时（无论列表还是网格模式）都使用分组视图
               child: _isGroupEnabled
                   ? _buildGroupedView()
-                  : FileCollectionView(
-                      items: _filteredFiles,
-                      gridMode: _isGridView,
-                      config: _getViewConfig(context),
-                      padding: _isGridView
-                          ? const EdgeInsets.all(8)
-                          : const EdgeInsets.symmetric(vertical: 0),
-                      // 增加预构建范围以改善滚动体验
-                      cacheExtent: _isGridView ? 1000.0 : 600.0,
-                      selectionController: _selectionController,
-                      // 列表模式显示选项
-                      showFullPath:
-                          !_isGridView && _showFullPath, // 只在列表模式下显示路径
-                      showFavoriteButton: true,
-                      isFavorite: (path) =>
-                          widget.viewModel.isFavoriteFile(path),
-                      onFavoriteToggle: (file) async {
-                        return await widget.presenter.toggleFavoriteFile(file);
-                      },
-                      useUnifiedGridItem: true,
-                      onTap: (file) {
-                        if (!_selectionController.isSelectionMode) {
-                          // 添加到最近访问记录
-                          widget.presenter.addToRecentFiles(file);
-                          _previewFile(file);
-                        }
-                      },
-                      onLongPress: _selectionController.isSelectionMode
-                          ? (file) {
-                              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
-                              if (!file.isDirectory) {
-                                _showFileDetailsBottomSheet(file);
-                              }
-                            }
-                          : null,
-                    ),
+                  : _buildSimpleView(),
             ),
           ),
         ),
@@ -1435,6 +1400,66 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
   }
   // 已迁移为 FileCollectionView 试点，旧的列表构建函数已移除。
 
+  /// 构建简单视图（非分组）
+  Widget _buildSimpleView() {
+    // 根据页面类型选择配置方式
+    final isDownloadsCategory = widget.categoryType == CategoryType.downloads;
+    
+    UnifiedViewConfig? config;
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+    
+    if (isDownloadsCategory && _isGridView) {
+      // 下载分类：包含混合文件类型，需要逐文件判断
+      final pageId = _getPageIdForCategory();
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+      viewConfigBuilder = (file) {
+        final shouldUseCompactMode = !file.isDirectory &&
+            (file.category == FileCategory.image || file.category == FileCategory.video);
+        // 返回对应的配置：图片/视频使用简洁模式，其他文件使用普通模式
+        return UnifiedViewConfig.fromContext(context, compactMode: shouldUseCompactMode && !showFileInfo);
+      };
+    } else {
+      // 图片/视频分类：纯图片或纯视频，使用全局配置
+      config = _getViewConfig(context);
+    }
+
+    return FileCollectionView(
+      items: _filteredFiles,
+      gridMode: _isGridView,
+      config: config,
+      viewConfigBuilder: viewConfigBuilder,
+      padding: _isGridView
+          ? const EdgeInsets.all(8)
+          : const EdgeInsets.symmetric(vertical: 0),
+      // 增加预构建范围以改善滚动体验
+      cacheExtent: _isGridView ? 1000.0 : 600.0,
+      selectionController: _selectionController,
+      // 列表模式显示选项
+      showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
+      showFavoriteButton: true,
+      isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await widget.presenter.toggleFavoriteFile(file);
+      },
+      useUnifiedGridItem: true,
+      onTap: (file) {
+        if (!_selectionController.isSelectionMode) {
+          // 添加到最近访问记录
+          widget.presenter.addToRecentFiles(file);
+          _previewFile(file);
+        }
+      },
+      onLongPress: _selectionController.isSelectionMode
+          ? (file) {
+              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
+              if (!file.isDirectory) {
+                _showFileDetailsBottomSheet(file);
+              }
+            }
+          : null,
+    );
+  }
+
   /// 构建按日期分组的视图
   Widget _buildGroupedView() {
     final groups = _groupedFiles;
@@ -1451,10 +1476,34 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       );
     }).toList();
 
+    // 根据页面类型选择配置方式
+    // 图片/视频分类：全局 config（性能更好，所有文件类型相同）
+    // 下载分类：viewConfigBuilder（支持混合文件类型）
+    final isDownloadsCategory = widget.categoryType == CategoryType.downloads;
+    
+    UnifiedViewConfig? config;
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+    
+    if (isDownloadsCategory && _isGridView) {
+      // 下载分类：包含混合文件类型，需要逐文件判断
+      final pageId = _getPageIdForCategory();
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+      viewConfigBuilder = (file) {
+        final shouldUseCompactMode = !file.isDirectory &&
+            (file.category == FileCategory.image || file.category == FileCategory.video);
+        // 返回对应的配置：图片/视频使用简洁模式，其他文件使用普通模式
+        return UnifiedViewConfig.fromContext(context, compactMode: shouldUseCompactMode && !showFileInfo);
+      };
+    } else {
+      // 图片/视频分类：纯图片或纯视频，使用全局配置
+      config = _getViewConfig(context);
+    }
+
     return FileCollectionView(
       groups: fileGroups,
       gridMode: _isGridView,
-      config: _getViewConfig(context),
+      config: config, // 图片/视频分类使用全局配置
+      viewConfigBuilder: viewConfigBuilder, // 下载分类使用动态配置
       padding: _isGridView
           ? const EdgeInsets.symmetric(vertical: 4)
           : const EdgeInsets.symmetric(vertical: 0),

@@ -2233,6 +2233,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getViewMode(pageId) == ViewMode.grid;
     final isGroupEnabled = _isGroupEnabledForCurrentTab();
 
+    // 为图片/视频构建视图配置（简洁模式支持）
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+    if (isGridView) {
+      viewConfigBuilder = (file) {
+        final shouldUseCompactMode = !file.isDirectory &&
+            (file.category == FileCategory.image || file.category == FileCategory.video);
+        if (shouldUseCompactMode) {
+          final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+          return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
+        }
+        return null;
+      };
+    }
+
     // 收藏Tab、浏览Tab、最近Tab需要应用排序
     var displayFiles = vm.files;
 
@@ -2255,19 +2269,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 收藏Tab、浏览Tab启用分组时使用分组视图
     if (isGroupEnabled) {
       if (vm.currentTab == TabView.favorite) {
-        return _buildFavoriteGroupedViewSlivers(displayFiles);
+        return _buildFavoriteGroupedViewSlivers(displayFiles, viewConfigBuilder);
       } else if (vm.currentTab == TabView.browse) {
-        return _buildBrowseGroupedViewSlivers(displayFiles);
+        return _buildBrowseGroupedViewSlivers(displayFiles, viewConfigBuilder);
       }
     }
 
     // 非分组视图：列表或网格
-    return _buildSimpleFileViewSlivers(displayFiles, isGridView, pageId);
+    return _buildSimpleFileViewSlivers(displayFiles, isGridView, pageId, viewConfigBuilder);
   }
 
   /// 构建简单列表/网格的Sliver组件
   List<Widget> _buildSimpleFileViewSlivers(
-      List<FileItem> files, bool isGridView, PageId pageId) {
+      List<FileItem> files, bool isGridView, PageId pageId, 
+      UnifiedViewConfig? Function(FileItem)? viewConfigBuilder) {
     if (isGridView) {
       // 网格视图
       final crossAxisCount = _calculateCrossAxisCount();
@@ -2282,7 +2297,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               childAspectRatio: 0.70,
             ),
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildFileItemWrapper(files[index]),
+              (context, index) => _buildFileItemWrapper(
+                files[index],
+                viewConfigBuilder: viewConfigBuilder,
+              ),
               childCount: files.length,
               addAutomaticKeepAlives: false,
               addRepaintBoundaries: true,
@@ -2306,7 +2324,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     ),
                   ),
                 ),
-                child: _buildFileItemWrapper(files[index]),
+                child: _buildFileItemWrapper(
+                  files[index],
+                  viewConfigBuilder: viewConfigBuilder,
+                ),
               );
             },
             childCount: files.length,
@@ -2332,7 +2353,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建文件项的包装器（处理点击、选择等）
-  Widget _buildFileItemWrapper(FileItem item) {
+  Widget _buildFileItemWrapper(
+    FileItem item, {
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
+  }) {
     final isSelectionMode = _selectionController.isSelectionMode;
     final isSelected = _selectionController.contains(item.path);
     final vm = viewModel;
@@ -2343,15 +2367,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getViewMode(pageId) == ViewMode.grid;
 
     if (isGridView) {
-      // 判断是否使用简洁模式：图片或视频文件
-      final shouldUseCompactMode = !item.isDirectory && 
-          (item.category == FileCategory.image || item.category == FileCategory.video);
-      
-      UnifiedViewConfig? viewConfig;
-      if (shouldUseCompactMode) {
-        final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
-        viewConfig = UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
-      }
+      // 优先使用传入的 viewConfigBuilder
+      final viewConfig = viewConfigBuilder?.call(item);
 
       return UnifiedGridItem(
         key: ValueKey('grid_item_${item.path}'),
@@ -2446,7 +2463,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建收藏Tab分组视图的Sliver组件
-  List<Widget> _buildFavoriteGroupedViewSlivers(List<FileItem> files) {
+  List<Widget> _buildFavoriteGroupedViewSlivers(
+    List<FileItem> files,
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
+  ) {
     final isGridView =
         PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
     final groups = _groupFavoriteFilesByDate(files);
@@ -2486,8 +2506,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   childAspectRatio: 0.70,
                 ),
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _buildFileItemWrapper(groups[key]![index]),
+                  (context, index) => _buildFileItemWrapper(
+                    groups[key]![index],
+                    viewConfigBuilder: viewConfigBuilder,
+                  ),
                   childCount: groups[key]!.length,
                   addAutomaticKeepAlives: false,
                   addRepaintBoundaries: true,
@@ -2510,7 +2532,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         ),
                       ),
                     ),
-                    child: _buildFileItemWrapper(groups[key]![index]),
+                    child: _buildFileItemWrapper(
+                      groups[key]![index],
+                      viewConfigBuilder: viewConfigBuilder,
+                    ),
                   );
                 },
                 childCount: groups[key]!.length,
@@ -2527,7 +2552,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建浏览Tab分组视图的Sliver组件
-  List<Widget> _buildBrowseGroupedViewSlivers(List<FileItem> files) {
+  List<Widget> _buildBrowseGroupedViewSlivers(
+    List<FileItem> files,
+    UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
+  ) {
     final isGridView =
         PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
     final groups = _groupBrowseFilesByDate(files);
@@ -2567,8 +2595,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   childAspectRatio: 0.70,
                 ),
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _buildFileItemWrapper(groups[key]![index]),
+                  (context, index) => _buildFileItemWrapper(
+                    groups[key]![index],
+                    viewConfigBuilder: viewConfigBuilder,
+                  ),
                   childCount: groups[key]!.length,
                   addAutomaticKeepAlives: false,
                   addRepaintBoundaries: true,
@@ -2591,7 +2621,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         ),
                       ),
                     ),
-                    child: _buildFileItemWrapper(groups[key]![index]),
+                    child: _buildFileItemWrapper(
+                      groups[key]![index],
+                      viewConfigBuilder: viewConfigBuilder,
+                    ),
                   );
                 },
                 childCount: groups[key]!.length,

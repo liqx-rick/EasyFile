@@ -1125,11 +1125,11 @@ class FilePresenter {
           paths.addAll(['$userProfile\\Downloads', '$userProfile\\Desktop']);
         }
       } else if (Platform.isAndroid) {
+        // 只使用 /storage/emulated/0/ 路径，避免 /sdcard 符号链接导致的重复
+        // /sdcard 是 /storage/emulated/0 的符号链接，会导致同一文件被扫描两次
         paths.addAll([
           '/storage/emulated/0/Download',
-          '/sdcard/Download',
           '/storage/emulated/0/Downloads',
-          '/sdcard/Downloads',
         ]);
       } else {
         final home = Platform.environment['HOME'];
