@@ -1260,14 +1260,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         // 参考：ERROR_DATABASE.md E001
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          // 批量操作完成后，完全退出编辑模式
-          if (_isEditMode) {
-            _exitEditMode();
-          } else {
-            setState(() {
-              _selectionController.clear();
-            });
-          }
+          // 批量操作完成后，总是退出编辑模式
+          _exitEditMode();
         });
       },
     );
@@ -1449,14 +1443,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           _previewFile(file);
         }
       },
-      onLongPress: _selectionController.isSelectionMode
+      onLongPress: _isEditMode
           ? (file) {
-              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
+              // 编辑模式下：对文件显示详情面板 + 自动选中
               if (!file.isDirectory) {
+                if (!_selectionController.contains(file.path)) {
+                  setState(() {
+                    _selectionController.select(file.path);
+                  });
+                }
                 _showFileDetailsBottomSheet(file);
               }
             }
-          : null,
+          : (file) {
+              // 非编辑模式：进入编辑模式并选中当前项
+              _enterEditMode();
+              _selectionController.select(file.path);
+            },
     );
   }
 
@@ -1525,14 +1528,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
           _previewFile(file);
         }
       },
-      onLongPress: _selectionController.isSelectionMode
+      onLongPress: _isEditMode
           ? (file) {
-              // 选择模式下：仅对文件显示详情面板，文件夹保持默认行为
+              // 编辑模式下：对文件显示详情面板 + 自动选中
               if (!file.isDirectory) {
+                if (!_selectionController.contains(file.path)) {
+                  setState(() {
+                    _selectionController.select(file.path);
+                  });
+                }
                 _showFileDetailsBottomSheet(file);
               }
             }
-          : null,
+          : (file) {
+              // 非编辑模式：进入编辑模式并选中当前项
+              _enterEditMode();
+              _selectionController.select(file.path);
+            },
     );
   }
 

@@ -14,7 +14,11 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
@@ -43,7 +47,7 @@ class LargeFilesPage extends StatefulWidget {
   State<LargeFilesPage> createState() => _LargeFilesPageState();
 }
 
-class _LargeFilesPageState extends State<LargeFilesPage> {
+class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin {
   // 扫描配置
   late LargeFileScanConfig _config;
 
@@ -59,11 +63,11 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   int _newFilesCount = 0;
   int _deletedFilesCount = 0; // 本次删除的文件数量
 
-  // 编辑模式状态
-  bool _isEditMode = false;
-
   // 批量操作
   final _selectionController = SelectionController();
+  
+  @override
+  SelectionController get selectionController => _selectionController;
   late final BatchOperationsService _batchService;
 
   @override
@@ -77,7 +81,16 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       onRefresh: _refresh,
       onExitSelectionMode: () {
         if (!mounted) return;
-        _selectionController.clear();
+        // 延迟到下一帧执行，确保所有 notifyListeners() 完成
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // 批量操作完成后，完全退出编辑模式
+          if (isEditMode) {
+            exitEditMode();
+          } else {
+            _selectionController.clear();
+          }
+        });
       },
     );
 
@@ -181,9 +194,8 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         _deletedFilesCount = deletedCount;
         
         // 建议 #10：如果列表变空且处于编辑模式，自动退出编辑模式
-        if (_largeFiles.isEmpty && _isEditMode) {
-          _isEditMode = false;
-          _selectionController.clear();
+        if (_largeFiles.isEmpty && isEditMode) {
+          exitEditMode();
           logger.d('Auto-exited edit mode: no files left');
         }
       });
@@ -417,65 +429,19 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
     }
   }
 
-  /// 进入编辑模式
-  void _enterEditMode() {
-    setState(() {
-      _isEditMode = true;
-    });
-  }
-
-  /// 退出编辑模式
-  void _exitEditMode() {
-    setState(() {
-      _isEditMode = false;
-      _selectionController.clear();
-    });
-  }
-
-  /// 获取全选复选框的状态（三态）
-  bool? _getSelectAllCheckboxValue() {
-    final totalCount = _largeFiles.length;
-    final selectedCount = _selectionController.selected.length;
-    
-    if (selectedCount == 0) {
-      return false;  // 未选中任何项 → 空心框
-    } else if (selectedCount == totalCount && totalCount > 0) {
-      return true;   // 全部选中 → 勾选框
-    } else {
-      return null;   // 部分选中 → 横线框（indeterminate）
-    }
-  }
-
-  /// 处理全选/取消全选
-  void _handleSelectAll() {
-    if (_selectionController.selected.length == _largeFiles.length) {
-      // 取消全选：清空选择
-      setState(() {
-        _selectionController.selectedNotifier.value = {};
-      });
-    } else {
-      // 全选：选中所有文件
-      setState(() {
-        _selectionController.selectAll(
-          _largeFiles.map((f) => f.path).toList(),
-        );
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return PopScope(
-      canPop: !_isEditMode,
+      canPop: !isEditMode,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
 
         // 优先级：退出编辑模式
-        if (_isEditMode) {
-          _exitEditMode();
+        if (isEditMode) {
+          exitEditMode();
           return;
         }
       },
@@ -483,15 +449,20 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         appBar: _buildAppBar(colorScheme),
         body: Column(
           children: [
+            // 编辑模式提示栏
+            if (isEditMode && showEditModeHint)
+              const EditModeHintBar(),
+
             // 主体：卡片 + 列表（统一滚动）
             Expanded(
               child: _buildScrollableContent(theme, colorScheme),
             ),
-
-            // 底部：批量操作栏（编辑模式下显示）
-            if (_isEditMode) _buildBatchOperationsBar(colorScheme),
           ],
         ),
+        // 批量操作底部工具栏
+        bottomNavigationBar: _selectionController.isSelectionMode
+            ? _buildSelectionBottomBar()
+            : null,
       ),
     );
   }
@@ -500,50 +471,36 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   PreferredSizeWidget _buildAppBar(ColorScheme colorScheme) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: _isEditMode
+      child: isEditMode
           ? AppBar(
               // 编辑/选择模式
               leading: IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: _exitEditMode,
+                onPressed: exitEditMode,
                 tooltip: '完成',
               ),
               title: const Text('大文件查找'),
               centerTitle: true,
               actions: [
-                // 全选复选框（三态支持，样式与Storage Page一致）
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: InkWell(
-                    onTap: _handleSelectAll,
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            value: _getSelectAllCheckboxValue(),
-                            tristate: true,
-                            onChanged: (_) => _handleSelectAll(),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '全选',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
+                // 全选复选框（三态图标，与其他页面一致）
+                IconButton(
+                  icon: Checkbox(
+                    value: getSelectAllCheckboxValue(
+                      _largeFiles.map((f) => f.path).toList(),
                     ),
+                    tristate: true,
+                    onChanged: (_) => handleSelectAll(
+                      _largeFiles.map((f) => f.path).toList(),
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                   ),
+                  onPressed: () => handleSelectAll(
+                    _largeFiles.map((f) => f.path).toList(),
+                  ),
+                  tooltip: getSelectAllCheckboxValue(
+                    _largeFiles.map((f) => f.path).toList(),
+                  ) == true ? '取消全选' : '全选',
                 ),
               ],
             )
@@ -556,7 +513,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                 if (!_isScanning && _largeFiles.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.edit_outlined),
-                    onPressed: _enterEditMode,
+                    onPressed: enterEditMode,
                     tooltip: '编辑',
                   ),
               ],
@@ -838,7 +795,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 11),
       ),
-      trailing: _isEditMode
+      trailing: isEditMode
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -897,14 +854,14 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                 ),
               ],
             ),
-      onTap: _isEditMode
+      onTap: isEditMode
           ? () {
               setState(() {
                 _selectionController.toggle(file.path);
               });
             }
           : () => _openFilePreview(file),
-      onLongPress: _isEditMode
+      onLongPress: isEditMode
           ? () {
               // 编辑模式下：仅对文件显示详情面板 + 自动选中
               if (!file.isDirectory) {
@@ -917,69 +874,43 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
               }
             }
           : () {
-              setState(() {
-                _isEditMode = true;
-                _selectionController.select(file.path);
-              });
+              enterEditMode();
+              _selectionController.select(file.path);
             },
     );
   }
 
   /// 构建扫描结果卡片（在列表顶部显示）
   /// 构建批量操作栏
-  Widget _buildBatchOperationsBar(ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant),
-        ),
-      ),
-      child: ValueListenableBuilder<Set<String>>(
-        valueListenable: _selectionController.selectedNotifier,
-        builder: (context, selected, _) {
-          return Row(
-            children: [
-              // 左侧：选中状态显示
-              Expanded(
-                child: Text(
-                  '已选择 ${selected.length} 项',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              // 右侧：操作按钮
-              OutlinedButton.icon(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () {
-                        if (!mounted) return;
-                        // 大文件查找页面的文件来自不同路径，使用内部存储根目录作为默认目标
-                        _batchService.batchMove(
-                            context, selected, '/storage/emulated/0');
-                      },
-                icon: const Icon(Icons.drive_file_move_outline, size: 18),
-                label: const Text('移动'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () {
-                        if (!mounted) return;
-                        _batchService.batchDelete(context, selected);
-                      },
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('删除'),
-              ),
-            ],
-          );
-        },
-      ),
+  /// 构建批量选择底部工具栏
+  Widget _buildSelectionBottomBar() {
+    return SelectionBottomBar(
+      selectedPaths: _selectionController.selected,
+      isAllFavorite: _batchService.isAllSelectedFavorite(_selectionController.selected),
+      onCopy: () {
+        if (!mounted) return;
+        _batchService.batchCopy(context, _selectionController.selected, '/storage/emulated/0');
+      },
+      onRename: () {
+        if (!mounted) return;
+        _batchService.batchRename(context, _selectionController.selected);
+      },
+      onShare: () {
+        if (!mounted) return;
+        _batchService.batchShare(context, _selectionController.selected);
+      },
+      onMove: () {
+        if (!mounted) return;
+        _batchService.batchMove(context, _selectionController.selected, '/storage/emulated/0');
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        _batchService.batchToggleFavorite(context, _selectionController.selected);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        _batchService.batchDelete(context, _selectionController.selected);
+      },
     );
   }
 

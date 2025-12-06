@@ -38,6 +38,9 @@ class UnifiedGridItem extends StatelessWidget {
   /// 是否选中
   final bool isSelected;
 
+  /// 是否显示复选框（即使未选中）
+  final bool showCheckbox;
+
   /// 是否收藏
   final bool isFavorite;
 
@@ -60,6 +63,7 @@ class UnifiedGridItem extends StatelessWidget {
     super.key,
     required this.file,
     this.isSelected = false,
+    this.showCheckbox = false,
     this.isFavorite = false,
     this.showFavoriteButton = true,
     this.onTap,
@@ -144,22 +148,35 @@ class UnifiedGridItem extends StatelessWidget {
                   ),
                 ),
               ),
-            // 选中指示器
-            if (isSelected)
+            // 选中指示器或空心复选框
+            if (showCheckbox)
               Positioned(
                 top: 4,
                 left: 4,
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
+                    border: !isSelected
+                        ? Border.all(
+                            color: Colors.grey.shade400,
+                            width: 1.5,
+                          )
+                        : null,
                   ),
-                  child: Icon(
-                    Icons.check,
-                    size: UnifiedViewConfig.checkboxSize - 4,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
+                  child: isSelected
+                      ? Icon(
+                          Icons.check,
+                          size: UnifiedViewConfig.checkboxSize - 4,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        )
+                      : SizedBox(
+                          width: UnifiedViewConfig.checkboxSize - 4,
+                          height: UnifiedViewConfig.checkboxSize - 4,
+                        ),
                 ),
               ),
           ],

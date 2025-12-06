@@ -987,14 +987,23 @@ class _StoragePageState extends State<StoragePage> {
       useUnifiedGridItem: true,
       viewConfigBuilder: viewConfigBuilder,
       onTap: (file) => _onFileTap(file),
-      onLongPress: _selectionController.isSelectionMode
+      onLongPress: _isEditMode
           ? (file) {
-              // 仅对文件显示详情面板，文件夹保持默认行为
+              // 编辑模式下：对文件显示详情面板 + 自动选中
               if (!file.isDirectory) {
+                if (!_selectionController.contains(file.path)) {
+                  setState(() {
+                    _selectionController.select(file.path);
+                  });
+                }
                 _showFileDetailsBottomSheet(file);
               }
             }
-          : null,
+          : (file) {
+              // 非编辑模式：进入编辑模式并选中当前项
+              _enterEditMode();
+              _selectionController.select(file.path);
+            },
     );
   }
 
@@ -1406,9 +1415,8 @@ class _StoragePageState extends State<StoragePage> {
       },
       onExitSelectionMode: () {
         if (!mounted) return;
-        setState(() {
-          _selectionController.clear();
-        });
+        // 批量操作完成后，总是退出编辑模式
+        _exitEditMode();
       },
     );
   }
