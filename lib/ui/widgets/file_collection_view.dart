@@ -260,6 +260,7 @@ class FileCollectionView extends StatelessWidget {
   final bool useUnifiedGridItem;
   final UnifiedViewConfig? config;
   final UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+  final bool showCheckbox;
 
   const FileCollectionView({
     super.key,
@@ -287,6 +288,7 @@ class FileCollectionView extends StatelessWidget {
     this.useUnifiedGridItem = false,
     this.config,
     this.viewConfigBuilder,
+    this.showCheckbox = false,
   }) : assert(items != null || groups != null,
             'Either items or groups must be provided');
 
@@ -460,6 +462,7 @@ class FileCollectionView extends StatelessWidget {
         key: ValueKey('grid_item_${item.path}'),
         file: item,
         isSelected: isSelected,
+        showCheckbox: showCheckbox,
         isFavorite: isFavorite?.call(item.path) ?? false,
         showFavoriteButton: showFavoriteButton,
         config: itemConfig,

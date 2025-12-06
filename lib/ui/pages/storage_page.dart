@@ -22,6 +22,10 @@ import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
+import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -37,17 +41,19 @@ class StoragePage extends StatefulWidget {
   State<StoragePage> createState() => _StoragePageState();
 }
 
-class _StoragePageState extends State<StoragePage> {
+class _StoragePageState extends State<StoragePage> 
+    with EditModeMixin, CreateFolderMixin {
   String _searchQuery = '';
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
 
-  // 编辑模式状态
-  bool _isEditMode = false;
-
   // 批量操作相关状态（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
+  
+  // EditModeMixin 接口实现
+  @override
+  SelectionController get selectionController => _selectionController;
 
   // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
@@ -152,92 +158,16 @@ class _StoragePageState extends State<StoragePage> {
     return _getSortedFiles(filtered);
   }
 
-  /// 进入编辑模式
-  void _enterEditMode() {
-    setState(() {
-      _isEditMode = true;
-    });
-  }
-
-  /// 退出编辑模式
-  void _exitEditMode() {
-    setState(() {
-      _isEditMode = false;
-      // 退出编辑模式时，清除所有选中项
-      _selectionController.clear();
-    });
-  }
-
-  /// 显示新建文件夹对话框
-  Future<void> _showCreateFolderDialog() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('新建文件夹'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: '文件夹名称',
-            hintText: '请输入文件夹名称',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-          onSubmitted: (value) {
-            if (value.isNotEmpty) {
-              Navigator.pop(context, value);
-            }
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              if (name.isNotEmpty) {
-                Navigator.pop(context, name);
-              }
-            },
-            child: const Text('创建'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null && result.isNotEmpty) {
-      await _createFolder(result);
-    }
-  }
-
-  /// 创建文件夹
-  Future<void> _createFolder(String name) async {
-    try {
-      // 验证文件夹名称
-      if (name.contains('/') || name.contains('\\')) {
-        _showMessage('文件夹名称不能包含 / 或 \\');
-        return;
-      }
-
-      final newPath = path.join(_currentPath, name);
-      final dir = Directory(newPath);
-
-      if (await dir.exists()) {
-        _showMessage('文件夹已存在');
-        return;
-      }
-
-      await dir.create(recursive: true);
-      _showMessage('创建成功');
-      
-      // 刷新文件列表
-      _loadFilesInPath(_currentPath);
-    } catch (e) {
-      logger.e('Failed to create folder: $e');
-      _showMessage('创建失败: $e');
-    }
+  // CreateFolderMixin 接口实现
+  @override
+  String getCurrentPath() => _currentPath;
+  
+  @override
+  Future<void> onFolderCreated() async {
+    await _loadFilesInPath(_currentPath);
+    _showMessage('文件夹创建成功');
+    // 退出编辑模式
+    exitEditMode();
   }
 
   /// 显示提示消息
@@ -248,38 +178,7 @@ class _StoragePageState extends State<StoragePage> {
     );
   }
 
-  /// 获取全选复选框的状态（三态）
-  bool? _getSelectAllCheckboxValue() {
-    final totalCount = _filteredFiles.length;
-    final selectedCount = _selectedItems.length;
-    
-    if (selectedCount == 0) {
-      return false;  // 未选中任何项 → 空心框
-    } else if (selectedCount == totalCount && totalCount > 0) {
-      return true;   // 全部选中 → 勾选框
-    } else {
-      return null;   // 部分选中 → 横线框（indeterminate）
-    }
-  }
-
-  /// 处理全选/取消全选
-  void _handleSelectAll() {
-    if (_selectedItems.length == _filteredFiles.length) {
-      // 取消全选：清空选择，但保持在编辑模式和选择模式
-      // 直接调用 clear() 会退出选择模式，所以我们手动清空选择集
-      setState(() {
-        _selectionController.selectedNotifier.value = {};
-        // 确保选择模式保持激活状态（编辑模式下必须保持选择模式）
-        if (!_selectionController.isSelectionMode) {
-          _selectionController.selectionModeNotifier.value = true;
-        }
-      });
-    } else {
-      _selectionController.selectAll(
-        _filteredFiles.map((f) => f.path).toList(),
-      );
-    }
-  }
+  // EditModeMixin 提供了 getSelectAllCheckboxValue() 和 handleSelectAll() 方法
 
   bool _isLoading = true;
   List<FileItem> _files = [];
@@ -682,22 +581,12 @@ class _StoragePageState extends State<StoragePage> {
   }
 
   void _onFileTap(FileItem file) {
-    // 编辑模式下，点击文件/文件夹自动进入选择模式并选中
-    if (_isEditMode && !_selectionController.isSelectionMode) {
-      _selectionController.select(file.path);
-      return;
-    }
-    
-    // 选择模式下，点击切换选中状态
-    if (_selectionController.isSelectionMode) {
-      if (_selectedItems.contains(file.path)) {
-        _selectionController.deselect(file.path);
-      } else {
-        _selectionController.select(file.path);
-      }
+    // 编辑模式下，点击由 FileCollectionView 处理选择
+    if (isEditMode) {
       return;
     }
 
+    // 正常模式：导航或预览
     if (file.isDirectory) {
       // 在当前页面刷新并显示该文件夹内容
       _currentPath = file.path;
@@ -950,6 +839,7 @@ class _StoragePageState extends State<StoragePage> {
             ? const EdgeInsets.all(8)
             : const EdgeInsets.symmetric(vertical: 0),
         selectionController: _selectionController,
+        showCheckbox: isEditMode,
         showFullPath: false, // 搜索模式下不显示路径文本
         showFavoriteButton: true,
         isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
@@ -959,14 +849,19 @@ class _StoragePageState extends State<StoragePage> {
         useUnifiedGridItem: true,
         viewConfigBuilder: viewConfigBuilder,
         onTap: (file) => _onFileTap(file),
-        onLongPress: _selectionController.isSelectionMode
-            ? (file) {
-                // 仅对文件显示详情面板，文件夹保持默认行为
-                if (!file.isDirectory) {
-                  _showFileDetailsBottomSheet(file);
-                }
-              }
-            : null,
+        onLongPress: (file) {
+          if (isEditMode) {
+            // 编辑模式：选中该项并弹出详情面板（仅文件）
+            _selectionController.select(file.path);
+            if (!file.isDirectory) {
+              _showFileDetailsBottomSheet(file);
+            }
+          } else {
+            // 非编辑模式：进入编辑模式并选中该项
+            enterEditMode();
+            _selectionController.select(file.path);
+          }
+        },
       );
     }
 
@@ -977,6 +872,7 @@ class _StoragePageState extends State<StoragePage> {
           ? const EdgeInsets.all(8)
           : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _selectionController,
+      showCheckbox: isEditMode,
       // 列表模式显示选项
       showFullPath: false, // 搜索模式下不显示路径文本
       showFavoriteButton: true,
@@ -987,23 +883,19 @@ class _StoragePageState extends State<StoragePage> {
       useUnifiedGridItem: true,
       viewConfigBuilder: viewConfigBuilder,
       onTap: (file) => _onFileTap(file),
-      onLongPress: _isEditMode
-          ? (file) {
-              // 编辑模式下：对文件显示详情面板 + 自动选中
-              if (!file.isDirectory) {
-                if (!_selectionController.contains(file.path)) {
-                  setState(() {
-                    _selectionController.select(file.path);
-                  });
-                }
-                _showFileDetailsBottomSheet(file);
-              }
-            }
-          : (file) {
-              // 非编辑模式：进入编辑模式并选中当前项
-              _enterEditMode();
-              _selectionController.select(file.path);
-            },
+      onLongPress: (file) {
+        if (isEditMode) {
+          // 编辑模式：选中该项并弹出详情面板（仅文件）
+          _selectionController.select(file.path);
+          if (!file.isDirectory) {
+            _showFileDetailsBottomSheet(file);
+          }
+        } else {
+          // 非编辑模式：进入编辑模式并选中该项
+          enterEditMode();
+          _selectionController.select(file.path);
+        }
+      },
     );
   }
 
@@ -1014,21 +906,7 @@ class _StoragePageState extends State<StoragePage> {
 
     return WillPopScope(
       onWillPop: () async {
-        // 优先级1: 退出批量选择模式
-        if (_selectionController.isSelectionMode) {
-          setState(() {
-            _selectionController.clear();
-          });
-          return false;
-        }
-
-        // 优先级2: 退出编辑模式
-        if (_isEditMode) {
-          _exitEditMode();
-          return false;
-        }
-
-        // 优先级3: 退出搜索模式
+        // 优先级1: 退出搜索
         if (_isSearchMode) {
           setState(() {
             _searchQuery = '';
@@ -1038,50 +916,37 @@ class _StoragePageState extends State<StoragePage> {
           return false;
         }
 
-        // 优先级4: 子文件夹返回上级
+        // 优先级2: 退出编辑模式
+        if (isEditMode) {
+          exitEditMode();
+          return false;
+        }
+
+        // 优先级3: 子文件夹返回上级
         if (_canNavigateUp(_currentPath)) {
           _navigateUp();
           return false;
         }
 
-        // 优先级5: 其他情况允许系统默认行为（返回主页）
+        // 优先级4: 返回主页（允许系统默认行为）
         return true;
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: _selectionController.isSelectionMode
+          leading: isEditMode
               ? IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _selectionController.clear();
-                    });
-                  },
-                  tooltip: '取消',
+                  onPressed: exitEditMode,
+                  tooltip: '退出编辑',
                 )
-              : _isEditMode
-                  ? Container(
-                      width: 40,
-                      height: 40,
-                      margin: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.edit,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      ),
-                    )
-                  : IconButton(
-                      icon: const Icon(Icons.home),
-                      onPressed: () => Navigator.of(context).pop(),
-                      tooltip: '返回主页',
-                      padding: const EdgeInsets.all(4),
-                      visualDensity: VisualDensity.compact,
-                      iconSize: 22,
-                    ),
+              : IconButton(
+                  icon: const Icon(Icons.home),
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: '返回主页',
+                  padding: const EdgeInsets.all(4),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 22,
+                ),
           automaticallyImplyLeading: false,  // 禁用自动 leading
           leadingWidth: 48,
           titleSpacing: 4,
@@ -1123,86 +988,58 @@ class _StoragePageState extends State<StoragePage> {
                       ),
                   ],
                 ),
-          actions: _selectionController.isSelectionMode
-              ? [
-                  // 全选复选框（三态支持）
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InkWell(
-                      onTap: _handleSelectAll,
-                      borderRadius: BorderRadius.circular(4),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Checkbox(
-                              value: _getSelectAllCheckboxValue(),
-                              tristate: true,
-                              onChanged: (_) => _handleSelectAll(),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '全选',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
+          actions: [
+            // 使用Row来控制按钮间距
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 使用统一的FileToolbar组件
+                  FileToolbar(
+                    pageId: PageId.storage,
+                    showBackButton: false, // 移除工具栏返回按钮，使用底部导航栏代替
+                    onBackPressed: _navigateUp,
+                    showSearchButton: true,
+                    onSearchPressed: () {
+                      setState(() {
+                        _isSearchMode = !_isSearchMode;
+                        if (!_isSearchMode) _searchQuery = '';
+                      });
+                    },
+                    isSearchMode: _isSearchMode,
+                    showSortButton: true,
+                    onSortPressed: _showSortOptions,
+                    showGroupButton: true,
+                    onGroupToggle: () => setState(() {}),
+                    iconSize: 22,
+                  ),
+                  // 编辑模式：显示全选按钮，非编辑模式：显示编辑按钮
+                  if (isEditMode)
+                    SelectAllButton(
+                      selectedCount: _selectedItems.length,
+                      totalCount: _filteredFiles.length,
+                      onPressed: () => handleSelectAll(
+                        _filteredFiles.map((f) => f.path).toList(),
                       ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: enterEditMode,
+                      tooltip: '编辑',
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                      iconSize: 22,
                     ),
-                  ),
-                ]
-              : [
-                  // 使用Row来控制按钮间距
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 使用统一的FileToolbar组件
-                        FileToolbar(
-                          pageId: PageId.storage,
-                          showBackButton: false, // 移除工具栏返回按钮，使用底部导航栏代替
-                          onBackPressed: _navigateUp,
-                          showSearchButton: true,
-                          onSearchPressed: () {
-                            setState(() {
-                              _isSearchMode = !_isSearchMode;
-                              if (!_isSearchMode) _searchQuery = '';
-                            });
-                          },
-                          isSearchMode: _isSearchMode,
-                          showSortButton: true,
-                          onSortPressed: _showSortOptions,
-                          showGroupButton: true,
-                          onGroupToggle: () => setState(() {}),
-                          iconSize: 22,
-                        ),
-                        // 右侧最后按钮：编辑模式显示完成按钮，正常模式显示编辑按钮
-                        IconButton(
-                          icon: Icon(_isEditMode ? Icons.close : Icons.edit_outlined),
-                          onPressed: _isEditMode ? _exitEditMode : _enterEditMode,
-                          tooltip: _isEditMode ? '完成' : '编辑',
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                          constraints: const BoxConstraints(
-                            minWidth: 24,
-                            minHeight: 24,
-                          ),
-                          iconSize: 22,
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
+              ),
+            ),
+          ],
         ),
         body: Consumer<PageSettingsService>(
           builder: (context, pageSettingsService, _) {
@@ -1210,6 +1047,10 @@ class _StoragePageState extends State<StoragePage> {
                 ? const Center(child: CircularProgressIndicator())
                 : Column(
                     children: [
+                      // 编辑提示条（3秒自动隐藏）
+                      if (isEditMode && showEditModeHint)
+                        const EditModeHintBar(),
+                      
                       // 搜索栏（使用统一的FileSearchBar组件）
                       if (_isSearchMode)
                         FileSearchBar(
@@ -1237,12 +1078,12 @@ class _StoragePageState extends State<StoragePage> {
                           },
                         ),
 
-                      // 编辑模式工具栏（Material You 风格）
-                      if (_isEditMode)
+                      // 编辑模式工具栏（Material You 风格）- 搜索模式下隐藏
+                      if (isEditMode && !_isSearchMode)
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: FilledButton.icon(
-                            onPressed: _showCreateFolderDialog,
+                            onPressed: showCreateFolderDialog,
                             icon: const Icon(Icons.create_new_folder),
                             label: const Text('新建文件夹'),
                             style: FilledButton.styleFrom(
@@ -1283,50 +1124,58 @@ class _StoragePageState extends State<StoragePage> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    ChoiceChip(
-                                      label: const Text(
-                                        '当前文件夹',
-                                        style: TextStyle(fontSize: 12),
+                                    Flexible(
+                                      child: ChoiceChip(
+                                        label: const Text(
+                                          '当前文件夹',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                        selected: !_searchInSubfolders,
+                                        onSelected: (selected) {
+                                          if (selected) {
+                                            setState(() {
+                                              _searchInSubfolders = false;
+                                            });
+                                          }
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
                                       ),
-                                      selected: !_searchInSubfolders,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() {
-                                            _searchInSubfolders = false;
-                                          });
-                                        }
-                                      },
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
                                     ),
                                     const SizedBox(width: 8),
-                                    ChoiceChip(
-                                      label: const Text(
-                                        '包含子文件夹',
-                                        style: TextStyle(fontSize: 12),
+                                    Flexible(
+                                      child: ChoiceChip(
+                                        label: const Text(
+                                          '包含子文件夹',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                        selected: _searchInSubfolders,
+                                        onSelected: (selected) {
+                                          if (selected) {
+                                            setState(() {
+                                              _searchInSubfolders = true;
+                                            });
+                                          }
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
                                       ),
-                                      selected: _searchInSubfolders,
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() {
-                                            _searchInSubfolders = true;
-                                          });
-                                        }
-                                      },
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
                                     ),
-                                    const Spacer(),
+                                    const SizedBox(width: 8),
                                     // 显示搜索结果数量
                                     if (_searchQuery.isNotEmpty)
-                                      Text(
-                                        '找到 ${_filteredFiles.length} 个结果',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                          fontWeight: FontWeight.w500,
+                                      Expanded(
+                                        child: Text(
+                                          '找到 ${_filteredFiles.length} 个',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.right,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                   ],
@@ -1362,7 +1211,7 @@ class _StoragePageState extends State<StoragePage> {
           },
         ),
         // 批量操作底部工具栏
-        bottomNavigationBar: _selectionController.isSelectionMode
+        bottomNavigationBar: isEditMode
             ? _buildSelectionBottomBar()
             : null,
       ),
@@ -1416,7 +1265,7 @@ class _StoragePageState extends State<StoragePage> {
       onExitSelectionMode: () {
         if (!mounted) return;
         // 批量操作完成后，总是退出编辑模式
-        _exitEditMode();
+        exitEditMode();
       },
     );
   }

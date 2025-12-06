@@ -90,7 +90,7 @@ class UnifiedViewConfig {
   static const double favoriteIconSize = 20.0;
 
   /// 选中状态的复选框大小
-  static const double checkboxSize = 24.0;
+  static const double checkboxSize = 20.0;
 
   /// 选中状态背景透明度
   static const double selectedBackgroundOpacity = 0.3;

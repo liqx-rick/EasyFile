@@ -1382,12 +1382,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 onEnterEditMode: enterEditMode,
               ),
             ],
-          ),    onEnterEditMode: enterEditMode,
-              ),
-            ],
-          ),    onEnterEditMode: enterEditMode,
-              ),
-            ],
           ),
         ],
       ),
@@ -1442,7 +1436,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 // 编辑按钮/指示器（三个Tab复用）
-                _buildEditButton(),
+                EditModeToolbarButton(
+                  isEditMode: isEditMode,
+                  onEnterEditMode: enterEditMode,
+                ),
               ],
             ),
         ],
@@ -1519,7 +1516,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   iconSize: 18,
                 ),
                 // 编辑按钮/指示器（三个Tab复用）
-                _buildEditButton(),
+                EditModeToolbarButton(
+                  isEditMode: isEditMode,
+                  onEnterEditMode: enterEditMode,
+                ),
               ],
             ),
         ],
@@ -2681,7 +2681,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   ),
 
                 // 编辑模式提示 - 显示在编辑按钮下一行（Recent Tab）
-                if (vm.currentTab == TabView.recent && isEditMode && showEditModeHint && !_selectionController.isSelectionMode)
+                if (vm.currentTab == TabView.recent && isEditMode && showEditModeHint)
                   const SliverToBoxAdapter(
                     child: EditModeHintBar(),
                   ),
@@ -2705,7 +2705,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   ),
 
                 // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab）
-                if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !_selectionController.isSelectionMode && !vm.isSearchMode)
+                if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !vm.isSearchMode)
                   const SliverToBoxAdapter(
                     child: EditModeHintBar(),
                   ),
@@ -2721,7 +2721,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   ),
 
                 // 编辑模式提示 - 显示在编辑按钮下一行（搜索时隐藏）
-                if (vm.currentTab == TabView.favorite && isEditMode && showEditModeHint && !_selectionController.isSelectionMode && !_favoriteSearchMode)
+                if (vm.currentTab == TabView.favorite && isEditMode && showEditModeHint && !_favoriteSearchMode)
                   const SliverToBoxAdapter(
                     child: EditModeHintBar(),
                   ),
@@ -3046,7 +3046,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         ),
 
                       // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab 横屏）
-                      if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !_selectionController.isSelectionMode && !vm.isSearchMode)
+                      if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !vm.isSearchMode)
                         const SliverToBoxAdapter(
                           child: EditModeHintBar(),
                         ),
@@ -3386,9 +3386,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           ? [
                               // 全选按钮（使用统一组件）
                               SelectAllButton(
-                                checkboxValue: getSelectAllCheckboxValue(
-                                  vm.files.map((f) => f.path).toList(),
-                                ),
+                                selectedCount: _selectedItems.length,
+                                totalCount: vm.files.length,
                                 onPressed: () => handleSelectAll(
                                   vm.files.map((f) => f.path).toList(),
                                 ),
