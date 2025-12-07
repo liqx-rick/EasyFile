@@ -45,6 +45,7 @@ class JunkFileService {
     // 2. 获取扫描路径
     final scanPaths = await _filePresenter.getCommonScanPaths();
     final junkFiles = <JunkFileItem>[];
+    final seenPaths = <String>{}; // 用于跟踪已扫描的文件路径，避免重复
 
     // 3. 扫描每个路径
     int processedPaths = 0;
@@ -55,13 +56,14 @@ class JunkFileService {
         Directory(path),
         config: config,
         results: junkFiles,
+        seenPaths: seenPaths,
       );
     }
 
-    // 5. 按大小排序
+    // 4. 按大小排序
     junkFiles.sort((a, b) => b.size.compareTo(a.size));
 
-    // 6. 保存缓存
+    // 5. 保存缓存
     await _cacheManager.saveCache(junkFiles, config);
 
     final totalSize = junkFiles.fold<int>(0, (sum, f) => sum + f.size);
@@ -76,6 +78,7 @@ class JunkFileService {
     Directory dir, {
     required JunkFileScanConfig config,
     required List<JunkFileItem> results,
+    required Set<String> seenPaths,
     int depth = 0,
   }) async {
     // 深度限制（避免过深扫描）
@@ -90,26 +93,31 @@ class JunkFileService {
 
       // 检查是否为空文件夹
       if (config.scanEmptyFolders && entities.isEmpty) {
-        final stat = await dir.stat();
-        results.add(JunkFileItem(
-          name: dir.path.split('/').last,
-          path: dir.path,
-          size: 0,
-          type: JunkFileType.emptyFolder,
-          modified: stat.modified,
-        ));
+        // 检查是否已扫描过此目录
+        if (!seenPaths.contains(dir.path)) {
+          seenPaths.add(dir.path); // 标记为已扫描
+          final stat = await dir.stat();
+          results.add(JunkFileItem(
+            name: dir.path.split('/').last,
+            path: dir.path,
+            size: 0,
+            type: JunkFileType.emptyFolder,
+            modified: stat.modified,
+          ));
+        }
         return; // 空文件夹不再递归
       }
 
       // 扫描文件和子目录
       for (final entity in entities) {
         if (entity is File) {
-          await _scanFile(entity, config: config, results: results);
+          await _scanFile(entity, config: config, results: results, seenPaths: seenPaths);
         } else if (entity is Directory) {
           await _scanDirectory(
             entity,
             config: config,
             results: results,
+            seenPaths: seenPaths,
             depth: depth + 1,
           );
         }
@@ -125,9 +133,15 @@ class JunkFileService {
     File file, {
     required JunkFileScanConfig config,
     required List<JunkFileItem> results,
+    required Set<String> seenPaths,
   }) async {
     final fileName = file.path.split('/').last;
     final lowerName = fileName.toLowerCase();
+
+    // 检查是否已经扫描过此文件
+    if (seenPaths.contains(file.path)) {
+      return;
+    }
 
     try {
       final stat = await file.stat();
@@ -138,6 +152,7 @@ class JunkFileService {
 
         // 注意：由于installed_apps包不支持从文件解析包名，暂时无法判断是否已安装
         // 因此显示所有APK，让用户手动判断
+        seenPaths.add(file.path); // 标记为已扫描
         results.add(JunkFileItem(
           name: fileName,
           path: file.path,
@@ -158,6 +173,7 @@ class JunkFileService {
 
         // 仅添加超过指定天数的临时文件
         if (daysSinceModified >= config.minTempFileDays) {
+          seenPaths.add(file.path); // 标记为已扫描
           results.add(JunkFileItem(
             name: fileName,
             path: file.path,

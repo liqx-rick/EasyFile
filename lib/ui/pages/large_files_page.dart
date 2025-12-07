@@ -26,6 +26,7 @@ import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
 
 /// 大文件查找页面
 ///
@@ -844,22 +845,13 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
               });
             }
           : () => _openFilePreview(file),
-      onLongPress: isEditMode
-          ? () {
-              // 编辑模式下：仅对文件显示详情面板 + 自动选中
-              if (!file.isDirectory) {
-                if (!_selectionController.contains(file.path)) {
-                  setState(() {
-                    _selectionController.select(file.path);
-                  });
-                }
-                _showFileDetailsBottomSheet(file, colorScheme);
-              }
-            }
-          : () {
-              enterEditMode();
-              _selectionController.select(file.path);
-            },
+      onLongPress: () {
+        // 长按文件：显示详情面板
+        // 长按文件夹：无操作
+        if (!file.isDirectory) {
+          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
+        }
+      },
     );
   }
 
@@ -1029,128 +1021,5 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
     if (needsRefresh == true) {
       await _refresh();
     }
-  }
-
-  /// 显示文件详情底部面板
-  void _showFileDetailsBottomSheet(FileItem file, ColorScheme colorScheme) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            
-            // 文件名
-            _buildDetailRow(
-              '文件名',
-              file.name,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 完整路径
-            _buildDetailRow(
-              '完整路径',
-              file.path,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 文件大小
-            _buildDetailRow(
-              '文件大小',
-              FileSizeFormatter.formatBytes(file.size),
-              colorScheme,
-            ),
-            const SizedBox(height: 16),
-            
-            // 修改时间
-            _buildDetailRow(
-              '修改时间',
-              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
-              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
-              colorScheme,
-            ),
-            const SizedBox(height: 24),
-            
-            // 关闭按钮
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建详情行
-  Widget _buildDetailRow(
-    String label,
-    String value,
-    ColorScheme colorScheme, {
-    bool isSelectable = false,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label：',
-          style: TextStyle(
-            fontSize: 14,
-            color: colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Expanded(
-          child: isSelectable
-              ? SelectableText(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                )
-              : Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-        ),
-      ],
-    );
   }
 }

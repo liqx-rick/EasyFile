@@ -1,14 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'package:path/path.dart' as path;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
 
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -48,6 +46,7 @@ import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -188,9 +187,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 优先级6: 其他情况 - 阻止退出页面
   }
-
-  // 浏览控制栏展开状态
-  bool _isControlBarExpanded = false;
 
   // 编辑模式滚动位置记录
   double _editModeEnterScrollOffset = 0.0; // 记录进入编辑模式时的滚动位置
@@ -2377,20 +2373,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           }
         },
         onLongPress: () {
-          if (isEditMode) {
-            // 编辑模式下：仅对文件显示详情面板 + 自动选中
-            if (!item.isDirectory) {
-              if (!_selectionController.contains(item.path)) {
-                setState(() {
-                  _selectionController.select(item.path);
-                });
-              }
-              _showFileDetailsBottomSheet(item);
-            }
-          } else {
-            // 非编辑模式：进入编辑模式并选中当前项
-            enterEditMode();
-            _selectionController.select(item.path);
+          // 长按文件：显示详情面板
+          // 长按文件夹：无操作
+          if (!item.isDirectory) {
+            FileDetailsHelper.showFileDetailsBottomSheet(context, item);
           }
         },
         onFavoriteToggle: !item.isDirectory
@@ -2440,20 +2426,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           }
         },
         onLongPress: () {
-          if (isEditMode) {
-            // 编辑模式下：仅对文件显示详情面板 + 自动选中
-            if (!item.isDirectory) {
-              if (!_selectionController.contains(item.path)) {
-                setState(() {
-                  _selectionController.select(item.path);
-                });
-              }
-              _showFileDetailsBottomSheet(item);
-            }
-          } else {
-            // 非编辑模式：进入编辑模式并选中当前项
-            enterEditMode();
-            _selectionController.select(item.path);
+          // 长按文件：显示详情面板
+          // 长按文件夹：无操作
+          if (!item.isDirectory) {
+            FileDetailsHelper.showFileDetailsBottomSheet(context, item);
           }
         },
       );
@@ -3520,131 +3496,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         // 批量操作完成后，总是退出编辑模式
         exitEditMode();
       },
-    );
-  }
-
-  /// 显示文件详情底部面板
-  void _showFileDetailsBottomSheet(FileItem file) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            
-            // 文件名
-            _buildDetailRow(
-              '文件名',
-              file.name,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 完整路径
-            _buildDetailRow(
-              '完整路径',
-              file.path,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 文件大小
-            _buildDetailRow(
-              '文件大小',
-              FileSizeFormatter.formatBytes(file.size),
-              colorScheme,
-            ),
-            const SizedBox(height: 16),
-            
-            // 修改时间
-            _buildDetailRow(
-              '修改时间',
-              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
-              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
-              colorScheme,
-            ),
-            const SizedBox(height: 24),
-            
-            // 关闭按钮
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建详情行
-  Widget _buildDetailRow(
-    String label,
-    String value,
-    ColorScheme colorScheme, {
-    bool isSelectable = false,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label：',
-          style: TextStyle(
-            fontSize: 14,
-            color: colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Expanded(
-          child: isSelectable
-              ? SelectableText(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                )
-              : Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-        ),
-      ],
     );
   }
 }
