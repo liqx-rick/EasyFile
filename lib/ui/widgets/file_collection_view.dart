@@ -473,16 +473,7 @@ class FileCollectionView extends StatelessWidget {
             if (onTap != null) onTap!(item);
           }
         },
-        onLongPress: () {
-          if (selectionController != null) {
-            // 框架内部完全处理选择逻辑
-            selectionController!.select(item.path);
-            // 可选：调用页面回调用于自定义行为（如显示提示）
-            if (onLongPress != null) onLongPress!(item);
-          } else {
-            if (onLongPress != null) onLongPress!(item);
-          }
-        },
+        onLongPress: onLongPress != null ? () => onLongPress!(item) : null,
         onFavoriteToggle:
             showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
                 ? () async {
@@ -532,16 +523,7 @@ class FileCollectionView extends StatelessWidget {
           if (onTap != null) onTap!(item);
         }
       },
-      onLongPress: () {
-        if (selectionController != null) {
-          // 框架内部完全处理选择逻辑
-          selectionController!.select(item.path);
-          // 可选：调用页面回调用于自定义行为（如显示提示）
-          if (onLongPress != null) onLongPress!(item);
-        } else {
-          if (onLongPress != null) onLongPress!(item);
-        }
-      },
+      onLongPress: onLongPress != null ? () => onLongPress!(item) : null,
     );
 
     // Add semantics for accessibility

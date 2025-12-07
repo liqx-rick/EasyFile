@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path/path.dart' as path;
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -27,6 +26,7 @@ import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -870,16 +870,10 @@ class _StoragePageState extends State<StoragePage>
         viewConfigBuilder: viewConfigBuilder,
         onTap: (file) => _onFileTap(file),
         onLongPress: (file) {
-          if (isEditMode) {
-            // 编辑模式：选中该项并弹出详情面板（仅文件）
-            _selectionController.select(file.path);
-            if (!file.isDirectory) {
-              _showFileDetailsBottomSheet(file);
-            }
-          } else {
-            // 非编辑模式：进入编辑模式并选中该项
-            enterEditMode();
-            _selectionController.select(file.path);
+          // 长按文件：显示详情面板
+          // 长按文件夹：无操作
+          if (!file.isDirectory) {
+            FileDetailsHelper.showFileDetailsBottomSheet(context, file);
           }
         },
       );
@@ -904,16 +898,10 @@ class _StoragePageState extends State<StoragePage>
       viewConfigBuilder: viewConfigBuilder,
       onTap: (file) => _onFileTap(file),
       onLongPress: (file) {
-        if (isEditMode) {
-          // 编辑模式：选中该项并弹出详情面板（仅文件）
-          _selectionController.select(file.path);
-          if (!file.isDirectory) {
-            _showFileDetailsBottomSheet(file);
-          }
-        } else {
-          // 非编辑模式：进入编辑模式并选中该项
-          enterEditMode();
-          _selectionController.select(file.path);
+        // 长按文件：显示详情面板
+        // 长按文件夹：无操作
+        if (!file.isDirectory) {
+          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
         }
       },
     );
@@ -1262,140 +1250,5 @@ class _StoragePageState extends State<StoragePage>
         exitEditMode();
       },
     );
-  }
-
-  /// 显示文件详情底部面板
-  void _showFileDetailsBottomSheet(FileItem file) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            
-            // 文件名
-            _buildDetailRow(
-              '文件名',
-              file.name,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 完整路径
-            _buildDetailRow(
-              '完整路径',
-              file.path,
-              colorScheme,
-              isSelectable: true,
-            ),
-            const SizedBox(height: 16),
-            
-            // 文件大小
-            _buildDetailRow(
-              '文件大小',
-              _formatFileSize(file.size),
-              colorScheme,
-            ),
-            const SizedBox(height: 16),
-            
-            // 修改时间
-            _buildDetailRow(
-              '修改时间',
-              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
-              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
-              colorScheme,
-            ),
-            const SizedBox(height: 24),
-            
-            // 关闭按钮
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建详情行
-  Widget _buildDetailRow(
-    String label,
-    String value,
-    ColorScheme colorScheme, {
-    bool isSelectable = false,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label：',
-          style: TextStyle(
-            fontSize: 14,
-            color: colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Expanded(
-          child: isSelectable
-              ? SelectableText(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                )
-              : Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-
-  /// 格式化文件大小
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }

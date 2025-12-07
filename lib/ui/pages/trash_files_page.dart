@@ -11,6 +11,8 @@ import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/widgets/video_player_widget.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 
 /// 文件类型枚举
 enum FileType {
@@ -702,17 +704,11 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
             ),
           // 全选/取消全选
           if (!_isScanning && _filteredFiles.isNotEmpty)
-            IconButton(
-              icon: Icon(
-                _selectedPaths.length == _filteredFiles.length &&
-                        _selectedPaths.isNotEmpty
-                    ? Icons.deselect
-                    : Icons.select_all,
-              ),
-              tooltip: _selectedPaths.length == _filteredFiles.length &&
-                      _selectedPaths.isNotEmpty
-                  ? '取消全选'
-                  : '全选',
+            SelectAllButton(
+              selectedCount: _filteredFiles
+                  .where((f) => _selectedPaths.contains(f.path))
+                  .length,
+              totalCount: _filteredFiles.length,
               onPressed: () {
                 setState(() {
                   final filteredPaths =
@@ -765,7 +761,12 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
                             return InkWell(
                               onLongPress: () {
-                                _showFileDetailsDialog(file);
+                                FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                  context,
+                                  file,
+                                  trashBinName: _getTrashBinName(file),
+                                  fileTypeLabel: _getFileTypeLabel(file),
+                                );
                               },
                               onTap: () {
                                 setState(() {
@@ -880,7 +881,12 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
                                               if (details.localPosition.dx >=
                                                   offset) {
-                                                _showFileDetailsDialog(file);
+                                                FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                                  context,
+                                                  file,
+                                                  trashBinName: _getTrashBinName(file),
+                                                  fileTypeLabel: _getFileTypeLabel(file),
+                                                );
                                               }
                                             },
                                             child: RichText(
@@ -1710,77 +1716,6 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
         color: isSelected ? Colors.white : null,
       ),
       showCheckmark: false,
-    );
-  }
-
-  /// 显示文件详情对话框
-  void _showFileDetailsDialog(TrashFileItem file) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(file.name),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('文件类型', _getFileTypeLabel(file)),
-              _buildDetailRow('大小', FileSizeFormatter.formatBytes(file.size)),
-              _buildDetailRow(
-                  '删除时间',
-                  FileListItemBuilder.formatDetailDate(
-                      file.trashedTime ?? file.modified)),
-              _buildDetailRow('回收站', _getTrashBinName(file)),
-              const Divider(height: 24),
-              _buildDetailRow('完整路径', file.path, isPath: true),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
-          ),
-          TextButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: file.path));
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('路径已复制到剪贴板')),
-              );
-            },
-            child: const Text('复制路径'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建详情行
-  Widget _buildDetailRow(String label, String value, {bool isPath = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontFamily: isPath ? 'monospace' : null,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
