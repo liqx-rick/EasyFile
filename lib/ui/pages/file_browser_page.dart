@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,14 +88,47 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   // PopScopeHandlerMixin 重写 - Browser Page 特殊逻辑
   @override
   bool canPopPage() {
-    // Browser Page 总是拦截返回键，由 handlePopInvoked 处理
-    return false;
+    // 优先级1: 有搜索模式 → 不允许pop（需要先退出搜索）
+    if (viewModel.currentTab == TabView.browse && viewModel.isSearchMode) {
+      return false;
+    }
+    if (viewModel.currentTab == TabView.favorite && _favoriteSearchMode) {
+      return false;
+    }
+
+    // 优先级2: 编辑模式 → 不允许pop（需要先退出编辑）
+    if (isEditMode) {
+      return false;
+    }
+
+    // 优先级3: Browse Tab 在子文件夹 → 不允许pop（需要先返回上级）
+    if (viewModel.currentTab == TabView.browse &&
+        viewModel.currentPath.isNotEmpty &&
+        _canNavigateUp(viewModel.currentPath)) {
+      return false;
+    }
+
+    // 优先级4: 不在顶部 → 不允许pop（需要先滚动到顶部）
+    final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final isAtTop = currentOffset < _scrollThreshold;
+    if (!isAtTop) {
+      return false;
+    }
+
+    // 优先级5: 已在顶部且无特殊状态 → 允许pop（退出应用）
+    return true;
   }
 
   @override
   void handlePopInvoked(bool didPop, dynamic result) {
-    if (didPop) return;
+    // 如果系统已经允许pop（canPopPage返回true），说明满足退出条件
+    // 此时应该退出应用到后台
+    if (didPop) {
+      SystemNavigator.pop();
+      return;
+    }
 
+    // 以下是canPopPage返回false时的处理逻辑
     // 优先级1: 退出搜索模式
     if (viewModel.currentTab == TabView.browse && viewModel.isSearchMode) {
       _searchController.clear();
@@ -138,7 +172,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       }
     }
 
-    // 优先级3: 子文件夹返回上级
+    // 优先级3: Browse Tab 子文件夹返回上级
     if (viewModel.currentTab == TabView.browse &&
         viewModel.currentPath.isNotEmpty &&
         _canNavigateUp(viewModel.currentPath)) {
@@ -146,46 +180,19 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return;
     }
 
-    // 优先级4: Browse Tab 根目录
-    if (viewModel.currentTab == TabView.browse) {
-      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-      final isAtTop = currentOffset < _scrollThreshold;
+    // 优先级4: 所有Tab - 不在顶部时滚动到顶部
+    final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final isAtTop = currentOffset < _scrollThreshold;
 
-      if (!isAtTop) {
-        // 不在顶部 → 滚动回顶部
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-        return;
-      } else {
-        // 已在顶部 → 切换到 Recent Tab
-        viewModel.setCurrentTab(TabView.recent);
-        presenter.loadRecentFiles();
-        return;
-      }
-    }
-
-    // 优先级5: Favorite Tab
-    if (viewModel.currentTab == TabView.favorite) {
-      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-      final isAtTop = currentOffset < _scrollThreshold;
-
-      if (!isAtTop) {
-        // 不在顶部 → 滚动回顶部
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-        return;
-      }
-      // 已在顶部 → 阻止退出（保持在页面内）
+    if (!isAtTop) {
+      // 不在顶部 → 滚动回顶部
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
       return;
     }
-
-    // 优先级6: 其他情况 - 阻止退出页面
   }
 
   // 编辑模式滚动位置记录
@@ -1169,11 +1176,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             context,
             '最近',
             Icons.access_time,
-            vm.currentTab == TabView.recent,
+            false, // 不显示高亮，保持视觉简洁
             onTap: () {
               viewModel.setCurrentTab(TabView.recent);
               presenter.loadRecentFiles();
             },
+            useColoredIcon: vm.currentTab == TabView.recent, // 当前Tab时显示彩色
           ),
           Container(
             width: 1,
@@ -1186,11 +1194,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             context,
             '收藏',
             Icons.star,
-            vm.currentTab == TabView.favorite,
+            false, // 不显示高亮，保持视觉简洁
             onTap: () {
               viewModel.setCurrentTab(TabView.favorite);
               presenter.loadFavoriteFiles();
             },
+            useColoredIcon: vm.currentTab == TabView.favorite, // 当前Tab时显示彩色
           ),
           Container(
             width: 1,
@@ -1227,6 +1236,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     bool isSelected, {
     VoidCallback? onTap,
     bool enabled = true,
+    bool useColoredIcon = false, // 是否使用彩色图标
   }) {
     final theme = Theme.of(context);
 
@@ -1250,8 +1260,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               if (label != '快捷访问') ...[
                 Icon(
                   icon,
-                  size: 15,
-                  color: isSelected
+                  size: useColoredIcon ? 17 : 15, // 选中时放大图标
+                  // 使用填充图标样式增强视觉效果
+                  weight: useColoredIcon ? 600 : 400,
+                  fill: useColoredIcon ? 1.0 : 0.0,
+                  color: useColoredIcon
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
                 ),
@@ -1265,8 +1278,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight:
-                        isSelected ? FontWeight.w500 : FontWeight.normal,
-                    color: isSelected
+                        useColoredIcon ? FontWeight.w600 : FontWeight.normal,
+                    color: useColoredIcon
                         ? theme.colorScheme.primary
                         : theme.colorScheme.onSurfaceVariant,
                   ),
@@ -1335,11 +1348,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 context,
                 '最近',
                 Icons.access_time,
-                vm.currentTab == TabView.recent,
+                false, // 不显示高亮，保持视觉简洁
                 onTap: () {
                   viewModel.setCurrentTab(TabView.recent);
                   presenter.loadRecentFiles();
                 },
+                useColoredIcon: vm.currentTab == TabView.recent, // 当前Tab时显示彩色
               ),
             ),
             Container(
@@ -1355,11 +1369,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 context,
                 '收藏',
                 Icons.star,
-                vm.currentTab == TabView.favorite,
+                false, // 不显示高亮，保持视觉简洁
                 onTap: () {
                   viewModel.setCurrentTab(TabView.favorite);
                   presenter.loadFavoriteFiles();
                 },
+                useColoredIcon: vm.currentTab == TabView.favorite, // 当前Tab时显示彩色
               ),
             ),
             Container(
