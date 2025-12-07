@@ -148,6 +148,19 @@ class SelectionController {
   /// Replaces the current selection with the new set of paths.
   void selectAll(List<String> paths) {
     _selected.value = Set<String>.from(paths);
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
+  }
+
+  /// Enters selection mode without selecting any files.
+  ///
+  /// This is useful when you want to show checkboxes but haven't
+  /// selected any files yet (e.g., when entering edit mode).
+  void enterSelectionMode() {
+    if (!_isSelectionMode.value) {
+      _isSelectionMode.value = true;
+    }
   }
 
   /// Clears all selections and exits selection mode.
@@ -246,6 +259,8 @@ class FileCollectionView extends StatelessWidget {
   // 统一网格组件支持
   final bool useUnifiedGridItem;
   final UnifiedViewConfig? config;
+  final UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
+  final bool showCheckbox;
 
   const FileCollectionView({
     super.key,
@@ -272,6 +287,8 @@ class FileCollectionView extends StatelessWidget {
     this.getAccessTime,
     this.useUnifiedGridItem = false,
     this.config,
+    this.viewConfigBuilder,
+    this.showCheckbox = false,
   }) : assert(items != null || groups != null,
             'Either items or groups must be provided');
 
@@ -435,6 +452,9 @@ class FileCollectionView extends StatelessWidget {
 
     // 网格模式且启用统一组件
     if (gridMode && useUnifiedGridItem) {
+      // 获取该文件的视图配置（支持每个文件不同的配置）
+      final itemConfig = viewConfigBuilder?.call(item) ?? config;
+      
       // 添加唯一 key 以保持 widget 状态
       // 这确保滚动时 widget 不会被完全重建，子组件的状态得以保留
       // 特别重要：视频缩略图不会重新显示 loading 状态
@@ -442,9 +462,10 @@ class FileCollectionView extends StatelessWidget {
         key: ValueKey('grid_item_${item.path}'),
         file: item,
         isSelected: isSelected,
+        showCheckbox: showCheckbox,
         isFavorite: isFavorite?.call(item.path) ?? false,
         showFavoriteButton: showFavoriteButton,
-        config: config,
+        config: itemConfig,
         onTap: () {
           if (isSelectionMode) {
             selectionController!.toggle(item.path);

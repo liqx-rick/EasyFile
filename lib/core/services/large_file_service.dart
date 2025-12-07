@@ -136,7 +136,43 @@ class LargeFileService {
         return files;
       }
 
-      // 递归扫描
+      // 特殊处理：如果是根目录，先扫描第一层的文件（不递归）
+      final isRootPath = pathStr == '/storage/emulated/0' ||
+          pathStr == Platform.environment['USERPROFILE'] ||
+          pathStr == Platform.environment['HOME'];
+
+      if (isRootPath) {
+        logger.d('扫描根目录第一层文件: $pathStr');
+        await for (final entity in directory.list(followLinks: false)) {
+          if (entity is File) {
+            try {
+              final stat = await entity.stat();
+              if (stat.size >= minSizeInBytes) {
+                // 文件类型过滤
+                if (fileTypes != null && fileTypes.isNotEmpty) {
+                  if (!_matchesFileType(entity.path, fileTypes)) continue;
+                }
+
+                final fileItem = FileItem(
+                  path: entity.path,
+                  name: path.basename(entity.path),
+                  isDirectory: false,
+                  size: stat.size,
+                  modified: stat.modified,
+                );
+                files.add(fileItem);
+                logger.d('发现根目录大文件: ${fileItem.name} (${fileItem.size} bytes)');
+              }
+            } catch (e) {
+              logger.w('错误检查根目录文件: ${entity.path}, 错误: $e');
+            }
+          }
+        }
+        // 根目录只扫描第一层，不递归到子文件夹
+        return files;
+      }
+
+      // 普通目录：递归扫描
       await _scanDirectoryWithPruning(
         directory,
         minSizeInBytes,

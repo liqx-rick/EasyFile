@@ -241,9 +241,22 @@ class FileViewModel extends ChangeNotifier {
 
   /// 应用筛选条件
   void _applyFilters() {
-    _files = _fileTypeAnalyzer.filterByCategory(_allFiles, _selectedCategory);
+    // 判断是否应该隐藏文件夹：
+    // 1. 必须是浏览模式（非搜索、非最近、非收藏）
+    // 2. 选择了具体分类（非"全部"）
+    // 3. 当前目录下有子文件夹
+    final shouldHideFolders = _currentTab == TabView.browse && 
+                               !_isSearchMode && 
+                               _selectedCategory != FileCategory.all &&
+                               _allFiles.any((item) => item.isDirectory);
+    
+    _files = _fileTypeAnalyzer.filterByCategory(
+      _allFiles,
+      _selectedCategory,
+      hideFolders: shouldHideFolders,
+    );
     logger.d(
-        'After filters applied: ${_files.length} items (from ${_allFiles.length} total)');
+        'After filters applied: ${_files.length} items (from ${_allFiles.length} total), shouldHideFolders: $shouldHideFolders');
     notifyListeners();
   }
 

@@ -14,7 +14,12 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
@@ -43,7 +48,7 @@ class LargeFilesPage extends StatefulWidget {
   State<LargeFilesPage> createState() => _LargeFilesPageState();
 }
 
-class _LargeFilesPageState extends State<LargeFilesPage> {
+class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, PopScopeHandlerMixin {
   // 扫描配置
   late LargeFileScanConfig _config;
 
@@ -58,10 +63,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   bool _isDifferentialScanning = false;
   int _newFilesCount = 0;
   int _deletedFilesCount = 0; // 本次删除的文件数量
-  bool _showHintBanner = false; // 是否显示操作提示栏
 
   // 批量操作
   final _selectionController = SelectionController();
+  
+  @override
+  SelectionController get selectionController => _selectionController;
   late final BatchOperationsService _batchService;
 
   @override
@@ -75,7 +82,16 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       onRefresh: _refresh,
       onExitSelectionMode: () {
         if (!mounted) return;
-        _selectionController.clear();
+        // 延迟到下一帧执行，确保所有 notifyListeners() 完成
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // 批量操作完成后，完全退出编辑模式
+          if (isEditMode) {
+            exitEditMode();
+          } else {
+            _selectionController.clear();
+          }
+        });
       },
     );
 
@@ -177,6 +193,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         _largeFiles = existingFiles;
         _totalSize = existingFiles.fold<int>(0, (sum, f) => sum + f.size);
         _deletedFilesCount = deletedCount;
+        
+        // 建议 #10：如果列表变空且处于编辑模式，自动退出编辑模式
+        if (_largeFiles.isEmpty && isEditMode) {
+          exitEditMode();
+          logger.d('Auto-exited edit mode: no files left');
+        }
       });
 
       // 保存到缓存
@@ -227,16 +249,6 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
 
         // 保存到缓存
         await _cacheManager.saveCache(files: _largeFiles, config: _config);
-
-        // 如果有结果，显示操作提示（3秒后自动关闭）
-        if (files.isNotEmpty) {
-          setState(() => _showHintBanner = true);
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() => _showHintBanner = false);
-            }
-          });
-        }
 
         if (files.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -423,26 +435,25 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: _buildAppBar(colorScheme),
-      body: Column(
-        children: [
-          // 主体：卡片 + 列表（统一滚动）
-          Expanded(
-            child: _buildScrollableContent(theme, colorScheme),
-          ),
+    return wrapWithPopScope(
+      child: Scaffold(
+        appBar: _buildAppBar(colorScheme),
+        body: Column(
+          children: [
+            // 编辑模式提示栏
+            if (isEditMode && showEditModeHint)
+              const EditModeHintBar(),
 
-          // 底部：批量操作栏（仅选择模式下显示）
-          ValueListenableBuilder<bool>(
-            valueListenable: _selectionController.selectionModeNotifier,
-            builder: (context, isSelectionMode, _) {
-              if (isSelectionMode) {
-                return _buildBatchOperationsBar(colorScheme);
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
+            // 主体：卡片 + 列表（统一滚动）
+            Expanded(
+              child: _buildScrollableContent(theme, colorScheme),
+            ),
+          ],
+        ),
+        // 批量操作底部工具栏
+        bottomNavigationBar: _selectionController.isSelectionMode
+            ? _buildSelectionBottomBar()
+            : null,
       ),
     );
   }
@@ -451,42 +462,45 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
   PreferredSizeWidget _buildAppBar(ColorScheme colorScheme) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _selectionController.selectionModeNotifier,
-        builder: (context, isSelectionMode, _) {
-          if (isSelectionMode) {
-            // 批量选择模式
-            return AppBar(
+      child: isEditMode
+          ? AppBar(
+              // 编辑/选择模式
               leading: IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => _selectionController.clear(),
+                onPressed: exitEditMode,
+                tooltip: '完成',
               ),
-              title: ValueListenableBuilder<Set<String>>(
-                valueListenable: _selectionController.selectedNotifier,
-                builder: (context, selected, _) {
-                  return Text('已选择 ${selected.length} 项');
-                },
-              ),
+              title: const Text('大文件查找'),
+              centerTitle: true,
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.select_all),
+                // 全选按钮
+                SelectAllButton(
+                  selectedCount: _selectionController.selected.length,
+                  totalCount: _largeFiles.length,
                   onPressed: () {
-                    final allPaths = _largeFiles.map((f) => f.path).toList();
-                    _selectionController.selectAll(allPaths);
+                    setState(() {
+                      handleSelectAll(
+                        _largeFiles.map((f) => f.path).toList(),
+                      );
+                    });
                   },
-                  tooltip: '全选',
                 ),
               ],
-            );
-          }
-
-          // 正常模式
-          return AppBar(
-            title: const Text('大文件查找'),
-            centerTitle: true,
-          );
-        },
-      ),
+            )
+          : AppBar(
+              // 普通模式
+              title: const Text('大文件查找'),
+              centerTitle: true,
+              actions: [
+                // 扫描中或空列表时隐藏编辑按钮
+                if (!_isScanning && _largeFiles.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: enterEditMode,
+                    tooltip: '编辑',
+                  ),
+              ],
+            ),
     );
   }
 
@@ -511,16 +525,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
 
         return CustomScrollView(
           slivers: [
-            // 状态卡片
-            SliverToBoxAdapter(
-              child: _buildScanConfigArea(theme, colorScheme),
-            ),
-            // 操作提示栏（3秒后自动消失）
-            if (_showHintBanner)
+            // 状态卡片（空列表时不显示，避免重复）
+            if (_largeFiles.isNotEmpty)
               SliverToBoxAdapter(
-                child: _buildHintBanner(colorScheme),
+                child: _buildScanConfigArea(theme, colorScheme),
               ),
-            // 文件列表
+            // 文件列表或空状态
             if (_largeFiles.isEmpty)
               SliverFillRemaining(
                 child: Center(
@@ -535,7 +545,10 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
                       const SizedBox(height: 16),
                       Text(
                         '未找到大于 ${_config.minSizeInMB} MB 的文件',
-                        style: TextStyle(color: Colors.grey[600]),
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 15,
+                        ),
                       ),
                     ],
                   ),
@@ -554,55 +567,6 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
           ],
         );
       },
-    );
-  }
-
-  /// 构建操作提示栏
-  Widget _buildHintBanner(ColorScheme colorScheme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.touch_app,
-            size: 20,
-            color: colorScheme.onPrimaryContainer,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '长按文件可进入批量删除模式',
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() => _showHintBanner = false);
-            },
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              '知道了',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -801,16 +765,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       selected: isSelected,
       selectedTileColor: colorScheme.primaryContainer.withOpacity(0.3),
-      leading: isSelectionMode
-          ? Checkbox(
-              value: isSelected,
-              onChanged: (bool? value) {
-                setState(() {
-                  _selectionController.toggle(file.path);
-                });
-              },
-            )
-          : _buildThumbnail(file, 48),
+      leading: _buildThumbnail(file, 48),
       title: Text(
         file.name,
         maxLines: 1,
@@ -823,80 +778,122 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 11),
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            FileSizeFormatter.formatBytes(file.size),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.primary,
+      trailing: isEditMode
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      FileSizeFormatter.formatBytes(file.size),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(file.modified),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Checkbox(
+                  value: isSelected,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _selectionController.toggle(file.path);
+                    });
+                  },
+                ),
+              ],
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  FileSizeFormatter.formatBytes(file.size),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDate(file.modified),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _formatDate(file.modified),
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-      onTap: isSelectionMode
+      onTap: isEditMode
           ? () {
               setState(() {
                 _selectionController.toggle(file.path);
               });
             }
           : () => _openFilePreview(file),
-      onLongPress: isSelectionMode
-          ? null
+      onLongPress: isEditMode
+          ? () {
+              // 编辑模式下：仅对文件显示详情面板 + 自动选中
+              if (!file.isDirectory) {
+                if (!_selectionController.contains(file.path)) {
+                  setState(() {
+                    _selectionController.select(file.path);
+                  });
+                }
+                _showFileDetailsBottomSheet(file, colorScheme);
+              }
+            }
           : () {
-              setState(() {
-                _selectionController.select(file.path);
-              });
+              enterEditMode();
+              _selectionController.select(file.path);
             },
     );
   }
 
   /// 构建扫描结果卡片（在列表顶部显示）
   /// 构建批量操作栏
-  Widget _buildBatchOperationsBar(ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant),
-        ),
-      ),
-      child: ValueListenableBuilder<Set<String>>(
-        valueListenable: _selectionController.selectedNotifier,
-        builder: (context, selected, _) {
-          return Row(
-            children: [
-              Text(
-                '已选择 ${selected.length} 项',
-                style: const TextStyle(fontSize: 14),
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () {
-                        if (!mounted) return;
-                        _batchService.batchDelete(context, selected);
-                      },
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('删除'),
-              ),
-            ],
-          );
-        },
-      ),
+  /// 构建批量选择底部工具栏
+  Widget _buildSelectionBottomBar() {
+    return SelectionBottomBar(
+      selectedPaths: _selectionController.selected,
+      isAllFavorite: _batchService.isAllSelectedFavorite(_selectionController.selected),
+      onCopy: () {
+        if (!mounted) return;
+        _batchService.batchCopy(context, _selectionController.selected, '/storage/emulated/0');
+      },
+      onRename: () {
+        if (!mounted) return;
+        _batchService.batchRename(context, _selectionController.selected);
+      },
+      onShare: () {
+        if (!mounted) return;
+        _batchService.batchShare(context, _selectionController.selected);
+      },
+      onMove: () {
+        if (!mounted) return;
+        _batchService.batchMove(context, _selectionController.selected, '/storage/emulated/0');
+      },
+      onToggleFavorite: () {
+        if (!mounted) return;
+        _batchService.batchToggleFavorite(context, _selectionController.selected);
+      },
+      onDelete: () {
+        if (!mounted) return;
+        _batchService.batchDelete(context, _selectionController.selected);
+      },
     );
   }
 
@@ -1032,5 +1029,128 @@ class _LargeFilesPageState extends State<LargeFilesPage> {
     if (needsRefresh == true) {
       await _refresh();
     }
+  }
+
+  /// 显示文件详情底部面板
+  void _showFileDetailsBottomSheet(FileItem file, ColorScheme colorScheme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: colorScheme.primary,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '文件详情',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // 文件名
+            _buildDetailRow(
+              '文件名',
+              file.name,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+            
+            // 完整路径
+            _buildDetailRow(
+              '完整路径',
+              file.path,
+              colorScheme,
+              isSelectable: true,
+            ),
+            const SizedBox(height: 16),
+            
+            // 文件大小
+            _buildDetailRow(
+              '文件大小',
+              FileSizeFormatter.formatBytes(file.size),
+              colorScheme,
+            ),
+            const SizedBox(height: 16),
+            
+            // 修改时间
+            _buildDetailRow(
+              '修改时间',
+              '${file.modified.year}-${file.modified.month.toString().padLeft(2, '0')}-${file.modified.day.toString().padLeft(2, '0')} '
+              '${file.modified.hour.toString().padLeft(2, '0')}:${file.modified.minute.toString().padLeft(2, '0')}',
+              colorScheme,
+            ),
+            const SizedBox(height: 24),
+            
+            // 关闭按钮
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建详情行
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    ColorScheme colorScheme, {
+    bool isSelectable = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label：',
+          style: TextStyle(
+            fontSize: 14,
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: isSelectable
+              ? SelectableText(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                )
+              : Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+        ),
+      ],
+    );
   }
 }

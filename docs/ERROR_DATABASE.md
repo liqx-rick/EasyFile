@@ -157,6 +157,28 @@ void batchAdd(List items) {
     3. Service层：先退出选择模式，再用 `addPostFrameCallback` 延迟显示消息
   - 文件：`lib/viewmodel/file_viewmodel.dart`, `lib/presenter/file_presenter.dart`, `lib/ui/services/batch_operations_service.dart`
 
+- **2025-12-06**: Category页面批量收藏操作触发此错误（编辑模式）
+  - 场景：Category页面编辑模式下，通过底部工具栏的"更多"菜单执行添加/取消收藏
+  - 原因：**双层触发点**
+    1. `SelectionBottomBar` 的 `PopupMenuButton.onSelected` 回调立即执行，在 PopupMenu 关闭动画期间调用业务逻辑
+    2. `BatchOperationsService.batchToggleFavorite()` 方法内部立即调用 `onExitSelectionMode()`，触发 `setState()` 更新
+    3. 两层叠加：PopupMenu 还在执行关闭动画，但页面已经开始重建，导致 widget 树冲突
+  - 错误堆栈关键帧：
+    ```
+    #3 PopupMenuTheme.of (package:flutter/src/material/popup_menu_theme.dart:278:10)
+    #4 PopupMenuButtonState._positionBuilder
+    ```
+  - 解决：**双层延迟**
+    1. UI层：`PopupMenuButton.onSelected` 使用 `Future.delayed(Duration(milliseconds: 100))` 延迟所有回调执行
+    2. Service层：`onExitSelectionMode()` 调用移入 `addPostFrameCallback` 内部，与消息显示一起延迟
+  - 修改文件：
+    - `lib/ui/widgets/selection_bottom_bar.dart` - PopupMenu 回调延迟
+    - `lib/ui/services/batch_operations_service.dart` - `onExitSelectionMode()` 延迟
+  - **关键经验：**
+    - ✅ **所有 PopupMenu 的 onSelected 回调都必须延迟执行**（参考 `file_preview_page.dart`）
+    - ✅ **回调内部的所有状态更新（setState、notifyListeners）也必须延迟**
+    - ✅ 双层防护比单层更可靠：UI层延迟 + Service层延迟
+
 ---
 
 <a name="e002"></a>

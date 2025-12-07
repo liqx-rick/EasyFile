@@ -93,11 +93,9 @@ class BatchOperationsService {
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        // ⚠️ 先退出选择模式，再显示消息
-        onExitSelectionMode();
-
-        // 延迟一帧后显示SnackBar，确保setState完成，避免"deactivated widget"错误
+        // ⚠️ 延迟退出选择模式和显示消息，确保PopupMenu完全关闭
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          onExitSelectionMode();
           _showSnackBarDirect(messenger, message);
         });
       } else {
@@ -129,9 +127,11 @@ class BatchOperationsService {
         // 如果过滤后没有可添加的文件，提示并退出
         if (filesToAdd.isEmpty) {
           if (_isMounted(context)) {
-            _showSnackBarDirect(messenger, '没有可添加到收藏的文件');
-            // ⚠️ 在mounted检查内部调用，防止在unmounted状态触发setState
-            onExitSelectionMode();
+            // ⚠️ 延迟退出选择模式和显示消息，确保PopupMenu完全关闭
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onExitSelectionMode();
+              _showSnackBarDirect(messenger, '没有可添加到收藏的文件');
+            });
           }
           return;
         }
@@ -146,21 +146,18 @@ class BatchOperationsService {
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
             : '已$action $successCount 个文件';
 
-        // ⚠️ 先退出选择模式，再显示消息
-        onExitSelectionMode();
-
-        // 延迟一帧后显示SnackBar，确保setState完成
+        // ⚠️ 延迟退出选择模式和显示消息，确保PopupMenu完全关闭
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          onExitSelectionMode();
           _showSnackBarDirect(messenger, message);
         });
       }
     } catch (e, stackTrace) {
       logger.e('Batch toggle favorite failed: $e\n$stackTrace');
       if (_isMounted(context)) {
-        // 先退出选择模式
-        onExitSelectionMode();
-        // 延迟一帧后显示错误消息
+        // ⚠️ 延迟退出选择模式和显示错误消息，确保PopupMenu完全关闭
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          onExitSelectionMode();
           _showSnackBarDirect(messenger, '$action失败：$e');
         });
       }

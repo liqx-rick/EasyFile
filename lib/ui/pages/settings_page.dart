@@ -396,7 +396,9 @@ class _SettingsPageState extends State<SettingsPage> {
       secondary: const Icon(Icons.grid_view),
       title: const Text('网格模式显示文件信息'),
       subtitle: Text(
-        _gridShowFileInfo ? '当前显示文件名和大小' : '当前仅显示缩略图（图片/视频分类）',
+        _gridShowFileInfo 
+            ? '显示文件名和大小' 
+            : '简洁模式：图片/视频仅显示缩略图',
         style: TextStyle(
           fontSize: 12,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -411,7 +413,11 @@ class _SettingsPageState extends State<SettingsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(value ? '已开启文件信息显示' : '已切换到简洁模式'),
+              content: Text(
+                value 
+                    ? '已开启文件信息显示' 
+                    : '已切换到简洁模式（图片/视频）',
+              ),
               duration: const Duration(seconds: 1),
             ),
           );

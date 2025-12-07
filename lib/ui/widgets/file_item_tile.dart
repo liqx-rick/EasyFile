@@ -168,16 +168,10 @@ class _FileItemTileState extends State<FileItemTile> {
     if (widget.file.isDirectory) {
       // 文件夹显示右箭头（或复选框）
       if (widget.showCheckbox) {
-        return SizedBox(
-          width: 32,
-          child: Transform.scale(
-            scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-            child: Checkbox(
-              value: widget.isSelected,
-              onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
+        return Checkbox(
+          value: widget.isSelected,
+          onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         );
       }
       return const Icon(Icons.chevron_right);
@@ -208,16 +202,10 @@ class _FileItemTileState extends State<FileItemTile> {
               ),
             ),
           // 复选框
-          SizedBox(
-            width: 32,
-            child: Transform.scale(
-              scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-              child: Checkbox(
-                value: widget.isSelected,
-                onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
+          Checkbox(
+            value: widget.isSelected,
+            onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
       );
@@ -225,16 +213,10 @@ class _FileItemTileState extends State<FileItemTile> {
 
     // 仅显示复选框
     if (widget.showCheckbox) {
-      return SizedBox(
-        width: 32,
-        child: Transform.scale(
-          scale: 0.75, // 缩放到18px，与收藏按钮大小一致
-          child: Checkbox(
-            value: widget.isSelected,
-            onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
+      return Checkbox(
+        value: widget.isSelected,
+        onChanged: widget.onTap != null ? (_) => widget.onTap!() : null,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       );
     }
 
