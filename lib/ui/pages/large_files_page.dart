@@ -19,6 +19,7 @@ import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
@@ -47,7 +48,7 @@ class LargeFilesPage extends StatefulWidget {
   State<LargeFilesPage> createState() => _LargeFilesPageState();
 }
 
-class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin {
+class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, PopScopeHandlerMixin {
   // 扫描配置
   late LargeFileScanConfig _config;
 
@@ -434,17 +435,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return PopScope(
-      canPop: !isEditMode,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-
-        // 优先级：退出编辑模式
-        if (isEditMode) {
-          exitEditMode();
-          return;
-        }
-      },
+    return wrapWithPopScope(
       child: Scaffold(
         appBar: _buildAppBar(colorScheme),
         body: Column(
@@ -482,25 +473,17 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin {
               title: const Text('大文件查找'),
               centerTitle: true,
               actions: [
-                // 全选复选框（三态图标，与其他页面一致）
-                IconButton(
-                  icon: Checkbox(
-                    value: getSelectAllCheckboxValue(
-                      _largeFiles.map((f) => f.path).toList(),
-                    ),
-                    tristate: true,
-                    onChanged: (_) => handleSelectAll(
-                      _largeFiles.map((f) => f.path).toList(),
-                    ),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: () => handleSelectAll(
-                    _largeFiles.map((f) => f.path).toList(),
-                  ),
-                  tooltip: getSelectAllCheckboxValue(
-                    _largeFiles.map((f) => f.path).toList(),
-                  ) == true ? '取消全选' : '全选',
+                // 全选按钮
+                SelectAllButton(
+                  selectedCount: _selectionController.selected.length,
+                  totalCount: _largeFiles.length,
+                  onPressed: () {
+                    setState(() {
+                      handleSelectAll(
+                        _largeFiles.map((f) => f.path).toList(),
+                      );
+                    });
+                  },
                 ),
               ],
             )

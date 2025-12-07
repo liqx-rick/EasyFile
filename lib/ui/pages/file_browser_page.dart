@@ -46,6 +46,7 @@ import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
@@ -61,7 +62,7 @@ class FileBrowserPage extends StatefulWidget {
 }
 
 class _FileBrowserPageState extends State<FileBrowserPage>
-    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin, EditModeMixin, CreateFolderMixin {
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin, EditModeMixin, CreateFolderMixin, PopScopeHandlerMixin {
   late FilePresenter presenter;
   late FileViewModel viewModel;
   QuickAccessPresenter? quickAccessPresenter;
@@ -83,6 +84,110 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   // EditModeMixin 要求的 getter
   @override
   SelectionController get selectionController => _selectionController;
+
+  // PopScopeHandlerMixin 重写 - Browser Page 特殊逻辑
+  @override
+  bool canPopPage() {
+    // Browser Page 总是拦截返回键，由 handlePopInvoked 处理
+    return false;
+  }
+
+  @override
+  void handlePopInvoked(bool didPop, dynamic result) {
+    if (didPop) return;
+
+    // 优先级1: 退出搜索模式
+    if (viewModel.currentTab == TabView.browse && viewModel.isSearchMode) {
+      _searchController.clear();
+      presenter.clearSearch();
+      return;
+    }
+    if (viewModel.currentTab == TabView.favorite && _favoriteSearchMode) {
+      setState(() {
+        _favoriteSearchQuery = '';
+        _favoriteSearchController.clear();
+        _favoriteSearchMode = false;
+      });
+      return;
+    }
+
+    // 优先级2: 编辑模式的返回处理（复杂滚动逻辑）
+    if (isEditMode) {
+      final enteredFromTop = _editModeEnterScrollOffset < _scrollThreshold;
+      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+      final isAtTop = currentOffset < _scrollThreshold;
+
+      if (enteredFromTop) {
+        // 情况A - 从主页进入（进入时在顶部）
+        if (!isAtTop) {
+          // 当前不在顶部 → 滚动回顶部
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+          return;
+        } else {
+          // 已在顶部 → 退出编辑模式
+          exitEditMode();
+          return;
+        }
+      } else {
+        // 情况B - 从浏览区进入（进入时已滚动）→ 直接退出编辑模式
+        exitEditMode();
+        return;
+      }
+    }
+
+    // 优先级3: 子文件夹返回上级
+    if (viewModel.currentTab == TabView.browse &&
+        viewModel.currentPath.isNotEmpty &&
+        _canNavigateUp(viewModel.currentPath)) {
+      presenter.navigateUp();
+      return;
+    }
+
+    // 优先级4: Browse Tab 根目录
+    if (viewModel.currentTab == TabView.browse) {
+      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+      final isAtTop = currentOffset < _scrollThreshold;
+
+      if (!isAtTop) {
+        // 不在顶部 → 滚动回顶部
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        return;
+      } else {
+        // 已在顶部 → 切换到 Recent Tab
+        viewModel.setCurrentTab(TabView.recent);
+        presenter.loadRecentFiles();
+        return;
+      }
+    }
+
+    // 优先级5: Favorite Tab
+    if (viewModel.currentTab == TabView.favorite) {
+      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+      final isAtTop = currentOffset < _scrollThreshold;
+
+      if (!isAtTop) {
+        // 不在顶部 → 滚动回顶部
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+      // 已在顶部 → 阻止退出（保持在页面内）
+      return;
+    }
+
+    // 优先级6: 其他情况 - 阻止退出页面
+  }
 
   // 浏览控制栏展开状态
   bool _isControlBarExpanded = false;
@@ -3250,102 +3355,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             );
           }
 
-          return WillPopScope(
-            onWillPop: () async {
-              // 优先级1: 退出搜索模式
-              if (vm.currentTab == TabView.browse && vm.isSearchMode) {
-                _searchController.clear();
-                presenter.clearSearch();
-                return false; // 保持编辑模式和滚动位置
-              }
-              if (vm.currentTab == TabView.favorite && _favoriteSearchMode) {
-                setState(() {
-                  _favoriteSearchQuery = '';
-                  _favoriteSearchController.clear();
-                  _favoriteSearchMode = false;
-                });
-                return false; // 保持编辑模式和滚动位置
-              }
-
-              // 优先级2: 编辑模式的返回处理
-              if (isEditMode) {
-                // 判断是从主页（顶部）还是从浏览区（已滚动）进入编辑模式
-                final enteredFromTop = _editModeEnterScrollOffset < _scrollThreshold;
-                final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-                final isAtTop = currentOffset < _scrollThreshold;
-
-                if (enteredFromTop) {
-                  // 情况A - 从主页进入（进入时在顶部）
-                  if (!isAtTop) {
-                    // 当前不在顶部 → 滚动回顶部
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                    return false;
-                  } else {
-                    // 已在顶部 → 退出编辑模式
-                    exitEditMode();
-                    return false;
-                  }
-                } else {
-                  // 情况B - 从浏览区进入（进入时已滚动）→ 直接退出编辑模式
-                  exitEditMode();
-                  return false;
-                }
-              }
-
-              // 优先级3: 子文件夹返回上级
-              if (vm.currentTab == TabView.browse &&
-                  vm.currentPath.isNotEmpty &&
-                  _canNavigateUp(vm.currentPath)) {
-                presenter.navigateUp();
-                return false;
-              }
-
-              // 优先级4: Browse Tab 根目录
-              if (vm.currentTab == TabView.browse) {
-                final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-                final isAtTop = currentOffset < _scrollThreshold;
-
-                if (!isAtTop) {
-                  // 不在顶部 → 滚动回顶部
-                  _scrollController.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                  );
-                  return false;
-                } else {
-                  // 已在顶部 → 切换到 Recent Tab
-                  vm.setCurrentTab(TabView.recent);
-                  await presenter.loadRecentFiles();
-                  return false;
-                }
-              }
-
-              // 优先级5: Favorite Tab
-              if (vm.currentTab == TabView.favorite) {
-                final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-                final isAtTop = currentOffset < _scrollThreshold;
-
-                if (!isAtTop) {
-                  // 不在顶部 → 滚动回顶部
-                  _scrollController.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                  );
-                  return false;
-                }
-                // 已在顶部 → 阻止退出（保持在页面内）
-                return false;
-              }
-
-              // 优先级6: 其他情况 - 阻止退出页面
-              return false;
-            },
+          return wrapWithPopScope(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 // 判断是否为横屏模式

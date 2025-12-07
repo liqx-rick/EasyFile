@@ -24,6 +24,7 @@ import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 
@@ -42,7 +43,7 @@ class StoragePage extends StatefulWidget {
 }
 
 class _StoragePageState extends State<StoragePage> 
-    with EditModeMixin, CreateFolderMixin {
+    with EditModeMixin, CreateFolderMixin, PopScopeHandlerMixin {
   String _searchQuery = '';
   bool _isSearchMode = false;
   bool _searchInSubfolders = false; // 是否在子文件夹中搜索
@@ -54,6 +55,25 @@ class _StoragePageState extends State<StoragePage>
   // EditModeMixin 接口实现
   @override
   SelectionController get selectionController => _selectionController;
+
+  // PopScopeHandlerMixin 重写
+  @override
+  bool get isSearchMode => _isSearchMode;
+
+  @override
+  void exitSearchMode() {
+    setState(() {
+      _searchQuery = '';
+      _searchController.clear();
+      _isSearchMode = false;
+    });
+  }
+
+  @override
+  bool canNavigateUp() => _canNavigateUp(_currentPath);
+
+  @override
+  void navigateUp() => _navigateUp();
 
   // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
@@ -904,33 +924,7 @@ class _StoragePageState extends State<StoragePage>
     // 检查设置是否变化，如果变化则重新加载
     _checkAndRefreshIfSettingsChanged();
 
-    return WillPopScope(
-      onWillPop: () async {
-        // 优先级1: 退出搜索
-        if (_isSearchMode) {
-          setState(() {
-            _searchQuery = '';
-            _searchController.clear();
-            _isSearchMode = false;
-          });
-          return false;
-        }
-
-        // 优先级2: 退出编辑模式
-        if (isEditMode) {
-          exitEditMode();
-          return false;
-        }
-
-        // 优先级3: 子文件夹返回上级
-        if (_canNavigateUp(_currentPath)) {
-          _navigateUp();
-          return false;
-        }
-
-        // 优先级4: 返回主页（允许系统默认行为）
-        return true;
-      },
+    return wrapWithPopScope(
       child: Scaffold(
         appBar: AppBar(
           leading: isEditMode

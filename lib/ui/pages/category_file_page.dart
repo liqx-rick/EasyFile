@@ -21,6 +21,10 @@ import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_collection_view.dart';
 import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -259,7 +263,7 @@ class CategoryFilePage extends StatefulWidget {
   State<CategoryFilePage> createState() => _CategoryFilePageState();
 }
 
-class _CategoryFilePageState extends State<CategoryFilePage> {
+class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin, PopScopeHandlerMixin {
   late CategoryInfo categoryInfo;
   bool _isLoading = true;
   bool _isRefreshing = false; // 后台刷新状态（不影响列表显示）
@@ -279,9 +283,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
 
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
+  
+  // EditModeMixin 必需的 getter
+  @override
+  SelectionController get selectionController => _selectionController;
 
-  // 编辑模式状态
-  bool _isEditMode = false;
+  // PopScopeHandlerMixin 重写
+  @override
+  bool get isSearchMode => _isSearchMode;
+
+  @override
+  void exitSearchMode() {
+    setState(() {
+      _isSearchMode = false;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+  }
 
   // 文件显示设置
   bool _showFullPath = false;
@@ -399,55 +417,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
     PageSettingsService().removeListener(_onPageSettingsChanged);
     widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
-  }
-
-  /// 进入编辑模式
-  void _enterEditMode() {
-    setState(() {
-      _isEditMode = true;
-      // 进入选择模式（显示复选框，但不选中任何文件）
-      _selectionController.enterSelectionMode();
-    });
-  }
-
-  /// 退出编辑模式
-  void _exitEditMode() {
-    if (!mounted) return;
-    setState(() {
-      _isEditMode = false;
-      _selectionController.clear();
-    });
-  }
-
-  /// 获取全选复选框的状态（三态）
-  bool? _getSelectAllCheckboxValue() {
-    final totalCount = _filteredFiles.length;
-    final selectedCount = _selectionController.selected.length;
-    
-    if (selectedCount == 0) {
-      return false;  // 未选中任何项 → 空心框
-    } else if (selectedCount == totalCount && totalCount > 0) {
-      return true;   // 全部选中 → 勾选框
-    } else {
-      return null;   // 部分选中 → 横线框（indeterminate）
-    }
-  }
-
-  /// 处理全选/取消全选
-  void _handleSelectAll() {
-    if (_selectionController.selected.length == _filteredFiles.length) {
-      // 取消全选：清空选择
-      setState(() {
-        _selectionController.selectedNotifier.value = {};
-      });
-    } else {
-      // 全选：选中所有文件
-      setState(() {
-        _selectionController.selectAll(
-          _filteredFiles.map((f) => f.path).toList(),
-        );
-      });
-    }
   }
 
   /// 加载文件类型筛选偏好
@@ -821,40 +790,13 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       value: widget.viewModel,
       child: Consumer<PageSettingsService>(
         builder: (context, pageSettingsService, _) {
-          return PopScope(
-            canPop: !_isSearchMode && !_isEditMode && !_selectionController.isSelectionMode,
-            onPopInvokedWithResult: (didPop, result) {
-              if (didPop) return;
-              
-              // 优先级1：退出搜索模式（最临时的状态）
-              if (_isSearchMode) {
-                setState(() {
-                  _isSearchMode = false;
-                  _searchQuery = '';
-                  _searchController.clear();
-                });
-                return;
-              }
-              
-              // 优先级2：退出编辑模式（选择模式会一起退出）
-              // Category页面特性：编辑和选择捆绑，一起进退
-              if (_isEditMode || _selectionController.isSelectionMode) {
-                _exitEditMode(); // 内部会清除选择
-                return;
-              }
-            },
+          return wrapWithPopScope(
             child: Scaffold(
               appBar: AppBar(
-                leading: (_isEditMode || _selectionController.isSelectionMode)
+                leading: isEditMode
                     ? IconButton(
                         icon: const Icon(Icons.close, size: 22),
-                        onPressed: _isEditMode
-                            ? _exitEditMode
-                            : () {
-                                setState(() {
-                                  _selectionController.clear();
-                                });
-                              },
+                        onPressed: exitEditMode,
                         tooltip: '退出',
                       )
                     : IconButton(
@@ -921,24 +863,28 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                         ),
                         
                         // 根据模式显示不同按钮
-                        if (_isEditMode || _selectionController.isSelectionMode)
-                          // 编辑/选择模式：三态全选复选框（仅图标，与其他按钮一致）
-                          IconButton(
-                            icon: Checkbox(
-                              value: _getSelectAllCheckboxValue(),
-                              tristate: true,
-                              onChanged: (_) => _handleSelectAll(),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            onPressed: _handleSelectAll,
-                            tooltip: _getSelectAllCheckboxValue() == true ? '取消全选' : '全选',
+                        if (isEditMode)
+                          // 编辑模式：全选按钮
+                          SelectAllButton(
+                            selectedCount: _selectionController.selected.length,
+                            totalCount: _filteredFiles.length,
+                            onPressed: () {
+                              setState(() {
+                                if (_selectionController.selected.length == _filteredFiles.length) {
+                                  _selectionController.clear();
+                                } else {
+                                  _selectionController.selectAll(
+                                    _filteredFiles.map((f) => f.path).toList(),
+                                  );
+                                }
+                              });
+                            },
                           )
                         else
                           // 普通模式：编辑按钮（始终显示，与其他工具按钮一致）
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
-                            onPressed: _enterEditMode,
+                            onPressed: enterEditMode,
                             tooltip: '编辑',
                           ),
                       ],
@@ -950,6 +896,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
                 children: [
                   // 临时显示模式提示条（从存储管理进入时显示）
                   if (_isTemporaryMode) _buildTemporaryModeBanner(),
+
+                  // 编辑模式提示条（搜索时隐藏）
+                  if (isEditMode && showEditModeHint && !_isSearchMode)
+                    const EditModeHintBar(),
 
                   // 搜索框（使用统一的FileSearchBar组件）
                   if (_isSearchMode)
@@ -1261,7 +1211,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           // 批量操作完成后，总是退出编辑模式
-          _exitEditMode();
+          exitEditMode();
         });
       },
     );
@@ -1428,6 +1378,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 增加预构建范围以改善滚动体验
       cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
+      showCheckbox: isEditMode,  // 编辑模式下显示复选框
       // 列表模式显示选项
       showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
       showFavoriteButton: true,
@@ -1437,29 +1388,26 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       useUnifiedGridItem: true,
       onTap: (file) {
-        if (!_selectionController.isSelectionMode) {
-          // 添加到最近访问记录
+        if (isEditMode) {
+          // 编辑模式下：点击文件区域切换选中状态
+          setState(() {
+            _selectionController.toggle(file.path);
+          });
+        } else {
+          // 非编辑模式：正常打开文件
           widget.presenter.addToRecentFiles(file);
           _previewFile(file);
         }
       },
-      onLongPress: _isEditMode
-          ? (file) {
-              // 编辑模式下：对文件显示详情面板 + 自动选中
-              if (!file.isDirectory) {
-                if (!_selectionController.contains(file.path)) {
-                  setState(() {
-                    _selectionController.select(file.path);
-                  });
-                }
-                _showFileDetailsBottomSheet(file);
-              }
-            }
-          : (file) {
-              // 非编辑模式：进入编辑模式并选中当前项
-              _enterEditMode();
-              _selectionController.select(file.path);
-            },
+      onLongPress: (file) {
+        // 长按进入编辑模式并选中该文件
+        if (!isEditMode) {
+          enterEditMode();
+        }
+        setState(() {
+          _selectionController.select(file.path);
+        });
+      },
     );
   }
 
@@ -1513,6 +1461,7 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       // 增加预构建范围以改善滚动体验
       cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
+      showCheckbox: isEditMode,  // 编辑模式下显示复选框
       // 显示选项
       showFullPath: !_isGridView && _showFullPath, // 只在列表模式下显示路径
       showFavoriteButton: true,
@@ -1522,29 +1471,26 @@ class _CategoryFilePageState extends State<CategoryFilePage> {
       },
       useUnifiedGridItem: true,
       onTap: (file) {
-        if (!_selectionController.isSelectionMode) {
-          // 添加到最近访问记录
+        if (isEditMode) {
+          // 编辑模式下：点击文件区域切换选中状态
+          setState(() {
+            _selectionController.toggle(file.path);
+          });
+        } else {
+          // 非编辑模式：正常打开文件
           widget.presenter.addToRecentFiles(file);
           _previewFile(file);
         }
       },
-      onLongPress: _isEditMode
-          ? (file) {
-              // 编辑模式下：对文件显示详情面板 + 自动选中
-              if (!file.isDirectory) {
-                if (!_selectionController.contains(file.path)) {
-                  setState(() {
-                    _selectionController.select(file.path);
-                  });
-                }
-                _showFileDetailsBottomSheet(file);
-              }
-            }
-          : (file) {
-              // 非编辑模式：进入编辑模式并选中当前项
-              _enterEditMode();
-              _selectionController.select(file.path);
-            },
+      onLongPress: (file) {
+        // 长按进入编辑模式并选中该文件
+        if (!isEditMode) {
+          enterEditMode();
+        }
+        setState(() {
+          _selectionController.select(file.path);
+        });
+      },
     );
   }
 
