@@ -1014,10 +1014,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       }
 
       const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-      final restoredDir = Directory(restoredPath);
-      final fileCount = restoredDir.listSync().length;
 
-      // 直接添加已恢复文件夹作为可点击项（移除分组标题）
+      // 直接添加已恢复文件夹作为可点击项（移除分组标题和文件数量）
       items.add(
         PopupMenuItem<QuickAccessFolder>(
           value: QuickAccessFolder(
@@ -1040,7 +1038,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '回收站恢复 ($fileCount)',
+                  '回收站恢复',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

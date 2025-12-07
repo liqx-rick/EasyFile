@@ -162,9 +162,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             folders: widget.viewModel.userCustomFolders,
             color: Colors.green,
           ),
-
-          // 已恢复文件部分（固定快捷入口）
-          _buildRestoredFilesSection(),
         ],
       ),
     );
@@ -676,94 +673,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         const Divider(height: 1, thickness: 0.5),
       ],
     );
-  }
-
-  /// 构建已恢复文件快捷入口
-  Widget _buildRestoredFilesSection() {
-    const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-    final restoredDir = Directory(restoredPath);
-
-    // 检查目录是否存在且有文件
-    if (!restoredDir.existsSync()) {
-      return const SizedBox.shrink();
-    }
-
-    try {
-      final files = restoredDir.listSync();
-      if (files.isEmpty) {
-        return const SizedBox.shrink(); // 没有文件则不显示
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                const Icon(Icons.restore, size: 20, color: Colors.purple),
-                const SizedBox(width: 8),
-                const Text(
-                  '已恢复文件',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${files.length}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.purple,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            dense: true,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.purple.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.folder_special, color: Colors.purple),
-            ),
-            title: const Text(
-              'EasyFile/Restored',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            subtitle: Text(
-              '${files.length} 个已恢复的文件',
-              style: const TextStyle(fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              // 跳转到文件浏览器查看该目录
-              Navigator.pop(context); // 先关闭当前页面
-              // 这里需要调用文件浏览器打开该目录
-              // 暂时只关闭，用户可以手动在主页浏览
-            },
-          ),
-          const Divider(height: 1, thickness: 0.5),
-        ],
-      );
-    } catch (e) {
-      return const SizedBox.shrink();
-    }
   }
 
   Widget _buildAppFolderWithSubfolders({
