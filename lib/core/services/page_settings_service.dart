@@ -180,7 +180,7 @@ class PageSettingsService extends ChangeNotifier {
   }
 
   /// 获取网格模式是否显示文件信息
-  /// [pageId] 页面ID，用于判断默认行为
+  /// [pageId] 页面ID（保留用于兼容性，实际未使用）
   /// 返回：true=显示文件名和大小，false=仅显示缩略图
   bool getGridShowFileInfo(PageId pageId) {
     // 如果用户设置过，使用用户设置
@@ -188,8 +188,9 @@ class PageSettingsService extends ChangeNotifier {
       return _gridShowFileInfo!;
     }
 
-    // 默认行为：图片和视频分类默认不显示（简洁模式），其他显示
-    return pageId != PageId.categoryImages && pageId != PageId.categoryVideo;
+    // 默认行为：图片和视频默认不显示文件信息（简洁模式）
+    // 此方法只在判断图片/视频文件时被调用，不影响其他文件类型
+    return false;
   }
 
   /// 设置网格模式是否显示文件信息
