@@ -1226,7 +1226,13 @@ class FilePresenter {
         debugPrint('  系统路径示例 1-3: ${systemPaths.take(3).join(', ')}');
       }
 
-      // 阶段2: 添加根目录本身（用于扫描根目录直接放置的文件）
+      // 阶段2: 添加根目录本身（❌ 已废弃 - 会导致路径重叠）
+      // 原因分析：
+      // 1. 阶段1的系统目录 + 阶段3的用户文件夹已经覆盖了根目录的所有子目录
+      // 2. 如果再添加根目录并递归扫描，会导致所有文件被扫描2次
+      // 3. 根目录直接放置的文件场景极少，可以接受不扫描
+      // 结论：删除此阶段，避免2倍重复扫描
+      /*
       String? rootPath;
       if (Platform.isAndroid) {
         rootPath = '/storage/emulated/0';
@@ -1240,6 +1246,8 @@ class FilePresenter {
         logger.d('Added root path itself: $rootPath');
         debugPrint('[路径发现] 阶段2-根目录本身: $rootPath');
       }
+      */
+      debugPrint('[路径发现] 阶段2-根目录本身: 已禁用（避免与子目录重复扫描）');
 
       // 阶段3: 发现用户自定义文件夹（根目录第一层扫描）
       final discoveredPaths = await _discoverUserFolders();
@@ -1264,6 +1272,14 @@ class FilePresenter {
 
     logger.i('Total scan paths: ${existingPaths.length}');
     debugPrint('[路径发现] 最终结果: ${existingPaths.length} 个有效路径');
+    
+    // 🔍🔍🔍 实验：打印所有扫描路径
+    debugPrint('\n📋📋📋 [实验] getCommonScanPaths() 返回的完整路径列表:');
+    for (var i = 0; i < existingPaths.length; i++) {
+      debugPrint('  [$i] ${existingPaths[i]}');
+    }
+    debugPrint('📋 总计: ${existingPaths.length} 个路径\n');
+    
     debugPrint('==========================================\n');
     return existingPaths;
   }

@@ -768,6 +768,22 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
       // 保存到缓存
       await _saveToCache(files);
 
+      // ✅ Bug #6-1 修复: 更新统计数据缓存，确保下次进入时显示正确的文件数量
+      try {
+        final cacheService = CategoryFileCacheService();
+        final currentCounts = await cacheService.getCategoryCounts() ?? {};
+        
+        // 更新当前分类的文件数
+        currentCounts[_getCategoryEnumFromType(widget.categoryType)] = files.length;
+        
+        // 保存更新后的统计数据
+        await cacheService.saveCategoryCounts(currentCounts);
+        
+        logger.d('Updated category count cache: ${categoryInfo.name} = ${files.length}');
+      } catch (e) {
+        logger.w('Failed to update category count cache: $e');
+      }
+
       logger.i(
         'Loaded ${files.length} files for category ${categoryInfo.name}',
       );
