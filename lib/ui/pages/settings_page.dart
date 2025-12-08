@@ -12,6 +12,8 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
+import 'package:easyfile/ui/pages/trash_page.dart';
+import 'package:easyfile/ui/pages/trash_config_page.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -102,6 +104,7 @@ class _SettingsPageState extends State<SettingsPage> {
           // 存储与缓存管理
           _buildSectionHeader('存储与缓存', Icons.storage),
           _buildCacheManagementTile(context),
+          _buildTrashTile(context),
 
           const Divider(height: 32),
 
@@ -695,6 +698,41 @@ class _SettingsPageState extends State<SettingsPage> {
             builder: (context) => CacheManagementPage(
               cacheManager: cacheManager,
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 回收站入口
+  Widget _buildTrashTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.delete_outline, color: colorScheme.primary),
+      title: const Text('回收站'),
+      subtitle: const Text('查看和管理最近删除的文件'),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TrashConfigPage(),
+                ),
+              );
+            },
+            child: const Icon(Icons.settings_outlined, size: 20),
+          ),
+          const SizedBox(height: 4),
+          const Icon(Icons.chevron_right),
+        ],
+      ),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const TrashPage(),
           ),
         );
       },

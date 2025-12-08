@@ -7,6 +7,7 @@ import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,11 @@ Future<void> main() async {
 
   await PageSettingsService().initialize();
   logger.i('PageSettingsService initialized');
+
+  // 启动回收站自动清理
+  final trashManager = await locator.getAsync<AppTrashManager>();
+  await trashManager.startAutoCleanup();
+  logger.i('AppTrashManager auto cleanup started');
 
   logger.i('Running EasyFile app');
 

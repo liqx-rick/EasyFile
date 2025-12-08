@@ -41,6 +41,16 @@ class AppTrashDatabase {
   }
 
   /// 创建数据库表
+  /// 
+  /// Schema v2 字段说明：
+  /// - id: 唯一标识符（UUID）
+  /// - trash_path: 回收站中的文件路径（唯一）
+  /// - original_path: 原始文件路径
+  /// - file_name: 文件名
+  /// - size: 文件大小（字节）
+  /// - mime_type: MIME类型
+  /// - deleted_at: 删除时间戳
+  /// - status: 文件状态（pending/moved/failed）
   Future<void> _onCreate(Database db, int version) async {
     logger.i('Creating app trash database schema v$version');
 

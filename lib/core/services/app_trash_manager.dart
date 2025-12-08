@@ -123,7 +123,13 @@ class AppTrashManager {
   }
 
   /// 处理后台移动队列
+  /// 
+  /// 异步处理文件移动操作，不阻塞UI线程
+  /// - 使用串行处理避免并发冲突
+  /// - 单个文件失败不影响队列继续
+  /// - 失败的文件标记为failed状态，可后续重试
   Future<void> _processQueue() async {
+    // 防止并发处理和空队列处理
     if (_isProcessingQueue || _moveQueue.isEmpty) return;
     
     _isProcessingQueue = true;
@@ -155,6 +161,11 @@ class AppTrashManager {
   }
 
   /// 实际执行文件移动到回收站
+  /// 
+  /// 智能处理跨分区移动：
+  /// 1. 优先使用rename（同分区，速度快）
+  /// 2. 跨分区时自动fallback到copy+delete
+  /// 3. 其他错误直接抛出
   Future<void> _moveFileToTrash(AppTrashItem item) async {
     final sourceFile = File(item.originalPath);
     
@@ -165,11 +176,11 @@ class AppTrashManager {
     }
     
     try {
-      // 尝试快速重命名（同分区）
+      // 尝试快速重命名（同分区，原子操作）
       await sourceFile.rename(item.trashPath);
     } on FileSystemException catch (e) {
-      // 跨分区，需要复制后删除
-      if (e.osError?.errorCode == 18) { // EXDEV
+      // EXDEV错误码18表示跨分区，需要复制后删除
+      if (e.osError?.errorCode == 18) {
         await sourceFile.copy(item.trashPath);
         await sourceFile.delete();
       } else {
@@ -564,11 +575,13 @@ class AppTrashManager {
     final totalCount = await _database.getTotalCount();
     final totalSize = await _database.getTotalSize();
     final countByType = await _database.getCountByType();
+    final retentionDays = _settings.retentionDays;
 
     return {
       'totalCount': totalCount,
       'totalSize': totalSize,
       'countByType': countByType,
+      'retentionDays': retentionDays,
     };
   }
 
