@@ -709,7 +709,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确认删除'),
-        content: Text('即将删除 ${_selectedFilePaths.length} 个文件，此操作不可恢复。'),
+        content: Text('即将删除 ${_selectedFilePaths.length} 个文件。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

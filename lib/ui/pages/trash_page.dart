@@ -626,7 +626,7 @@ class _TrashPageState extends State<TrashPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('永久删除'),
-        content: Text('确定要永久删除 "${_getFileName(item.originalPath)}" 吗？\n此操作不可恢复！'),
+        content: Text('确定要永久删除 "${_getFileName(item.originalPath)}" 吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -672,7 +672,7 @@ class _TrashPageState extends State<TrashPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确定要清空回收站么？'),
-        content: Text('将永久删除 ${_items.length} 个文件，此操作不可恢复！'),
+        content: Text('将永久删除 ${_items.length} 个文件。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
