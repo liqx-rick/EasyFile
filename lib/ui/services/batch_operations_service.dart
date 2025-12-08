@@ -2,11 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/models/pending_delete_operation.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/widgets/delete_progress_dialog.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
+import 'package:easyfile/ui/widgets/undo_delete_snackbar.dart';
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
@@ -173,6 +179,9 @@ class BatchOperationsService {
   ) async {
     if (selectedItems.isEmpty) return;
 
+    // 获取回收站服务
+    final trashSettings = locator<AppTrashSettings>();
+
     // 🔒 安全检查：验证所有选中项是否允许删除
     for (final path in selectedItems) {
       final riskLevel = PathSecurity.getPathRiskLevel(path);
@@ -229,22 +238,40 @@ class BatchOperationsService {
       }
     }
 
-    // 统计文件和文件夹数量
-    int fileCount = 0;
-    int folderCount = 0;
+    // 转换为FileItem列表
+    final filesToDelete = <FileItem>[];
     for (final path in selectedItems) {
       final entity = FileSystemEntity.typeSync(path);
-      if (entity == FileSystemEntityType.directory) {
-        folderCount++;
-      } else if (entity == FileSystemEntityType.file) {
-        fileCount++;
+      if (entity == FileSystemEntityType.file) {
+        final file = File(path);
+        final stat = file.statSync();
+        filesToDelete.add(FileItem(
+          name: path.split(Platform.pathSeparator).last,
+          path: path,
+          isDirectory: false,
+          size: stat.size,
+          modified: stat.modified,
+        ));
+      } else if (entity == FileSystemEntityType.directory) {
+        final dir = Directory(path);
+        final stat = dir.statSync();
+        filesToDelete.add(FileItem(
+          name: path.split(Platform.pathSeparator).last,
+          path: path,
+          isDirectory: true,
+          size: 0, // 文件夹大小在这里设为0
+          modified: stat.modified,
+        ));
       }
     }
 
-    // 使用增强的删除确认对话框
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
+    if (filesToDelete.isEmpty) return;
 
+    // 统计文件和文件夹数量
+    int fileCount = filesToDelete.where((f) => !f.isDirectory).length;
+    int folderCount = filesToDelete.where((f) => f.isDirectory).length;
+
+    // 使用增强的删除确认对话框
     final confirmed = await EnhancedDeleteDialog.showBatchDeleteConfirmation(
       context: context,
       paths: selectedItems.toList(),
@@ -253,6 +280,52 @@ class BatchOperationsService {
     );
 
     if (!confirmed || !_isMounted(context)) return;
+
+    // 检查是否启用回收站
+    if (!trashSettings.isEnabled) {
+      // 回收站已禁用，直接永久删除（旧逻辑）
+      await _permanentDelete(context, filesToDelete);
+      return;
+    }
+
+    // 启用回收站，使用撤销流程
+    if (!trashSettings.showUndo) {
+      // 不显示撤销UI，直接移至回收站
+      await _moveToTrashWithProgress(context, filesToDelete);
+      return;
+    }
+
+    // 显示撤销UI
+    final operation = PendingDeleteOperation(files: filesToDelete);
+
+    // 退出多选模式
+    onExitSelectionMode();
+
+    // 显示撤销SnackBar
+    UndoDeleteSnackBar.show(
+      context: context,
+      operation: operation,
+      undoDuration: trashSettings.undoDuration,
+      onUndo: () {
+        // 撤销操作
+        if (!_isMounted(context)) return;
+        UndoDeleteSnackBar.showUndoSuccess(context, operation.fileCount);
+        logger.i('Delete operation cancelled by user');
+      },
+      onExecute: () async {
+        // 执行删除（移至回收站）
+        if (!_isMounted(context)) return;
+        await _moveToTrashWithProgress(context, operation.files);
+      },
+    );
+  }
+  /// 永久删除文件（回收站禁用时）
+  Future<void> _permanentDelete(
+    BuildContext context,
+    List<FileItem> files,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     // 显示进度
     showDialog(
@@ -269,7 +342,7 @@ class BatchOperationsService {
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('正在删除...'),
+                  Text('正在永久删除...'),
                 ],
               ),
             ),
@@ -282,26 +355,25 @@ class BatchOperationsService {
       int successCount = 0;
       int failCount = 0;
 
-      for (final path in selectedItems) {
+      for (final file in files) {
         try {
           // 🔒 记录操作日志
-          final riskLevel = PathSecurity.getPathRiskLevel(path);
+          final riskLevel = PathSecurity.getPathRiskLevel(file.path);
           PathSecurity.logOperation(
-            operation: 'DELETE (UI)',
-            path: path,
+            operation: 'PERMANENT DELETE',
+            path: file.path,
             riskLevel: riskLevel,
             allowed: true,
           );
 
-          final entity = FileSystemEntity.typeSync(path);
-          if (entity == FileSystemEntityType.directory) {
-            await Directory(path).delete(recursive: true);
-          } else if (entity == FileSystemEntityType.file) {
-            await File(path).delete();
+          if (file.isDirectory) {
+            await Directory(file.path).delete(recursive: true);
+          } else {
+            await File(file.path).delete();
           }
           successCount++;
         } catch (e) {
-          logger.e('Failed to delete: $path, error: $e');
+          logger.e('Failed to delete: ${file.path}, error: $e');
           failCount++;
         }
       }
@@ -312,14 +384,11 @@ class BatchOperationsService {
       // 刷新文件列表
       onRefresh();
 
-      // 退出多选模式
-      onExitSelectionMode();
-
       // 显示结果提示
       if (failCount == 0) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('成功删除 $successCount 项'),
+            content: Text('成功永久删除 $successCount 项'),
             backgroundColor: Colors.green,
           ),
         );
@@ -338,6 +407,128 @@ class BatchOperationsService {
       messenger.showSnackBar(
         SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
       );
+    }
+  }
+
+  /// 移至回收站并显示进度（大文件）
+  Future<void> _moveToTrashWithProgress(
+    BuildContext context,
+    List<FileItem> files,
+  ) async {
+    final trashManager = locator<AppTrashManager>();
+
+    // 检查是否有大文件（>10MB）
+    final hasLargeFiles = files.any((f) => f.size > 10 * 1024 * 1024);
+
+    DeleteProgressController? progressController;
+    
+    if (hasLargeFiles) {
+      // 显示进度对话框
+      progressController = DeleteProgressController();
+      progressController.updateProgress(
+        currentFileName: files.first.name,
+        currentIndex: 1,
+        totalCount: files.length,
+      );
+
+      if (_isMounted(context)) {
+        AnimatedDeleteProgressDialog.show(
+          context: context,
+          controller: progressController,
+        );
+      }
+    } else {
+      // 小文件，显示简单进度
+      if (_isMounted(context)) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PopScope(
+            canPop: false,
+            child: const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('正在移至回收站...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    try {
+      int successCount = 0;
+      int failCount = 0;
+
+      for (int i = 0; i < files.length; i++) {
+        final file = files[i];
+
+        // 更新进度
+        if (hasLargeFiles && progressController != null) {
+          progressController.updateProgress(
+            currentFileName: file.name,
+            currentIndex: i + 1,
+            totalCount: files.length,
+          );
+        }
+
+        try {
+          // 移至回收站
+          final success = await trashManager.moveToTrash(
+            file,
+            onProgress: (current) {
+              if (progressController != null) {
+                progressController.updateProgress(
+                  progress: current,
+                );
+              }
+            },
+          );
+
+          if (success) {
+            successCount++;
+          } else {
+            failCount++;
+            logger.e('Failed to move to trash: ${file.path}');
+          }
+        } catch (e) {
+          logger.e('Error moving to trash: ${file.path}, error: $e');
+          failCount++;
+        }
+      }
+
+      if (!_isMounted(context)) return;
+      Navigator.of(context).pop(); // 关闭进度对话框
+
+      // 刷新文件列表
+      onRefresh();
+
+      // 显示结果提示
+      if (failCount == 0) {
+        UndoDeleteSnackBar.showDeleteSuccess(context, successCount);
+      } else {
+        UndoDeleteSnackBar.showDeleteError(
+          context,
+          '删除操作完成',
+          successCount: successCount,
+          failCount: failCount,
+        );
+      }
+    } catch (e) {
+      if (!_isMounted(context)) return;
+      Navigator.of(context).pop(); // 关闭进度对话框
+      UndoDeleteSnackBar.showDeleteError(context, '删除失败：$e');
+    } finally {
+      progressController?.dispose();
     }
   }
 
