@@ -7,6 +7,8 @@ import 'package:easyfile/core/logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/di/locator.dart';
 
 class LocalFileRepository implements FileRepository {
   final _displaySettings = FileDisplaySettingsService();
@@ -154,18 +156,20 @@ class LocalFileRepository implements FileRepository {
       allowed: true,
     );
 
-    final entity = FileSystemEntity.typeSync(file.path);
+    // 使用回收站进行软删除
     try {
-      logger.i('Deleting file: ${file.path}');
-      if (entity == FileSystemEntityType.directory) {
-        await Directory(file.path).delete(recursive: true);
+      logger.i('Moving file to trash: ${file.path}');
+      final trashManager = locator<AppTrashManager>();
+      final success = await trashManager.moveToTrash(file);
+      
+      if (success) {
+        logger.i('File moved to trash successfully: ${file.path}');
       } else {
-        await File(file.path).delete();
+        logger.w('Failed to move file to trash: ${file.path}');
       }
-      logger.i('File deleted successfully: ${file.path}');
-      return true;
+      return success;
     } catch (e) {
-      logger.e('Error deleting file ${file.path}: $e');
+      logger.e('Error moving file to trash ${file.path}: $e');
       return false;
     }
   }

@@ -122,7 +122,7 @@ class EnhancedDeleteDialog {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确认删除'),
-        content: Text('确定要删除 "$fileName" 吗？\n\n此操作不可恢复。'),
+        content: Text('确定要删除 "$fileName" 吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -196,13 +196,12 @@ class EnhancedDeleteDialog {
     if (fileCount != null && folderCount != null) {
       if (folderCount > 0) {
         contentText = '确定要删除选中的 $totalCount 项吗？\n'
-            '（$fileCount 个文件，$folderCount 个文件夹）\n\n'
-            '文件夹将被递归删除。此操作不可恢复。';
+            '（$fileCount 个文件，$folderCount 个文件夹）';
       } else {
-        contentText = '确定要删除选中的 $totalCount 个文件吗？\n\n此操作不可恢复。';
+        contentText = '确定要删除选中的 $totalCount 个文件吗？';
       }
     } else {
-      contentText = '确定要删除选中的 $totalCount 项吗？\n\n此操作不可恢复。';
+      contentText = '确定要删除选中的 $totalCount 项吗？';
     }
 
     return showDialog<bool>(
