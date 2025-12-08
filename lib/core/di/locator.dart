@@ -6,6 +6,9 @@ import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/junk_file_service.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/database/app_trash_database.dart';
+import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/core/services/usage_stats_permission_service.dart';
 import 'package:easyfile/core/services/usage_stats_service.dart';
 import 'package:easyfile/core/services/app_storage_service.dart';
@@ -103,6 +106,29 @@ void setupLocator() {
     return TrashFileService(
       filePresenter: locator<FilePresenter>(),
     );
+  });
+
+  // App Trash Services (Phase 1)
+  locator.registerLazySingleton<AppTrashDatabase>(() {
+    logger.d('Creating AppTrashDatabase');
+    return AppTrashDatabase();
+  });
+
+  locator.registerLazySingletonAsync<AppTrashSettings>(() async {
+    logger.d('Creating AppTrashSettings');
+    return await AppTrashSettings.create();
+  });
+
+  locator.registerLazySingletonAsync<AppTrashManager>(() async {
+    logger.d('Creating AppTrashManager');
+    final database = locator<AppTrashDatabase>();
+    final settings = await locator.getAsync<AppTrashSettings>();
+    final manager = AppTrashManager(
+      database: database,
+      settings: settings,
+    );
+    await manager.initialize();
+    return manager;
   });
 
   // App Management Services

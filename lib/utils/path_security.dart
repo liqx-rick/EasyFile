@@ -22,6 +22,9 @@ enum PathRiskLevel {
 class PathSecurity {
   PathSecurity._(); // 私有构造函数，防止实例化
 
+  /// EasyFile回收站目录
+  static const String appTrashDir = '/data/data/com.example.easyfile/.trash';
+
   /// 绝对禁止操作的路径（系统核心目录）
   static const List<String> _forbiddenPaths = [
     '/system',
@@ -236,5 +239,73 @@ class PathSecurity {
     final normalized = _normalizePath(path);
     return normalized == '/storage/emulated/0' ||
         normalized == '/storage/emulated/0/';
+  }
+
+  // ==================== 路径过滤功能（Phase 1新增） ====================
+
+  /// 检查路径是否为EasyFile回收站路径
+  static bool isAppTrashPath(String path) {
+    return path.startsWith(appTrashDir);
+  }
+
+  /// 检查路径是否为系统回收站路径
+  static bool isSystemTrashPath(String path) {
+    return path.contains('/.trashBin/') ||
+        path.contains('/.recycle/') ||
+        path.contains('/.Trash-') ||
+        path.contains('/.trash/');
+  }
+
+  /// 检查路径是否应该被显示（全局过滤）
+  ///
+  /// 用于过滤不应该在文件列表、搜索结果中显示的路径
+  /// 包括：
+  /// 1. EasyFile回收站
+  /// 2. 系统回收站
+  /// 3. 禁止访问的系统路径
+  ///
+  /// 返回 true 表示应该显示，false 表示应该隐藏
+  static bool shouldDisplayPath(String path) {
+    // 1. 过滤EasyFile回收站
+    if (isAppTrashPath(path)) {
+      return false;
+    }
+
+    // 2. 过滤系统回收站
+    if (isSystemTrashPath(path)) {
+      return false;
+    }
+
+    // 3. 过滤禁止访问的路径
+    final riskLevel = getPathRiskLevel(path);
+    if (riskLevel == PathRiskLevel.forbidden) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// 检查路径是否应该被扫描（用于文件扫描操作）
+  ///
+  /// 除了 shouldDisplayPath 的过滤条件外，还会过滤：
+  /// 1. 隐藏目录（以.开头的目录）
+  ///
+  /// 返回 true 表示应该扫描，false 表示应该跳过
+  static bool shouldScanPath(String path) {
+    // 首先检查是否应该显示
+    if (!shouldDisplayPath(path)) {
+      return false;
+    }
+
+    // 检查是否为隐藏目录（以.开头）
+    final pathParts = path.split(Platform.pathSeparator);
+    for (final part in pathParts) {
+      if (part.startsWith('.') && part.length > 1) {
+        // 跳过隐藏目录，但不跳过 "." 和 ".."
+        return false;
+      }
+    }
+
+    return true;
   }
 }
