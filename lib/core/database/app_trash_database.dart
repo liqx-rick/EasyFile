@@ -6,9 +6,14 @@ import 'package:easyfile/data/models/app_trash_item.dart';
 /// EasyFile回收站数据库
 /// 
 /// 管理回收站文件的元数据存储
+/// 
+/// 状态说明：
+/// - pending: 已标记删除，文件仍在原位，待后台移动
+/// - moved: 已移动到回收站
+/// - failed: 移动失败，需要重试
 class AppTrashDatabase {
   static const String _databaseName = 'app_trash.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2; // 升级到v2
   static const String _tableName = 'trash_metadata';
 
   static Database? _database;
@@ -49,6 +54,9 @@ class AppTrashDatabase {
         mime_type TEXT,
         deleted_at INTEGER NOT NULL,
         thumbnail_path TEXT,
+        status TEXT DEFAULT 'pending',
+        moved_at INTEGER,
+        retry_count INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
       )
     ''');
@@ -66,6 +74,10 @@ class AppTrashDatabase {
       CREATE INDEX idx_original_path ON $_tableName(original_path)
     ''');
 
+    await db.execute('''
+      CREATE INDEX idx_status ON $_tableName(status)
+    ''');
+
     logger.i('App trash database schema created successfully');
   }
 
@@ -73,10 +85,14 @@ class AppTrashDatabase {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     logger.i('Upgrading app trash database from v$oldVersion to v$newVersion');
     
-    // 未来版本升级逻辑
-    // if (oldVersion < 2) {
-    //   await db.execute('ALTER TABLE $_tableName ADD COLUMN new_column TEXT');
-    // }
+    if (oldVersion < 2) {
+      // 添加status相关字段
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN status TEXT DEFAULT "moved"');
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN moved_at INTEGER');
+      await db.execute('ALTER TABLE $_tableName ADD COLUMN retry_count INTEGER DEFAULT 0');
+      await db.execute('CREATE INDEX idx_status ON $_tableName(status)');
+      logger.i('Added status tracking fields for soft delete support');
+    }
   }
 
   /// 插入回收站文件记录
@@ -305,6 +321,147 @@ class AppTrashDatabase {
       logger.i('Cleared all trash metadata');
     } catch (e) {
       logger.e('Failed to clear trash metadata: $e');
+      rethrow;
+    }
+  }
+
+  /// 标记文件为待删除（软删除）
+  /// 
+  /// 文件状态变为'pending'，等待后台移动到回收站
+  Future<String> markAsDeleted(AppTrashItem item) async {
+    try {
+      final db = await database;
+      
+      final data = item.toMap();
+      data['status'] = 'pending';
+      data['moved_at'] = null;
+      
+      await db.insert(
+        _tableName,
+        data,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      
+      logger.i('Marked file as deleted (pending): ${item.originalPath}');
+      return item.id;
+    } catch (e) {
+      logger.e('Failed to mark file as deleted: $e');
+      rethrow;
+    }
+  }
+
+  /// 批量标记文件为待删除
+  Future<List<String>> markBatchAsDeleted(List<AppTrashItem> items) async {
+    try {
+      final db = await database;
+      final batch = db.batch();
+      final ids = <String>[];
+      
+      for (final item in items) {
+        final data = item.toMap();
+        data['status'] = 'pending';
+        data['moved_at'] = null;
+        
+        batch.insert(
+          _tableName,
+          data,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        ids.add(item.id);
+      }
+      
+      await batch.commit(noResult: true);
+      logger.i('Marked ${items.length} files as deleted (pending)');
+      return ids;
+    } catch (e) {
+      logger.e('Failed to mark batch as deleted: $e');
+      rethrow;
+    }
+  }
+
+  /// 更新文件状态为已移动
+  Future<void> updateStatusMoved(String id) async {
+    try {
+      final db = await database;
+      await db.update(
+        _tableName,
+        {
+          'status': 'moved',
+          'moved_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      logger.d('Updated status to moved: $id');
+    } catch (e) {
+      logger.e('Failed to update status: $e');
+      rethrow;
+    }
+  }
+
+  /// 更新文件状态为失败
+  Future<void> updateStatusFailed(String id) async {
+    try {
+      final db = await database;
+      await db.rawUpdate(
+        'UPDATE $_tableName SET status = ?, retry_count = retry_count + 1 WHERE id = ?',
+        ['failed', id],
+      );
+      logger.w('Updated status to failed: $id');
+    } catch (e) {
+      logger.e('Failed to update status: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取所有待移动的文件
+  Future<List<AppTrashItem>> getPendingFiles() async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        _tableName,
+        where: 'status = ?',
+        whereArgs: ['pending'],
+        orderBy: 'deleted_at ASC', // 先删除的先处理
+      );
+      
+      return maps.map((map) => AppTrashItem.fromMap(map)).toList();
+    } catch (e) {
+      logger.e('Failed to get pending files: $e');
+      return [];
+    }
+  }
+
+  /// 获取所有已删除文件的原始路径（用于查询过滤）
+  Future<Set<String>> getDeletedFilePaths() async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        _tableName,
+        columns: ['original_path'],
+        where: 'status IN (?, ?)',
+        whereArgs: ['pending', 'moved'],
+      );
+      
+      return maps.map((map) => map['original_path'] as String).toSet();
+    } catch (e) {
+      logger.e('Failed to get deleted file paths: $e');
+      return {};
+    }
+  }
+
+  /// 从待删除队列移除（用于恢复文件）
+  Future<void> removeFromTrash(String originalPath) async {
+    try {
+      final db = await database;
+      await db.delete(
+        _tableName,
+        where: 'original_path = ?',
+        whereArgs: [originalPath],
+      );
+      logger.i('Removed from trash: $originalPath');
+    } catch (e) {
+      logger.e('Failed to remove from trash: $e');
       rethrow;
     }
   }

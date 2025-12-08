@@ -7,12 +7,9 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/pending_delete_operation.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/widgets/delete_progress_dialog.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
-import 'package:easyfile/ui/widgets/undo_delete_snackbar.dart';
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
@@ -179,7 +176,8 @@ class BatchOperationsService {
   ) async {
     if (selectedItems.isEmpty) return;
 
-    // 获取回收站服务
+    // 获取回收站服务（等待异步初始化完成）
+    await locator.isReady<AppTrashSettings>();
     final trashSettings = locator<AppTrashSettings>();
 
     // 🔒 安全检查：验证所有选中项是否允许删除
@@ -288,36 +286,8 @@ class BatchOperationsService {
       return;
     }
 
-    // 启用回收站，使用撤销流程
-    if (!trashSettings.showUndo) {
-      // 不显示撤销UI，直接移至回收站
-      await _moveToTrashWithProgress(context, filesToDelete);
-      return;
-    }
-
-    // 显示撤销UI
-    final operation = PendingDeleteOperation(files: filesToDelete);
-
-    // 退出多选模式
-    onExitSelectionMode();
-
-    // 显示撤销SnackBar
-    UndoDeleteSnackBar.show(
-      context: context,
-      operation: operation,
-      undoDuration: trashSettings.undoDuration,
-      onUndo: () {
-        // 撤销操作
-        if (!_isMounted(context)) return;
-        UndoDeleteSnackBar.showUndoSuccess(context, operation.fileCount);
-        logger.i('Delete operation cancelled by user');
-      },
-      onExecute: () async {
-        // 执行删除（移至回收站）
-        if (!_isMounted(context)) return;
-        await _moveToTrashWithProgress(context, operation.files);
-      },
-    );
+    // 启用回收站，后台移至回收站（用户无感知）
+    await _moveToTrashWithProgress(context, filesToDelete);
   }
   /// 永久删除文件（回收站禁用时）
   Future<void> _permanentDelete(
@@ -410,125 +380,61 @@ class BatchOperationsService {
     }
   }
 
-  /// 移至回收站并显示进度（大文件）
+  /// 移至回收站（软删除模式）
+  /// 
+  /// 采用立即标记+后台移动的方式：
+  /// 1. 立即在数据库中标记为已删除（毫秒级）
+  /// 2. 立即刷新UI（文件瞬间消失）
+  /// 3. 后台异步移动文件到回收站（用户无感知）
   Future<void> _moveToTrashWithProgress(
     BuildContext context,
     List<FileItem> files,
   ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    
+    // 等待回收站管理器初始化完成
+    await locator.isReady<AppTrashManager>();
     final trashManager = locator<AppTrashManager>();
 
-    // 检查是否有大文件（>10MB）
-    final hasLargeFiles = files.any((f) => f.size > 10 * 1024 * 1024);
-
-    DeleteProgressController? progressController;
-    
-    if (hasLargeFiles) {
-      // 显示进度对话框
-      progressController = DeleteProgressController();
-      progressController.updateProgress(
-        currentFileName: files.first.name,
-        currentIndex: 1,
-        totalCount: files.length,
-      );
-
-      if (_isMounted(context)) {
-        AnimatedDeleteProgressDialog.show(
-          context: context,
-          controller: progressController,
-        );
-      }
-    } else {
-      // 小文件，显示简单进度
-      if (_isMounted(context)) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => PopScope(
-            canPop: false,
-            child: const Center(
-              child: Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('正在移至回收站...'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-
     try {
-      int successCount = 0;
-      int failCount = 0;
-
-      for (int i = 0; i < files.length; i++) {
-        final file = files[i];
-
-        // 更新进度
-        if (hasLargeFiles && progressController != null) {
-          progressController.updateProgress(
-            currentFileName: file.name,
-            currentIndex: i + 1,
-            totalCount: files.length,
-          );
-        }
-
-        try {
-          // 移至回收站
-          final success = await trashManager.moveToTrash(
-            file,
-            onProgress: (current) {
-              if (progressController != null) {
-                progressController.updateProgress(
-                  progress: current,
-                );
-              }
-            },
-          );
-
-          if (success) {
-            successCount++;
-          } else {
-            failCount++;
-            logger.e('Failed to move to trash: ${file.path}');
-          }
-        } catch (e) {
-          logger.e('Error moving to trash: ${file.path}, error: $e');
-          failCount++;
-        }
-      }
-
+      // 立即标记删除（仅写数据库，速度极快）
+      await trashManager.markFilesAsDeleted(files);
+      
       if (!_isMounted(context)) return;
-      Navigator.of(context).pop(); // 关闭进度对话框
 
-      // 刷新文件列表
+      // 立即刷新UI（文件瞬间消失）
       onRefresh();
 
-      // 显示结果提示
-      if (failCount == 0) {
-        UndoDeleteSnackBar.showDeleteSuccess(context, successCount);
-      } else {
-        UndoDeleteSnackBar.showDeleteError(
-          context,
-          '删除操作完成',
-          successCount: successCount,
-          failCount: failCount,
-        );
-      }
+      // 退出多选模式
+      onExitSelectionMode();
+
+      // 显示简单成功提示（不提"回收站"，避免用户担心）
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('成功删除 ${files.length} 项'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // 后台队列会自动处理文件移动，用户无感知
     } catch (e) {
       if (!_isMounted(context)) return;
-      Navigator.of(context).pop(); // 关闭进度对话框
-      UndoDeleteSnackBar.showDeleteError(context, '删除失败：$e');
-    } finally {
-      progressController?.dispose();
+      
+      // 退出多选模式（即使失败也退出）
+      onExitSelectionMode();
+      
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('删除失败：$e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      
+      logger.e('Failed to mark files as deleted: $e');
     }
   }
 

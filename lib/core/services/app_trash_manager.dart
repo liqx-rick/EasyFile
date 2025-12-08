@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:async';
+import 'dart:collection';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import 'package:easyfile/core/logger.dart';
@@ -10,6 +12,11 @@ import 'package:easyfile/data/models/file_item.dart';
 /// EasyFile回收站管理服务
 /// 
 /// 负责文件的删除、恢复、清理等核心功能
+/// 
+/// 软删除机制：
+/// 1. 用户删除 → 立即标记为deleted (DB) → UI立即刷新
+/// 2. 后台队列异步移动文件到回收站
+/// 3. 定期清理过期文件
 class AppTrashManager {
   // 回收站目录（隐藏目录，不会被扫描）
   static const String trashDir = '/data/data/com.example.easyfile/.trash';
@@ -17,6 +24,10 @@ class AppTrashManager {
   final AppTrashDatabase _database;
   final AppTrashSettings _settings;
   final Uuid _uuid = const Uuid();
+
+  // 后台移动队列
+  final Queue<AppTrashItem> _moveQueue = Queue<AppTrashItem>();
+  bool _isProcessingQueue = false;
 
   AppTrashManager({
     required AppTrashDatabase database,
@@ -36,6 +47,9 @@ class AppTrashManager {
         logger.i('Created trash directory: $trashDir');
       }
 
+      // 恢复未完成的移动任务
+      await _recoverPendingMoves();
+
       // 执行一次启动时清理
       await cleanExpiredFiles();
 
@@ -46,7 +60,125 @@ class AppTrashManager {
     }
   }
 
-  // ==================== 核心功能：删除 ====================
+  /// 恢复应用重启前未完成的移动任务
+  Future<void> _recoverPendingMoves() async {
+    try {
+      final pendingFiles = await _database.getPendingFiles();
+      if (pendingFiles.isNotEmpty) {
+        logger.i('Found ${pendingFiles.length} pending moves, resuming...');
+        _moveQueue.addAll(pendingFiles);
+        _processQueue();
+      }
+    } catch (e) {
+      logger.e('Failed to recover pending moves: $e');
+    }
+  }
+
+  // ==================== 核心功能：软删除（标记+后台移动） ====================
+
+  /// 标记文件为已删除（立即返回，后台移动）
+  /// 
+  /// 这是用户删除操作的入口点：
+  /// 1. 立即在数据库标记文件为deleted
+  /// 2. 加入后台移动队列
+  /// 3. 立即返回（UI可以刷新）
+  Future<List<String>> markFilesAsDeleted(List<FileItem> files) async {
+    try {
+      final trashItems = <AppTrashItem>[];
+      
+      for (final file in files) {
+        final id = _uuid.v4();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final fileName = path.basename(file.path);
+        final trashPath = '$trashDir/${timestamp}_$fileName';
+        
+        final trashItem = AppTrashItem(
+          id: id,
+          trashPath: trashPath,
+          originalPath: file.path,
+          fileName: fileName,
+          size: file.size,
+          mimeType: _inferMimeType(fileName),
+          deletedAt: DateTime.now(),
+        );
+        
+        trashItems.add(trashItem);
+      }
+      
+      // 批量标记为待删除
+      final ids = await _database.markBatchAsDeleted(trashItems);
+      
+      // 加入后台移动队列
+      _moveQueue.addAll(trashItems);
+      
+      // 触发队列处理（异步，不阻塞）
+      _processQueue();
+      
+      logger.i('Marked ${files.length} files as deleted, added to move queue');
+      return ids;
+    } catch (e) {
+      logger.e('Failed to mark files as deleted: $e');
+      rethrow;
+    }
+  }
+
+  /// 处理后台移动队列
+  Future<void> _processQueue() async {
+    if (_isProcessingQueue || _moveQueue.isEmpty) return;
+    
+    _isProcessingQueue = true;
+    
+    try {
+      while (_moveQueue.isNotEmpty) {
+        final item = _moveQueue.removeFirst();
+        
+        try {
+          // 执行实际的文件移动
+          await _moveFileToTrash(item);
+          
+          // 更新状态为已移动
+          await _database.updateStatusMoved(item.id);
+          
+          logger.d('Successfully moved to trash: ${item.originalPath}');
+        } catch (e) {
+          logger.e('Failed to move ${item.originalPath}: $e');
+          
+          // 标记为失败，将来可以重试
+          await _database.updateStatusFailed(item.id);
+          
+          // 继续处理下一个文件，不中断队列
+        }
+      }
+    } finally {
+      _isProcessingQueue = false;
+    }
+  }
+
+  /// 实际执行文件移动到回收站
+  Future<void> _moveFileToTrash(AppTrashItem item) async {
+    final sourceFile = File(item.originalPath);
+    
+    // 确保源文件存在
+    if (!await sourceFile.exists()) {
+      logger.w('Source file not found, skipping: ${item.originalPath}');
+      return;
+    }
+    
+    try {
+      // 尝试快速重命名（同分区）
+      await sourceFile.rename(item.trashPath);
+    } on FileSystemException catch (e) {
+      // 跨分区，需要复制后删除
+      if (e.osError?.errorCode == 18) { // EXDEV
+        await sourceFile.copy(item.trashPath);
+        await sourceFile.delete();
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  // ==================== 核心功能：删除（保留旧接口兼容性） ====================
 
   /// 移动文件到回收站
   /// 

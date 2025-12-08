@@ -15,6 +15,7 @@ import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/core/services/first_scan_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/file_category.dart';
@@ -405,6 +406,19 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
+  /// 初始化回收站管理器
+  /// 
+  /// 触发AppTrashManager的懒加载初始化，确保pending任务在应用启动时恢复
+  Future<void> _initializeTrashManager() async {
+    try {
+      logger.i('Initializing trash manager...');
+      await locator.isReady<AppTrashManager>();
+      logger.i('Trash manager initialized successfully');
+    } catch (e) {
+      logger.e('Failed to initialize trash manager: $e');
+    }
+  }
+
   /// 初始化应用程序数据
   ///
   /// 该方法执行以下任务：
@@ -416,11 +430,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     logger.i('Initializing app data...');
 
     try {
-      // 并行初始化收藏夹、收藏文件和主题
+      // 并行初始化收藏夹、收藏文件、主题和回收站
       await Future.wait([
         presenter.initializeFavorites(),
         presenter.initializeFavoriteFiles(), // 初始化收藏文件
         presenter.initializeTheme(),
+        _initializeTrashManager(), // 初始化回收站管理器
       ]);
 
       // 初始化快速访问（加载已有的快速访问目录）

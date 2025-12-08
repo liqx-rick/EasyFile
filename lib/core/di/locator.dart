@@ -231,9 +231,10 @@ void setupLocator() {
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
     final themeSource = locator<ThemeLocalSource>();
+    final trashDatabase = locator<AppTrashDatabase>();
 
     logger.d(
-      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource',
+      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, trashDatabase=$trashDatabase',
     );
 
     return FilePresenter(
@@ -243,6 +244,7 @@ void setupLocator() {
       favoriteFilesSource: favoriteFilesSource,
       recentFilesSource: recentFilesSource,
       themeSource: themeSource,
+      trashDatabase: trashDatabase,
     );
   });
 
