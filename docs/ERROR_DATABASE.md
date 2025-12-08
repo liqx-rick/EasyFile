@@ -32,6 +32,10 @@
 - [E401: UI state not cleared on tab switch](#e401)
 - [E402: Recent tab not refreshed after returning from sub-page](#e402)
 
+### 数据扫描相关
+- [E501: Duplicate keys found in ListView/GridView](#e501)
+- [E502: Category cache statistics not updated](#e502)
+
 ---
 
 ## 详细错误条目
@@ -733,14 +737,331 @@ onTap: () async {
 
 ---
 
+<a name="e501"></a>
+### E501: Duplicate keys found in ListView/GridView
+
+**错误级别：** 🔴 严重  
+**首次发现：** 2025-12-08  
+**最后更新：** 2025-12-08
+
+#### 错误信息
+
+```
+Multiple widgets used the same GlobalKey.
+The offending widgets were:
+- KeyedSubtree-[GlobalKey#xxxxx]
+- KeyedSubtree-[GlobalKey#xxxxx]
+
+A GlobalKey can only be specified on one widget at a time in the widget tree.
+```
+
+#### 触发场景
+
+1. 重复文件清理页面显示重复文件列表
+2. 分类页面（图片/视频/文档等）显示文件列表
+3. 文件路径被重复扫描导致同一文件出现多次
+
+#### 堆栈特征
+
+```dart
+#0 GlobalKey._debugReserveFor
+#1 BuildOwner._debugTrackElementThatWillNeedToBeRebuiltDueToGlobalKeyShenanigans
+#2 Element.inflateWidget
+```
+
+#### 根本原因
+
+**路径发现逻辑中的父子路径重叠**：
+
+`getCommonScanPaths()` 三阶段路径发现策略：
+1. 阶段1: 添加系统预定义目录（DCIM, Pictures, Music 等）
+2. 阶段2: 添加根目录本身（`/storage/emulated/0`）
+3. 阶段3: 发现用户自定义文件夹（根目录第一层扫描）
+
+**问题**：阶段2的根目录与阶段1的系统目录、阶段3的用户文件夹形成父子关系：
+- 根目录递归扫描会扫描到 `/storage/emulated/0/DCIM` 下的所有文件
+- 系统目录会再次扫描 `/storage/emulated/0/DCIM` 下的所有文件
+- 结果：每个文件被扫描2次，路径完全相同
+
+**影响**：
+- 文件数量统计错误（实际3763个文件，显示7527个）
+- ListView/GridView 使用文件路径作为 key，导致 duplicate keys 错误
+- 扫描性能降低50%（重复扫描）
+
+#### 解决方案
+
+**方案：移除根目录扫描（阶段2）**
+
+```dart
+// ❌ 错误：添加根目录导致路径重叠
+Future<List<String>> getCommonScanPaths() async {
+  final paths = <String>[];
+  
+  // 阶段1: 系统目录
+  paths.addAll(await _getSystemPaths()); // /storage/emulated/0/DCIM
+  
+  // 阶段2: 根目录本身（问题所在！）
+  paths.add('/storage/emulated/0'); // 会递归扫描所有子目录
+  
+  // 阶段3: 用户文件夹
+  paths.addAll(await _discoverUserFolders()); // /storage/emulated/0/MyFolder
+  
+  return paths;
+}
+
+// ✅ 正确：注释掉阶段2
+Future<List<String>> getCommonScanPaths() async {
+  final paths = <String>[];
+  
+  // 阶段1: 系统预定义目录
+  final systemPaths = await _getSystemPaths();
+  paths.addAll(systemPaths);
+  
+  // 阶段2: 根目录本身（❌ 已废弃 - 会导致路径重叠）
+  // 原因分析：
+  // 1. 阶段1的系统目录 + 阶段3的用户文件夹已覆盖根目录的所有子目录
+  // 2. 如果再添加根目录并递归扫描，会导致所有文件被扫描2次
+  // 3. 根目录直接放置文件的场景极少，可以接受不扫描
+  // 结论：删除此阶段，避免2倍重复扫描
+  /*
+  String? rootPath;
+  if (Platform.isAndroid) {
+    rootPath = '/storage/emulated/0';
+  }
+  if (rootPath != null && Directory(rootPath).existsSync()) {
+    paths.add(rootPath);
+  }
+  */
+  
+  // 阶段3: 用户自定义文件夹
+  final discoveredPaths = await _discoverUserFolders();
+  paths.addAll(discoveredPaths);
+  
+  return paths;
+}
+```
+
+#### 验证结果
+
+修复前：
+- 扫描路径数：100个
+- 图片数量：7527个（重复扫描）
+- 错误：Duplicate keys found
+
+修复后：
+- 扫描路径数：99个
+- 图片数量：3763个（正常）
+- 无错误，UI正常显示
+
+#### 最佳实践
+
+**1. 路径发现策略设计**
+- ✅ 确保路径列表中没有父子关系
+- ✅ 系统目录 + 用户文件夹已覆盖所有场景
+- ✅ 接受不扫描根目录直接放置的文件（极少场景）
+
+**2. 路径去重验证**
+```dart
+// 在路径发现后添加父子关系检测
+final existingPaths = <String>[];
+for (final path in paths) {
+  // 检查是否与现有路径形成父子关系
+  final hasParentChild = existingPaths.any((existing) =>
+    path.startsWith('$existing/') || existing.startsWith('$path/'));
+  
+  if (hasParentChild) {
+    logger.w('⚠️ Path overlap detected: $path');
+  }
+  
+  existingPaths.add(path);
+}
+```
+
+**3. 数据去重保护**
+```dart
+// 在数据聚合层添加去重
+final uniqueFiles = <String, FileItem>{};
+for (final file in categoryFiles) {
+  uniqueFiles[file.path] = file; // 使用路径作为key自动去重
+}
+final result = uniqueFiles.values.toList();
+```
+
+#### 相关问题
+
+- 类似路径重叠问题可能出现在其他扫描场景
+- 考虑建立统一的路径发现和验证机制
+- 重复文件扫描、缓存清理等功能都依赖 `getCommonScanPaths()`
+
+#### 历史案例
+
+- **2025-12-08**: 重复文件清理页面显示 duplicate keys 错误
+  - 场景：打开重复文件清理 → 扫描完成 → GridView 崩溃
+  - 根因：根目录与系统目录路径重叠，导致文件被扫描2次
+  - 解决：移除 getCommonScanPaths() 中的根目录添加逻辑
+  - 文件：`lib/presenter/file_presenter.dart`
+  - 性能提升：扫描速度提升约2倍
+
+---
+
+<a name="e502"></a>
+### E502: Category cache statistics not updated
+
+**错误级别：** ⚠️ 中等  
+**首次发现：** 2025-12-08  
+**最后更新：** 2025-12-08
+
+#### 错误信息
+
+```
+提示栏显示："已发现 7527 个图片文件，正在加载..."
+实际扫描后：找到 3763 个图片文件
+下次进入时：仍然显示 "已发现 7527 个图片文件，正在加载..."
+```
+
+#### 触发场景
+
+1. 首次进入分类页面（图片/视频等）
+2. 扫描完成后显示正确的文件数量
+3. 再次进入该分类页面
+4. 提示栏显示的是旧的缓存统计数据
+
+#### 根本原因
+
+**缓存更新不完整**：
+
+分类页面扫描文件时：
+1. Step 0: 从 `CategoryFileCacheService` 读取统计缓存显示提示
+2. Step 1: 从文件列表缓存加载数据显示
+3. Step 2: 后台扫描最新数据
+4. Step 3: 更新UI并保存**文件列表缓存**
+5. ❌ 未更新**统计数据缓存** ← 问题所在
+
+下次进入时：
+- Step 0 仍然读取到旧的统计数据（7527）
+- 导致提示信息错误
+
+#### 解决方案
+
+**在扫描完成后同步更新统计数据缓存**
+
+```dart
+// ❌ 错误：只保存文件列表缓存
+Future<void> _loadCategoryFiles() async {
+  // ... 扫描文件 ...
+  
+  setState(() {
+    _files = files;
+    _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件';
+  });
+  
+  // 保存到缓存
+  await _saveToCache(files); // ❌ 只保存文件列表
+}
+
+// ✅ 正确：同时更新统计数据缓存
+Future<void> _loadCategoryFiles() async {
+  // ... 扫描文件 ...
+  
+  setState(() {
+    _files = files;
+    _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件';
+  });
+  
+  // 保存到缓存
+  await _saveToCache(files);
+  
+  // ✅ 更新统计数据缓存
+  try {
+    final cacheService = CategoryFileCacheService();
+    final currentCounts = await cacheService.getCategoryCounts() ?? {};
+    
+    // 更新当前分类的文件数
+    currentCounts[_getCategoryEnumFromType(widget.categoryType)] = files.length;
+    
+    // 保存更新后的统计数据
+    await cacheService.saveCategoryCounts(currentCounts);
+    
+    logger.d('Updated category count cache: ${categoryInfo.name} = ${files.length}');
+  } catch (e) {
+    logger.w('Failed to update category count cache: $e');
+  }
+}
+```
+
+#### 验证结果
+
+修复前：
+- 第一次进入：显示 "已发现 7527 个图片"
+- 扫描完成：显示 "找到 3763 个图片"
+- 第二次进入：显示 "已发现 7527 个图片"（错误）
+
+修复后：
+- 第一次进入：显示 "已发现 7527 个图片"（旧缓存）
+- 扫描完成：显示 "找到 3763 个图片"，同时更新统计缓存
+- 第二次进入：显示 "已发现 3763 个图片"（正确✅）
+
+#### 最佳实践
+
+**1. 缓存一致性管理**
+- ✅ 统计数据缓存与文件列表缓存同步更新
+- ✅ 避免只更新部分缓存导致数据不一致
+
+**2. 缓存服务设计**
+```dart
+class CategoryFileCacheService {
+  // 统计数据缓存（快速加载提示信息）
+  Future<Map<FileCategory, int>?> getCategoryCounts();
+  Future<bool> saveCategoryCounts(Map<FileCategory, int> counts);
+  
+  // 文件列表缓存（详细数据）
+  Future<List<FileItem>> loadCache(String key);
+  Future<void> saveCache(String key, List<FileItem> files);
+  
+  // ✅ 确保两者同步
+  Future<void> updateCategoryData(CategoryType type, List<FileItem> files) async {
+    await saveCache('category_cache_${type.name}', files);
+    
+    final counts = await getCategoryCounts() ?? {};
+    counts[type] = files.length;
+    await saveCategoryCounts(counts);
+  }
+}
+```
+
+**3. 用户体验优化**
+- Step 0: 显示缓存统计（快速响应）
+- Step 1: 加载缓存列表（立即可用）
+- Step 2: 后台更新数据
+- Step 3: 同步更新所有缓存（保持一致）
+
+#### 相关问题
+
+- 其他分类（视频、音乐、文档）可能存在相同问题
+- 综合扫描功能也依赖统计数据缓存
+- 需要统一的缓存更新策略
+
+#### 历史案例
+
+- **2025-12-08**: 图片分类提示栏显示过时的文件数量
+  - 场景：修复 Bug #6 后发现提示信息未更新
+  - 根因：只更新了文件列表缓存，未更新统计数据缓存
+  - 解决：在扫描完成后同步更新统计数据缓存
+  - 文件：`lib/ui/pages/category_file_page.dart`
+  - 影响：用户体验，提示信息不准确但不影响功能
+
+---
+
 ## 维护日志
 
 - **2025-12-01**: 创建错误库，添加 E001（deactivated widget）
 - **2025-12-01**: 添加 E401（UI state not cleared on tab switch）
 - **2025-12-01**: 添加 E402（Recent tab not refreshed after returning from sub-page）
+- **2025-12-08**: 添加 E501（Duplicate keys found - 路径重叠问题）
+- **2025-12-08**: 添加 E502（Category cache statistics not updated）
 - [日期]: 添加 EXXX...
 
 ---
 
-**最后更新：** 2025-12-01  
+**最后更新：** 2025-12-08  
 **维护者：** EasyFile Team
