@@ -1,4 +1,4 @@
-package com.example.easyfile
+package com.guangqi.easyfile
 
 import android.app.usage.StorageStatsManager
 import android.content.Context

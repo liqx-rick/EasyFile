@@ -61,7 +61,7 @@ class AppManagementService {
     try {
       // 过滤掉 EasyFile 自身
       apps = apps
-          .where((app) => app.packageName != 'com.example.easyfile')
+          .where((app) => app.packageName != 'com.guangqi.easyfile')
           .toList();
 
       logger.i('Loading storage info for ${apps.length} apps');

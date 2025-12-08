@@ -99,7 +99,7 @@ class _AppNavigatorState extends State<AppNavigator>
   static DateTime? _processStartTime;
 
   // MethodChannel 用于与原生通信
-  static const platform = MethodChannel('com.example.easyfile/state');
+  static const platform = MethodChannel('com.guangqi.easyfile/state');
 
   @override
   bool get wantKeepAlive => true;

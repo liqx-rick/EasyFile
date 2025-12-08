@@ -16,6 +16,7 @@ import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
+import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 class FilePresenter {
@@ -25,6 +26,7 @@ class FilePresenter {
   final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
   final ThemeLocalSource themeSource;
+  final AppTrashDatabase trashDatabase;
 
   FilePresenter({
     required this.repository,
@@ -33,6 +35,7 @@ class FilePresenter {
     required this.favoriteFilesSource,
     required this.recentFilesSource,
     required this.themeSource,
+    required this.trashDatabase,
   }) {
     logger.d('FilePresenter constructor called');
     logger.d('favoriteFilesSource type: ${favoriteFilesSource.runtimeType}');
@@ -67,23 +70,30 @@ class FilePresenter {
     final files = await repository.getFiles(path);
     logger.i('Files loaded: ${files.length} items');
 
+    // 过滤已标记删除的文件
+    final deletedPaths = await trashDatabase.getDeletedFilePaths();
+    final visibleFiles = files
+        .where((file) => !deletedPaths.contains(file.path))
+        .toList();
+    logger.d('Filtered deleted files, visible: ${visibleFiles.length} items');
+
     // 检测是否是受系统保护的目录（Android/data等）
     final isProtectedDir = path.contains('/Android/data') ||
         path.contains('/Android/obb') ||
         path.contains('/Android/media');
 
     logger
-        .d('isProtectedDir: $isProtectedDir, files.isEmpty: ${files.isEmpty}');
+        .d('isProtectedDir: $isProtectedDir, files.isEmpty: ${visibleFiles.isEmpty}');
 
     // 先设置错误消息（如果有）
-    if (files.isEmpty && isProtectedDir) {
+    if (visibleFiles.isEmpty && isProtectedDir) {
       logger.w('Setting error for protected system directory: $path');
       viewModel.setError('此目录受 Android 系统保护，无法访问');
       logger.w('Error set, errorMessage: ${viewModel.errorMessage}');
     }
 
-    // 然后设置文件列表
-    viewModel.setFiles(files);
+    // 然后设置文件列表（使用过滤后的列表）
+    viewModel.setFiles(visibleFiles);
 
     // 最后设置加载状态
     viewModel.setLoading(false);
@@ -369,7 +379,7 @@ class FilePresenter {
       'FilePresenter.batchShareFiles called for ${filePaths.length} files',
     );
 
-    const platform = MethodChannel('com.example.easyfile/share');
+    const platform = MethodChannel('com.guangqi.easyfile/share');
 
     try {
       // 过滤出存在的文件

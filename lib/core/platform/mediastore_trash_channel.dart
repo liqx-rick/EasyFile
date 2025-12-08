@@ -8,7 +8,7 @@ import 'package:easyfile/data/models/trash_file_item.dart';
 /// 通过Method Channel调用Android原生代码查询和删除系统回收站文件
 class MediaStoreTrashChannel {
   static const MethodChannel _channel =
-      MethodChannel('com.example.easyfile/trash');
+      MethodChannel('com.guangqi.easyfile/trash');
 
   /// 检查当前平台是否支持MediaStore Trash
   ///
