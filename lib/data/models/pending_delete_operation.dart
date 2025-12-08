@@ -30,7 +30,7 @@ class PendingDeleteOperation {
   int get fileCount => files.length;
 
   /// 获取总大小（字节）
-  int get totalSize => files.fold(0, (sum, file) => sum + (file.size ?? 0));
+  int get totalSize => files.fold(0, (sum, file) => sum + file.size);
 
   /// 标记为已取消
   void cancel() {

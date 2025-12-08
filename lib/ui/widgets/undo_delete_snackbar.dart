@@ -88,16 +88,17 @@ class UndoDeleteSnackBar {
         textColor: Colors.yellowAccent,
         onPressed: () {
           countdownTimer?.cancel();
+          remainingSeconds.dispose();
           operation.cancel();
           onUndo();
         },
       ),
     );
 
-    messenger.showSnackBar(snackBar);
+    final snackBarController = messenger.showSnackBar(snackBar);
 
     // SnackBar关闭时清理资源
-    snackBar.closed.then((_) {
+    snackBarController.closed.then((_) {
       countdownTimer?.cancel();
       remainingSeconds.dispose();
     });
