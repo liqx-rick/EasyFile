@@ -660,7 +660,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           '/storage/emulated/0',
           '/sdcard',
           '/storage/emulated/0/Download',
-          '/data/data/com.example.easyfile/files',
+          '/data/data/com.guangqi.easyfile/files',
         ];
       } else {
         testPaths = [

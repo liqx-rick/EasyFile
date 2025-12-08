@@ -1,4 +1,4 @@
-package com.example.easyfile
+package com.guangqi.easyfile
 
 import android.content.Intent
 import android.net.Uri
@@ -19,9 +19,9 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.easyfile/share"
-    private val STATE_CHANNEL = "com.example.easyfile/state"
-    private val TRASH_CHANNEL = "com.example.easyfile/trash"
+    private val CHANNEL = "com.guangqi.easyfile/share"
+    private val STATE_CHANNEL = "com.guangqi.easyfile/state"
+    private val TRASH_CHANNEL = "com.guangqi.easyfile/trash"
     private val SYSTEM_INTENT_CHANNEL = "com.easyfile/system_intent"
     private val STORAGE_STATS_CHANNEL = "com.easyfile/storage_stats"
     private val PERMISSION_CHANNEL = "com.easyfile/permission"

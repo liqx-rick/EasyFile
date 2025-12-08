@@ -19,7 +19,7 @@ import 'package:easyfile/data/models/file_item.dart';
 /// 3. 定期清理过期文件
 class AppTrashManager {
   // 回收站目录（隐藏目录，不会被扫描）
-  static const String trashDir = '/data/data/com.example.easyfile/.trash';
+  static const String trashDir = '/data/data/com.guangqi.easyfile/.trash';
 
   final AppTrashDatabase _database;
   final AppTrashSettings _settings;

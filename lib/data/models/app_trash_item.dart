@@ -9,7 +9,7 @@ class AppTrashItem {
   final String id;
 
   /// 回收站中的路径
-  /// 示例: /data/data/com.example.easyfile/.trash/1733654321_photo.jpg
+  /// 示例: /data/data/com.guangqi.easyfile/.trash/1733654321_photo.jpg
   final String trashPath;
 
   /// 原始文件路径

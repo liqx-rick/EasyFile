@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.easyfile"
+    namespace = "com.guangqi.easyfile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.easyfile"
+        applicationId = "com.guangqi.easyfile"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

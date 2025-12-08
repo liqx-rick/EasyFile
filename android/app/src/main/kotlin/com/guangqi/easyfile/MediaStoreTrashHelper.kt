@@ -1,4 +1,4 @@
-package com.example.easyfile
+package com.guangqi.easyfile
 
 import android.content.ContentResolver
 import android.content.ContentUris

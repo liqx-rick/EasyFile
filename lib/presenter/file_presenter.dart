@@ -379,7 +379,7 @@ class FilePresenter {
       'FilePresenter.batchShareFiles called for ${filePaths.length} files',
     );
 
-    const platform = MethodChannel('com.example.easyfile/share');
+    const platform = MethodChannel('com.guangqi.easyfile/share');
 
     try {
       // 过滤出存在的文件

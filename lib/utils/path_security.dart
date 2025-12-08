@@ -23,7 +23,7 @@ class PathSecurity {
   PathSecurity._(); // 私有构造函数，防止实例化
 
   /// EasyFile回收站目录
-  static const String appTrashDir = '/data/data/com.example.easyfile/.trash';
+  static const String appTrashDir = '/data/data/com.guangqi.easyfile/.trash';
 
   /// 绝对禁止操作的路径（系统核心目录）
   static const List<String> _forbiddenPaths = [
