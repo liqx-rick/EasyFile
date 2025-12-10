@@ -629,19 +629,39 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         break;
       case 'rename':
         operationSuccess = await _operationsService?.renameFile(file) ?? false;
-        // 重命名成功后，标记文件已修改，但继续停留在预览页
-        if (operationSuccess) {
+        // 重命名成功后，需要更新 fileList 中的文件路径
+        if (operationSuccess && widget.viewModel != null) {
           setState(() {
             _fileModified = true;
+            
+            // 从 ViewModel 中获取更新后的文件信息
+            final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
+            if (updatedFile != null && widget.fileList != null) {
+              // 更新 fileList 中的文件对象
+              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
+              if (index != -1) {
+                widget.fileList![index] = updatedFile;
+              }
+            }
           });
         }
         break;
       case 'move':
         operationSuccess = await _operationsService?.moveFile(file) ?? false;
-        // 移动成功后，标记文件已修改
-        if (operationSuccess) {
+        // 移动成功后，更新 fileList 中的文件路径
+        if (operationSuccess && widget.viewModel != null) {
           setState(() {
             _fileModified = true;
+            
+            // 从 ViewModel 中获取更新后的文件信息
+            final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
+            if (updatedFile != null && widget.fileList != null) {
+              // 更新 fileList 中的文件对象（路径已更新）
+              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
+              if (index != -1) {
+                widget.fileList![index] = updatedFile;
+              }
+            }
           });
         }
         break;

@@ -72,7 +72,8 @@ class FileTypeAnalyzer {
     bool hideFolders = false,
   }) {
     if (category == FileCategory.all) {
-      return items;
+      // 创建新列表以避免与原列表共享引用
+      return List<FileItem>.from(items);
     }
 
     return items.where((item) {

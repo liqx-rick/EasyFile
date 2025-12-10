@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:path/path.dart' as path;
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -26,7 +27,8 @@ import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/utils/file_details_helper.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 
 class StoragePage extends StatefulWidget {
   final FilePresenter presenter;
@@ -435,18 +437,62 @@ class _StoragePageState extends State<StoragePage>
 
   /// ViewModel变化回调 - 同步文件列表
   void _onViewModelChanged() {
-    if (mounted) {
-      final oldPath = widget.viewModel.lastUpdatedOldPath;
-      final newFile = widget.viewModel.lastUpdatedNewFile;
+    if (!mounted) return;
+    
+    // 处理文件删除
+    final deletedPath = widget.viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      setState(() {
+        final initialLength = _files.length;
+        _files.removeWhere((f) => f.path == deletedPath);
+        final removed = initialLength - _files.length;
+        if (removed > 0) {
+          logger.d('Storage page: Removed $removed file(s). Remaining: ${_files.length}');
+        }
+      });
+      return;
+    }
+    
+    // 处理文件更新（重命名/移动）
+    final oldPath = widget.viewModel.lastUpdatedOldPath;
+    final newFile = widget.viewModel.lastUpdatedNewFile;
 
-      if (oldPath != null && newFile != null) {
-        setState(() {
-          // 在本地列表中找到旧路径的文件并替换
-          final index = _files.indexWhere((f) => f.path == oldPath);
-          if (index != -1) {
+    if (oldPath != null && newFile != null) {
+      setState(() {
+        // 检查文件是否在当前列表中
+        final index = _files.indexWhere((f) => f.path == oldPath);
+        if (index != -1) {
+          // 判断文件是移动到其他目录还是在当前目录重命名
+          final newFileDir = path.dirname(newFile.path);
+          
+          if (newFileDir == _currentPath) {
+            // 在当前目录内重命名/移动 → 更新路径
             _files[index] = newFile;
-            logger
-                .d('Updated file in storage page: $oldPath -> ${newFile.path}');
+            logger.d('Updated file in storage page: $oldPath -> ${newFile.path}');
+          } else {
+            // 移动到其他目录 → 从列表中移除
+            _files.removeAt(index);
+            logger.d('File moved to different directory, removed from list: $oldPath');
+          }
+        }
+      });
+      return;
+    }
+    
+    // 处理文件添加（复制/恢复操作）
+    final addedFile = widget.viewModel.lastAddedFile;
+    if (addedFile != null) {
+      // 只添加到当前目录的文件
+      final addedFileDir = path.dirname(addedFile.path);
+      if (addedFileDir == _currentPath) {
+        setState(() {
+          // 检查是否已存在
+          if (!_files.any((f) => f.path == addedFile.path)) {
+            _files.add(addedFile);
+            // 重新排序
+            final sortType = PageSettingsService().getSortType(PageId.storage);
+            FileComparatorUtil.sortFilesInPlace(_files, sortType);
+            logger.d('Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
           }
         });
       }
@@ -870,11 +916,8 @@ class _StoragePageState extends State<StoragePage>
         viewConfigBuilder: viewConfigBuilder,
         onTap: (file) => _onFileTap(file),
         onLongPress: (file) {
-          // 长按文件：显示详情面板
-          // 长按文件夹：无操作
-          if (!file.isDirectory) {
-            FileDetailsHelper.showFileDetailsBottomSheet(context, file);
-          }
+          // 长按：显示单文件操作面板
+          _showSingleFileOperationsMenu(context, file);
         },
       );
     }
@@ -898,11 +941,8 @@ class _StoragePageState extends State<StoragePage>
       viewConfigBuilder: viewConfigBuilder,
       onTap: (file) => _onFileTap(file),
       onLongPress: (file) {
-        // 长按文件：显示详情面板
-        // 长按文件夹：无操作
-        if (!file.isDirectory) {
-          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
-        }
+        // 长按：显示单文件操作面板
+        _showSingleFileOperationsMenu(context, file);
       },
     );
   }
@@ -1230,6 +1270,37 @@ class _StoragePageState extends State<StoragePage>
         if (!mounted) return;
         batchService.batchDelete(context, _selectedItems);
       },
+    );
+  }
+
+  /// 显示单文件操作菜单
+  void _showSingleFileOperationsMenu(BuildContext context, FileItem file) {
+    final service = SingleFileOperationsService(
+      context: context,
+      viewModel: widget.viewModel,
+      presenter: widget.presenter,
+      onRefresh: () async {
+        if (mounted) {
+          await _loadFilesInPath(_currentPath);
+        }
+      },
+      onUIUpdate: () {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SingleFileOperationsSheet(
+        file: file,
+        service: service,
+      ),
     );
   }
 

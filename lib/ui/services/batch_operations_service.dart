@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -12,6 +13,7 @@ import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+// import 'package:easyfile/utils/thumbnail_cache_manager.dart'; // 已禁用缓存删除
 
 /// 批量操作服务
 ///
@@ -351,7 +353,49 @@ class BatchOperationsService {
       if (!_isMounted(context)) return;
       navigator.pop(); // 关闭进度对话框
 
-      // 刷新文件列表
+      // 立即从列表移除已删除的文件
+      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
+      for (final file in files) {
+        try {
+          bool fileDeleted = false;
+          if (file.isDirectory) {
+            // 文件夹删除成功，从列表移除
+            if (!await Directory(file.path).exists()) {
+              viewModel.removeFileFromList(file.path);
+              fileDeleted = true;
+            }
+          } else {
+            // 文件删除成功，从列表移除
+            if (!await File(file.path).exists()) {
+              viewModel.removeFileFromList(file.path);
+              fileDeleted = true;
+            }
+          }
+          
+          // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
+          // if (fileDeleted && !file.isDirectory) {
+          //   final fileName = file.name.toLowerCase();
+          //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
+          //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
+          //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
+          //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
+          //     try {
+          //       await cacheManager.deleteCached(file.path);
+          //       logger.d('Deleted video thumbnail cache for: ${file.path}');
+          //     } catch (e) {
+          //       logger.w('Failed to delete thumbnail cache: $e');
+          //     }
+          //   }
+          // }
+          if (fileDeleted) {
+            logger.d('Skipping thumbnail cache deletion (preserving for fast reload)');
+          }
+        } catch (e) {
+          logger.w('Error checking file existence: ${file.path}, $e');
+        }
+      }
+
+      // 刷新文件列表（可选，用于更新统计等）
       onRefresh();
 
       // 显示结果提示
@@ -402,8 +446,31 @@ class BatchOperationsService {
       
       if (!_isMounted(context)) return;
 
-      // 立即刷新UI（文件瞬间消失）
-      onRefresh();
+      // 立即从列表移除已删除的文件
+      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
+      for (final file in files) {
+        viewModel.removeFileFromList(file.path);
+        
+        // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
+        // if (!file.isDirectory) {
+        //   final fileName = file.name.toLowerCase();
+        //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
+        //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
+        //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
+        //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
+        //     try {
+        //       await cacheManager.deleteCached(file.path);
+        //       logger.d('Deleted video thumbnail cache for: ${file.path}');
+        //     } catch (e) {
+        //       logger.w('Failed to delete thumbnail cache: $e');
+        //     }
+        //   }
+        // }
+        logger.d('Skipping thumbnail cache deletion (preserving for fast reload)');
+      }
+
+      // 注意：不调用 onRefresh，因为文件已通过 removeFileFromList 从列表移除
+      // 如果调用 onRefresh 重新扫描目录，会把已标记删除但尚未物理移动的文件再次加载回来
 
       // 退出多选模式
       onExitSelectionMode();
@@ -441,11 +508,14 @@ class BatchOperationsService {
   /// 批量移动
   ///
   /// 注意：context必须从调用处传入，并在调用前检查mounted状态
+  /// 
+  /// [shouldRefresh] - 移动后是否需要刷新页面（浏览器页面需要，分类页面不需要）
   Future<void> batchMove(
     BuildContext context,
     Set<String> selectedItems,
-    String currentPath,
-  ) async {
+    String currentPath, {
+    bool shouldRefresh = true,
+  }) async {
     if (selectedItems.isEmpty) return;
 
     // 🔒 安全检查：验证所有选中项是否允许移动
@@ -571,6 +641,7 @@ class BatchOperationsService {
     try {
       int successCount = 0;
       int failCount = 0;
+      final movedFiles = <String, String>{}; // 记录成功移动的文件：oldPath -> newPath
 
       for (final path in selectedItems) {
         try {
@@ -593,6 +664,9 @@ class BatchOperationsService {
           } else if (entity == FileSystemEntityType.file) {
             await File(path).rename(targetPath);
           }
+          
+          // 记录成功移动的文件
+          movedFiles[path] = targetPath;
           successCount++;
         } catch (e) {
           logger.e('Failed to move: $path, error: $e');
@@ -602,7 +676,49 @@ class BatchOperationsService {
 
       if (!_isMounted(context)) return;
       navigator.pop();
-      onRefresh();
+      
+      // 立即更新文件路径（对于分类页面等需要保留文件的场景）
+      for (final entry in movedFiles.entries) {
+        final oldPath = entry.key;
+        final newPath = entry.value;
+        
+        try {
+          // 获取移动后的文件信息
+          final entity = FileSystemEntity.typeSync(newPath);
+          if (entity == FileSystemEntityType.file) {
+            final file = File(newPath);
+            final stat = file.statSync();
+            final movedFile = FileItem(
+              name: path.basename(newPath),
+              path: newPath,
+              isDirectory: false,
+              size: stat.size,
+              modified: stat.modified,
+            );
+            viewModel.updateFileInList(oldPath, movedFile);
+          } else if (entity == FileSystemEntityType.directory) {
+            final dir = Directory(newPath);
+            final stat = dir.statSync();
+            final movedDir = FileItem(
+              name: path.basename(newPath),
+              path: newPath,
+              isDirectory: true,
+              size: 0,
+              modified: stat.modified,
+            );
+            viewModel.updateFileInList(oldPath, movedDir);
+          }
+        } catch (e) {
+          logger.w('Failed to update file path in list: $oldPath -> $newPath, $e');
+        }
+      }
+      
+      // 根据调用页面决定是否刷新
+      // 浏览器页面需要刷新以重新加载目录
+      // 分类页面不需要刷新，因为文件已通过 updateFileInList 更新
+      if (shouldRefresh) {
+        onRefresh();
+      }
       onExitSelectionMode();
 
       if (failCount == 0) {
@@ -748,8 +864,40 @@ class BatchOperationsService {
           if (entity == FileSystemEntityType.directory) {
             // 递归复制文件夹
             await _copyDirectory(Directory(sourcePath), Directory(targetPath));
+            
+            // 添加目录到 ViewModel（用于同步到其他页面）
+            try {
+              final dir = Directory(targetPath);
+              final stat = dir.statSync();
+              final copiedDir = FileItem(
+                name: path.basename(targetPath),
+                path: targetPath,
+                isDirectory: true,
+                size: 0,
+                modified: stat.modified,
+              );
+              viewModel.addFileToList(copiedDir);
+            } catch (e) {
+              logger.w('Failed to add copied directory to ViewModel: $targetPath, $e');
+            }
           } else if (entity == FileSystemEntityType.file) {
             await File(sourcePath).copy(targetPath);
+            
+            // 添加文件到 ViewModel（用于同步到其他页面）
+            try {
+              final file = File(targetPath);
+              final stat = file.statSync();
+              final copiedFile = FileItem(
+                name: path.basename(targetPath),
+                path: targetPath,
+                isDirectory: false,
+                size: stat.size,
+                modified: stat.modified,
+              );
+              viewModel.addFileToList(copiedFile);
+            } catch (e) {
+              logger.w('Failed to add copied file to ViewModel: $targetPath, $e');
+            }
           }
 
           successCount++;

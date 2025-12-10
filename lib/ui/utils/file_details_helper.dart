@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easyfile/data/models/file_item.dart';
@@ -28,7 +30,7 @@ class FileDetailsHelper {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题
+            // 标题栏（带关闭按钮）
             Row(
               children: [
                 Icon(
@@ -37,13 +39,21 @@ class FileDetailsHelper {
                   size: 24,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+                Expanded(
+                  child: Text(
+                    file.isDirectory ? '文件夹详情' : '文件详情',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
@@ -56,9 +66,9 @@ class FileDetailsHelper {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 文件名
+                    // 文件名/文件夹名
                     _buildDetailRow(
-                      '文件名',
+                      file.isDirectory ? '文件夹名' : '文件名',
                       file.name,
                       colorScheme,
                       isSelectable: true,
@@ -74,13 +84,60 @@ class FileDetailsHelper {
                     ),
                     const SizedBox(height: 16),
 
-                    // 文件大小
-                    _buildDetailRow(
-                      '文件大小',
-                      FileSizeFormatter.formatBytes(file.size),
-                      colorScheme,
-                    ),
-                    const SizedBox(height: 16),
+                    // 文件大小（仅文件显示）
+                    if (!file.isDirectory) ...[
+                      _buildDetailRow(
+                        '文件大小',
+                        FileSizeFormatter.formatBytes(file.size),
+                        colorScheme,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // 文件夹子文件统计
+                    if (file.isDirectory)
+                      FutureBuilder<Map<String, int>>(
+                        future: _getFolderStats(file.path),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            final stats = snapshot.data!;
+                            final fileCount = stats['files'] ?? 0;
+                            final folderCount = stats['folders'] ?? 0;
+                            return Column(
+                              children: [
+                                _buildDetailRow(
+                                  '包含内容',
+                                  '$fileCount 个文件，$folderCount 个文件夹',
+                                  colorScheme,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            );
+                          } else if (snapshot.hasError) {
+                            return Column(
+                              children: [
+                                _buildDetailRow(
+                                  '包含内容',
+                                  '无法读取',
+                                  colorScheme,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            );
+                          } else {
+                            return Column(
+                              children: [
+                                _buildDetailRow(
+                                  '包含内容',
+                                  '统计中...',
+                                  colorScheme,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            );
+                          }
+                        },
+                      ),
 
                     // 修改时间
                     _buildDetailRow(
@@ -92,16 +149,7 @@ class FileDetailsHelper {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-
-            // 关闭按钮
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -293,6 +341,32 @@ class FileDetailsHelper {
   static String _formatDateTime(DateTime dateTime) {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
         '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// 获取文件夹统计信息（文件数和子文件夹数）
+  static Future<Map<String, int>> _getFolderStats(String folderPath) async {
+    try {
+      final dir = Directory(folderPath);
+      if (!await dir.exists()) {
+        return {'files': 0, 'folders': 0};
+      }
+
+      int fileCount = 0;
+      int folderCount = 0;
+
+      final entities = dir.listSync(followLinks: false);
+      for (var entity in entities) {
+        if (entity is File) {
+          fileCount++;
+        } else if (entity is Directory) {
+          folderCount++;
+        }
+      }
+
+      return {'files': fileCount, 'folders': folderCount};
+    } catch (e) {
+      return {'files': 0, 'folders': 0};
+    }
   }
 
   /// 显示 TrashFileItem 详情的 BottomSheet

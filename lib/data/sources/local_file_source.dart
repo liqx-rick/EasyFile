@@ -466,12 +466,15 @@ class LocalFileRepository implements FileRepository {
       logger.i('File renamed successfully: ${file.path} -> $newPath');
 
       // Return updated FileItem with new path and name
+      // 保留原文件的 addedTime 和 accessedAt，避免排序位置错乱
       return FileItem(
         path: newPath,
         name: newName,
         isDirectory: file.isDirectory,
         size: file.size,
         modified: file.modified,
+        addedTime: file.addedTime,
+        accessedAt: file.accessedAt,
       );
     } catch (e) {
       logger.e('Error renaming file ${file.path}: $e');

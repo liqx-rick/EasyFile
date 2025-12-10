@@ -34,6 +34,7 @@ class SingleFileOperationsService {
   final FilePresenter presenter;
   final VoidCallback? onRefresh;
   final VoidCallback? onFileDeleted; // 文件被删除后的回调（通常需要关闭预览页）
+  final VoidCallback? onUIUpdate; // 轻量级UI更新回调（不重新加载数据，仅刷新UI）
 
   SingleFileOperationsService({
     required this.context,
@@ -41,6 +42,7 @@ class SingleFileOperationsService {
     required this.presenter,
     this.onRefresh,
     this.onFileDeleted,
+    this.onUIUpdate,
   });
 
   bool get _isMounted {
@@ -88,10 +90,8 @@ class SingleFileOperationsService {
 
       if (operationSucceeded) {
         _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏');
-        // 刷新前再次检查 mounted 状态，因为 showSnackBar 可能导致 widget 重建
-        if (_isMounted) {
-          onRefresh?.call();
-        }
+        // 收藏操作通过 viewModel.addFavoriteFile/removeFavoriteFile 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
       } else {
         final action = wasOriginallyFavorite ? '取消收藏' : '添加到收藏';
         _showErrorSnackBar('$action失败');
@@ -235,8 +235,9 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('重命名成功');
-        onRefresh?.call();
-        return true; // 返回 true 表示需要刷新父页面
+        // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
+        return true; // 返回 true 表示操作成功
       } else {
         _showErrorSnackBar('重命名失败');
         return false;
@@ -474,7 +475,8 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('移动成功');
-        onRefresh?.call();
+        // 移动成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
         _showErrorSnackBar('移动失败');
@@ -560,7 +562,8 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('复制成功');
-        onRefresh?.call();
+        // 复制成功后通过 viewModel.addFileToList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
         _showErrorSnackBar('复制失败');

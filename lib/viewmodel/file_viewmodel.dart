@@ -36,6 +36,13 @@ class FileViewModel extends ChangeNotifier {
   // 文件更新跟踪（用于页面同步更新）
   String? _lastUpdatedOldPath;
   FileItem? _lastUpdatedNewFile;
+  
+  // 文件删除跟踪（用于页面同步删除）
+  String? _lastDeletedFilePath;
+  
+  // 文件添加跟踪（用于页面同步添加，如复制、恢复操作）
+  String? _lastAddedFilePath;
+  FileItem? _lastAddedFile;
 
   // 文件类型筛选
   FileCategory _selectedCategory = FileCategory.all;
@@ -134,6 +141,9 @@ class FileViewModel extends ChangeNotifier {
   // 文件更新跟踪的 getters
   String? get lastUpdatedOldPath => _lastUpdatedOldPath;
   FileItem? get lastUpdatedNewFile => _lastUpdatedNewFile;
+  String? get lastDeletedFilePath => _lastDeletedFilePath;
+  String? get lastAddedFilePath => _lastAddedFilePath;
+  FileItem? get lastAddedFile => _lastAddedFile;
 
   // 文件类型筛选的 getters
   FileCategory get selectedCategory => _selectedCategory;
@@ -203,9 +213,46 @@ class FileViewModel extends ChangeNotifier {
     }
   }
 
+  /// 获取更新后的文件（通过旧路径查找新文件）
+  /// 
+  /// 用于文件重命名/移动后，获取更新后的文件信息
+  /// 如果找不到更新后的文件，返回 null
+  FileItem? getUpdatedFile(String oldPath) {
+    // 首先检查是否有最近的更新记录
+    if (_lastUpdatedOldPath == oldPath && _lastUpdatedNewFile != null) {
+      return _lastUpdatedNewFile;
+    }
+
+    // 如果没有更新记录，尝试从列表中查找（可能路径相同）
+    final fileInList = _files.firstWhere(
+      (f) => f.path == oldPath,
+      orElse: () => _allFiles.firstWhere(
+        (f) => f.path == oldPath,
+        orElse: () => FileItem(
+          name: '',
+          path: '',
+          isDirectory: false,
+          size: 0,
+          modified: DateTime.now(),
+        ),
+      ),
+    );
+
+    return fileInList.path.isNotEmpty ? fileInList : null;
+  }
+
   /// 添加文件到列表（用于复制操作后即时更新UI）
   void addFileToList(FileItem newFile) {
     logger.d('Adding file to list: ${newFile.path}');
+
+    // 检查是否已存在，避免重复添加
+    final existsInAllFiles = _allFiles.any((f) => f.path == newFile.path);
+    final existsInFiles = _files.any((f) => f.path == newFile.path);
+
+    if (existsInAllFiles || existsInFiles) {
+      logger.w('File already exists in list, skipping: ${newFile.path}');
+      return;
+    }
 
     // 添加到 _allFiles 和 _files
     _allFiles.add(newFile);
@@ -224,8 +271,47 @@ class FileViewModel extends ChangeNotifier {
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
-    logger.d('Added and sorted file in list');
+    // 记录本次添加，供页面监听器使用
+    _lastAddedFile = newFile;
+    _lastAddedFilePath = newFile.path;
+    // 清除其他标记，避免冲突
+    _lastDeletedFilePath = null;
+    _lastUpdatedOldPath = null;
+    _lastUpdatedNewFile = null;
+
+    logger.d('Added and sorted file in list, notifying listeners: ${newFile.path}');
     notifyListeners();
+    
+    // 通知完成后清除添加标记，避免重复处理
+    // 延迟清除，确保所有监听器都能收到通知
+    Future.microtask(() {
+      _lastAddedFile = null;
+      _lastAddedFilePath = null;
+    });
+  }
+
+  /// 通知全局监听器文件已添加（不添加到 files 列表）
+  /// 用于让其他页面（如大文件页面、分类页面）自行判断是否需要处理
+  void notifyFileAdded(FileItem newFile) {
+    logger.d('Notifying file added (without adding to list): ${newFile.path}');
+
+    // 记录本次添加，供页面监听器使用
+    _lastAddedFile = newFile;
+    _lastAddedFilePath = newFile.path;
+    // 清除其他标记，避免冲突
+    _lastDeletedFilePath = null;
+    _lastUpdatedOldPath = null;
+    _lastUpdatedNewFile = null;
+
+    logger.d('Notifying listeners about added file: ${newFile.path}');
+    notifyListeners();
+    
+    // 通知完成后清除添加标记，避免重复处理
+    // 延迟清除，确保所有监听器都能收到通知
+    Future.microtask(() {
+      _lastAddedFile = null;
+      _lastAddedFilePath = null;
+    });
   }
 
   /// 从列表中移除文件（用于删除操作后即时更新UI）
@@ -234,9 +320,22 @@ class FileViewModel extends ChangeNotifier {
 
     _allFiles.removeWhere((f) => f.path == filePath);
     _files.removeWhere((f) => f.path == filePath);
+    
+    // 记录删除的文件路径，用于通知其他页面
+    _lastDeletedFilePath = filePath;
+    // 清除更新标记，避免冲突
+    _lastUpdatedOldPath = null;
+    _lastUpdatedNewFile = null;
 
     logger.d('File removed, remaining: ${_files.length} items');
+    logger.d('Notifying listeners about deleted file: $filePath');
     notifyListeners();
+    
+    // 通知完成后清除删除标记，避免重复处理
+    // 延迟清除，确保所有监听器都能收到通知
+    Future.microtask(() {
+      _lastDeletedFilePath = null;
+    });
   }
 
   /// 应用筛选条件

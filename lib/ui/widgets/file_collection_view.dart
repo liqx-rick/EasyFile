@@ -473,7 +473,9 @@ class FileCollectionView extends StatelessWidget {
             if (onTap != null) onTap!(item);
           }
         },
-        onLongPress: onLongPress != null ? () => onLongPress!(item) : null,
+        onLongPress: showCheckbox
+            ? () {} // 编辑模式：禁用长按
+            : (onLongPress != null ? () => onLongPress!(item) : null),
         onFavoriteToggle:
             showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
                 ? () async {
@@ -493,6 +495,8 @@ class FileCollectionView extends StatelessWidget {
     }
 
     // 使用默认的 FileItemTile（列表模式或未启用统一组件）
+    // 注意：不给 FileItemTile 添加 key，让 Flutter 复用 widget
+    // RealVideoThumbnail 内部的 didUpdateWidget 会处理路径变化
     Widget child = FileItemTile(
       file: item,
       showFullPath: showFullPath,
@@ -523,7 +527,9 @@ class FileCollectionView extends StatelessWidget {
           if (onTap != null) onTap!(item);
         }
       },
-      onLongPress: onLongPress != null ? () => onLongPress!(item) : null,
+      onLongPress: showCheckbox
+          ? () {} // 编辑模式：禁用长按
+          : (onLongPress != null ? () => onLongPress!(item) : null),
     );
 
     // Add semantics for accessibility

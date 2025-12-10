@@ -3,6 +3,7 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
+import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_utils.dart';
 
 /// 单文件操作菜单组件
@@ -80,31 +81,18 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
           // 文件基本信息
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  file.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  file.isDirectory
-                      ? '文件夹'
-                      : FileUtils.formatFileSize(file.size),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
+            child: Text(
+              file.name,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+
+          const SizedBox(width: 8),
 
           // 关闭按钮
           IconButton(
@@ -125,6 +113,18 @@ class SingleFileOperationsSheet extends StatelessWidget {
       children: [
         // 文件夹操作
         if (file.isDirectory) ...[
+          // 查看详情
+          _buildOperationTile(
+            context,
+            icon: Icons.info_outline,
+            label: '查看详情',
+            onTap: () {
+              Navigator.pop(context);
+              service.showFileDetails(file, useBottomSheet: true);
+            },
+          ),
+
+          // 编辑操作
           _buildOperationTile(
             context,
             icon: Icons.edit,
@@ -152,7 +152,10 @@ class SingleFileOperationsSheet extends StatelessWidget {
               () => service.copyFile(file),
             ),
           ),
+
           const Divider(height: 1),
+
+          // 危险操作
           _buildOperationTile(
             context,
             icon: Icons.delete,
@@ -167,7 +170,18 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
         // 文件操作
         if (!file.isDirectory) ...[
-          // 收藏/取消收藏
+          // 查看详情（信息查询 - 最安全的操作）
+          _buildOperationTile(
+            context,
+            icon: Icons.info_outline,
+            label: '查看详情',
+            onTap: () {
+              Navigator.pop(context);
+              service.showFileDetails(file, useBottomSheet: true);
+            },
+          ),
+
+          // 编辑操作组
           _buildOperationTile(
             context,
             icon: service.viewModel.isFavoriteFile(file.path)
@@ -176,14 +190,15 @@ class SingleFileOperationsSheet extends StatelessWidget {
             label: service.viewModel.isFavoriteFile(file.path)
                 ? '取消收藏'
                 : '添加到收藏',
-            color: Colors.amber,
-            onTap: () => _handleOperation(
-              context,
-              () => service.toggleFavorite(file),
-            ),
+            onTap: () async {
+              // 不关闭菜单，直接执行收藏操作
+              await service.toggleFavorite(file);
+              // 关闭菜单返回列表（操作完成后）
+              if (context.mounted) {
+                Navigator.pop(context);
+              }
+            },
           ),
-
-          // 重命名
           _buildOperationTile(
             context,
             icon: Icons.edit,
@@ -193,8 +208,6 @@ class SingleFileOperationsSheet extends StatelessWidget {
               () => service.renameFile(file),
             ),
           ),
-
-          // 移动
           _buildOperationTile(
             context,
             icon: Icons.drive_file_move,
@@ -204,8 +217,6 @@ class SingleFileOperationsSheet extends StatelessWidget {
               () => service.moveFile(file),
             ),
           ),
-
-          // 复制
           _buildOperationTile(
             context,
             icon: Icons.content_copy,
@@ -216,7 +227,9 @@ class SingleFileOperationsSheet extends StatelessWidget {
             ),
           ),
 
-          // 分享
+          const Divider(height: 1),
+
+          // 对外操作
           _buildOperationTile(
             context,
             icon: Icons.share,
@@ -226,8 +239,6 @@ class SingleFileOperationsSheet extends StatelessWidget {
               () => service.shareFile(file),
             ),
           ),
-
-          // 打印（仅支持的文件类型）
           if (service.canPrint(file))
             _buildOperationTile(
               context,
@@ -241,20 +252,7 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // 查看详情（使用 BottomSheet 版本）
-          _buildOperationTile(
-            context,
-            icon: Icons.info_outline,
-            label: '查看详情',
-            onTap: () {
-              Navigator.pop(context); // 关闭操作菜单
-              service.showFileDetails(file, useBottomSheet: true); // 使用 BottomSheet
-            },
-          ),
-
-          const Divider(height: 1),
-
-          // 删除
+          // 危险操作
           _buildOperationTile(
             context,
             icon: Icons.delete,
@@ -305,6 +303,11 @@ class SingleFileOperationsSheet extends StatelessWidget {
       );
     } else if (file.isDirectory) {
       return const Icon(Icons.folder, size: 48, color: Colors.amber);
+    } else if (FileUtils.isDocumentFile(file.name) ||
+        FileUtils.isTextFile(file.name) ||
+        FileUtils.isArchiveFile(file.name)) {
+      // 文档、文本、压缩包使用彩色图标
+      return DocumentIconWidget(fileName: file.name, size: 48);
     } else {
       return Icon(
         Icons.insert_drive_file,
