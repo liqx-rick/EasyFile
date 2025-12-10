@@ -57,6 +57,25 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
     }
   }
 
+  @override
+  void didUpdateWidget(RealVideoThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果视频路径改变，重新加载缩略图
+    if (oldWidget.videoPath != widget.videoPath) {
+      logger.i('🔄 [VideoThumbnail] didUpdateWidget: path changed, reloading');
+      setState(() {
+        _thumbnailData = null;
+        _isLoading = true;
+        _hasError = false;
+        _duration = null;
+      });
+      _loadThumbnail();
+      if (widget.showDuration) {
+        _loadDuration();
+      }
+    }
+  }
+
   Future<void> _loadThumbnail() async {
     try {
       // 1. 检查文件是否存在
@@ -73,7 +92,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
       }
 
       // 2. 使用队列加载缩略图（自动处理缓存和并发控制）
-      // 如果缓存命中，通常在100ms内返回，此时不需要显示loading动画
+      // 如果缓存命中，通常在100ms内返回
       final startTime = DateTime.now();
       final thumbnailData =
           await _loadQueue.loadThumbnail(widget.videoPath, widget.size);

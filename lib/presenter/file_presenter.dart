@@ -18,6 +18,7 @@ import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 
 class FilePresenter {
   final FileRepository repository;
@@ -75,7 +76,6 @@ class FilePresenter {
     final visibleFiles = files
         .where((file) => !deletedPaths.contains(file.path))
         .toList();
-    logger.d('Filtered deleted files, visible: ${visibleFiles.length} items');
 
     // 检测是否是受系统保护的目录（Android/data等）
     final isProtectedDir = path.contains('/Android/data') ||
@@ -175,8 +175,23 @@ class FilePresenter {
     logger.i('FilePresenter.deleteFile called for: ${file.path}');
     final success = await repository.deleteFile(file);
     if (success) {
-      logger.i('File deleted successfully, refreshing list');
-      await loadFiles(viewModel.currentPath);
+      logger.i('File deleted successfully');
+      
+      // 删除文件时，立即清理收藏记录
+      // 即使用户以后恢复文件，也不应该显示收藏状态
+      if (viewModel.isFavoriteFile(file.path)) {
+        logger.i('Removing favorite record for deleted file: ${file.path}');
+        await favoriteFilesSource.removeFavoriteFile(file.path);
+        viewModel.removeFavoriteFile(file.path);
+      }
+      
+      // 注意：不再删除缩略图缓存，保留缓存以优化性能
+      // 依赖 RealVideoThumbnail 的 didUpdateWidget 检测路径变化来更新显示
+      
+      // 从列表中移除删除的文件（立即更新UI）
+      // 各个页面会在 onRefresh 回调中重新加载数据
+      logger.i('Removing deleted file from list');
+      viewModel.removeFileFromList(file.path);
     } else {
       logger.w('Failed to delete file: ${file.path}');
     }
@@ -189,6 +204,7 @@ class FilePresenter {
       'FilePresenter.batchDeleteFiles called for ${filePaths.length} files',
     );
     final results = <String, bool>{};
+    final cacheManager = ThumbnailCacheManager();
 
     for (final filePath in filePaths) {
       try {
@@ -205,6 +221,27 @@ class FilePresenter {
           results[filePath] = success;
           if (success) {
             logger.d('Deleted file: $filePath');
+            
+            // 删除成功后，立即清理收藏记录
+            if (viewModel.isFavoriteFile(filePath)) {
+              logger.d('Removing favorite record for deleted file: $filePath');
+              await favoriteFilesSource.removeFavoriteFile(filePath);
+              viewModel.removeFavoriteFile(filePath);
+            }
+            
+            // 清理视频缩略图缓存
+            final fileName = fileItem.name.toLowerCase();
+            if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
+                fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
+                fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
+                fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
+              try {
+                await cacheManager.deleteCached(filePath);
+                logger.d('Deleted video thumbnail cache for: $filePath');
+              } catch (e) {
+                logger.w('Failed to delete thumbnail cache: $e');
+              }
+            }
           } else {
             logger.w('Failed to delete file: $filePath');
           }
@@ -234,33 +271,46 @@ class FilePresenter {
     if (copiedFile != null) {
       logger.i('File copied successfully: ${copiedFile.path}');
 
-      // 智能判断是否应该将复制的文件添加到当前列表
+      // 如果复制后的文件路径在垃圾桶中，从垃圾桶移除
+      // （可能之前删除过同名文件，现在又复制了新文件过来）
+      final deletedPaths = await trashDatabase.getDeletedFilePaths();
+      if (deletedPaths.contains(copiedFile.path)) {
+        logger.w('Copied file path exists in trash database, removing: ${copiedFile.path}');
+        await trashDatabase.removeFromTrash(copiedFile.path);
+      }
+
+      // 判断是否应该将复制的文件添加到当前列表
+      // 对于分类页面，总是通知添加（让分类页面自己判断是否属于当前分类）
+      // 对于浏览器页面，只有复制到当前目录时才添加
       bool shouldAddToList = false;
 
-      // 场景1：复制到当前浏览目录（文件浏览模式）
       if (destinationPath == viewModel.currentPath) {
         logger.d('File copied to current browsing directory');
         shouldAddToList = true;
-      }
-      // 场景2：原文件在当前列表中（分类模式、收藏模式等）
-      // 复制的文件类型与原文件相同，应该也在当前列表中
-      else if (viewModel.files.any((f) => f.path == file.path)) {
-        logger.d(
-            'Source file is in current list (${viewModel.files.length} items), copied file should be added too');
+      } else if (viewModel.currentPath.isEmpty) {
+        // currentPath为空，可能是分类页面，总是通知
+        logger.d('Current path is empty (category page?), notifying file addition');
         shouldAddToList = true;
       } else {
-        logger.d(
-            'Source file NOT in current list. Current list has ${viewModel.files.length} items');
-        logger.d('Current path: ${viewModel.currentPath}');
+        logger.d('File copied to different directory, not adding to current list');
+        logger.d('Destination: $destinationPath, Current path: ${viewModel.currentPath}');
       }
 
       if (shouldAddToList) {
-        logger.i('Adding copied file to current list: ${copiedFile.path}');
-        viewModel.addFileToList(copiedFile);
-        logger
-            .i('File added to list. New list size: ${viewModel.files.length}');
+        // 检查文件是否已在列表中（避免重复添加）
+        final alreadyExists = viewModel.files.any((f) => f.path == copiedFile.path);
+        if (alreadyExists) {
+          logger.w('File already exists in list, skipping add: ${copiedFile.path}');
+        } else {
+          logger.i('Adding copied file to list: ${copiedFile.path}');
+          viewModel.addFileToList(copiedFile);
+          logger.i('File added to list. New list size: ${viewModel.files.length}');
+        }
       } else {
-        logger.d('File not added to list (different directory/category)');
+        // 即使不添加到 files 列表，也要通知全局监听器
+        // 让其他页面（如大文件页面、分类页面）自行判断是否需要处理
+        logger.d('Notifying global listeners about copied file');
+        viewModel.notifyFileAdded(copiedFile);
       }
 
       return true;
@@ -276,9 +326,17 @@ class FilePresenter {
     );
     final movedFile = await repository.moveFile(file, destinationPath);
     if (movedFile != null) {
-      logger.i('File moved successfully, updating in list');
+      logger.i('File moved successfully');
 
-      // 如果文件被收藏，同步更新收藏记录中的路径
+      // 如果移动后的文件路径在垃圾桶中，从垃圾桶移除
+      // （可能之前删除过同名文件，现在又移动了新文件过来）
+      final deletedPaths = await trashDatabase.getDeletedFilePaths();
+      if (deletedPaths.contains(movedFile.path)) {
+        logger.w('Moved file path exists in trash database, removing: ${movedFile.path}');
+        await trashDatabase.removeFromTrash(movedFile.path);
+      }
+
+      // 如果源文件被收藏，同步更新收藏记录中的路径
       if (viewModel.isFavoriteFile(file.path)) {
         logger.d('File is favorited, updating favorite path');
 
@@ -303,8 +361,44 @@ class FilePresenter {
         ));
       }
 
-      viewModel.updateFileInList(file.path, movedFile);
-      logger.i('File updated in list instantly');
+      // 移动文件后，根据原文件位置和目标位置决定如何更新列表
+      // 判断逻辑：通过检查原文件是否在 currentPath 中来判断页面类型
+      // 关键：只有当 currentPath 非空且原文件确实在这个目录中时，才是目录浏览模式
+      // 1. currentPath 为空 → 分类/全局页面，更新路径继续显示
+      // 2. 原文件不在 currentPath 中 → 分类/全局页面，更新路径继续显示
+      // 3. 原文件在 currentPath 且移动到 currentPath → 更新路径（重命名）
+      // 4. 原文件在 currentPath 且移动到其他目录 → 从列表移除
+      
+      final originalFileDir = path.dirname(file.path);
+      final movedFileDir = path.dirname(movedFile.path);
+      final currentPath = viewModel.currentPath;
+      
+      logger.d('Original file directory: $originalFileDir');
+      logger.d('Moved file directory: $movedFileDir');
+      logger.d('Current browsing path: "$currentPath"');
+      
+      // 判断是否是目录浏览模式：
+      // 1. currentPath 不为空
+      // 2. 且原文件确实在这个目录中
+      final isDirectoryBrowsing = currentPath.isNotEmpty && 
+                                   originalFileDir == currentPath;
+      
+      logger.d('Is directory browsing mode: $isDirectoryBrowsing');
+      
+      if (!isDirectoryBrowsing) {
+        // 非目录浏览模式（分类页面、全局搜索等）：更新路径继续显示
+        logger.i('Not directory browsing mode, updating file path to continue display');
+        viewModel.updateFileInList(file.path, movedFile);
+      } else if (movedFileDir == currentPath) {
+        // 目录浏览模式：移动到当前目录（实际上是重命名）
+        logger.i('File moved within current directory, updating file path');
+        viewModel.updateFileInList(file.path, movedFile);
+      } else {
+        // 目录浏览模式：移动到其他目录，从当前列表移除
+        logger.i('File moved to different directory, removing from current list');
+        viewModel.removeFileFromList(file.path);
+      }
+      
       return true;
     } else {
       logger.w('Failed to move file: ${file.path}');

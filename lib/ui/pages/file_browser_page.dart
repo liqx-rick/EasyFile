@@ -48,9 +48,10 @@ import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
-import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
@@ -81,6 +82,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
+  
+  // 单文件操作服务
+  late final SingleFileOperationsService _singleFileOperationsService;
 
   // EditModeMixin 要求的 getter
   @override
@@ -241,6 +245,45 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
+
+      // 初始化单文件操作服务
+      _singleFileOperationsService = SingleFileOperationsService(
+        context: context,
+        viewModel: viewModel,
+        presenter: presenter,
+        onRefresh: () async {
+          // 根据当前 Tab 刷新对应的数据
+          if (viewModel.currentTab == TabView.favorite) {
+            await presenter.loadFavoriteFiles();
+          } else if (viewModel.currentTab == TabView.recent) {
+            await presenter.loadRecentFiles();
+          } else {
+            // 浏览Tab：重新加载当前目录
+            await presenter.loadFiles(viewModel.currentPath);
+          }
+          
+          // 浏览Tab特殊处理：移动文件后需要从列表移除（因为文件不在当前目录了）
+          if (viewModel.currentTab == TabView.browse) {
+            final updatedPath = viewModel.lastUpdatedNewFile?.path;
+            if (updatedPath != null && viewModel.lastUpdatedOldPath != null) {
+              // 检查更新后的文件是否还在当前目录
+              final updatedFileDir = Directory(updatedPath).parent.path;
+              if (updatedFileDir != viewModel.currentPath) {
+                // 文件已移到其他目录，从列表移除
+                logger.d('File moved to another directory, removing from list: $updatedPath');
+                viewModel.removeFileFromList(updatedPath);
+              }
+            }
+          }
+        },
+        onUIUpdate: () {
+          // 轻量级UI刷新（不重新加载数据，只更新UI状态）
+          if (mounted) {
+            setState(() {});
+          }
+        },
+      );
+      logger.d('SingleFileOperationsService initialized');
 
       // 延迟初始化应用程序数据，先显示UI - 这个优化保留
       Future.microtask(() => _initializeAppWithPermission());
@@ -2401,11 +2444,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           }
         },
         onLongPress: () {
-          // 长按文件：显示详情面板
-          // 长按文件夹：无操作
-          if (!item.isDirectory) {
-            FileDetailsHelper.showFileDetailsBottomSheet(context, item);
-          }
+          // 编辑模式下禁用长按（避免与选择操作冲突）
+          if (isEditMode) return;
+          
+          // 正常模式下显示单文件操作菜单
+          _showSingleFileOperationsMenu(context, item);
         },
         onFavoriteToggle: !item.isDirectory
             ? () async {
@@ -2454,14 +2497,29 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           }
         },
         onLongPress: () {
-          // 长按文件：显示详情面板
-          // 长按文件夹：无操作
-          if (!item.isDirectory) {
-            FileDetailsHelper.showFileDetailsBottomSheet(context, item);
-          }
+          // 编辑模式下禁用长按（避免与选择操作冲突）
+          if (isEditMode) return;
+          
+          // 正常模式下显示单文件操作菜单
+          _showSingleFileOperationsMenu(context, item);
         },
       );
     }
+  }
+
+  /// 显示单文件操作菜单
+  void _showSingleFileOperationsMenu(BuildContext context, FileItem file) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SingleFileOperationsSheet(
+        file: file,
+        service: _singleFileOperationsService,
+      ),
+    );
   }
 
   /// 构建收藏Tab分组视图的Sliver组件

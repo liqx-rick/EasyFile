@@ -165,8 +165,23 @@ class VideoThumbnailLoadQueue {
         return;
       }
 
-      // 2. 缓存未命中，生成新缩略图
-      logger.d('Generating thumbnail: ${request.videoPath}');
+      // 2. 验证视频文件是否存在且可读
+      final videoFile = File(request.videoPath);
+      if (!await videoFile.exists()) {
+        logger.w('Video file does not exist: ${request.videoPath}');
+        request.completer.complete(null);
+        return;
+      }
+
+      final fileSize = await videoFile.length();
+      if (fileSize == 0) {
+        logger.w('Video file is empty (0 bytes): ${request.videoPath}');
+        request.completer.complete(null);
+        return;
+      }
+
+      // 3. 缓存未命中，生成新缩略图
+      logger.d('Generating thumbnail: ${request.videoPath} (file size: $fileSize bytes)');
 
       final thumbnailData = await VideoThumbnail.thumbnailData(
         video: request.videoPath,
@@ -181,18 +196,29 @@ class VideoThumbnailLoadQueue {
         },
       );
 
-      if (thumbnailData != null) {
-        // 3. 保存到缓存
-        await _cacheManager.saveCache(request.videoPath, thumbnailData);
-        logger.d('Thumbnail generated and cached: ${request.videoPath}');
+      if (thumbnailData != null && thumbnailData.isNotEmpty) {
+        // 4. 验证生成的缩略图数据
+        if (thumbnailData.length < 100) {
+          logger.w('Generated thumbnail too small (${thumbnailData.length} bytes), possibly corrupted: ${request.videoPath}');
+          request.completer.complete(null);
+          return;
+        }
+
+        // 5. 保存到缓存（只在数据有效时保存）
+        final saved = await _cacheManager.saveCache(request.videoPath, thumbnailData);
+        if (saved) {
+          logger.d('Thumbnail generated and cached: ${request.videoPath} (${thumbnailData.length} bytes)');
+        } else {
+          logger.w('Thumbnail generated but failed to cache: ${request.videoPath}');
+        }
         request.completer.complete(thumbnailData);
       } else {
-        logger.w('Failed to generate thumbnail: ${request.videoPath}');
+        logger.w('Failed to generate thumbnail or empty data: ${request.videoPath}');
         request.completer.complete(null);
       }
     } catch (e) {
-      logger.e('Error handling thumbnail request: $e');
-      request.completer.completeError(e);
+      logger.e('Error handling thumbnail request for ${request.videoPath}: $e');
+      request.completer.complete(null); // 失败时返回null而不是error，避免UI崩溃
     }
   }
 

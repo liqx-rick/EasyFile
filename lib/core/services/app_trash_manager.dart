@@ -167,22 +167,41 @@ class AppTrashManager {
   /// 2. 跨分区时自动fallback到copy+delete
   /// 3. 其他错误直接抛出
   Future<void> _moveFileToTrash(AppTrashItem item) async {
-    final sourceFile = File(item.originalPath);
+    // 判断是文件还是文件夹
+    final isDirectory = await FileSystemEntity.isDirectory(item.originalPath);
     
-    // 确保源文件存在
-    if (!await sourceFile.exists()) {
-      logger.w('Source file not found, skipping: ${item.originalPath}');
-      return;
+    // 确保源文件/文件夹存在
+    if (isDirectory) {
+      final sourceDir = Directory(item.originalPath);
+      if (!await sourceDir.exists()) {
+        logger.w('Source directory not found, skipping: ${item.originalPath}');
+        return;
+      }
+    } else {
+      final sourceFile = File(item.originalPath);
+      if (!await sourceFile.exists()) {
+        logger.w('Source file not found, skipping: ${item.originalPath}');
+        return;
+      }
     }
     
     try {
       // 尝试快速重命名（同分区，原子操作）
-      await sourceFile.rename(item.trashPath);
+      if (isDirectory) {
+        await Directory(item.originalPath).rename(item.trashPath);
+      } else {
+        await File(item.originalPath).rename(item.trashPath);
+      }
     } on FileSystemException catch (e) {
       // EXDEV错误码18表示跨分区，需要复制后删除
       if (e.osError?.errorCode == 18) {
-        await sourceFile.copy(item.trashPath);
-        await sourceFile.delete();
+        if (isDirectory) {
+          await _copyDirectoryRecursive(item.originalPath, item.trashPath);
+          await Directory(item.originalPath).delete(recursive: true);
+        } else {
+          await File(item.originalPath).copy(item.trashPath);
+          await File(item.originalPath).delete();
+        }
       } else {
         rethrow;
       }
@@ -215,28 +234,40 @@ class AppTrashManager {
 
       // 策略1: 尝试快速rename（同一分区）
       try {
-        await File(file.path).rename(trashPath);
+        if (file.isDirectory) {
+          // 文件夹使用 Directory.rename
+          await Directory(file.path).rename(trashPath);
+        } else {
+          // 文件使用 File.rename
+          await File(file.path).rename(trashPath);
+        }
         logger.d('✅ Quick rename succeeded');
       } on FileSystemException catch (e) {
         // 跨分区错误，降级到复制+删除
         if (e.message.contains('Cross-device') || e.osError?.errorCode == 18) {
           logger.d('⚠️ Cross-partition detected, using copy+delete');
 
-          if (showProgress && onProgress != null) {
-            // 大文件：带进度的复制
-            await _copyFileWithProgress(
-              file.path,
-              trashPath,
-              file.size,
-              onProgress,
-            );
+          if (file.isDirectory) {
+            // 文件夹：递归复制整个目录树
+            await _copyDirectoryRecursive(file.path, trashPath);
+            // 删除原文件夹
+            await Directory(file.path).delete(recursive: true);
           } else {
-            // 小文件：直接复制
-            await File(file.path).copy(trashPath);
+            if (showProgress && onProgress != null) {
+              // 大文件：带进度的复制
+              await _copyFileWithProgress(
+                file.path,
+                trashPath,
+                file.size,
+                onProgress,
+              );
+            } else {
+              // 小文件：直接复制
+              await File(file.path).copy(trashPath);
+            }
+            // 删除原文件
+            await File(file.path).delete();
           }
-
-          // 删除原文件
-          await File(file.path).delete();
           logger.d('✅ Copy+delete completed');
         } else {
           // 其他错误，抛出
@@ -308,6 +339,29 @@ class AppTrashManager {
     }
   }
 
+  /// 递归复制文件夹到回收站
+  Future<void> _copyDirectoryRecursive(String sourcePath, String targetPath) async {
+    final sourceDir = Directory(sourcePath);
+    final targetDir = Directory(targetPath);
+
+    // 创建目标文件夹
+    await targetDir.create(recursive: true);
+
+    // 遍历源文件夹中的所有项
+    await for (final entity in sourceDir.list(recursive: false)) {
+      final name = path.basename(entity.path);
+      final newPath = path.join(targetPath, name);
+
+      if (entity is File) {
+        // 复制文件
+        await entity.copy(newPath);
+      } else if (entity is Directory) {
+        // 递归复制子文件夹
+        await _copyDirectoryRecursive(entity.path, newPath);
+      }
+    }
+  }
+
   // ==================== 核心功能：恢复 ====================
 
   /// 从回收站恢复文件
@@ -323,6 +377,9 @@ class AppTrashManager {
     try {
       logger.i('Restoring file: ${item.fileName} from ${item.trashPath}');
 
+      // 判断是文件还是文件夹
+      final isDirectory = await FileSystemEntity.isDirectory(item.trashPath);
+
       // 确定恢复目标路径
       final targetPath = await _determineRestorePath(item);
       final isOriginalPath = targetPath == item.originalPath;
@@ -333,15 +390,24 @@ class AppTrashManager {
       final targetDir = Directory(path.dirname(targetPath));
       await targetDir.create(recursive: true);
 
-      // 移动文件（同样的策略：rename或copy+delete）
+      // 移动文件/文件夹（同样的策略：rename或copy+delete）
       try {
-        await File(item.trashPath).rename(targetPath);
+        if (isDirectory) {
+          await Directory(item.trashPath).rename(targetPath);
+        } else {
+          await File(item.trashPath).rename(targetPath);
+        }
         logger.d('✅ Quick rename succeeded for restore');
       } on FileSystemException catch (e) {
         if (e.message.contains('Cross-device') || e.osError?.errorCode == 18) {
           logger.d('⚠️ Cross-partition, using copy+delete for restore');
-          await File(item.trashPath).copy(targetPath);
-          await File(item.trashPath).delete();
+          if (isDirectory) {
+            await _copyDirectoryRecursive(item.trashPath, targetPath);
+            await Directory(item.trashPath).delete(recursive: true);
+          } else {
+            await File(item.trashPath).copy(targetPath);
+            await File(item.trashPath).delete();
+          }
         } else {
           rethrow;
         }

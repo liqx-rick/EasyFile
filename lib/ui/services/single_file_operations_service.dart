@@ -1,14 +1,20 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart' as pw_pdf;
+import 'package:pdf/widgets.dart' as pw;
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 单文件操作服务
@@ -28,6 +34,7 @@ class SingleFileOperationsService {
   final FilePresenter presenter;
   final VoidCallback? onRefresh;
   final VoidCallback? onFileDeleted; // 文件被删除后的回调（通常需要关闭预览页）
+  final VoidCallback? onUIUpdate; // 轻量级UI更新回调（不重新加载数据，仅刷新UI）
 
   SingleFileOperationsService({
     required this.context,
@@ -35,6 +42,7 @@ class SingleFileOperationsService {
     required this.presenter,
     this.onRefresh,
     this.onFileDeleted,
+    this.onUIUpdate,
   });
 
   bool get _isMounted {
@@ -82,10 +90,8 @@ class SingleFileOperationsService {
 
       if (operationSucceeded) {
         _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏');
-        // 刷新前再次检查 mounted 状态，因为 showSnackBar 可能导致 widget 重建
-        if (_isMounted) {
-          onRefresh?.call();
-        }
+        // 收藏操作通过 viewModel.addFavoriteFile/removeFavoriteFile 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
       } else {
         final action = wasOriginallyFavorite ? '取消收藏' : '添加到收藏';
         _showErrorSnackBar('$action失败');
@@ -229,8 +235,9 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('重命名成功');
-        onRefresh?.call();
-        return true; // 返回 true 表示需要刷新父页面
+        // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
+        return true; // 返回 true 表示操作成功
       } else {
         _showErrorSnackBar('重命名失败');
         return false;
@@ -468,7 +475,8 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('移动成功');
-        onRefresh?.call();
+        // 移动成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
         _showErrorSnackBar('移动失败');
@@ -554,7 +562,8 @@ class SingleFileOperationsService {
 
       if (success) {
         _showSnackBar('复制成功');
-        onRefresh?.call();
+        // 复制成功后通过 viewModel.addFileToList 自动触发 notifyListeners()
+        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
         _showErrorSnackBar('复制失败');
@@ -568,39 +577,204 @@ class SingleFileOperationsService {
     }
   }
 
+  /// 检查是否支持打印
+  ///
+  /// 支持打印的文件类型：
+  /// - 图片文件（PNG、JPG等）
+  /// - PDF文件
+  /// - 文本文件（TXT等）
+  bool canPrint(FileItem file) {
+    if (file.isDirectory) return false;
+    return FileUtils.isImageFile(file.name) ||
+        FileUtils.isPdfFile(file.name) ||
+        FileUtils.isTextFile(file.name);
+  }
+
+  /// 打印文件
+  ///
+  /// 根据文件类型调用对应的打印方法：
+  /// - 图片：转换为 PDF 后打印
+  /// - PDF：直接打印原始文件
+  /// - 文本：格式化为 PDF 后打印
+  Future<void> printFile(FileItem file) async {
+    if (!canPrint(file)) {
+      _showErrorSnackBar('该文件类型不支持打印');
+      return;
+    }
+
+    try {
+      if (FileUtils.isImageFile(file.name)) {
+        await _printImage(file);
+      } else if (FileUtils.isPdfFile(file.name)) {
+        await _printPdf(file);
+      } else if (FileUtils.isTextFile(file.name)) {
+        await _printText(file);
+      }
+    } catch (e) {
+      logger.e('Print failed: $e');
+      if (_isMounted) {
+        _showErrorSnackBar('打印失败: $e');
+      }
+    }
+  }
+
+  /// 打印图片
+  ///
+  /// 将图片文件转换为 PDF 格式后打印
+  /// 图片会自动缩放以适配页面大小，居中显示
+  Future<void> _printImage(FileItem file) async {
+    try {
+      final imageBytes = await File(file.path).readAsBytes();
+      final image = pw.MemoryImage(imageBytes);
+
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (pw_pdf.PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.Page(
+              pageFormat: format,
+              build: (context) => pw.Center(
+                child: pw.Image(image, fit: pw.BoxFit.contain),
+              ),
+            ),
+          );
+          return pdf.save();
+        },
+      );
+      logger.i('Image print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print image: $e');
+      rethrow;
+    }
+  }
+
+  /// 打印 PDF
+  ///
+  /// 直接使用原始 PDF 文件字节进行打印
+  /// 保留 PDF 原始格式和布局
+  Future<void> _printPdf(FileItem file) async {
+    try {
+      final pdfBytes = await File(file.path).readAsBytes();
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (_) => Future.value(pdfBytes),
+      );
+      logger.i('PDF print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print PDF: $e');
+      rethrow;
+    }
+  }
+
+  /// 打印文本
+  ///
+  /// 将文本文件格式化为 PDF 后打印
+  /// 功能特性：
+  /// - 带文件名标题
+  /// - 自动分页
+  /// - 限制最大内容长度（50KB），避免生成过大的 PDF
+  /// - 支持 UTF-8 编码，失败时回退到 Latin1
+  Future<void> _printText(FileItem file) async {
+    try {
+      // 直接读取文件内容
+      String content;
+      try {
+        // 尝试以 UTF-8 读取
+        content = await File(file.path).readAsString();
+      } catch (e) {
+        // UTF-8 失败，使用 Latin1 作为后备
+        final bytes = await File(file.path).readAsBytes();
+        content = latin1.decode(bytes);
+      }
+
+      // 限制内容长度，避免生成过大的 PDF
+      const maxLength = 50000; // 约 50KB 文本
+      if (content.length > maxLength) {
+        content =
+            '${content.substring(0, maxLength)}\n\n... (内容过长，已截断) ...';
+      }
+
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (pw_pdf.PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.MultiPage(
+              pageFormat: format,
+              build: (context) => [
+                pw.Header(
+                  level: 0,
+                  child: pw.Text(
+                    file.name,
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  content,
+                  style: const pw.TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          );
+          return pdf.save();
+        },
+      );
+      logger.i('Text print initiated: ${file.name}');
+    } catch (e) {
+      logger.e('Failed to print text: $e');
+      rethrow;
+    }
+  }
+
   /// 显示文件详细信息
-  Future<void> showFileDetails(FileItem file) async {
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('文件详情'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('名称', file.name),
-              const Divider(),
-              _buildDetailRow(
-                  '类型', file.isDirectory ? '文件夹' : _getFileType(file.name)),
-              const Divider(),
-              _buildDetailRow(
-                  '大小', FileSizeFormatter.formatBytesWithSpace(file.size)),
-              const Divider(),
-              _buildDetailRow('路径', file.path),
-              const Divider(),
-              _buildDetailRow('修改时间', _formatDateTime(file.modified)),
-            ],
+  ///
+  /// [useBottomSheet] 是否使用底部面板
+  /// - true: 使用 BottomSheet（适合从操作菜单进入，视觉连贯）
+  /// - false: 使用 AlertDialog（适合预览页面直接查看，默认行为）
+  Future<void> showFileDetails(FileItem file,
+      {bool useBottomSheet = false}) async {
+    if (useBottomSheet) {
+      // 使用底部面板（从操作菜单进入时，视觉更连贯）
+      FileDetailsHelper.showFileDetailsBottomSheet(context, file);
+    } else {
+      // 使用对话框（预览页面默认，保持现有行为）
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('文件详情'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDetailRow('名称', file.name),
+                const Divider(),
+                _buildDetailRow('类型',
+                    file.isDirectory ? '文件夹' : _getFileType(file.name)),
+                const Divider(),
+                _buildDetailRow(
+                    '大小', FileSizeFormatter.formatBytesWithSpace(file.size)),
+                const Divider(),
+                _buildDetailRow('路径', file.path),
+                const Divider(),
+                _buildDetailRow('修改时间', _formatDateTime(file.modified)),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {

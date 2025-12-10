@@ -26,7 +26,8 @@ import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/ui/utils/file_details_helper.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 
 /// 大文件查找页面
 ///
@@ -96,6 +97,9 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       },
     );
 
+    // 监听ViewModel变化，同步文件操作
+    locator<FileViewModel>().addListener(_onViewModelChanged);
+
     // 自动加载缓存并开始扫描
     _initializeAndScan();
   }
@@ -136,6 +140,8 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       if (mounted) {
         setState(() {
           _largeFiles = List.from(_cache!.files);
+          // 按文件大小降序排序
+          _largeFiles.sort((a, b) => b.size.compareTo(a.size));
           _totalSize = _largeFiles.fold<int>(0, (sum, f) => sum + f.size);
         });
       }
@@ -166,8 +172,75 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
 
   @override
   void dispose() {
+    locator<FileViewModel>().removeListener(_onViewModelChanged);
     _selectionController.dispose();
     super.dispose();
+  }
+
+  /// ViewModel变化回调 - 同步文件列表
+  void _onViewModelChanged() {
+    if (!mounted) return;
+    
+    final viewModel = locator<FileViewModel>();
+
+    // 处理文件删除
+    final deletedPath = viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      setState(() {
+        final initialLength = _largeFiles.length;
+        _largeFiles.removeWhere((f) => f.path == deletedPath);
+        final removed = initialLength - _largeFiles.length;
+        if (removed > 0) {
+          _totalSize = _largeFiles.fold<int>(0, (sum, f) => sum + f.size);
+          // 更新缓存
+          _cacheManager.saveCache(files: _largeFiles, config: _config);
+        }
+      });
+      return;
+    }
+
+    // 处理文件更新（重命名/移动）
+    final oldPath = viewModel.lastUpdatedOldPath;
+    final newFile = viewModel.lastUpdatedNewFile;
+    if (oldPath != null && newFile != null) {
+      setState(() {
+        final index = _largeFiles.indexWhere((f) => f.path == oldPath);
+        if (index != -1) {
+          final minSizeBytes = _config.minSizeInMB * 1024 * 1024;
+          // 检查文件大小是否还符合阈值
+          if (newFile.size >= minSizeBytes) {
+            _largeFiles[index] = newFile;
+          } else {
+            // 文件大小不再符合，移除
+            _largeFiles.removeAt(index);
+            _totalSize = _largeFiles.fold<int>(0, (sum, f) => sum + f.size);
+          }
+          // 更新缓存
+          _cacheManager.saveCache(files: _largeFiles, config: _config);
+        }
+      });
+      return;
+    }
+
+    // 处理文件添加（复制操作）- 只添加符合大文件阈值的文件
+    final addedFile = viewModel.lastAddedFile;
+    if (addedFile != null && !addedFile.isDirectory) {
+      final minSizeBytes = _config.minSizeInMB * 1024 * 1024;
+      
+      if (addedFile.size >= minSizeBytes) {
+        setState(() {
+          // 检查是否已存在（避免重复添加）
+          if (!_largeFiles.any((f) => f.path == addedFile.path)) {
+            _largeFiles.add(addedFile);
+            // 按文件大小降序排序
+            _largeFiles.sort((a, b) => b.size.compareTo(a.size));
+            _totalSize = _largeFiles.fold<int>(0, (sum, f) => sum + f.size);
+            // 更新缓存
+            _cacheManager.saveCache(files: _largeFiles, config: _config);
+          }
+        });
+      }
+    }
   }
 
   /// 刷新列表（删除后）
@@ -244,6 +317,8 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       if (mounted) {
         setState(() {
           _largeFiles = files;
+          // 按文件大小降序排序
+          _largeFiles.sort((a, b) => b.size.compareTo(a.size));
           _totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
           _isScanning = false;
         });
@@ -845,13 +920,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
               });
             }
           : () => _openFilePreview(file),
-      onLongPress: () {
-        // 长按文件：显示详情面板
-        // 长按文件夹：无操作
-        if (!file.isDirectory) {
-          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
-        }
-      },
+      onLongPress: isEditMode
+          ? () {} // 编辑模式：禁用长按
+          : () {
+              // 长按：显示单文件操作面板
+              _showSingleFileOperationsMenu(context, file);
+            },
     );
   }
 
@@ -996,6 +1070,37 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
         ),
       );
     }
+  }
+
+  /// 显示单文件操作菜单
+  void _showSingleFileOperationsMenu(BuildContext context, FileItem file) {
+    final service = SingleFileOperationsService(
+      context: context,
+      viewModel: locator<FileViewModel>(),
+      presenter: locator<FilePresenter>(),
+      onRefresh: () async {
+        if (mounted) {
+          await _refresh();
+        }
+      },
+      onUIUpdate: () {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SingleFileOperationsSheet(
+        file: file,
+        service: service,
+      ),
+    );
   }
 
   /// 格式化文件路径，将 /storage/emulated/0/ 替换为 内部存储/

@@ -144,6 +144,7 @@ class _FileItemTileState extends State<FileItemTile> {
     if (isImage) {
       return ImageThumbnail(imagePath: widget.file.path, size: thumbnailSize);
     } else if (isVideo) {
+      // 不使用 key，让 Flutter 复用 widget，依赖 didUpdateWidget 处理路径变化
       return RealVideoThumbnail(
         videoPath: widget.file.path,
         size: thumbnailSize,

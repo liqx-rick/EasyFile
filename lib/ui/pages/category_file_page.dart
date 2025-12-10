@@ -27,11 +27,12 @@ import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
-import 'package:easyfile/ui/utils/file_details_helper.dart';
 
 /// 文件类型筛选接口
 abstract class FileTypeFilter {
@@ -285,6 +286,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   final SelectionController _selectionController = SelectionController();
   
+  // 单文件操作服务
+  late final SingleFileOperationsService _singleFileOperationsService;
+  
   // EditModeMixin 必需的 getter
   @override
   SelectionController get selectionController => _selectionController;
@@ -350,6 +354,23 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
 
+    // 初始化单文件操作服务
+    _singleFileOperationsService = SingleFileOperationsService(
+      context: context,
+      viewModel: widget.viewModel,
+      presenter: widget.presenter,
+      onRefresh: () async {
+        // 刷新分类文件列表
+        await _loadCategoryFiles();
+      },
+      onUIUpdate: () {
+        // 轻量级UI刷新（不重新加载数据，只更新UI状态）
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+
     // 初始化临时显示模式
     _isTemporaryMode = widget.isFromStorageManagement;
 
@@ -373,21 +394,102 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
 
   /// ViewModel变化回调 - 同步文件列表
   void _onViewModelChanged() {
-    if (mounted) {
-      final oldPath = widget.viewModel.lastUpdatedOldPath;
-      final newFile = widget.viewModel.lastUpdatedNewFile;
+    if (!mounted) return;
+    
+    logger.d('CategoryFilePage: ViewModel changed callback triggered');
+    
+    // 处理文件删除
+    final deletedPath = widget.viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      logger.d('CategoryFilePage: Processing file deletion: $deletedPath');
+      setState(() {
+        final initialLength = _files.length;
+        _files.removeWhere((f) => f.path == deletedPath);
+        final removed = initialLength - _files.length;
+        if (removed > 0) {
+          logger.i('CategoryFilePage: Removed $removed file(s) from local list. Remaining: ${_files.length}');
+          // 立即更新缓存，避免重新进入页面时显示已删除的文件
+          _saveToCache(_files);
+        } else {
+          logger.w('CategoryFilePage: Deleted file not found in local list: $deletedPath');
+        }
+      });
+      return; // 删除和更新是互斥的，处理完删除就返回
+    }
+    
+    // 处理文件更新（重命名/移动）
+    final oldPath = widget.viewModel.lastUpdatedOldPath;
+    final newFile = widget.viewModel.lastUpdatedNewFile;
 
-      if (oldPath != null && newFile != null) {
-        setState(() {
-          // 在本地列表中找到旧路径的文件并替换
-          final index = _files.indexWhere((f) => f.path == oldPath);
-          if (index != -1) {
-            _files[index] = newFile;
+    if (oldPath != null && newFile != null) {
+      setState(() {
+        // 在本地列表中找到旧路径的文件并替换
+        final index = _files.indexWhere((f) => f.path == oldPath);
+        if (index != -1) {
+          _files[index] = newFile;
+          logger.d(
+              'Updated file in category page: $oldPath -> ${newFile.path}');
+          // 立即更新缓存，保存文件的新路径
+          _saveToCache(_files);
+        } else {
+          // 如果找不到旧路径，尝试查找文件名相同的文件（可能是不同副本）
+          final nameIndex = _files.indexWhere((f) => 
+            f.name == newFile.name && 
+            f.size == newFile.size &&
+            f.modified == newFile.modified
+          );
+          if (nameIndex != -1) {
+            _files[nameIndex] = newFile;
             logger.d(
-                'Updated file in category page: $oldPath -> ${newFile.path}');
+                'Updated file by matching name/size/time: ${_files[nameIndex].path} -> ${newFile.path}');
+            // 立即更新缓存
+            _saveToCache(_files);
+          } else {
+            logger.w('File not found in category page list for update: $oldPath');
           }
-        });
-      }
+        }
+      });
+      return;
+    }
+    
+    // 处理文件添加（复制/恢复操作）
+    final addedFile = widget.viewModel.lastAddedFile;
+    if (addedFile != null && _belongsToCurrentCategory(addedFile)) {
+      logger.d('CategoryFilePage: Processing file addition: ${addedFile.path}');
+      setState(() {
+        // 检查是否已存在（避免重复添加）
+        if (!_files.any((f) => f.path == addedFile.path)) {
+          _files.add(addedFile);
+          // 重新排序
+          _applySorting();
+          logger.i('CategoryFilePage: Added file to local list. Total: ${_files.length}');
+          // 立即更新缓存
+          _saveToCache(_files);
+        } else {
+          logger.w('CategoryFilePage: Added file already exists in list: ${addedFile.path}');
+        }
+      });
+    }
+  }
+  
+  /// 判断文件是否属于当前分类
+  bool _belongsToCurrentCategory(FileItem file) {
+    // 文件夹不属于任何分类
+    if (file.isDirectory) return false;
+    
+    switch (widget.categoryType) {
+      case CategoryType.images:
+        return FileUtils.isImageFile(file.name);
+      case CategoryType.video:
+        return FileUtils.isVideoFile(file.name);
+      case CategoryType.music:
+        return FileUtils.isAudioFile(file.name);
+      case CategoryType.documents:
+        return FileUtils.isDocumentFile(file.name);
+      case CategoryType.downloads:
+        // 下载目录可能包含各种类型的文件
+        // 这里简单返回true，因为复制到下载目录的文件应该显示
+        return true;
     }
   }
 
@@ -1198,7 +1300,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
       onMove: () {
         if (!mounted) return;
         batchService.batchMove(
-            context, _selectionController.selected, storagePath);
+          context,
+          _selectionController.selected,
+          storagePath,
+          shouldRefresh: false, // 分类页面不需要刷新，文件已通过 updateFileInList 更新
+        );
       },
       onToggleFavorite: () {
         if (!mounted) return;
@@ -1417,11 +1523,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
         }
       },
       onLongPress: (file) {
-        // 长按文件：显示详情面板
-        // 长按文件夹：无操作
-        if (!file.isDirectory) {
-          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
-        }
+        // 编辑模式下禁用长按（避免与选择操作冲突）
+        if (isEditMode) return;
+        
+        // 长按：显示单文件操作面板
+        _showSingleFileOperationsMenu(context, file);
       },
     );
   }
@@ -1498,11 +1604,11 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
         }
       },
       onLongPress: (file) {
-        // 长按文件：显示详情面板
-        // 长按文件夹：无操作
-        if (!file.isDirectory) {
-          FileDetailsHelper.showFileDetailsBottomSheet(context, file);
-        }
+        // 编辑模式下禁用长按（避免与选择操作冲突）
+        if (isEditMode) return;
+        
+        // 长按：显示单文件操作面板
+        _showSingleFileOperationsMenu(context, file);
       },
     );
   }
@@ -1671,6 +1777,21 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
         await _loadCategoryFiles(forceRefresh: true);
       }
     }
+  }
+
+  /// 显示单文件操作菜单
+  void _showSingleFileOperationsMenu(BuildContext context, FileItem file) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SingleFileOperationsSheet(
+        file: file,
+        service: _singleFileOperationsService,
+      ),
+    );
   }
 }
 
