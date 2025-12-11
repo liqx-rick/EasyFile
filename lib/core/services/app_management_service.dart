@@ -157,12 +157,13 @@ class AppManagementService {
           final days = now.difference(effectiveTime).inDays;
           if (days <= 7) {
             within7Days++;
-          } else if (days <= 30)
+          } else if (days <= 30) {
             within30Days++;
-          else if (days <= 180)
+          } else if (days <= 180) {
             within180Days++;
-          else
+          } else {
             beyond180Days++;
+          }
 
           // 统计数据来源
           if (app.usageStats?.lastTimeUsed != null) {
