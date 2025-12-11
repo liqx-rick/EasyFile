@@ -34,6 +34,9 @@ class UnifiedViewConfig {
   /// 是否为简洁模式（不显示文件名和大小）
   final bool compactMode;
 
+  /// 是否显示创建时间（用于新文件Tab）
+  final bool showCreationTime;
+
   /// 网格视图内边距
   static const double gridPadding = 8.0;
 
@@ -103,15 +106,18 @@ class UnifiedViewConfig {
     required this.gridThumbnailSize,
     required this.listThumbnailSize,
     required this.compactMode,
+    this.showCreationTime = false,
   });
 
   /// 从 BuildContext 创建响应式配置
   ///
   /// 根据屏幕宽度自动计算合适的缩略图大小。
   /// [compactMode] 是否为简洁模式，简洁模式下缩略图更大
+  /// [showCreationTime] 是否显示创建时间（用于新文件Tab）
   factory UnifiedViewConfig.fromContext(
     BuildContext context, {
     bool compactMode = false,
+    bool showCreationTime = false,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -151,6 +157,7 @@ class UnifiedViewConfig {
       gridThumbnailSize: gridSize,
       listThumbnailSize: listSize,
       compactMode: compactMode,
+      showCreationTime: showCreationTime,
     );
   }
 
@@ -159,11 +166,13 @@ class UnifiedViewConfig {
     double gridThumbnailSize = 80.0,
     double listThumbnailSize = 48.0,
     bool compactMode = false,
+    bool showCreationTime = false,
   }) {
     return UnifiedViewConfig._(
       gridThumbnailSize: gridThumbnailSize,
       listThumbnailSize: listThumbnailSize,
       compactMode: compactMode,
+      showCreationTime: showCreationTime,
     );
   }
 

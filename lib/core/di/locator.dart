@@ -20,8 +20,12 @@ import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/local_file_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
+import 'package:easyfile/data/sources/new_files_scanner.dart';
+import 'package:easyfile/data/sources/new_files_local_source.dart';
+import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
+import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/services/folder_analyzer.dart';
 import 'package:easyfile/data/services/smart_app_scanner.dart';
 import 'package:easyfile/data/services/user_folder_detector.dart';
@@ -77,6 +81,27 @@ void setupLocator() {
     return QuickAccessLocalSource();
   });
 
+  locator.registerLazySingleton<FileSourceDetector>(() {
+    logger.d('Creating FileSourceDetector');
+    return FileSourceDetector();
+  });
+
+  locator.registerLazySingleton<NewFilesLocalSource>(() {
+    logger.d('Creating NewFilesLocalSource');
+    return NewFilesLocalSource();
+  });
+
+  locator.registerLazySingletonAsync<NewFilesSettings>(() async {
+    logger.d('Creating NewFilesSettings');
+    return await NewFilesSettings.load();
+  });
+
+  locator.registerLazySingletonAsync<NewFilesScanner>(() async {
+    logger.d('Creating NewFilesScanner');
+    final settings = await locator.getAsync<NewFilesSettings>();
+    return NewFilesScanner(settings: settings);
+  });
+
   // Services
   locator.registerLazySingleton<PermissionService>(() {
     logger.d('Creating PermissionService');
@@ -93,18 +118,20 @@ void setupLocator() {
     return JunkFileCacheManager();
   });
 
-  locator.registerLazySingleton<JunkFileService>(() {
+  locator.registerLazySingletonAsync<JunkFileService>(() async {
     logger.d('Creating JunkFileService');
+    final filePresenter = await locator.getAsync<FilePresenter>();
     return JunkFileService(
-      filePresenter: locator<FilePresenter>(),
+      filePresenter: filePresenter,
       cacheManager: locator<JunkFileCacheManager>(),
     );
   });
 
-  locator.registerLazySingleton<TrashFileService>(() {
+  locator.registerLazySingletonAsync<TrashFileService>(() async {
     logger.d('Creating TrashFileService');
+    final filePresenter = await locator.getAsync<FilePresenter>();
     return TrashFileService(
-      filePresenter: locator<FilePresenter>(),
+      filePresenter: filePresenter,
     );
   });
 
@@ -223,13 +250,16 @@ void setupLocator() {
   });
 
   // Presenter - 使用单例的 ViewModel 和数据源
-  locator.registerLazySingleton<FilePresenter>(() {
+  locator.registerLazySingletonAsync<FilePresenter>(() async {
     logger.d('Creating FilePresenter (Singleton)');
     final repository = locator<FileRepository>();
     final viewModel = locator<FileViewModel>();
     final favoritesSource = locator<FavoritesLocalSource>();
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
+    final newFilesScanner = await locator.getAsync<NewFilesScanner>();
+    final newFilesLocalSource = locator<NewFilesLocalSource>();
+    final newFilesSettings = await locator.getAsync<NewFilesSettings>();
     final themeSource = locator<ThemeLocalSource>();
     final trashDatabase = locator<AppTrashDatabase>();
 
@@ -243,6 +273,9 @@ void setupLocator() {
       favoritesSource: favoritesSource,
       favoriteFilesSource: favoriteFilesSource,
       recentFilesSource: recentFilesSource,
+      newFilesScanner: newFilesScanner,
+      newFilesLocalSource: newFilesLocalSource,
+      newFilesSettings: newFilesSettings,
       themeSource: themeSource,
       trashDatabase: trashDatabase,
     );

@@ -14,6 +14,7 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
 import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/pages/trash_config_page.dart';
+import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -105,6 +106,12 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSectionHeader('存储与缓存', Icons.storage),
           _buildCacheManagementTile(context),
           _buildTrashTile(context),
+
+          const Divider(height: 32),
+
+          // 功能设置
+          _buildSectionHeader('功能设置', Icons.tune),
+          _buildNewFilesPrivacyTile(context),
 
           const Divider(height: 32),
 
@@ -399,9 +406,7 @@ class _SettingsPageState extends State<SettingsPage> {
       secondary: const Icon(Icons.grid_view),
       title: const Text('网格模式显示文件信息'),
       subtitle: Text(
-        _gridShowFileInfo 
-            ? '显示文件名和大小' 
-            : '简洁模式：图片/视频仅显示缩略图',
+        _gridShowFileInfo ? '显示文件名和大小' : '简洁模式：图片/视频仅显示缩略图',
         style: TextStyle(
           fontSize: 12,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -417,9 +422,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                value 
-                    ? '已开启文件信息显示' 
-                    : '已切换到简洁模式（图片/视频）',
+                value ? '已开启文件信息显示' : '已切换到简洁模式（图片/视频）',
               ),
               duration: const Duration(seconds: 1),
             ),
@@ -733,6 +736,25 @@ class _SettingsPageState extends State<SettingsPage> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => const TrashPage(),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 新文件设置入口
+  Widget _buildNewFilesPrivacyTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.fiber_new, color: colorScheme.primary),
+      title: const Text('新文件设置'),
+      subtitle: const Text('管理新文件扫描范围和隐私控制'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const NewFilesSettingsPage(),
           ),
         );
       },

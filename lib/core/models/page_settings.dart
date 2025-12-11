@@ -9,6 +9,9 @@ enum PageId {
   /// 主页-收藏Tab
   homeFavorite('home_favorite'),
 
+  /// 主页-新文件Tab
+  homeNewFiles('home_new_files'),
+
   /// 主页-快速访问文件夹Tab
   homeBrowse('home_browse'),
 
@@ -167,6 +170,8 @@ class PageDefaultSettings {
         return '最近访问';
       case PageId.homeFavorite:
         return '收藏文件';
+      case PageId.homeNewFiles:
+        return '新添加文件';
       case PageId.homeBrowse:
         return '快速访问';
       case PageId.storage:
@@ -191,6 +196,8 @@ class PageDefaultSettings {
         return '时间就是核心维度';
       case PageId.homeFavorite:
         return '快速找到最近收藏的';
+      case PageId.homeNewFiles:
+        return '按时间分组，快速查看新文件';
       case PageId.homeBrowse:
         return '文件夹导航，层级清晰';
       case PageId.storage:
