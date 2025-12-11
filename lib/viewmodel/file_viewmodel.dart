@@ -12,6 +12,7 @@ import 'package:easyfile/data/services/file_type_analyzer.dart';
 enum TabView {
   recent, // 最近访问
   favorite, // 收藏文件
+  newFiles, // 新文件
   browse, // 文件浏览
   appManagement, // 应用管理
 }
@@ -47,6 +48,11 @@ class FileViewModel extends ChangeNotifier {
   // 文件类型筛选
   FileCategory _selectedCategory = FileCategory.all;
   final FileTypeAnalyzer _fileTypeAnalyzer = FileTypeAnalyzer();
+
+  // 新文件Tab相关状态
+  List<FileItem> _newFiles = []; // 新添加的文件列表
+  String? _selectedSource; // 当前选择的文件来源筛选（null表示全部）
+  int _newFilesRetentionDays = 7; // 新文件保留天数设置（默认7天）
 
   // 应用级状态
   List<FavoriteItem> _favorites = [];
@@ -149,6 +155,11 @@ class FileViewModel extends ChangeNotifier {
   FileCategory get selectedCategory => _selectedCategory;
   FileTypeStats get fileTypeStats => _fileTypeAnalyzer.analyze(_allFiles);
   FileTypeAnalyzer get fileTypeAnalyzer => _fileTypeAnalyzer;
+
+  // 新文件Tab的 getters
+  List<FileItem> get newFiles => _newFiles;
+  String? get selectedSource => _selectedSource;
+  int get newFilesRetentionDays => _newFilesRetentionDays;
 
   // 应用级状态的 getters
   List<FavoriteItem> get favorites => _favorites;
@@ -373,6 +384,34 @@ class FileViewModel extends ChangeNotifier {
     if (_selectedCategory != FileCategory.all) {
       _selectedCategory = FileCategory.all;
       _applyFilters();
+    }
+  }
+
+  /// 设置新文件列表
+  void setNewFiles(List<FileItem> files, {int? retentionDays}) {
+    logger.d('Setting new files list: ${files.length} items');
+    _newFiles = files;
+    if (retentionDays != null && retentionDays != _newFilesRetentionDays) {
+      _newFilesRetentionDays = retentionDays;
+      logger.d('Updated retention days: $_newFilesRetentionDays');
+    }
+    notifyListeners();
+  }
+
+  /// 设置文件来源筛选
+  void setSourceFilter(String? source) {
+    logger.d('Setting source filter: $source');
+    if (_selectedSource != source) {
+      _selectedSource = source;
+      notifyListeners();
+    }
+  }
+
+  /// 重置文件来源筛选
+  void resetSourceFilter() {
+    if (_selectedSource != null) {
+      _selectedSource = null;
+      notifyListeners();
     }
   }
 

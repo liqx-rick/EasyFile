@@ -6,6 +6,7 @@ import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/utils/time_formatter.dart';
 
 /// 统一的网格项组件
 ///
@@ -123,6 +124,21 @@ class UnifiedGridItem extends StatelessWidget {
                         child: !file.isDirectory
                             ? Text(
                                 FileUtils.formatFileSize(file.size),
+                                style: UnifiedViewConfig.fileSizeStyle(context),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    // 创建时间 - 只在config中启用时显示
+                    if (!viewConfig.compactMode &&
+                        config?.showCreationTime == true)
+                      SizedBox(
+                        height: UnifiedViewConfig.fileSizeHeight,
+                        child: !file.isDirectory
+                            ? Text(
+                                TimeFormatter.formatRelativeTime(file.modified),
                                 style: UnifiedViewConfig.fileSizeStyle(context),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

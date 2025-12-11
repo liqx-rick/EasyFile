@@ -10,10 +10,14 @@ import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
+import 'package:easyfile/data/models/new_files_settings.dart';
+import 'package:easyfile/data/models/file_source.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
+import 'package:easyfile/data/sources/new_files_scanner.dart';
+import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
@@ -26,6 +30,9 @@ class FilePresenter {
   final FavoritesLocalSource favoritesSource;
   final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
+  final NewFilesScanner newFilesScanner;
+  final NewFilesLocalSource newFilesLocalSource;
+  final NewFilesSettings newFilesSettings;
   final ThemeLocalSource themeSource;
   final AppTrashDatabase trashDatabase;
 
@@ -35,6 +42,9 @@ class FilePresenter {
     required this.favoritesSource,
     required this.favoriteFilesSource,
     required this.recentFilesSource,
+    required this.newFilesScanner,
+    required this.newFilesLocalSource,
+    required this.newFilesSettings,
     required this.themeSource,
     required this.trashDatabase,
   }) {
@@ -73,17 +83,16 @@ class FilePresenter {
 
     // 过滤已标记删除的文件
     final deletedPaths = await trashDatabase.getDeletedFilePaths();
-    final visibleFiles = files
-        .where((file) => !deletedPaths.contains(file.path))
-        .toList();
+    final visibleFiles =
+        files.where((file) => !deletedPaths.contains(file.path)).toList();
 
     // 检测是否是受系统保护的目录（Android/data等）
     final isProtectedDir = path.contains('/Android/data') ||
         path.contains('/Android/obb') ||
         path.contains('/Android/media');
 
-    logger
-        .d('isProtectedDir: $isProtectedDir, files.isEmpty: ${visibleFiles.isEmpty}');
+    logger.d(
+        'isProtectedDir: $isProtectedDir, files.isEmpty: ${visibleFiles.isEmpty}');
 
     // 先设置错误消息（如果有）
     if (visibleFiles.isEmpty && isProtectedDir) {
@@ -176,7 +185,7 @@ class FilePresenter {
     final success = await repository.deleteFile(file);
     if (success) {
       logger.i('File deleted successfully');
-      
+
       // 删除文件时，立即清理收藏记录
       // 即使用户以后恢复文件，也不应该显示收藏状态
       if (viewModel.isFavoriteFile(file.path)) {
@@ -184,10 +193,10 @@ class FilePresenter {
         await favoriteFilesSource.removeFavoriteFile(file.path);
         viewModel.removeFavoriteFile(file.path);
       }
-      
+
       // 注意：不再删除缩略图缓存，保留缓存以优化性能
       // 依赖 RealVideoThumbnail 的 didUpdateWidget 检测路径变化来更新显示
-      
+
       // 从列表中移除删除的文件（立即更新UI）
       // 各个页面会在 onRefresh 回调中重新加载数据
       logger.i('Removing deleted file from list');
@@ -221,20 +230,24 @@ class FilePresenter {
           results[filePath] = success;
           if (success) {
             logger.d('Deleted file: $filePath');
-            
+
             // 删除成功后，立即清理收藏记录
             if (viewModel.isFavoriteFile(filePath)) {
               logger.d('Removing favorite record for deleted file: $filePath');
               await favoriteFilesSource.removeFavoriteFile(filePath);
               viewModel.removeFavoriteFile(filePath);
             }
-            
+
             // 清理视频缩略图缓存
             final fileName = fileItem.name.toLowerCase();
-            if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
-                fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
-                fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
-                fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
+            if (fileName.endsWith('.mp4') ||
+                fileName.endsWith('.avi') ||
+                fileName.endsWith('.mkv') ||
+                fileName.endsWith('.mov') ||
+                fileName.endsWith('.wmv') ||
+                fileName.endsWith('.flv') ||
+                fileName.endsWith('.webm') ||
+                fileName.endsWith('.m4v')) {
               try {
                 await cacheManager.deleteCached(filePath);
                 logger.d('Deleted video thumbnail cache for: $filePath');
@@ -275,7 +288,8 @@ class FilePresenter {
       // （可能之前删除过同名文件，现在又复制了新文件过来）
       final deletedPaths = await trashDatabase.getDeletedFilePaths();
       if (deletedPaths.contains(copiedFile.path)) {
-        logger.w('Copied file path exists in trash database, removing: ${copiedFile.path}');
+        logger.w(
+            'Copied file path exists in trash database, removing: ${copiedFile.path}');
         await trashDatabase.removeFromTrash(copiedFile.path);
       }
 
@@ -289,22 +303,28 @@ class FilePresenter {
         shouldAddToList = true;
       } else if (viewModel.currentPath.isEmpty) {
         // currentPath为空，可能是分类页面，总是通知
-        logger.d('Current path is empty (category page?), notifying file addition');
+        logger.d(
+            'Current path is empty (category page?), notifying file addition');
         shouldAddToList = true;
       } else {
-        logger.d('File copied to different directory, not adding to current list');
-        logger.d('Destination: $destinationPath, Current path: ${viewModel.currentPath}');
+        logger.d(
+            'File copied to different directory, not adding to current list');
+        logger.d(
+            'Destination: $destinationPath, Current path: ${viewModel.currentPath}');
       }
 
       if (shouldAddToList) {
         // 检查文件是否已在列表中（避免重复添加）
-        final alreadyExists = viewModel.files.any((f) => f.path == copiedFile.path);
+        final alreadyExists =
+            viewModel.files.any((f) => f.path == copiedFile.path);
         if (alreadyExists) {
-          logger.w('File already exists in list, skipping add: ${copiedFile.path}');
+          logger.w(
+              'File already exists in list, skipping add: ${copiedFile.path}');
         } else {
           logger.i('Adding copied file to list: ${copiedFile.path}');
           viewModel.addFileToList(copiedFile);
-          logger.i('File added to list. New list size: ${viewModel.files.length}');
+          logger.i(
+              'File added to list. New list size: ${viewModel.files.length}');
         }
       } else {
         // 即使不添加到 files 列表，也要通知全局监听器
@@ -332,7 +352,8 @@ class FilePresenter {
       // （可能之前删除过同名文件，现在又移动了新文件过来）
       final deletedPaths = await trashDatabase.getDeletedFilePaths();
       if (deletedPaths.contains(movedFile.path)) {
-        logger.w('Moved file path exists in trash database, removing: ${movedFile.path}');
+        logger.w(
+            'Moved file path exists in trash database, removing: ${movedFile.path}');
         await trashDatabase.removeFromTrash(movedFile.path);
       }
 
@@ -368,26 +389,27 @@ class FilePresenter {
       // 2. 原文件不在 currentPath 中 → 分类/全局页面，更新路径继续显示
       // 3. 原文件在 currentPath 且移动到 currentPath → 更新路径（重命名）
       // 4. 原文件在 currentPath 且移动到其他目录 → 从列表移除
-      
+
       final originalFileDir = path.dirname(file.path);
       final movedFileDir = path.dirname(movedFile.path);
       final currentPath = viewModel.currentPath;
-      
+
       logger.d('Original file directory: $originalFileDir');
       logger.d('Moved file directory: $movedFileDir');
       logger.d('Current browsing path: "$currentPath"');
-      
+
       // 判断是否是目录浏览模式：
       // 1. currentPath 不为空
       // 2. 且原文件确实在这个目录中
-      final isDirectoryBrowsing = currentPath.isNotEmpty && 
-                                   originalFileDir == currentPath;
-      
+      final isDirectoryBrowsing =
+          currentPath.isNotEmpty && originalFileDir == currentPath;
+
       logger.d('Is directory browsing mode: $isDirectoryBrowsing');
-      
+
       if (!isDirectoryBrowsing) {
         // 非目录浏览模式（分类页面、全局搜索等）：更新路径继续显示
-        logger.i('Not directory browsing mode, updating file path to continue display');
+        logger.i(
+            'Not directory browsing mode, updating file path to continue display');
         viewModel.updateFileInList(file.path, movedFile);
       } else if (movedFileDir == currentPath) {
         // 目录浏览模式：移动到当前目录（实际上是重命名）
@@ -395,10 +417,11 @@ class FilePresenter {
         viewModel.updateFileInList(file.path, movedFile);
       } else {
         // 目录浏览模式：移动到其他目录，从当前列表移除
-        logger.i('File moved to different directory, removing from current list');
+        logger
+            .i('File moved to different directory, removing from current list');
         viewModel.removeFileFromList(file.path);
       }
-      
+
       return true;
     } else {
       logger.w('Failed to move file: ${file.path}');
@@ -1132,6 +1155,9 @@ class FilePresenter {
     if (viewModel.currentTab == TabView.favorite) {
       logger.d('Refreshing favorite files');
       await loadFavoriteFiles();
+    } else if (viewModel.currentTab == TabView.newFiles) {
+      logger.d('Refreshing new files');
+      await refreshNewFiles();
     } else if (viewModel.isRecentFilesMode) {
       logger.d('Refreshing recent files');
       await loadRecentFiles();
@@ -1376,14 +1402,14 @@ class FilePresenter {
 
     logger.i('Total scan paths: ${existingPaths.length}');
     debugPrint('[路径发现] 最终结果: ${existingPaths.length} 个有效路径');
-    
+
     // 🔍🔍🔍 实验：打印所有扫描路径
     debugPrint('\n📋📋📋 [实验] getCommonScanPaths() 返回的完整路径列表:');
     for (var i = 0; i < existingPaths.length; i++) {
       debugPrint('  [$i] ${existingPaths[i]}');
     }
     debugPrint('📋 总计: ${existingPaths.length} 个路径\n');
-    
+
     debugPrint('==========================================\n');
     return existingPaths;
   }
@@ -1626,6 +1652,152 @@ class FilePresenter {
       }
     } catch (e) {
       logger.w('Error listing directory ${directory.path}: $e');
+    }
+  }
+
+  /// 加载新文件列表
+  Future<void> loadNewFiles() async {
+    logger.i('FilePresenter.loadNewFiles called');
+    viewModel.setLoading(true);
+
+    try {
+      // 重新加载设置以获取最新的配置
+      final latestSettings = await NewFilesSettings.load();
+      logger.d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+      // 先从本地缓存加载
+      final cachedItems = await newFilesLocalSource.loadCachedIndex();
+
+      // 快速扫描（使用缓存时间判断）
+      final scannedItems = await newFilesScanner.quickScanIfNeeded(cachedItems);
+
+      // 使用扫描结果或缓存
+      final newFileItems = scannedItems ?? cachedItems;
+      logger.d('Got ${newFileItems.length} new file items');
+
+      // 应用隐私设置过滤
+      final filteredItems = newFileItems.where((item) {
+        // 如果选择了特定来源，只显示该来源的文件
+        if (viewModel.selectedSource != null &&
+            item.source.name != viewModel.selectedSource) {
+          return false;
+        }
+
+        // 应用隐私设置
+        switch (item.source) {
+          case FileSource.camera:
+            return !latestSettings.hideCameraPhotos;
+          case FileSource.screenshots:
+            return !latestSettings.hideScreenshots;
+          case FileSource.recordings:
+          case FileSource.wechat:
+          case FileSource.qq:
+          default:
+            return true;
+        }
+      }).toList();
+
+      logger.d('After filtering: ${filteredItems.length} items');
+
+      // 应用显示数量限制
+      final limitedItems =
+          filteredItems.take(latestSettings.displayCount).toList();
+      logger.d('After display limit: ${limitedItems.length} items');
+
+      // 转换为 FileItem
+      final fileItems = <FileItem>[];
+      for (final newFileItem in limitedItems) {
+        try {
+          final file = File(newFileItem.path);
+          if (file.existsSync()) {
+            fileItems.add(FileItem.fromEntity(file));
+          }
+        } catch (e) {
+          logger.e('Error loading file ${newFileItem.path}: $e');
+        }
+      }
+
+      logger.i('Loaded ${fileItems.length} new files');
+
+      // 保存到本地缓存（用于下次快速加载）
+      if (newFileItems.isNotEmpty) {
+        await newFilesLocalSource.saveCachedIndex(newFileItems);
+      }
+
+      // 更新视图模型（传递retentionDays设置）
+      viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+    } catch (e) {
+      logger.e('Error loading new files: $e');
+      viewModel.setError('加载新文件失败：$e');
+    } finally {
+      viewModel.setLoading(false);
+    }
+  }
+
+  /// 刷新新文件列表（强制重新扫描）
+  Future<void> refreshNewFiles() async {
+    logger.i('FilePresenter.refreshNewFiles called');
+    viewModel.setLoading(true);
+
+    try {
+      // 重新加载设置以获取最新的配置
+      final latestSettings = await NewFilesSettings.load();
+      logger.d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+      // 执行完整扫描
+      final newFileItems = await newFilesScanner.scanNewFiles();
+      logger.d('Refreshed ${newFileItems.length} new file items');
+
+      // 应用隐私设置过滤（同loadNewFiles）
+      final filteredItems = newFileItems.where((item) {
+        if (viewModel.selectedSource != null &&
+            item.source.name != viewModel.selectedSource) {
+          return false;
+        }
+
+        switch (item.source) {
+          case FileSource.camera:
+            return !latestSettings.hideCameraPhotos;
+          case FileSource.screenshots:
+            return !latestSettings.hideScreenshots;
+          case FileSource.recordings:
+          case FileSource.wechat:
+          case FileSource.qq:
+          default:
+            return true;
+        }
+      }).toList();
+
+      // 应用显示数量限制
+      final limitedItems =
+          filteredItems.take(latestSettings.displayCount).toList();
+      logger.d('After display limit: ${limitedItems.length} items');
+
+      // 转换为 FileItem
+      final fileItems = <FileItem>[];
+      for (final newFileItem in limitedItems) {
+        try {
+          final file = File(newFileItem.path);
+          if (file.existsSync()) {
+            fileItems.add(FileItem.fromEntity(file));
+          }
+        } catch (e) {
+          logger.e('Error loading file ${newFileItem.path}: $e');
+        }
+      }
+
+      logger.i('Refreshed ${fileItems.length} new files');
+
+      // 保存到本地缓存
+      if (newFileItems.isNotEmpty) {
+        await newFilesLocalSource.saveCachedIndex(newFileItems);
+      }
+
+      // 更新视图模型（传递retentionDays设置）
+      viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+    } catch (e) {
+      logger.e('Error refreshing new files: $e');
+      viewModel.setError('刷新新文件失败：$e');
+    } finally {
+      viewModel.setLoading(false);
     }
   }
 }

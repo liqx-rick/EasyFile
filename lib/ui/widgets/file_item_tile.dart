@@ -24,6 +24,8 @@ class FileItemTile extends StatefulWidget {
   final bool showFullPath;
   final bool showAccessTime;
   final DateTime? accessTime;
+  final bool showCreationTime; // 是否显示创建时间
+  final DateTime? creationTime; // 创建时间
   final bool isSelected; // 是否处于选中状态
   final bool showCheckbox; // 是否显示复选框
   // 可配置项（保持向后兼容的默认值）
@@ -44,6 +46,8 @@ class FileItemTile extends StatefulWidget {
     this.showFullPath = false,
     this.showAccessTime = false,
     this.accessTime,
+    this.showCreationTime = false,
+    this.creationTime,
     this.isSelected = false,
     this.showCheckbox = false,
     this.leadingSize = 40,
@@ -119,8 +123,9 @@ class _FileItemTileState extends State<FileItemTile> {
               _buildSubtitleText(),
               style: TextStyle(
                 fontSize: widget.subtitleFontSize,
-                color:
-                    widget.showAccessTime ? Colors.grey[600] : Colors.grey[500],
+                color: (widget.showAccessTime || widget.showCreationTime)
+                    ? Colors.grey[600]
+                    : Colors.grey[500],
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -337,12 +342,14 @@ class _FileItemTileState extends State<FileItemTile> {
 
     final sizeText = FileUtils.formatFileSize(widget.file.size);
 
-    // 组合所有部分：大小 · 访问时间
+    // 组合所有部分：大小 · 访问时间 / 创建时间
     // 注意：视频时长已由 RealVideoThumbnail 在缩略图上显示，无需在此处重复
     final parts = <String>[
       sizeText,
       if (widget.showAccessTime && widget.accessTime != null)
         TimeFormatter.formatRelativeTime(widget.accessTime!),
+      if (widget.showCreationTime && widget.creationTime != null)
+        TimeFormatter.formatRelativeTime(widget.creationTime!),
     ];
 
     return parts.join(' · ');

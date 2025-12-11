@@ -19,13 +19,22 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    // 文件分享功能通道
     private val CHANNEL = "com.guangqi.easyfile/share"
+    // 应用状态查询通道（判断是否从后台恢复）
     private val STATE_CHANNEL = "com.guangqi.easyfile/state"
+    // MediaStore回收站操作通道（Android 11+）
     private val TRASH_CHANNEL = "com.guangqi.easyfile/trash"
+    // 系统设置页面跳转通道
     private val SYSTEM_INTENT_CHANNEL = "com.easyfile/system_intent"
+    // 应用存储空间统计通道（Android 8.0+）
     private val STORAGE_STATS_CHANNEL = "com.easyfile/storage_stats"
+    // 权限检查通道
     private val PERMISSION_CHANNEL = "com.easyfile/permission"
+    // 应用使用统计通道（UsageStats API）
     private val USAGE_STATS_CHANNEL = "com.easyfile/usage_stats"
+    // 文件统计信息通道（获取文件创建时间等）
+    private val FILE_STATS_CHANNEL = "com.easyfile/file_stats"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
@@ -850,6 +859,50 @@ class MainActivity : FlutterActivity() {
                         }
                     } else {
                         result.error("INVALID_ARGUMENT", "packageName required", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // 文件统计信息 Channel（获取文件创建时间等）
+        MethodChannel(messenger, FILE_STATS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getFileCreationTime" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val file = java.io.File(filePath)
+                            if (file.exists()) {
+                                // Android中，我们使用lastModified作为创建时间的近似值
+                                // 对于新创建且从未修改的文件，lastModified就是创建时间
+                                val creationTime = file.lastModified()
+                                result.success(creationTime)
+                            } else {
+                                result.error("FILE_NOT_FOUND", "File does not exist", null)
+                            }
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "filePath required", null)
+                    }
+                }
+                "getFilesCreationTimes" -> {
+                    val filePaths = call.argument<List<String>>("filePaths")
+                    if (filePaths != null) {
+                        try {
+                            val times = mutableMapOf<String, Long?>()
+                            for (path in filePaths) {
+                                val file = java.io.File(path)
+                                times[path] = if (file.exists()) file.lastModified() else null
+                            }
+                            result.success(times)
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "filePaths required", null)
                     }
                 }
                 else -> result.notImplemented()
