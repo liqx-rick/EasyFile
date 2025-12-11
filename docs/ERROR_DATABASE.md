@@ -36,6 +36,9 @@
 - [E501: Duplicate keys found in ListView/GridView](#e501)
 - [E502: Category cache statistics not updated](#e502)
 
+### 依赖注入相关
+- [E601: Bad state: You tried to access an instance that is not ready yet](#e601)
+
 ---
 
 ## 详细错误条目
@@ -1052,6 +1055,146 @@ class CategoryFileCacheService {
 
 ---
 
+<a name="e601"></a>
+### E601: Bad state: You tried to access an instance that is not ready yet
+
+**错误级别：** 🔴 严重  
+**首次发现：** 2025-12-12  
+**最后更新：** 2025-12-12
+
+#### 错误信息
+
+```
+Bad state: You tried to access an instance of JunkFileService/TrashFileService that is not ready yet
+```
+
+#### 触发场景
+
+1. 在 `initState()` 中同步获取通过 `registerLazySingletonAsync` 注册的服务
+2. 服务依赖其他异步服务（如 FilePresenter）
+3. 尝试在服务完全初始化前调用其方法
+
+#### 堆栈特征
+
+```dart
+#0      _GetItImplementation.get (package:get_it/get_it_impl.dart:xxx)
+#1      _JunkFilesPageState.initState (lib/ui/pages/junk_files_page.dart:37)
+```
+
+#### 根本原因
+
+GetIt 的 `registerLazySingletonAsync` 注册的服务需要异步初始化，但在 `initState()` 中使用同步方法 `locator<Service>()` 获取会导致服务尚未准备好。
+
+**依赖链示例：**
+```dart
+// locator.dart
+registerLazySingletonAsync<FilePresenter>(...);  // 异步服务
+
+registerLazySingletonAsync<JunkFileService>(() async {
+  final filePresenter = await locator.getAsync<FilePresenter>(); // 依赖异步服务
+  return JunkFileService(filePresenter: filePresenter);
+});
+
+// junk_files_page.dart (错误)
+@override
+void initState() {
+  super.initState();
+  _service = locator<JunkFileService>(); // ❌ 同步获取异步服务
+  _startScan();
+}
+```
+
+#### 解决方案
+
+**方案 A：使用 getAsync 异步获取（推荐）**
+
+```dart
+class _JunkFilesPageState extends State<JunkFilesPage> {
+  JunkFileService? _service; // ✅ 改为可空类型
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeService(); // ✅ 异步初始化
+  }
+
+  /// 异步初始化服务
+  Future<void> _initializeService() async {
+    try {
+      _service = await locator.getAsync<JunkFileService>(); // ✅ 异步获取
+      if (mounted) {
+        _startScan();
+      }
+    } catch (e) {
+      logger.e('初始化 JunkFileService 失败: $e');
+      if (mounted) {
+        _showError('服务初始化失败: $e');
+      }
+    }
+  }
+
+  /// 开始扫描
+  Future<void> _startScan({bool forceRefresh = false}) async {
+    if (_service == null) { // ✅ 添加空检查
+      logger.e('服务未初始化');
+      return;
+    }
+    
+    // ... 使用 _service!.method() 调用服务方法
+    final files = await _service!.scanJunkFiles(...);
+  }
+}
+```
+
+**方案 B：改为同步注册（如果可能）**
+
+```dart
+// 如果服务不依赖其他异步服务，可以改为同步注册
+locator.registerLazySingleton<JunkFileService>(() {
+  return JunkFileService(
+    filePresenter: locator<FilePresenter>(), // 假设 FilePresenter 已经是同步的
+  );
+});
+```
+
+#### 关键点
+
+1. **服务声明**：`late final Service _service;` → `Service? _service;`
+2. **获取方式**：`locator<Service>()` → `await locator.getAsync<Service>()`
+3. **空安全**：所有服务调用前检查 `_service == null`
+4. **使用方式**：`_service.method()` → `_service!.method()`
+
+#### 相关文件
+
+- `lib/core/di/locator.dart`: 服务注册
+- `lib/ui/pages/junk_files_page.dart`: 垃圾文件清理页面
+- `lib/ui/pages/trash_files_page.dart`: 回收站页面
+
+#### 检查清单
+
+- [ ] 确认服务在 locator 中是通过 `registerLazySingletonAsync` 注册
+- [ ] 将服务字段改为可空类型：`Service? _service;`
+- [ ] 创建异步初始化方法：`Future<void> _initializeService()`
+- [ ] 使用 `await locator.getAsync<Service>()` 获取服务
+- [ ] 在所有服务调用前检查 null：`if (_service == null) return;`
+- [ ] 使用非空断言调用方法：`_service!.method()`
+- [ ] 添加错误处理和 mounted 检查
+
+#### 影响范围
+
+- 严重性：🔴 应用无法启动或核心功能不可用
+- 影响：无法访问垃圾文件清理和回收站功能
+- 用户体验：功能完全不可用
+
+#### 预防措施
+
+1. **代码审查**：检查所有使用 `locator<>()` 的地方，确认服务是同步还是异步注册
+2. **命名约定**：考虑为异步服务添加命名约定（如 `AsyncJunkFileService`）
+3. **文档化**：在 `locator.dart` 中添加注释说明哪些服务需要异步获取
+4. **单元测试**：测试异步服务的获取和初始化流程
+
+---
+
 ## 维护日志
 
 - **2025-12-01**: 创建错误库，添加 E001（deactivated widget）
@@ -1059,7 +1202,7 @@ class CategoryFileCacheService {
 - **2025-12-01**: 添加 E402（Recent tab not refreshed after returning from sub-page）
 - **2025-12-08**: 添加 E501（Duplicate keys found - 路径重叠问题）
 - **2025-12-08**: 添加 E502（Category cache statistics not updated）
-- [日期]: 添加 EXXX...
+- **2025-12-12**: 添加 E601（Async service access in initState）
 
 ---
 

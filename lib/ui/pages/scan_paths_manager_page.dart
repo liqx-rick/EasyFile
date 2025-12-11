@@ -8,7 +8,7 @@ import 'package:easyfile/ui/widgets/scan_path_picker_dialog.dart';
 
 /// 扫描路径管理页面
 class ScanPathsManagerPage extends StatefulWidget {
-  const ScanPathsManagerPage({Key? key}) : super(key: key);
+  const ScanPathsManagerPage({super.key});
 
   @override
   _ScanPathsManagerPageState createState() => _ScanPathsManagerPageState();

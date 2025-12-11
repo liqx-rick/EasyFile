@@ -1570,6 +1570,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
+          // 编辑模式下显示全选checkbox（最左侧）
+          if (isEditMode && vm.files.isNotEmpty)
+            SelectAllButton(
+              selectedCount: _selectedItems.length,
+              totalCount: vm.files.length,
+              onPressed: () => handleSelectAll(
+                vm.files.map((f) => f.path).toList(),
+              ),
+              iconSize: 22,
+            ),
           // 文件夹名称
           Expanded(
             child: Row(
@@ -1577,7 +1587,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 Icon(
                   Icons.folder_open,
                   size: 18,
-                  color: Colors.red,
+                  color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -1614,10 +1624,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   onGroupToggle: () => setState(() {}),
                   iconSize: 18,
                 ),
-              // 编辑按钮/指示器（三个Tab复用）
+              // 编辑/完成按钮
               EditModeToolbarButton(
                 isEditMode: isEditMode,
                 onEnterEditMode: enterEditMode,
+                onExitEditMode: exitEditMode,
               ),
             ],
           ),
@@ -1647,6 +1658,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
+          // 编辑模式下显示全选checkbox（最左侧）
+          if (isEditMode && vm.files.isNotEmpty)
+            SelectAllButton(
+              selectedCount: _selectedItems.length,
+              totalCount: vm.files.length,
+              onPressed: () => handleSelectAll(
+                vm.files.map((f) => f.path).toList(),
+              ),
+              iconSize: 22,
+            ),
           // 标题
           Expanded(
             child: Row(
@@ -1673,10 +1694,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 编辑按钮/指示器（三个Tab复用）
+                // 编辑/完成按钮
                 EditModeToolbarButton(
                   isEditMode: isEditMode,
                   onEnterEditMode: enterEditMode,
+                  onExitEditMode: exitEditMode,
                 ),
               ],
             ),
@@ -1706,6 +1728,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
+          // 编辑模式下显示全选checkbox（最左侧）
+          if (isEditMode && vm.files.isNotEmpty)
+            SelectAllButton(
+              selectedCount: _selectedItems.length,
+              totalCount: vm.files.length,
+              onPressed: () => handleSelectAll(
+                vm.files.map((f) => f.path).toList(),
+              ),
+              iconSize: 22,
+            ),
           // 标题
           Expanded(
             child: Row(
@@ -1753,10 +1785,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   onGroupToggle: () => setState(() {}),
                   iconSize: 18,
                 ),
-                // 编辑按钮/指示器（三个Tab复用）
+                // 编辑/完成按钮
                 EditModeToolbarButton(
                   isEditMode: isEditMode,
                   onEnterEditMode: enterEditMode,
+                  onExitEditMode: exitEditMode,
                 ),
               ],
             ),
@@ -1786,6 +1819,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
+          // 编辑模式下显示全选checkbox（最左侧）
+          if (isEditMode && vm.newFiles.isNotEmpty)
+            SelectAllButton(
+              selectedCount: _selectedItems.length,
+              totalCount: vm.newFiles.length,
+              onPressed: () => handleSelectAll(
+                vm.newFiles.map((f) => f.path).toList(),
+              ),
+              iconSize: 22,
+            ),
           // 标题
           Expanded(
             child: Row(
@@ -1830,10 +1873,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   },
                   isSearchMode: _newFilesSearchMode,
                 ),
-                // 编辑按钮
+                // 编辑/完成按钮
                 EditModeToolbarButton(
                   isEditMode: isEditMode,
                   onEnterEditMode: enterEditMode,
+                  onExitEditMode: exitEditMode,
                 ),
               ],
             ),
@@ -2820,7 +2864,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final groups = <String, List<FileItem>>{
       '今天': [],
       '昨天': [],
-      '近${retentionDays}天': [],
+      '近$retentionDays天': [],
     };
 
     for (final file in files) {
@@ -2834,7 +2878,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         groups['昨天']!.add(file);
       } else {
         // 其他所有文件都归入"近N天"
-        groups['近${retentionDays}天']!.add(file);
+        groups['近$retentionDays天']!.add(file);
       }
     }
 
@@ -2843,7 +2887,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 获取分组键列表（根据保留天数）
   List<String> _getGroupKeysForRetention(int retentionDays) {
-    return ['今天', '昨天', '近${retentionDays}天'];
+    return ['今天', '昨天', '近$retentionDays天'];
   }
 
   List<Widget> _buildFavoriteGroupedViewSlivers(
@@ -3833,17 +3877,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     preferredSize: Size.fromHeight(appBarHeight),
                     child: AppBar(
                       toolbarHeight: appBarHeight,
-                      leadingWidth: isEditMode ? 40 : null, // 缩小 leading 宽度
-                      leading: isEditMode
-                          ? IconButton(
-                              icon: const Icon(Icons.close),
-                              padding: EdgeInsets.zero, // 移除内边距
-                              onPressed: () {
-                                exitEditMode();
-                              },
-                            )
-                          : null,
-                      titleSpacing: isEditMode ? 0 : null, // 移除 title 的左侧间距
                       title: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -3856,19 +3889,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           const Text('EasyFile'),
                         ],
                       ),
-                      actions: isEditMode
-                          ? [
-                              // 全选按钮（使用统一组件）
-                              SelectAllButton(
-                                selectedCount: _selectedItems.length,
-                                totalCount: vm.files.length,
-                                onPressed: () => handleSelectAll(
-                                  vm.files.map((f) => f.path).toList(),
-                                ),
-                              ),
-                            ]
-                          : [
-                              PopupMenuButton<String>(
+                      actions: [
+                        PopupMenuButton<String>(
                                 onSelected: _handleMenuAction,
                                 itemBuilder: (context) => [
                                   const PopupMenuItem(

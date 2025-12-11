@@ -21,7 +21,7 @@ class JunkFilesPage extends StatefulWidget {
 }
 
 class _JunkFilesPageState extends State<JunkFilesPage> {
-  late final JunkFileService _service;
+  JunkFileService? _service;
 
   List<JunkFileItem> _allFiles = [];
   List<JunkFileItem> _filteredFiles = [];
@@ -36,12 +36,31 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   @override
   void initState() {
     super.initState();
-    _service = locator<JunkFileService>();
-    _startScan();
+    _initializeService();
+  }
+
+  /// 异步初始化服务
+  Future<void> _initializeService() async {
+    try {
+      _service = await locator.getAsync<JunkFileService>();
+      if (mounted) {
+        _startScan();
+      }
+    } catch (e) {
+      logger.e('初始化 JunkFileService 失败: $e');
+      if (mounted) {
+        _showError('服务初始化失败: $e');
+      }
+    }
   }
 
   /// 开始扫描
   Future<void> _startScan({bool forceRefresh = false}) async {
+    if (_service == null) {
+      logger.e('服务未初始化');
+      return;
+    }
+
     setState(() {
       _isScanning = true;
       _scanProgress = 0.0;
@@ -53,7 +72,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
     try {
       final config = widget.initialConfig ?? const JunkFileScanConfig();
 
-      final files = await _service.scanJunkFiles(
+      final files = await _service!.scanJunkFiles(
         config: config,
         forceRefresh: forceRefresh,
         onProgress: (current, total, path) {
@@ -117,7 +136,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       ),
     );
 
-    final result = await _service.deleteMultiple(toDelete);
+    final result = await _service!.deleteMultiple(toDelete);
 
     if (mounted) {
       Navigator.of(context).pop(); // 关闭加载对话框

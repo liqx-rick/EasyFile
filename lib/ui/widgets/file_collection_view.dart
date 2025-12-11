@@ -504,7 +504,7 @@ class FileCollectionView extends StatelessWidget {
       accessTime: getAccessTime?.call(item),
       isFavorite: isFavorite?.call(item.path) ?? false,
       isSelected: isSelected,
-      showCheckbox: isSelectionMode,
+      showCheckbox: showCheckbox,
       onFavoriteToggle:
           showFavoriteButton && !item.isDirectory && onFavoriteToggle != null
               ? () async {

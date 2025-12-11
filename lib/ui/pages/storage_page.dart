@@ -956,10 +956,12 @@ class _StoragePageState extends State<StoragePage>
       child: Scaffold(
         appBar: AppBar(
           leading: isEditMode
-              ? IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: exitEditMode,
-                  tooltip: '退出编辑',
+              ? SelectAllButton(
+                  selectedCount: _selectedItems.length,
+                  totalCount: _filteredFiles.length,
+                  onPressed: () => handleSelectAll(
+                    _filteredFiles.map((f) => f.path).toList(),
+                  ),
                 )
               : IconButton(
                   icon: const Icon(Icons.home),
@@ -1036,14 +1038,13 @@ class _StoragePageState extends State<StoragePage>
                     onGroupToggle: () => setState(() {}),
                     iconSize: 22,
                   ),
-                  // 编辑模式：显示全选按钮，非编辑模式：显示编辑按钮
+                  // 编辑模式：显示退出按钮，非编辑模式：显示编辑按钮
                   if (isEditMode)
-                    SelectAllButton(
-                      selectedCount: _selectedItems.length,
-                      totalCount: _filteredFiles.length,
-                      onPressed: () => handleSelectAll(
-                        _filteredFiles.map((f) => f.path).toList(),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 24, weight: 700),
+                      color: Theme.of(context).colorScheme.primary,
+                      onPressed: exitEditMode,
+                      tooltip: '退出编辑',
                     )
                   else
                     IconButton(

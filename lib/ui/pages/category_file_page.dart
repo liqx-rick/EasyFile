@@ -913,10 +913,20 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
             child: Scaffold(
               appBar: AppBar(
                 leading: isEditMode
-                    ? IconButton(
-                        icon: const Icon(Icons.close, size: 22),
-                        onPressed: exitEditMode,
-                        tooltip: '退出',
+                    ? SelectAllButton(
+                        selectedCount: _selectionController.selected.length,
+                        totalCount: _filteredFiles.length,
+                        onPressed: () {
+                          setState(() {
+                            if (_selectionController.selected.length == _filteredFiles.length) {
+                              _selectionController.clear();
+                            } else {
+                              _selectionController.selectAll(
+                                _filteredFiles.map((f) => f.path).toList(),
+                              );
+                            }
+                          });
+                        },
                       )
                     : IconButton(
                         icon: const Icon(Icons.home),
@@ -983,21 +993,12 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
                         
                         // 根据模式显示不同按钮
                         if (isEditMode)
-                          // 编辑模式：全选按钮
-                          SelectAllButton(
-                            selectedCount: _selectionController.selected.length,
-                            totalCount: _filteredFiles.length,
-                            onPressed: () {
-                              setState(() {
-                                if (_selectionController.selected.length == _filteredFiles.length) {
-                                  _selectionController.clear();
-                                } else {
-                                  _selectionController.selectAll(
-                                    _filteredFiles.map((f) => f.path).toList(),
-                                  );
-                                }
-                              });
-                            },
+                          // 编辑模式：退出编辑按钮
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 24, weight: 700),
+                            color: Theme.of(context).colorScheme.primary,
+                            onPressed: exitEditMode,
+                            tooltip: '退出编辑',
                           )
                         else
                           // 普通模式：编辑按钮（始终显示，与其他工具按钮一致）
