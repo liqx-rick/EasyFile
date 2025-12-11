@@ -167,7 +167,7 @@ class SelectAllButton extends StatelessWidget {
 
 /// Edit mode toolbar button/indicator combo
 /// 
-/// Shows edit button in normal mode and blue indicator in edit mode.
+/// Shows edit button in normal mode and exit button in edit mode.
 /// Used in file management page toolbars (Browse/Recent/Favorite tabs).
 /// 
 /// Example:
@@ -177,6 +177,7 @@ class SelectAllButton extends StatelessWidget {
 ///     EditModeToolbarButton(
 ///       isEditMode: _isEditMode,
 ///       onEnterEditMode: _enterEditMode,
+///       onExitEditMode: _exitEditMode,
 ///     ),
 ///   ],
 /// )
@@ -188,48 +189,39 @@ class EditModeToolbarButton extends StatelessWidget {
   /// Callback when entering edit mode (only called in normal mode)
   final VoidCallback onEnterEditMode;
   
+  /// Callback when exiting edit mode (only called in edit mode)
+  final VoidCallback? onExitEditMode;
+  
   /// Icon size for edit button (default: 18)
   final double iconSize;
-  
-  /// Indicator size (default: 24)
-  final double indicatorSize;
-  
-  /// Indicator icon size (default: 14)
-  final double indicatorIconSize;
   
   const EditModeToolbarButton({
     super.key,
     required this.isEditMode,
     required this.onEnterEditMode,
+    this.onExitEditMode,
     this.iconSize = 18,
-    this.indicatorSize = 24,
-    this.indicatorIconSize = 14,
   });
   
   @override
   Widget build(BuildContext context) {
-    if (isEditMode) {
-      // 编辑模式下：显示蓝色圆圈指示器（不可点击，仅显示状态）
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: EditModeLeadingIndicator(
-          size: indicatorSize,
-          iconSize: indicatorIconSize,
-        ),
-      );
-    } else {
-      // 非编辑模式：显示可点击的编辑按钮
-      return IconButton(
-        icon: Icon(Icons.edit_outlined, size: iconSize),
-        onPressed: onEnterEditMode,
-        tooltip: '编辑',
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints(
-          minWidth: 24,
-          minHeight: 24,
-        ),
-      );
-    }
+    final theme = Theme.of(context);
+    
+    return IconButton(
+      icon: Icon(
+        isEditMode ? Icons.close : Icons.edit_outlined,
+        size: isEditMode ? iconSize + 2 : iconSize, // X图标加大一号
+        color: isEditMode ? theme.colorScheme.primary : null,
+        weight: isEditMode ? 700 : null, // 加粗
+      ),
+      onPressed: isEditMode ? onExitEditMode : onEnterEditMode,
+      tooltip: isEditMode ? '退出编辑' : '编辑',
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(
+        minWidth: 24,
+        minHeight: 24,
+      ),
+    );
   }
 }

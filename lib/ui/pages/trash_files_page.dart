@@ -47,7 +47,7 @@ class TrashFilesPage extends StatefulWidget {
 }
 
 class _TrashFilesPageState extends State<TrashFilesPage> {
-  late final TrashFileService _service;
+  TrashFileService? _service;
 
   // 回收站列表
   List<TrashBin> _trashBins = [];
@@ -69,14 +69,35 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   @override
   void initState() {
     super.initState();
-    _service = locator<TrashFileService>();
-    _initializeAndScan();
+    _initializeService();
+  }
+
+  /// 异步初始化服务并开始扫描
+  Future<void> _initializeService() async {
+    try {
+      _service = await locator.getAsync<TrashFileService>();
+      if (mounted) {
+        await _initializeAndScan();
+      }
+    } catch (e) {
+      logger.e('初始化 TrashFileService 失败: $e');
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+        });
+        _showError('服务初始化失败: $e');
+      }
+    }
   }
 
   /// 初始化服务并开始扫描
   Future<void> _initializeAndScan() async {
+    if (_service == null) {
+      logger.e('服务未初始化');
+      return;
+    }
     // 初始化回收站服务（检查MediaStore支持）
-    await _service.initialize();
+    await _service!.initialize();
     _startScan();
   }
 
@@ -91,7 +112,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     });
 
     try {
-      final result = await _service.scanTrashBinsWithFiles(
+      final result = await _service!.scanTrashBinsWithFiles(
         onProgress: (current, total, path) {
           // 扫描进度回调，仅用于记录，UI不显示
         },
@@ -343,7 +364,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     );
 
     try {
-      final result = await _service.deleteTrashBinFiles(
+      final result = await _service!.deleteTrashBinFiles(
         trashBinIds: _trashBins.map((b) => b.id).toList(),
         allFiles: _allFiles,
       );
@@ -403,7 +424,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       ),
     );
 
-    final result = await _service.deleteMultiple(toDelete);
+    final result = await _service!.deleteMultiple(toDelete);
 
     if (mounted) {
       Navigator.of(context).pop(); // 关闭加载对话框
@@ -466,7 +487,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       final toRestore =
           _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
 
-      final result = await _service.restoreMultiple(toRestore);
+      final result = await _service!.restoreMultiple(toRestore);
 
       if (mounted) {
         Navigator.of(context).pop(); // 关闭加载对话框

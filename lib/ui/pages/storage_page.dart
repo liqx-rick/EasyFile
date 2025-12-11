@@ -88,7 +88,8 @@ class _StoragePageState extends State<StoragePage>
   /// 获取排序后的文件列表
   List<FileItem> _getSortedFiles(List<FileItem> files) {
     final sortType = PageSettingsService().getSortType(PageId.storage);
-    return FileComparatorUtil.sortFiles(files, sortType);
+    final ascending = PageSettingsService().getSortAscending(PageId.storage);
+    return FileComparatorUtil.sortFiles(files, sortType, ascending: ascending);
   }
 
   /// 获取日期分组后的文件
@@ -96,9 +97,24 @@ class _StoragePageState extends State<StoragePage>
     return FileGroupingUtil.groupByModifiedDate(files);
   }
 
+  /// 获取排序方向图标
+  /// 按名称/类型：ascending=false显示↑(A-Z), ascending=true显示↓(Z-A)
+  /// 按时间/大小：ascending=false显示↓(新→旧/大→小), ascending=true显示↑(旧→新/小→大)
+  IconData _getSortDirectionIcon(SortType sortType, bool ascending) {
+    if (sortType == SortType.name || sortType == SortType.fileType) {
+      // 按名称/类型：反转箭头显示
+      return ascending ? Icons.arrow_downward : Icons.arrow_upward;
+    } else {
+      // 按时间/大小：正常箭头显示
+      return ascending ? Icons.arrow_upward : Icons.arrow_downward;
+    }
+  }
+
   /// 显示排序选项菜单
   void _showSortOptions() {
     final currentSortType = PageSettingsService().getSortType(PageId.storage);
+    final currentAscending = PageSettingsService().getSortAscending(PageId.storage);
+    
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -110,12 +126,16 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.storage, SortType.name);
+                  if (currentSortType == SortType.name) {
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.storage, SortType.name);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -123,12 +143,16 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.storage, SortType.modifiedTime);
+                  if (currentSortType == SortType.modifiedTime) {
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.storage, SortType.modifiedTime);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -136,12 +160,16 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.storage, SortType.size);
+                  if (currentSortType == SortType.size) {
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.storage, SortType.size);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -149,12 +177,16 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.storage, SortType.fileType);
+                  if (currentSortType == SortType.fileType) {
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.storage, SortType.fileType);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -491,7 +523,8 @@ class _StoragePageState extends State<StoragePage>
             _files.add(addedFile);
             // 重新排序
             final sortType = PageSettingsService().getSortType(PageId.storage);
-            FileComparatorUtil.sortFilesInPlace(_files, sortType);
+            final ascending = PageSettingsService().getSortAscending(PageId.storage);
+            FileComparatorUtil.sortFilesInPlace(_files, sortType, ascending: ascending);
             logger.d('Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
           }
         });
@@ -624,7 +657,8 @@ class _StoragePageState extends State<StoragePage>
 
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType);
+        final ascending = PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
 
         setState(() {
           _files = files;
@@ -763,7 +797,8 @@ class _StoragePageState extends State<StoragePage>
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType);
+        final ascending = PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
         setState(() {
           _files = files;
           _isLoading = false;
@@ -956,10 +991,12 @@ class _StoragePageState extends State<StoragePage>
       child: Scaffold(
         appBar: AppBar(
           leading: isEditMode
-              ? IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: exitEditMode,
-                  tooltip: '退出编辑',
+              ? SelectAllButton(
+                  selectedCount: _selectedItems.length,
+                  totalCount: _filteredFiles.length,
+                  onPressed: () => handleSelectAll(
+                    _filteredFiles.map((f) => f.path).toList(),
+                  ),
                 )
               : IconButton(
                   icon: const Icon(Icons.home),
@@ -1036,14 +1073,13 @@ class _StoragePageState extends State<StoragePage>
                     onGroupToggle: () => setState(() {}),
                     iconSize: 22,
                   ),
-                  // 编辑模式：显示全选按钮，非编辑模式：显示编辑按钮
+                  // 编辑模式：显示退出按钮，非编辑模式：显示编辑按钮
                   if (isEditMode)
-                    SelectAllButton(
-                      selectedCount: _selectedItems.length,
-                      totalCount: _filteredFiles.length,
-                      onPressed: () => handleSelectAll(
-                        _filteredFiles.map((f) => f.path).toList(),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 24, weight: 700),
+                      color: Theme.of(context).colorScheme.primary,
+                      onPressed: exitEditMode,
+                      tooltip: '退出编辑',
                     )
                   else
                     IconButton(

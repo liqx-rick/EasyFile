@@ -32,11 +32,10 @@ class DuplicateFileGroup {
       fileSize: files.first.size,
     );
 
-    // 计算每个文件的分数（带详细日志）
-    print('[DuplicateFileGroup] 🔍 开始计算${files.length}个文件的推荐分数:');
+    // 计算每个文件的分数
     final fileScores = <FileItem, int>{};
     for (final file in files) {
-      fileScores[file] = tempGroup._calculateRecommendScore(file, debug: true);
+      fileScores[file] = tempGroup._calculateRecommendScore(file, debug: false);
     }
 
     // 按推荐分数从高到低排序
@@ -46,20 +45,6 @@ class DuplicateFileGroup {
       final scoreB = fileScores[b]!;
       return scoreB.compareTo(scoreA); // 降序排列（分数高的在前）
     });
-
-    // 输出排序结果
-    print('[DuplicateFileGroup] ✅ 排序完成:');
-    final displayCount = sortedFiles.length > 3 ? 3 : sortedFiles.length;
-    for (var i = 0; i < displayCount; i++) {
-      final file = sortedFiles[i];
-      final score = fileScores[file]!;
-      final label = i == 0 ? '✅推荐保留' : '❌建议删除';
-      print('  [$i] $label ${file.name} (总分: $score)');
-    }
-    if (sortedFiles.length > 3) {
-      print('  ... 还有${sortedFiles.length - 3}个文件');
-    }
-    print('');
 
     return sortedFiles;
   }
@@ -263,10 +248,6 @@ class DuplicateFileGroup {
     final timeScore = _getTimeScore(file.modified, latestTime);
     score += timeScore;
     scoreDetails.add('时间+$timeScore');
-
-    if (debug) {
-      print('    📊 ${file.name}: $score分 (${scoreDetails.join(", ")})');
-    }
 
     return score;
   }

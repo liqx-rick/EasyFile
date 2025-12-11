@@ -45,12 +45,16 @@ class PageSettings {
   /// 排序类型
   final SortType? sortType;
 
+  /// 排序方向：true=升序，false=降序
+  final bool? sortAscending;
+
   /// 是否启用分组
   final bool? groupEnabled;
 
   const PageSettings({
     this.viewMode,
     this.sortType,
+    this.sortAscending,
     this.groupEnabled,
   });
 
@@ -58,11 +62,13 @@ class PageSettings {
   PageSettings copyWith({
     ViewMode? viewMode,
     SortType? sortType,
+    bool? sortAscending,
     bool? groupEnabled,
   }) {
     return PageSettings(
       viewMode: viewMode ?? this.viewMode,
       sortType: sortType ?? this.sortType,
+      sortAscending: sortAscending ?? this.sortAscending,
       groupEnabled: groupEnabled ?? this.groupEnabled,
     );
   }
@@ -72,6 +78,7 @@ class PageSettings {
     return {
       if (viewMode != null) 'viewMode': viewMode!.name,
       if (sortType != null) 'sortType': sortType!.name,
+      if (sortAscending != null) 'sortAscending': sortAscending,
       if (groupEnabled != null) 'groupEnabled': groupEnabled,
     };
   }
@@ -85,6 +92,7 @@ class PageSettings {
       sortType: json['sortType'] != null
           ? SortType.values.firstWhere((e) => e.name == json['sortType'])
           : null,
+      sortAscending: json['sortAscending'] as bool?,
       groupEnabled: json['groupEnabled'] as bool?,
     );
   }

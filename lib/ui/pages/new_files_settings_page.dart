@@ -5,7 +5,7 @@ import 'package:easyfile/data/models/new_files_settings.dart';
 
 /// 新文件设置页面
 class NewFilesSettingsPage extends StatefulWidget {
-  const NewFilesSettingsPage({Key? key}) : super(key: key);
+  const NewFilesSettingsPage({super.key});
 
   @override
   _NewFilesSettingsPageState createState() => _NewFilesSettingsPageState();

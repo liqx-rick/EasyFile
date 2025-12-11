@@ -541,25 +541,26 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       child: isEditMode
           ? AppBar(
               // 编辑/选择模式
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: exitEditMode,
-                tooltip: '完成',
+              leading: SelectAllButton(
+                selectedCount: _selectionController.selected.length,
+                totalCount: _largeFiles.length,
+                onPressed: () {
+                  setState(() {
+                    handleSelectAll(
+                      _largeFiles.map((f) => f.path).toList(),
+                    );
+                  });
+                },
               ),
               title: const Text('大文件查找'),
               centerTitle: true,
               actions: [
-                // 全选按钮
-                SelectAllButton(
-                  selectedCount: _selectionController.selected.length,
-                  totalCount: _largeFiles.length,
-                  onPressed: () {
-                    setState(() {
-                      handleSelectAll(
-                        _largeFiles.map((f) => f.path).toList(),
-                      );
-                    });
-                  },
+                // 退出编辑按钮
+                IconButton(
+                  icon: const Icon(Icons.close, size: 24, weight: 700),
+                  color: Theme.of(context).colorScheme.primary,
+                  onPressed: exitEditMode,
+                  tooltip: '退出编辑',
                 ),
               ],
             )

@@ -10,9 +10,9 @@ class ScanPathPickerDialog extends StatefulWidget {
   final String initialPath;
 
   const ScanPathPickerDialog({
-    Key? key,
+    super.key,
     this.initialPath = '/storage/emulated/0',
-  }) : super(key: key);
+  });
 
   @override
   _ScanPathPickerDialogState createState() => _ScanPathPickerDialogState();

@@ -20,19 +20,26 @@ class CategorySortService extends ChangeNotifier {
   CategorySortService._internal();
 
   static const String _sortTypeKey = 'category_sort_type';
+  static const String _sortAscendingKey = 'category_sort_ascending';
+  
   SortType _sortType = SortType.modifiedTime; // 默认按修改时间排序
+  bool _isAscending = false; // 默认降序
   bool _initialized = false;
 
   /// 当前排序类型
   SortType get sortType => _sortType;
+  
+  /// 当前排序方向：true=升序，false=降序
+  bool get isAscending => _isAscending;
 
-  /// 初始化，从本地存储加载排序类型
+  /// 初始化，从本地存储加载排序类型和方向
   Future<void> initialize() async {
     if (_initialized) return;
 
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedType = prefs.getString(_sortTypeKey);
+      final savedAscending = prefs.getBool(_sortAscendingKey);
 
       if (savedType != null) {
         _sortType = SortType.values.firstWhere(
@@ -40,11 +47,16 @@ class CategorySortService extends ChangeNotifier {
           orElse: () => SortType.modifiedTime,
         );
       }
+      
+      if (savedAscending != null) {
+        _isAscending = savedAscending;
+      }
 
       _initialized = true;
       notifyListeners();
     } catch (e) {
       _sortType = SortType.modifiedTime;
+      _isAscending = false;
       _initialized = true;
     }
   }
@@ -53,7 +65,24 @@ class CategorySortService extends ChangeNotifier {
   void setSortType(SortType type) {
     if (_sortType != type) {
       _sortType = type;
-      _saveSortType();
+      _isAscending = false; // 切换排序类型时重置为降序
+      _saveSortSettings();
+      notifyListeners();
+    }
+  }
+  
+  /// 切换排序方向
+  void toggleSortDirection() {
+    _isAscending = !_isAscending;
+    _saveSortSettings();
+    notifyListeners();
+  }
+  
+  /// 设置排序方向
+  void setSortDirection(bool ascending) {
+    if (_isAscending != ascending) {
+      _isAscending = ascending;
+      _saveSortSettings();
       notifyListeners();
     }
   }
@@ -74,21 +103,33 @@ class CategorySortService extends ChangeNotifier {
 
   /// 获取排序比较函数
   int Function(FileItem, FileItem) getComparator() {
+    int Function(FileItem, FileItem) baseComparator;
+    
     switch (_sortType) {
       case SortType.name:
-        return (a, b) => a.name.compareTo(b.name);
+        baseComparator = (a, b) => a.name.compareTo(b.name);
+        break;
       case SortType.modifiedTime:
-        return (a, b) => b.modified.compareTo(a.modified); // 新的在前
+        baseComparator = (a, b) => b.modified.compareTo(a.modified); // 新的在前
+        break;
       case SortType.size:
-        return (a, b) => b.size.compareTo(a.size); // 大的在前
+        baseComparator = (a, b) => b.size.compareTo(a.size); // 大的在前
+        break;
       case SortType.fileType:
-        return (a, b) {
+        baseComparator = (a, b) {
           final typeComparison =
               _getFileTypePriority(a) - _getFileTypePriority(b);
           if (typeComparison != 0) return typeComparison;
           return a.name.compareTo(b.name); // 同类型按名称排序
         };
+        break;
     }
+    
+    // 如果是升序，反转比较结果
+    if (_isAscending) {
+      return (a, b) => -baseComparator(a, b);
+    }
+    return baseComparator;
   }
 
   /// 获取排序类型的显示名称
@@ -105,11 +146,12 @@ class CategorySortService extends ChangeNotifier {
     }
   }
 
-  /// 保存排序类型到本地
-  Future<void> _saveSortType() async {
+  /// 保存排序设置到本地
+  Future<void> _saveSortSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_sortTypeKey, _sortType.toString());
+      await prefs.setBool(_sortAscendingKey, _isAscending);
     } catch (e) {
       // 忽略保存错误
     }

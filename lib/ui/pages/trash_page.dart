@@ -4,11 +4,7 @@ import '../../data/models/app_trash_item.dart';
 import '../../core/services/app_trash_manager.dart';
 import '../../core/logger.dart';
 import '../../core/di/locator.dart';
-import '../widgets/image_thumbnail.dart';
-import '../widgets/real_video_thumbnail.dart';
-import '../widgets/audio_cover_widget.dart';
-import '../widgets/document_icon_widget.dart';
-import '../../utils/file_utils.dart';
+import '../widgets/file_list_item_builder.dart';
 
 /// 回收站页面 - 极简版
 /// 功能：文件列表、单个操作（恢复/删除）、一键清空、统计信息
@@ -297,42 +293,16 @@ class _TrashPageState extends State<TrashPage> {
   /// 构建缩略图
   Widget _buildThumbnail(AppTrashItem item) {
     final fileName = _getFileName(item.originalPath);
-    final isImage = FileUtils.isImageFile(fileName);
-    final isVideo = FileUtils.isVideoFile(fileName);
-    final isAudio = FileUtils.isAudioFile(fileName);
-    final isDocument = FileUtils.isDocumentFile(fileName);
-    final isText = FileUtils.isTextFile(fileName);
-
-    if (isImage) {
-      return ImageThumbnail(
-        imagePath: item.trashPath,
-        size: 56,
-      );
-    } else if (isVideo) {
-      return RealVideoThumbnail(
-        videoPath: item.trashPath,
-        size: 56,
-        showDuration: false,
-      );
-    } else if (isAudio) {
-      return AudioCoverWidget(
-        audioPath: item.trashPath,
-        size: 56,
-      );
-    } else if (isDocument || isText) {
-      return DocumentIconWidget(
-        fileName: fileName,
-        size: 56,
-      );
-    } else {
-      // APK或其他文件
-      final ext = fileName.split('.').last.toLowerCase();
-      return Icon(
-        ext == 'apk' ? Icons.android : Icons.insert_drive_file,
-        size: 36,
-        color: ext == 'apk' ? Colors.green : Colors.grey,
-      );
-    }
+    final isDirectory = item.mimeType.toLowerCase() == 'inode/directory';
+    
+    // 使用统一的 FileListItemBuilder 构建缩略图
+    return FileListItemBuilder.buildFileThumbnail(
+      filePath: item.trashPath,
+      mimeType: item.mimeType,
+      fileName: fileName,
+      isDirectory: isDirectory,
+      size: 56.0,
+    );
   }
 
   /// 显示文件详情
