@@ -92,13 +92,16 @@ class AppTrashManager {
         final fileName = path.basename(file.path);
         final trashPath = '$trashDir/${timestamp}_$fileName';
         
+        // 文件夹使用 inode/directory MIME类型
+        final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+        
         final trashItem = AppTrashItem(
           id: id,
           trashPath: trashPath,
           originalPath: file.path,
           fileName: fileName,
           size: file.size,
-          mimeType: _inferMimeType(fileName),
+          mimeType: mimeType,
           deletedAt: DateTime.now(),
         );
         
@@ -276,13 +279,16 @@ class AppTrashManager {
       }
 
       // 保存元数据到数据库
+      // 文件夹使用 inode/directory MIME类型
+      final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+      
       final trashItem = AppTrashItem(
         id: id,
         trashPath: trashPath,
         originalPath: file.path,
         fileName: fileName,
         size: file.size,
-        mimeType: _inferMimeType(fileName),
+        mimeType: mimeType,
         deletedAt: DateTime.now(),
       );
 

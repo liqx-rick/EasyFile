@@ -1947,7 +1947,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 应用页面级排序
     final sortType = PageSettingsService().getSortType(PageId.homeFavorite);
-    FileComparatorUtil.sortFilesInPlace(result, sortType);
+    final ascending = PageSettingsService().getSortAscending(PageId.homeFavorite);
+    FileComparatorUtil.sortFilesInPlace(result, sortType, ascending: ascending);
 
     return result;
   }
@@ -1955,7 +1956,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 获取排序后的浏览文件列表
   List<FileItem> _getSortedBrowseFiles(List<FileItem> files) {
     final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
-    return FileComparatorUtil.sortFiles(files, sortType);
+    final ascending = PageSettingsService().getSortAscending(PageId.homeBrowse);
+    return FileComparatorUtil.sortFiles(files, sortType, ascending: ascending);
   }
 
   /// 获取收藏文件的日期分组
@@ -1971,9 +1973,25 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 获取最近文件的时间分组（基于访问时间）
   /// 构建收藏Tab的分组视图
   /// 显示排序选项（收藏Tab）
+  /// 获取排序方向图标
+  /// 按名称/类型：ascending=false显示↑(A-Z), ascending=true显示↓(Z-A)
+  /// 按时间/大小：ascending=false显示↓(新→旧/大→小), ascending=true显示↑(旧→新/小→大)
+  IconData _getSortDirectionIcon(SortType sortType, bool ascending) {
+    if (sortType == SortType.name || sortType == SortType.fileType) {
+      // 按名称/类型：反转箭头显示
+      return ascending ? Icons.arrow_downward : Icons.arrow_upward;
+    } else {
+      // 按时间/大小：正常箭头显示
+      return ascending ? Icons.arrow_upward : Icons.arrow_downward;
+    }
+  }
+
   void _showFavoriteSortOptions() {
     final currentSortType =
         PageSettingsService().getSortType(PageId.homeFavorite);
+    final currentAscending =
+        PageSettingsService().getSortAscending(PageId.homeFavorite);
+    
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -1985,12 +2003,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeFavorite, SortType.name);
+                  if (currentSortType == SortType.name) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeFavorite, SortType.name);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -1998,12 +2020,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeFavorite, SortType.modifiedTime);
+                  if (currentSortType == SortType.modifiedTime) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeFavorite, SortType.modifiedTime);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2011,12 +2037,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeFavorite, SortType.size);
+                  if (currentSortType == SortType.size) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeFavorite, SortType.size);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2024,12 +2054,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeFavorite, SortType.fileType);
+                  if (currentSortType == SortType.fileType) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeFavorite, SortType.fileType);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2044,6 +2078,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void _showBrowseSortOptions() {
     final currentSortType =
         PageSettingsService().getSortType(PageId.homeBrowse);
+    final currentAscending =
+        PageSettingsService().getSortAscending(PageId.homeBrowse);
+    
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -2055,12 +2092,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeBrowse, SortType.name);
+                  if (currentSortType == SortType.name) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeBrowse, SortType.name);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2068,12 +2109,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeBrowse, SortType.modifiedTime);
+                  if (currentSortType == SortType.modifiedTime) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeBrowse, SortType.modifiedTime);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2081,12 +2126,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeBrowse, SortType.size);
+                  if (currentSortType == SortType.size) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeBrowse, SortType.size);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),
@@ -2094,12 +2143,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(PageId.homeBrowse, SortType.fileType);
+                  if (currentSortType == SortType.fileType) {
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(PageId.homeBrowse, SortType.fileType);
+                  }
                   setState(() {}); // 刷新列表
                 },
               ),

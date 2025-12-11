@@ -800,7 +800,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
         final sortType = _isTemporaryMode
             ? SortType.size
             : PageSettingsService().getSortType(pageId);
-        FileComparatorUtil.sortFilesInPlace(cached, sortType);
+        final ascending = _isTemporaryMode
+            ? false
+            : PageSettingsService().getSortAscending(pageId);
+        FileComparatorUtil.sortFilesInPlace(cached, sortType, ascending: ascending);
 
         setState(() {
           _files = cached;
@@ -848,7 +851,10 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
       final sortType = _isTemporaryMode
           ? SortType.size
           : PageSettingsService().getSortType(pageId);
-      FileComparatorUtil.sortFilesInPlace(files, sortType);
+      final ascending = _isTemporaryMode
+          ? false
+          : PageSettingsService().getSortAscending(pageId);
+      FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
 
       // 计算总大小
       int totalSize = 0;
@@ -1621,10 +1627,25 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
     );
   }
 
+  /// 获取排序方向图标
+  /// 按名称/类型：ascending=false显示↑(A-Z), ascending=true显示↓(Z-A)
+  /// 按时间/大小：ascending=false显示↓(新→旧/大→小), ascending=true显示↑(旧→新/小→大)
+  IconData _getSortDirectionIcon(SortType sortType, bool ascending) {
+    if (sortType == SortType.name || sortType == SortType.fileType) {
+      // 按名称/类型：反转箭头显示
+      return ascending ? Icons.arrow_downward : Icons.arrow_upward;
+    } else {
+      // 按时间/大小：正常箭头显示
+      return ascending ? Icons.arrow_upward : Icons.arrow_downward;
+    }
+  }
+
   /// 显示排序选项
   void _showSortOptions() {
     final pageId = _getPageIdForCategory();
     final currentSortType = PageSettingsService().getSortType(pageId);
+    final currentAscending = PageSettingsService().getSortAscending(pageId);
+    
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -1636,11 +1657,17 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(pageId, SortType.name);
+                  if (currentSortType == SortType.name) {
+                    // 如果已选中，切换方向
+                    await PageSettingsService().toggleSortDirection(pageId);
+                  } else {
+                    // 切换到新的排序类型
+                    await PageSettingsService().setSortType(pageId, SortType.name);
+                  }
                   _applySorting();
                 },
               ),
@@ -1648,12 +1675,16 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService()
-                      .setSortType(pageId, SortType.modifiedTime);
+                  if (currentSortType == SortType.modifiedTime) {
+                    await PageSettingsService().toggleSortDirection(pageId);
+                  } else {
+                    await PageSettingsService()
+                        .setSortType(pageId, SortType.modifiedTime);
+                  }
                   _applySorting();
                 },
               ),
@@ -1661,11 +1692,15 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(pageId, SortType.size);
+                  if (currentSortType == SortType.size) {
+                    await PageSettingsService().toggleSortDirection(pageId);
+                  } else {
+                    await PageSettingsService().setSortType(pageId, SortType.size);
+                  }
                   _applySorting();
                 },
               ),
@@ -1673,11 +1708,15 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? const Icon(Icons.check)
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  PageSettingsService().setSortType(pageId, SortType.fileType);
+                  if (currentSortType == SortType.fileType) {
+                    await PageSettingsService().toggleSortDirection(pageId);
+                  } else {
+                    await PageSettingsService().setSortType(pageId, SortType.fileType);
+                  }
                   _applySorting();
                 },
               ),
@@ -1693,7 +1732,8 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
     setState(() {
       final pageId = _getPageIdForCategory();
       final sortType = PageSettingsService().getSortType(pageId);
-      FileComparatorUtil.sortFilesInPlace(_files, sortType);
+      final ascending = PageSettingsService().getSortAscending(pageId);
+      FileComparatorUtil.sortFilesInPlace(_files, sortType, ascending: ascending);
     });
   }
 

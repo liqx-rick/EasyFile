@@ -184,8 +184,13 @@ class FileListItemBuilder {
       bgColor = Colors.blue[50]!;
       iconColor = Colors.blue[700]!;
     }
-    // Excel表格
-    else if (mimeType.contains('excel') || ext == 'xls' || ext == 'xlsx') {
+    // Excel表格和CSV（优先于文本文件判断）
+    else if (mimeType.contains('excel') || 
+             mimeType.contains('spreadsheet') || 
+             mimeType.contains('csv') ||
+             ext == 'xls' || 
+             ext == 'xlsx' || 
+             ext == 'csv') {
       icon = Icons.table_chart;
       bgColor = Colors.green[50]!;
       iconColor = Colors.green[700]!;
@@ -196,11 +201,15 @@ class FileListItemBuilder {
       bgColor = Colors.orange[50]!;
       iconColor = Colors.orange[700]!;
     }
-    // 文本文件
-    else if (mimeType.contains('text/') || ext == 'txt' || ext == 'log') {
-      icon = Icons.article;
-      bgColor = Colors.grey[100]!;
-      iconColor = Colors.grey[700]!;
+    // 文本文件（排除CSV，CSV已在上面处理）
+    else if ((mimeType.contains('text/') && !mimeType.contains('csv')) || 
+             ext == 'txt' || 
+             ext == 'log' || 
+             ext == 'md' || 
+             ext == 'rtf') {
+      icon = Icons.description;
+      bgColor = Colors.grey[200]!;
+      iconColor = Colors.grey[800]!;
     }
     // 压缩包
     else if (mimeType.contains('zip') ||

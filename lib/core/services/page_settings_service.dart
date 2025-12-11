@@ -75,6 +75,7 @@ class PageSettingsService extends ChangeNotifier {
     return PageSettings(
       viewMode: userSettings?.viewMode ?? defaults.viewMode,
       sortType: userSettings?.sortType ?? defaults.sortType,
+      sortAscending: userSettings?.sortAscending ?? defaults.sortAscending,
       groupEnabled: userSettings?.groupEnabled ?? defaults.groupEnabled,
     );
   }
@@ -94,6 +95,11 @@ class PageSettingsService extends ChangeNotifier {
     return getPageSettings(pageId).groupEnabled ?? false;
   }
 
+  /// 获取当前页面的排序方向
+  bool getSortAscending(PageId pageId) {
+    return getPageSettings(pageId).sortAscending ?? false;
+  }
+
   /// 设置页面的视图模式
   Future<void> setViewMode(PageId pageId, ViewMode viewMode) async {
     final current = _userSettings[pageId] ?? const PageSettings();
@@ -105,9 +111,26 @@ class PageSettingsService extends ChangeNotifier {
   /// 设置页面的排序类型
   Future<void> setSortType(PageId pageId, SortType sortType) async {
     final current = _userSettings[pageId] ?? const PageSettings();
-    _userSettings[pageId] = current.copyWith(sortType: sortType);
+    _userSettings[pageId] = current.copyWith(
+      sortType: sortType,
+      sortAscending: false, // 切换排序类型时重置为降序
+    );
     await _saveUserSettings();
     notifyListeners();
+  }
+
+  /// 设置页面的排序方向
+  Future<void> setSortAscending(PageId pageId, bool ascending) async {
+    final current = _userSettings[pageId] ?? const PageSettings();
+    _userSettings[pageId] = current.copyWith(sortAscending: ascending);
+    await _saveUserSettings();
+    notifyListeners();
+  }
+
+  /// 切换页面的排序方向
+  Future<void> toggleSortDirection(PageId pageId) async {
+    final current = getSortAscending(pageId);
+    await setSortAscending(pageId, !current);
   }
 
   /// 设置页面的分组状态

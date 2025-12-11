@@ -69,7 +69,7 @@ class FileUtils {
   /// 判断文件是否为Excel表格类型
   static bool isExcelFile(String fileName) {
     final ext = fileName.toLowerCase().split('.').last;
-    return ['xls', 'xlsx'].contains(ext);
+    return ['xls', 'xlsx', 'csv'].contains(ext);
   }
 
   /// 判断文件是否为PowerPoint演示文稿类型
@@ -87,7 +87,6 @@ class FileUtils {
       'md',
       'json',
       'xml',
-      'csv',
       'html',
       'css',
       'js',
