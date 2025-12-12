@@ -32,9 +32,9 @@ class ImageThumbnail extends StatelessWidget {
           width: size,
           height: size,
           fit: fit,
-          // 同时限制宽度和高度，防止内存溢出
+          // 只限制宽度，让Flutter自动保持原始宽高比，避免图片变形
           cacheWidth: cacheSize,
-          cacheHeight: cacheSize,
+          // cacheHeight 不设置，保持图片原始比例
           // 降低质量以减少内存占用
           filterQuality: FilterQuality.low,
           // 避免重复加载
