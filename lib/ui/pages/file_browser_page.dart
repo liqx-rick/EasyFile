@@ -803,8 +803,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 如果是图片、视频或音频，传递文件列表以支持滑动切换
     if (isImageOrVideo || FileUtils.isAudioFile(file.name)) {
+      // 根据当前Tab获取正确的文件列表
+      final sourceFiles = viewModel.currentTab == TabView.newFiles 
+          ? viewModel.newFiles 
+          : viewModel.files;
+      
       // 根据当前文件类型只过滤同类型文件
-      final mediaFiles = viewModel.files.where((f) {
+      final mediaFiles = sourceFiles.where((f) {
         if (FileUtils.isImageFile(file.name)) {
           return FileUtils.isImageFile(f.name);
         } else if (FileUtils.isVideoFile(file.name)) {
@@ -1343,7 +1348,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             false, // 不显示高亮，保持视觉简洁
             onTap: () {
               viewModel.setCurrentTab(TabView.newFiles);
-              presenter.loadNewFiles();
+              presenter.loadNewFilesByPriority(); // 使用分批加载
             },
             useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
           ),
