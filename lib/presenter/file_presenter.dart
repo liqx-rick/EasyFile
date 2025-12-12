@@ -24,6 +24,7 @@ import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 class FilePresenter {
   final FileRepository repository;
@@ -519,9 +520,13 @@ class FilePresenter {
 
       // 如果只有一个文件，使用单文件分享方法以获得更好的兼容性
       if (existingFilePaths.length == 1) {
+        // 获取精确的MIME类型以便正确显示缩略图
+        final mimeType = FileUtils.getMimeType(existingFilePaths[0]);
+        logger.d('Sharing file with MIME type: $mimeType');
+        
         await platform.invokeMethod('shareFile', {
           'filePath': existingFilePaths[0],
-          'mimeType': '*/*', // 让原生代码自动检测
+          'mimeType': mimeType,
         });
         logger.i('Share completed for single file');
       } else {
