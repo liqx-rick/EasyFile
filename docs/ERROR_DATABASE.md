@@ -40,6 +40,9 @@
 ### 依赖注入相关
 - [E601: Bad state: You tried to access an instance that is not ready yet](#e601)
 
+### Android 原生交互相关
+- [E701: Share intent missing thumbnail preview due to generic MIME type](#e701)
+
 ---
 
 ## 详细错误条目
@@ -1496,6 +1499,179 @@ locator.registerLazySingleton<JunkFileService>(() {
 
 ---
 
+<a name="e701"></a>
+### E701: Share intent missing thumbnail preview due to generic MIME type
+
+**错误级别：** 🟡 中  
+**首次发现：** 2025-12-13  
+**最后更新：** 2025-12-13
+
+#### 现象描述
+
+在 Android 平台分享图片/视频文件到微信等应用时：
+- 分享选择界面（"选择聊天"）中文件列表不显示缩略图
+- 发送预览界面底部显示通用文件图标而非缩略图
+- 接收方收到的消息不带缩略图预览
+- 但文件本身可以正常发送和接收，下载后能正常打开
+
+#### 触发场景
+
+1. 使用 `Intent.ACTION_SEND` 分享图片/视频
+2. Intent 的 `type` 字段设置为通用类型 `*/*`
+3. 目标应用（如微信）需要根据 MIME 类型生成缩略图
+
+#### 根本原因
+
+Android 分享 Intent 的 MIME 类型设置不精确：
+
+```dart
+// ❌ 错误：使用通用 MIME 类型
+await platform.invokeMethod('shareFile', {
+  'filePath': filePath,
+  'mimeType': '*/*',  // 太笼统，接收应用无法识别文件类型
+});
+```
+
+**为什么会有问题：**
+1. **缩略图生成依赖 MIME 类型**：微信等应用根据 MIME 类型决定是否生成缩略图
+2. **`*/*` 被识别为未知文件**：接收应用无法判断这是图片还是其他类型
+3. **安全策略限制**：为避免性能问题，接收应用不会对未知类型的文件生成预览
+
+#### 解决方案
+
+**方案：根据文件扩展名提供精确的 MIME 类型**
+
+```dart
+// ✅ 正确：添加 getMimeType 工具方法
+class FileUtils {
+  static String getMimeType(String filePath) {
+    final ext = filePath.toLowerCase().split('.').last;
+    
+    // 图片类型
+    if (ext == 'jpg' || ext == 'jpeg') return 'image/jpeg';
+    if (ext == 'png') return 'image/png';
+    if (ext == 'gif') return 'image/gif';
+    if (ext == 'webp') return 'image/webp';
+    
+    // 视频类型
+    if (ext == 'mp4') return 'video/mp4';
+    if (ext == 'avi') return 'video/x-msvideo';
+    if (ext == 'mkv') return 'video/x-matroska';
+    if (ext == 'mov') return 'video/quicktime';
+    
+    // 音频类型
+    if (ext == 'mp3') return 'audio/mpeg';
+    if (ext == 'wav') return 'audio/wav';
+    if (ext == 'flac') return 'audio/flac';
+    
+    // 文档类型
+    if (ext == 'pdf') return 'application/pdf';
+    if (ext == 'docx') {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    
+    // ... 更多类型
+    
+    return '*/*';  // 仅作为降级方案
+  }
+}
+
+// 分享时使用精确类型
+final mimeType = FileUtils.getMimeType(filePath);
+await platform.invokeMethod('shareFile', {
+  'filePath': filePath,
+  'mimeType': mimeType,  // 如 'image/jpeg'
+});
+```
+
+#### 效果对比
+
+**修复前（使用 `*/*`）：**
+- ❌ 分享界面不显示缩略图
+- ❌ 发送预览显示通用文件图标
+- ❌ 接收方消息无缩略图
+
+**修复后（使用 `image/jpeg`）：**
+- ✅ 分享界面可能显示缩略图（取决于应用实现）
+- ✅ 发送预览正确显示图片缩略图
+- ✅ 接收方消息带缩略图预览
+
+#### 常见 MIME 类型参考
+
+| 文件类型 | 扩展名 | MIME Type |
+|---------|--------|-----------|
+| JPEG 图片 | .jpg, .jpeg | `image/jpeg` |
+| PNG 图片 | .png | `image/png` |
+| GIF 图片 | .gif | `image/gif` |
+| WebP 图片 | .webp | `image/webp` |
+| MP4 视频 | .mp4 | `video/mp4` |
+| AVI 视频 | .avi | `video/x-msvideo` |
+| MKV 视频 | .mkv | `video/x-matroska` |
+| MP3 音频 | .mp3 | `audio/mpeg` |
+| PDF 文档 | .pdf | `application/pdf` |
+| APK 安装包 | .apk | `application/vnd.android.package-archive` |
+
+#### 相关文件
+
+- `lib/utils/file_utils.dart` - getMimeType() 实现
+- `lib/presenter/file_presenter.dart` - batchShareFiles() 调用
+- `android/app/src/main/kotlin/.../ShareHelper.kt` - Android 原生分享实现
+
+#### 预防措施
+
+1. **所有分享场景都使用精确 MIME 类型**
+2. **维护完整的文件扩展名映射表**
+3. **测试常见应用的分享效果**（微信、QQ、文件管理器等）
+4. **仅在无法识别时使用 `*/*` 作为降级方案**
+
+#### 调试技巧
+
+**如何验证 MIME 类型是否正确：**
+
+```dart
+// 添加日志输出
+final mimeType = FileUtils.getMimeType(filePath);
+logger.d('Sharing file: $filePath');
+logger.d('MIME type: $mimeType');  // 检查是否为精确类型
+
+// 预期输出示例
+// Sharing file: /storage/emulated/0/DCIM/photo.jpg
+// MIME type: image/jpeg  ✅ 正确
+
+// 错误输出示例
+// Sharing file: /storage/emulated/0/DCIM/photo.jpg
+// MIME type: */*  ❌ 太笼统
+```
+
+**测试步骤：**
+1. 分享一张图片到微信
+2. 在"选择聊天"界面观察文件列表是否有缩略图
+3. 在发送预览界面观察底部是否显示图片缩略图
+4. 发送后检查接收方消息是否带缩略图
+
+#### 案例研究
+
+**场景：** 用户反馈分享图片到微信时看不到缩略图
+
+**排查过程：**
+1. 最初怀疑是 `ClipData` 问题 → 添加后无效
+2. 检查 Android 分享代码 → Intent 结构正确
+3. 查看日志发现 `mimeType: */*` → 找到根因
+4. 改为精确类型 `image/jpeg` → 问题解决
+
+**关键发现：**
+- 微信等应用的缩略图生成**强依赖 MIME 类型**
+- `*/*` 虽然能分享文件，但会被当作"未知类型"处理
+- 精确的 MIME 类型是触发缩略图渲染的关键
+
+#### 扩展阅读
+
+- [Android Intent MIME Types](https://developer.android.com/guide/components/intents-filters#Types)
+- [Common MIME types (MDN)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types)
+- [WeChat Share API Best Practices](https://developers.weixin.qq.com/doc/)
+
+---
+
 ## 维护日志
 
 - **2025-12-01**: 创建错误库，添加 E001（deactivated widget）
@@ -1505,6 +1681,7 @@ locator.registerLazySingleton<JunkFileService>(() {
 - **2025-12-08**: 添加 E502（Category cache statistics not updated）
 - **2025-12-12**: 添加 E601（Async service access in initState）
 - **2025-12-13**: 添加 E303（Infinite rebuild loop - setState in build method）
+- **2025-12-13**: 添加 E701（Share intent missing thumbnail - Generic MIME type issue）
 
 ---
 
