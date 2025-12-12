@@ -2685,8 +2685,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
+              mainAxisSpacing: 1,
+              crossAxisSpacing: 1,
               childAspectRatio: 0.70,
             ),
             delegate: SliverChildBuilderDelegate(
@@ -2737,7 +2737,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   int _calculateCrossAxisCount() {
     final width = MediaQuery.sizeOf(context).width;
     const minCardWidth = 100.0;
-    const spacing = 8.0;
+    const spacing = 1.0;
     const horizontalPadding = 16.0;
     final availableWidth = width - horizontalPadding;
     int crossAxisCount =
@@ -2902,8 +2902,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 1,
+                  mainAxisSpacing: 1,
                   childAspectRatio: 0.70,
                 ),
                 delegate: SliverChildBuilderDelegate(
@@ -3012,8 +3012,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 1,
+                  mainAxisSpacing: 1,
                   childAspectRatio: 0.70,
                 ),
                 delegate: SliverChildBuilderDelegate(
@@ -3101,8 +3101,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 1,
+                  mainAxisSpacing: 1,
                   childAspectRatio: 0.70,
                 ),
                 delegate: SliverChildBuilderDelegate(
