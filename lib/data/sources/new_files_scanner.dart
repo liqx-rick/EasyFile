@@ -24,6 +24,7 @@ class NewFilesScanner {
     // 相机和截屏路径（始终扫描，隐私控制在Presenter层过滤）
     paths.add('/storage/emulated/0/DCIM/Camera');
     paths.add('/storage/emulated/0/Pictures/Screenshots');
+    paths.add('/storage/emulated/0/Pictures/WeiXin');
 
     // 添加其他常见路径
     paths.addAll([
@@ -98,7 +99,8 @@ class NewFilesScanner {
     int matchedFiles = 0;
 
     try {
-      final entities = dir.listSync(recursive: false);
+      // 递归扫描所有子目录
+      final entities = dir.listSync(recursive: true);
       final filePaths = <String>[];
 
       // 先收集所有文件路径
