@@ -240,6 +240,9 @@ class FilePresenter {
               viewModel.removeFavoriteFile(filePath);
             }
 
+            // 从ViewModel列表中移除（同步 _files, _allFiles, _newFiles）
+            viewModel.removeFileFromList(filePath);
+
             // 清理视频缩略图缓存
             final fileName = fileItem.name.toLowerCase();
             if (fileName.endsWith('.mp4') ||
@@ -471,6 +474,8 @@ class FilePresenter {
           results[filePath] = movedFile != null;
           if (movedFile != null) {
             logger.d('Moved file: $filePath to ${movedFile.path}');
+            // 在ViewModel列表中更新文件路径（同步 _files, _allFiles, _newFiles）
+            viewModel.updateFileInList(filePath, movedFile);
           } else {
             logger.w('Failed to move file: $filePath');
           }
@@ -1814,16 +1819,60 @@ class FilePresenter {
     }
   }
 
+  /// 立即加载缓存的新文件（不显示loading状态）
+  /// 
+  /// 用于Tab切换时快速显示内容，避免白屏
+  /// 返回是否成功加载到缓存数据
+  Future<bool> loadCachedNewFiles() async {
+    logger.i('FilePresenter.loadCachedNewFiles called');
+    
+    try {
+      final settings = await NewFilesSettings.load();
+      final cachedItems = await newFilesLocalSource.loadCachedIndex();
+      
+      if (cachedItems.isEmpty) {
+        logger.d('No cached new files found');
+        return false;
+      }
+      
+      logger.d('Loading ${cachedItems.length} cached items');
+      await _updateUIWithNewFiles(cachedItems, settings);
+      logger.i('Successfully loaded ${cachedItems.length} cached new files');
+      return true;
+    } catch (e) {
+      logger.e('Error loading cached new files: $e');
+      return false;
+    }
+  }
+
+  /// 后台刷新新文件列表（不阻塞UI）
+  /// 
+  /// 静默执行扫描和更新，用户无感知
+  void refreshNewFilesInBackground() {
+    logger.i('FilePresenter.refreshNewFilesInBackground called');
+    
+    // 异步执行，不等待结果，不阻塞UI
+    // silent=true 表示不显示loading状态
+    loadNewFilesByPriority(isUserRefresh: false, silent: true).catchError((e) {
+      logger.e('Background refresh error: $e');
+    });
+  }
+
   /// 分批加载新文件列表（支持渐进式显示）
   /// 
   /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
+  /// [silent] - 是否静默刷新（不显示loading状态，用于后台更新）
   /// 用户将看到：
   /// - 1-3秒：高优先级文件（下载、相机、微信）
   /// - 3-5秒：中优先级文件（截屏、文档、蓝牙）
   /// - 后台：低优先级文件（其他应用目录）
-  Future<void> loadNewFilesByPriority({bool isUserRefresh = false}) async {
-    logger.i('FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh)');
-    viewModel.setLoading(true);
+  Future<void> loadNewFilesByPriority({bool isUserRefresh = false, bool silent = false}) async {
+    logger.i('FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh, silent: $silent)');
+    
+    // 只有非静默模式才显示loading
+    if (!silent) {
+      viewModel.setLoading(true);
+    }
 
     try {
       // 重新加载设置
@@ -1843,7 +1892,10 @@ class FilePresenter {
       logger.e('Error loading new files by priority: $e');
       viewModel.setError('加载新文件失败：$e');
     } finally {
-      viewModel.setLoading(false);
+      // 只有非静默模式才关闭loading
+      if (!silent) {
+        viewModel.setLoading(false);
+      }
     }
   }
 
