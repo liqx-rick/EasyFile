@@ -203,15 +203,12 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
             Image.memory(
               _thumbnailData!,
               fit: BoxFit.cover,
-              // 限制缓存大小，避免内存泄漏
+              // 只限制宽度，让Flutter自动保持原始宽高比，避免视频变形
               cacheWidth:
                   (widget.size * MediaQuery.of(context).devicePixelRatio)
                       .toInt()
                       .clamp(150, 800),
-              cacheHeight:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
-                      .toInt()
-                      .clamp(150, 800),
+              // cacheHeight 不设置，保持视频原始比例
               // 提升过滤质量以提高清晰度
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
