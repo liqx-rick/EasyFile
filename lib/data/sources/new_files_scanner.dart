@@ -181,20 +181,59 @@ class NewFilesScanner {
     return results;
   }
 
-  /// 快速扫描（使用缓存时间判断）
+  /// 快速扫描（智能缓存策略）
+  /// 
+  /// 根据使用场景决定是否需要重新扫描：
+  /// - 应用启动：1小时内使用缓存，后台增量扫描
+  /// - 用户手动刷新：始终执行快速扫描
   Future<List<NewFileItem>?> quickScanIfNeeded(
-    List<NewFileItem> cachedItems,
-  ) async {
-    // 如果5分钟内扫描过，返回null表示使用缓存
-    if (_lastScanTime != null &&
-        DateTime.now().difference(_lastScanTime!) < Duration(minutes: 5)) {
-      logger.d(
-          'Using cached scan results (scanned ${DateTime.now().difference(_lastScanTime!).inMinutes} minutes ago)');
-      return null;
+    List<NewFileItem> cachedItems, {
+    bool isUserRefresh = false, // 是否为用户主动刷新
+  }) async {
+    // 用户主动刷新：始终扫描（快速响应）
+    if (isUserRefresh) {
+      logger.i('User refresh triggered, starting quick scan...');
+      return await scanNewFiles();
     }
 
-    // 否则执行扫描
+    // 应用启动加载：智能缓存策略
+    if (_lastScanTime != null) {
+      final age = DateTime.now().difference(_lastScanTime!);
+      
+      // 1小时内使用缓存（立即显示）
+      if (age < Duration(hours: 1)) {
+        logger.d(
+            'Using cached scan results (scanned ${age.inMinutes} minutes ago)');
+        
+        // 后台静默扫描（不阻塞UI）
+        _backgroundIncrementalScan(cachedItems);
+        
+        return null; // 使用缓存
+      }
+      
+      // 超过1小时：执行完整扫描
+      logger.i('Cache expired (${age.inHours} hours old), performing full scan');
+    }
+
+    // 首次扫描或缓存过期
     return await scanNewFiles();
+  }
+
+  /// 后台增量扫描（不阻塞UI）
+  void _backgroundIncrementalScan(List<NewFileItem> cachedItems) {
+    // 异步执行，不等待结果
+    Future.microtask(() async {
+      try {
+        logger.d('Starting background incremental scan...');
+        final newItems = await incrementalScan(cachedItems);
+        logger.i('Background scan complete: ${newItems.length} items');
+        
+        // 注意：这里只是扫描，不自动更新UI
+        // UI更新由Presenter层控制
+      } catch (e) {
+        logger.e('Background scan error: $e');
+      }
+    });
   }
 
   /// 增量扫描（只扫描自上次扫描后的新文件）

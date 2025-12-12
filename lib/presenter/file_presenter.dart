@@ -1156,8 +1156,9 @@ class FilePresenter {
       logger.d('Refreshing favorite files');
       await loadFavoriteFiles();
     } else if (viewModel.currentTab == TabView.newFiles) {
-      logger.d('Refreshing new files');
-      await refreshNewFiles();
+      logger.d('Refreshing new files (user triggered)');
+      // 用户刷新：强制重新扫描
+      await loadNewFiles(isUserRefresh: true);
     } else if (viewModel.isRecentFilesMode) {
       logger.d('Refreshing recent files');
       await loadRecentFiles();
@@ -1656,19 +1657,25 @@ class FilePresenter {
   }
 
   /// 加载新文件列表
-  Future<void> loadNewFiles() async {
-    logger.i('FilePresenter.loadNewFiles called');
+  /// 
+  /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
+  Future<void> loadNewFiles({bool isUserRefresh = false}) async {
+    logger.i('FilePresenter.loadNewFiles called (userRefresh: $isUserRefresh)');
     viewModel.setLoading(true);
 
     try {
       // 重新加载设置以获取最新的配置
       final latestSettings = await NewFilesSettings.load();
       logger.d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+      
       // 先从本地缓存加载
       final cachedItems = await newFilesLocalSource.loadCachedIndex();
 
-      // 快速扫描（使用缓存时间判断）
-      final scannedItems = await newFilesScanner.quickScanIfNeeded(cachedItems);
+      // 智能扫描策略
+      final scannedItems = await newFilesScanner.quickScanIfNeeded(
+        cachedItems,
+        isUserRefresh: isUserRefresh,
+      );
 
       // 使用扫描结果或缓存
       final newFileItems = scannedItems ?? cachedItems;
