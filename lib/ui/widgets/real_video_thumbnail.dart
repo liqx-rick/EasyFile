@@ -207,13 +207,13 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
               cacheWidth:
                   (widget.size * MediaQuery.of(context).devicePixelRatio)
                       .toInt()
-                      .clamp(100, 400),
+                      .clamp(150, 800),
               cacheHeight:
                   (widget.size * MediaQuery.of(context).devicePixelRatio)
                       .toInt()
-                      .clamp(100, 400),
-              // 降低质量以减少内存占用
-              filterQuality: FilterQuality.low,
+                      .clamp(150, 800),
+              // 提升过滤质量以提高清晰度
+              filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
               errorBuilder: (context, error, stackTrace) {
                 return _buildFallbackIcon();

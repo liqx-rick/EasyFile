@@ -186,8 +186,8 @@ class VideoThumbnailLoadQueue {
       final thumbnailData = await VideoThumbnail.thumbnailData(
         video: request.videoPath,
         imageFormat: ImageFormat.JPEG,
-        maxWidth: request.size > 64 ? 256 : 128,
-        quality: 75,
+        maxWidth: (request.size * 3).toInt().clamp(200, 600),
+        quality: 90,
       ).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
