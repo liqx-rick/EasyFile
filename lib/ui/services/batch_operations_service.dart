@@ -8,6 +8,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
 import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
@@ -1134,6 +1135,54 @@ class BatchOperationsService {
         await Directory(sourcePath).rename(targetPath);
       } else if (entity == FileSystemEntityType.file) {
         await File(sourcePath).rename(targetPath);
+      }
+
+      // 如果文件被收藏，同步更新收藏记录中的路径
+      if (entity == FileSystemEntityType.file && 
+          viewModel.isFavoriteFile(sourcePath)) {
+        logger.d('File is favorited, updating favorite path');
+
+        try {
+          // 获取原收藏信息
+          final oldFavorite = viewModel.favoriteFiles.firstWhere(
+            (f) => f.filePath == sourcePath,
+          );
+
+          // 更新数据源中的路径
+          await presenter.favoriteFilesSource.updateFavoriteFilePath(
+            sourcePath,
+            targetPath,
+          );
+
+          // 同步更新 ViewModel 中的收藏状态
+          viewModel.removeFavoriteFile(sourcePath);
+          viewModel.addFavoriteFile(FavoriteFileItem(
+            filePath: targetPath,
+            addedTime: oldFavorite.addedTime,
+            accessCount: oldFavorite.accessCount,
+            lastAccessTime: oldFavorite.lastAccessTime,
+          ));
+        } catch (e) {
+          logger.w('Failed to update favorite path after rename: $e');
+        }
+      }
+
+      // 立即更新ViewModel中的文件信息（同步 _files, _allFiles, _newFiles）
+      try {
+        final renamedEntity = entity == FileSystemEntityType.directory
+            ? Directory(targetPath)
+            : File(targetPath);
+        final stat = renamedEntity.statSync();
+        final renamedFile = FileItem(
+          name: newName.trim(),
+          path: targetPath,
+          isDirectory: entity == FileSystemEntityType.directory,
+          size: entity == FileSystemEntityType.directory ? 0 : stat.size,
+          modified: stat.modified,
+        );
+        viewModel.updateFileInList(sourcePath, renamedFile);
+      } catch (e) {
+        logger.w('Failed to update file in list after rename: $e');
       }
 
       if (!_isMounted(context)) return;

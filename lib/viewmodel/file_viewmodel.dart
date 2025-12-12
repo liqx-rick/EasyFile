@@ -222,6 +222,13 @@ class FileViewModel extends ChangeNotifier {
       // 如果在过滤后的列表中找不到，可能是因为筛选条件，重新应用筛选
       _applyFilters();
     }
+
+    // 同步更新新文件列表
+    final newFilesIndex = _newFiles.indexWhere((f) => f.path == oldPath);
+    if (newFilesIndex != -1) {
+      _newFiles[newFilesIndex] = updatedFile;
+      logger.d('Updated file in _newFiles at index $newFilesIndex');
+    }
   }
 
   /// 获取更新后的文件（通过旧路径查找新文件）
@@ -331,6 +338,7 @@ class FileViewModel extends ChangeNotifier {
 
     _allFiles.removeWhere((f) => f.path == filePath);
     _files.removeWhere((f) => f.path == filePath);
+    _newFiles.removeWhere((f) => f.path == filePath); // 同步更新新文件列表
     
     // 记录删除的文件路径，用于通知其他页面
     _lastDeletedFilePath = filePath;

@@ -389,9 +389,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     super.didChangeAppLifecycleState(state);
     logger.d('FileBrowserPage: App lifecycle changed to $state');
 
-    // 当应用从后台恢复时，重新检查权限状态
+    // 当应用从后台恢复时
     if (state == AppLifecycleState.resumed) {
+      // 1. 重新检查权限状态
       _checkPermissionAfterResume();
+      
+      // 2. 如果在新文件Tab，自动后台刷新列表
+      _refreshNewFilesOnResume();
     }
   }
 
@@ -417,6 +421,23 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           _permissionState = newState;
         });
       }
+    }
+  }
+
+  /// 应用恢复时刷新新文件列表（如果当前在新文件Tab）
+  ///
+  /// 当用户从后台返回应用时，如果停留在新文件Tab，自动后台刷新列表。
+  /// 这确保用户看到的数据始终是最新的（例如刚下载的文件）。
+  void _refreshNewFilesOnResume() {
+    // 添加诊断日志
+    logger.d('_refreshNewFilesOnResume: currentTab=${viewModel.currentTab}');
+    
+    // 只有当前在新文件Tab时才刷新
+    if (viewModel.currentTab == TabView.newFiles) {
+      logger.i('App resumed on newFiles tab, refreshing in background...');
+      presenter.refreshNewFilesInBackground();
+    } else {
+      logger.d('Not on newFiles tab, skipping refresh');
     }
   }
 
@@ -1346,9 +1367,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             '新文件',
             Icons.fiber_new,
             false, // 不显示高亮，保持视觉简洁
-            onTap: () {
+            onTap: () async {
               viewModel.setCurrentTab(TabView.newFiles);
-              presenter.loadNewFilesByPriority(); // 使用分批加载
+              // 方案1：立即加载缓存（0-100ms），后台刷新（不阻塞UI）
+              await presenter.loadCachedNewFiles();
+              presenter.refreshNewFilesInBackground();
             },
             useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
           ),
@@ -1366,6 +1389,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     VoidCallback? onTap,
     bool enabled = true,
     bool useColoredIcon = false, // 是否使用彩色图标
+    double fontSize = 14, // 字体大小，横屏模式下可传入更小值
   }) {
     final theme = Theme.of(context);
 
@@ -1394,7 +1418,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   weight: useColoredIcon ? 600 : 400,
                   fill: useColoredIcon ? 1.0 : 0.0,
                   color: useColoredIcon
-                      ? (icon == Icons.fiber_new ? Colors.red : theme.colorScheme.primary)
+                      ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 3),
@@ -1405,7 +1429,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: fontSize,
                     fontWeight:
                         useColoredIcon ? FontWeight.w600 : FontWeight.normal,
                     color: useColoredIcon
@@ -1452,9 +1476,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
-            // 快捷访问 Tab - 占34份宽度
+            // 快捷访问 Tab - 占30份宽度
             Expanded(
-              flex: 34,
+              flex: 30,
               child: _buildNavTab(
                 context,
                 '快捷访问',
@@ -1462,27 +1486,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 false,
                 onTap: () => _showQuickAccessMenu(context),
                 enabled: _hasQuickAccessItems(),
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 24,
-              color: theme.dividerColor,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-            ),
-            // 最近 Tab - 占22份宽度
-            Expanded(
-              flex: 22,
-              child: _buildNavTab(
-                context,
-                '最近',
-                Icons.access_time,
-                false, // 不显示高亮，保持视觉简洁
-                onTap: () {
-                  viewModel.setCurrentTab(TabView.recent);
-                  presenter.loadRecentFiles();
-                },
-                useColoredIcon: vm.currentTab == TabView.recent, // 当前Tab时显示彩色
+                fontSize: 12,
               ),
             ),
             Container(
@@ -1504,6 +1508,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   presenter.loadFavoriteFiles();
                 },
                 useColoredIcon: vm.currentTab == TabView.favorite, // 当前Tab时显示彩色
+                fontSize: 12,
               ),
             ),
             Container(
@@ -1512,23 +1517,44 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               color: theme.dividerColor,
               margin: const EdgeInsets.symmetric(horizontal: 4),
             ),
-            // 应用管理入口 - 占22份宽度
+            // 最近 Tab - 占22份宽度
             Expanded(
               flex: 22,
               child: _buildNavTab(
                 context,
-                '应用',
-                Icons.apps,
-                false,
+                '最近',
+                Icons.access_time,
+                false, // 不显示高亮，保持视觉简洁
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AppManagementPage(
-                        isFromStorageManagement: false,
-                      ),
-                    ),
-                  );
+                  viewModel.setCurrentTab(TabView.recent);
+                  presenter.loadRecentFiles();
                 },
+                useColoredIcon: vm.currentTab == TabView.recent, // 当前Tab时显示彩色
+                fontSize: 12,
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 24,
+              color: theme.dividerColor,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            // 新文件 Tab - 占26份宽度（比其他Tab多4份，确保文字能完整显示）
+            Expanded(
+              flex: 26,
+              child: _buildNavTab(
+                context,
+                '新文件',
+                Icons.fiber_new,
+                false, // 不显示高亮，保持视觉简洁
+                onTap: () async {
+                  viewModel.setCurrentTab(TabView.newFiles);
+                  // 方案1：立即加载缓存（0-100ms），后台刷新（不阻塞UI）
+                  await presenter.loadCachedNewFiles();
+                  presenter.refreshNewFilesInBackground();
+                },
+                useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
+                fontSize: 12,
               ),
             ),
           ],
@@ -1841,7 +1867,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 Icon(
                   Icons.fiber_new,
                   size: 18,
-                  color: Colors.red,
+                  color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -3731,6 +3757,26 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           child: EditModeHintBar(),
                         ),
 
+                      // 新文件Tab工具栏 - 横屏模式
+                      if (vm.currentTab == TabView.newFiles)
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: PinnedHeaderDelegate(
+                            child: _buildNewFilesToolBar(context, vm),
+                            height: 48.0,
+                          ),
+                        ),
+
+                      // 编辑模式提示 - 显示在编辑按钮下一行（NewFiles Tab 横屏）
+                      if (vm.currentTab == TabView.newFiles &&
+                          isEditMode &&
+                          showEditModeHint &&
+                          !_selectionController.isSelectionMode &&
+                          !_newFilesSearchMode)
+                        const SliverToBoxAdapter(
+                          child: EditModeHintBar(),
+                        ),
+
                       // 浏览Tab的搜索栏
                       if (vm.currentTab == TabView.browse && vm.isSearchMode)
                         SliverPersistentHeader(
@@ -3779,6 +3825,38 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               onChanged: (query) {
                                 setState(() {
                                   _favoriteSearchQuery = query;
+                                });
+                              },
+                            ),
+                            height: 56.0,
+                          ),
+                        ),
+
+                      // 新文件Tab的搜索栏 - 横屏模式
+                      if (vm.currentTab == TabView.newFiles &&
+                          _newFilesSearchMode)
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: PinnedHeaderDelegate(
+                            child: FileSearchBar(
+                              controller: _newFilesSearchController,
+                              focusNode: _newFilesSearchFocusNode,
+                              hintText: '搜索新文件...',
+                              onSearch: (query) async {
+                                setState(() {
+                                  _newFilesSearchQuery = query;
+                                });
+                              },
+                              onClose: () {
+                                setState(() {
+                                  _newFilesSearchQuery = '';
+                                  _newFilesSearchController.clear();
+                                  _newFilesSearchMode = false;
+                                });
+                              },
+                              onChanged: (query) {
+                                setState(() {
+                                  _newFilesSearchQuery = query;
                                 });
                               },
                             ),
