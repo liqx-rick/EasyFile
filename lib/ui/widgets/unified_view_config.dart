@@ -44,19 +44,19 @@ class UnifiedViewConfig {
   static const double gridBorderRadius = 8.0;
 
   /// 网格项内部内边距
-  static const double gridItemPadding = 4.0;
+  static const double gridItemPadding = 0.0;
 
   /// 文件名区域固定高度
-  static const double fileNameHeight = 36.0;
+  static const double fileNameHeight = 28.0;
 
   /// 文件名文字样式
   static const TextStyle fileNameStyle = TextStyle(
-    fontSize: 12,
+    fontSize: 11,
     height: 1.2,
   );
 
   /// 文件大小区域固定高度
-  static const double fileSizeHeight = 16.0;
+  static const double fileSizeHeight = 14.0;
 
   /// 文件大小文字样式
   static TextStyle fileSizeStyle(BuildContext context) => TextStyle(

@@ -98,13 +98,8 @@ class UnifiedGridItem extends StatelessWidget {
                     const EdgeInsets.all(UnifiedViewConfig.gridItemPadding),
                 child: Column(
                   children: [
-                    // 图标区域 - 使用 Flexible 允许缩小
-                    Flexible(
-                      flex: 3,
-                      child: Center(
-                        child: _buildThumbnail(context, viewConfig),
-                      ),
-                    ),
+                    // 图标区域 - 根据文件类型选择布局方式
+                    _buildThumbnailArea(context, viewConfig),
                     // 文件名区域 - 条件渲染
                     if (!viewConfig.compactMode)
                       SizedBox(
@@ -199,6 +194,28 @@ class UnifiedGridItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 构建缩略图区域 - 根据文件类型选择合适的布局
+  Widget _buildThumbnailArea(BuildContext context, UnifiedViewConfig config) {
+    // 检查是否有真实缩略图（图片/视频）
+    final hasRealThumbnail = !file.isDirectory && 
+        (FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name));
+    
+    if (hasRealThumbnail) {
+      // 图片和视频：使用 Expanded 填充整个空间
+      return Expanded(
+        child: _buildThumbnail(context, config),
+      );
+    } else {
+      // 其他类型（音频、文档、图标）：使用 Flexible + Center，限制大小
+      return Flexible(
+        flex: 3,
+        child: Center(
+          child: _buildThumbnail(context, config),
+        ),
+      );
+    }
   }
 
   /// 构建缩略图/图标

@@ -27,6 +27,7 @@
 ### UI 渲染相关
 - [E301: RenderBox layout exception](#e301)
 - [E302: Overflow pixels error](#e302)
+- [E303: Infinite rebuild loop caused by setState in build method](#e303)
 
 ### UI 状态相关
 - [E401: UI state not cleared on tab switch](#e401)
@@ -469,6 +470,306 @@ A RenderFlex overflowed by XX pixels
 1. 使用 SingleChildScrollView
 2. 使用 Flexible/Expanded
 3. 缩小内容或调整间距
+
+---
+
+<a name="e303"></a>
+### E303: Infinite rebuild loop caused by setState in build method
+
+**错误级别：** 🔴 严重  
+**首次发现：** 2025-12-12  
+**最后更新：** 2025-12-13
+
+#### 错误信息
+
+```
+控制台日志持续输出，应用性能严重下降
+每隔 50-60ms 触发一次 rebuild
+所有子 widget 频繁调用 didUpdateWidget 和 build
+```
+
+#### 触发场景
+
+1. 在 `build()` 方法中直接或间接调用异步方法
+2. 异步方法完成后调用 `setState()`
+3. `setState()` 触发新的 `build()`
+4. 形成无限循环
+
+#### 典型代码模式
+
+**错误代码示例：**
+
+```dart
+@override
+Widget build(BuildContext context) {
+  // ❌ 错误：在 build 中调用异步方法
+  _loadDisplaySettings();
+  
+  return Widget(...);
+}
+
+Future<void> _loadDisplaySettings() async {
+  final settings = await loadSettings();
+  if (mounted) {
+    setState(() {  // ← 触发新的 build()
+      _settings = settings;
+    });
+  }
+}
+```
+
+**循环过程：**
+```
+1. build() 被调用
+   ↓
+2. _loadDisplaySettings() 被调用
+   ↓
+3. 异步完成后 setState() 被调用
+   ↓
+4. 触发新的 build()
+   ↓
+5. 回到步骤 1（无限循环）
+```
+
+#### 症状特征
+
+- ✅ **性能问题**：应用卡顿，CPU 占用高
+- ✅ **日志爆炸**：控制台持续输出日志
+- ✅ **规律性**：每隔固定时间间隔重复（通常 50-100ms）
+- ✅ **级联效应**：所有子 widget 被迫 rebuild
+
+#### 诊断方法
+
+**1. 添加调试日志**
+
+```dart
+@override
+Widget build(BuildContext context) {
+  logger.d('🏗️ [build] CALLED at ${DateTime.now()}');
+  return Widget(...);
+}
+
+@override
+void didUpdateWidget(OldWidget oldWidget) {
+  super.didUpdateWidget(oldWidget);
+  logger.d('🔄 [didUpdateWidget] CALLED');
+}
+```
+
+**2. 观察日志模式**
+
+如果看到：
+```
+[00:00.000] 🏗️ [build] CALLED
+[00:00.050] 🏗️ [build] CALLED
+[00:00.100] 🏗️ [build] CALLED
+...（持续不断）
+```
+
+说明存在无限 rebuild。
+
+#### 根本原因
+
+**Flutter 的设计原则：**
+- `build()` 方法应该是**纯函数**（pure function）
+- 不应该产生**副作用**（side effects）
+- 不应该改变状态或触发新的 rebuild
+
+**违反原则的后果：**
+```
+build() 应该只根据当前状态构建 UI
+↓
+如果 build() 改变状态（直接或间接）
+↓
+就会触发新的 build()
+↓
+形成无限循环
+```
+
+#### 解决方案
+
+**方案 A：移到 initState（推荐）**
+
+```dart
+@override
+void initState() {
+  super.initState();
+  _loadDisplaySettings(); // ✅ 只在初始化时调用一次
+}
+
+@override
+Widget build(BuildContext context) {
+  // ✅ build 方法不调用任何会触发 setState 的方法
+  return Widget(...);
+}
+```
+
+**方案 B：使用 FutureBuilder**
+
+```dart
+@override
+Widget build(BuildContext context) {
+  return FutureBuilder<Settings>(
+    future: loadSettings(), // ✅ Future 只创建一次
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) return LoadingWidget();
+      return Widget(settings: snapshot.data);
+    },
+  );
+}
+```
+
+**方案 C：使用 addPostFrameCallback**
+
+```dart
+@override
+Widget build(BuildContext context) {
+  // ✅ 在当前帧构建完成后执行
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted && !_isInitialized) {
+      _loadDisplaySettings();
+      _isInitialized = true;
+    }
+  });
+  
+  return Widget(...);
+}
+```
+
+#### 实际案例：CategoryFilePage
+
+**问题代码（lib/ui/pages/category_file_page.dart）：**
+
+```dart
+@override
+Widget build(BuildContext context) {
+  // ❌ 每次 build 都调用
+  _loadDisplaySettings();
+  
+  return ChangeNotifierProvider<FileViewModel>.value(
+    value: widget.viewModel,
+    child: Consumer<PageSettingsService>(...),
+  );
+}
+```
+
+**修复后：**
+
+```dart
+@override
+void initState() {
+  super.initState();
+  // ✅ 只在初始化时调用一次
+  _loadDisplaySettings();
+}
+
+@override
+Widget build(BuildContext context) {
+  // ✅ 不再调用会触发 setState 的方法
+  return ChangeNotifierProvider<FileViewModel>.value(
+    value: widget.viewModel,
+    child: Consumer<PageSettingsService>(...),
+  );
+}
+```
+
+**效果：**
+- ✅ 无限循环消失
+- ✅ CPU 占用降低
+- ✅ 滚动流畅
+- ✅ 性能恢复正常
+
+#### 附加优化（虽然不是根本原因）
+
+在修复过程中发现的其他性能优化：
+
+**1. setState 去重**
+
+```dart
+// ✅ 只在值真正改变时 setState
+if (mounted && _duration != duration) {
+  setState(() {
+    _duration = duration;
+  });
+}
+```
+
+**2. 激活 KeepAlive**
+
+```dart
+@override
+void initState() {
+  super.initState();
+  updateKeepAlive(); // ✅ 防止滚动时被销毁
+}
+```
+
+**3. 缓存计算结果**
+
+```dart
+// ✅ 缓存避免重复计算
+_cachedCacheWidth ??= (widget.size * MediaQuery.of(context).devicePixelRatio)
+    .toInt()
+    .clamp(150, 800);
+```
+
+#### 预防措施
+
+**代码审查检查清单：**
+
+- [ ] `build()` 方法中没有调用 `setState()`
+- [ ] `build()` 方法中没有调用会触发 `setState()` 的异步方法
+- [ ] 异步初始化逻辑放在 `initState()` 中
+- [ ] 使用 `FutureBuilder` 或 `StreamBuilder` 处理异步数据
+- [ ] 添加调试日志监控 rebuild 频率
+
+**快速检测方法：**
+
+```dart
+// 在 build 方法开头添加
+@override
+Widget build(BuildContext context) {
+  if (kDebugMode) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final interval = _lastBuildTime != null ? now - _lastBuildTime! : 0;
+    _lastBuildTime = now;
+    if (interval < 100) {
+      logger.w('⚠️ Suspicious rapid rebuild: ${interval}ms interval');
+    }
+  }
+  // ... rest of build
+}
+```
+
+#### 相关文件
+
+- `lib/ui/pages/category_file_page.dart`: 主要问题文件
+- `lib/ui/widgets/real_video_thumbnail.dart`: 受影响的子 widget
+
+#### 参考资料
+
+- [Flutter Performance Best Practices](https://docs.flutter.dev/perf/best-practices)
+- [Build Method Should Be Pure](https://api.flutter.dev/flutter/widgets/State/build.html)
+- [setState Documentation](https://api.flutter.dev/flutter/widgets/State/setState.html)
+
+#### 检查清单
+
+修复此问题时的验证步骤：
+
+- [ ] 移除 `build()` 中的异步方法调用
+- [ ] 将初始化逻辑移到 `initState()`
+- [ ] 添加调试日志验证 rebuild 频率
+- [ ] 测试滚动性能
+- [ ] 检查 CPU 占用是否正常
+- [ ] 验证控制台日志不再持续输出
+- [ ] 在真机上测试性能
+
+#### 影响范围
+
+- **严重性**：🔴 严重 - 导致应用几乎不可用
+- **性能影响**：极高 - CPU 持续满载
+- **用户体验**：极差 - 卡顿、耗电、发热
+- **影响范围**：整个页面及其所有子 widget
 
 ---
 
@@ -1203,8 +1504,9 @@ locator.registerLazySingleton<JunkFileService>(() {
 - **2025-12-08**: 添加 E501（Duplicate keys found - 路径重叠问题）
 - **2025-12-08**: 添加 E502（Category cache statistics not updated）
 - **2025-12-12**: 添加 E601（Async service access in initState）
+- **2025-12-13**: 添加 E303（Infinite rebuild loop - setState in build method）
 
 ---
 
-**最后更新：** 2025-12-08  
+**最后更新：** 2025-12-13  
 **维护者：** EasyFile Team
