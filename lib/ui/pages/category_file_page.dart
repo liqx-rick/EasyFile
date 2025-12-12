@@ -908,9 +908,6 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
 
   @override
   Widget build(BuildContext context) {
-    // 每次构建时检查并更新显示设置
-    _loadDisplaySettings();
-
     return ChangeNotifierProvider<FileViewModel>.value(
       value: widget.viewModel,
       child: Consumer<PageSettingsService>(

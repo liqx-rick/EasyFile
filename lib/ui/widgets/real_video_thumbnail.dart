@@ -53,6 +53,8 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
   @override
   void initState() {
     super.initState();
+    // 立即激活 KeepAlive 机制，防止滚动时被销毁
+    updateKeepAlive();
     _loadThumbnail();
     // 只有在需要显示时长时才加载
     if (widget.showDuration) {
@@ -109,9 +111,16 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
       final loadDuration = DateTime.now().difference(startTime);
 
       if (thumbnailData != null) {
-        if (mounted) {
+        // 只在数据真正改变时才 setState
+        // 避免重复加载相同的缩略图数据触发不必要的 rebuild
+        if (mounted && _thumbnailData != thumbnailData) {
           setState(() {
             _thumbnailData = thumbnailData;
+            _isLoading = false;
+          });
+        } else if (mounted && _isLoading) {
+          // 如果数据相同但还在 loading 状态，只更新 loading 标志
+          setState(() {
             _isLoading = false;
           });
         }
@@ -134,7 +143,9 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
   Future<void> _loadDuration() async {
     try {
       final duration = await _loadQueue.loadDuration(widget.videoPath);
-      if (mounted && duration != null) {
+      // 只在 duration 真正改变时才 setState，避免不必要的 rebuild
+      // 频繁的 setState 会导致 Image.memory 被重新创建，触发重复的图片解码请求
+      if (mounted && duration != null && _duration != duration) {
         setState(() {
           _duration = duration;
         });
