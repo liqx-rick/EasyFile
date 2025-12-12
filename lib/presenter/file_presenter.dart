@@ -11,6 +11,7 @@ import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
 import 'package:easyfile/data/models/new_files_settings.dart';
+import 'package:easyfile/data/models/new_file_item.dart';
 import 'package:easyfile/data/models/file_source.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
@@ -1157,8 +1158,8 @@ class FilePresenter {
       await loadFavoriteFiles();
     } else if (viewModel.currentTab == TabView.newFiles) {
       logger.d('Refreshing new files (user triggered)');
-      // 用户刷新：强制重新扫描
-      await loadNewFiles(isUserRefresh: true);
+      // 用户刷新：使用分批加载优化体验
+      await loadNewFilesByPriority(isUserRefresh: true);
     } else if (viewModel.isRecentFilesMode) {
       logger.d('Refreshing recent files');
       await loadRecentFiles();
@@ -1806,5 +1807,89 @@ class FilePresenter {
     } finally {
       viewModel.setLoading(false);
     }
+  }
+
+  /// 分批加载新文件列表（支持渐进式显示）
+  /// 
+  /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
+  /// 用户将看到：
+  /// - 1-3秒：高优先级文件（下载、相机、微信）
+  /// - 3-5秒：中优先级文件（截屏、文档、蓝牙）
+  /// - 后台：低优先级文件（其他应用目录）
+  Future<void> loadNewFilesByPriority({bool isUserRefresh = false}) async {
+    logger.i('FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh)');
+    viewModel.setLoading(true);
+
+    try {
+      // 重新加载设置
+      final latestSettings = await NewFilesSettings.load();
+      
+      // 分批扫描，支持渐进式结果
+      await newFilesScanner.scanNewFilesByPriority(
+        onPartialResults: (partialItems) async {
+          // 每次收到部分结果就更新UI
+          logger.d('Received partial results: ${partialItems.length} items');
+          await _updateUIWithNewFiles(partialItems, latestSettings);
+        },
+      );
+
+      logger.i('Priority-based scan complete');
+    } catch (e) {
+      logger.e('Error loading new files by priority: $e');
+      viewModel.setError('加载新文件失败：$e');
+    } finally {
+      viewModel.setLoading(false);
+    }
+  }
+
+  /// 更新UI显示新文件（内部方法）
+  Future<void> _updateUIWithNewFiles(
+    List<NewFileItem> newFileItems,
+    NewFilesSettings settings,
+  ) async {
+    // 应用隐私设置过滤
+    final filteredItems = newFileItems.where((item) {
+      // 过滤来源
+      if (viewModel.selectedSource != null &&
+          item.source.name != viewModel.selectedSource) {
+        return false;
+      }
+
+      // 应用隐私设置
+      switch (item.source) {
+        case FileSource.camera:
+          return !settings.hideCameraPhotos;
+        case FileSource.screenshots:
+          return !settings.hideScreenshots;
+        default:
+          return true;
+      }
+    }).toList();
+
+    // 应用显示数量限制
+    final limitedItems = filteredItems.take(settings.displayCount).toList();
+
+    // 转换为 FileItem
+    final fileItems = <FileItem>[];
+    for (final newFileItem in limitedItems) {
+      try {
+        final file = File(newFileItem.path);
+        if (file.existsSync()) {
+          fileItems.add(FileItem.fromEntity(file));
+        }
+      } catch (e) {
+        logger.e('Error loading file ${newFileItem.path}: $e');
+      }
+    }
+
+    // 更新视图模型
+    viewModel.setNewFiles(fileItems, retentionDays: settings.retentionDays);
+
+    // 保存到本地缓存
+    if (newFileItems.isNotEmpty) {
+      await newFilesLocalSource.saveCachedIndex(newFileItems);
+    }
+
+    logger.d('UI updated with ${fileItems.length} files');
   }
 }

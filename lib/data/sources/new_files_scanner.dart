@@ -6,6 +6,13 @@ import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/platform/file_stats_channel.dart';
 
+/// 扫描优先级
+enum ScanPriority {
+  high,   // 高优先级：立即扫描（最常用目录）
+  medium, // 中优先级：延迟扫描（常用目录）
+  low,    // 低优先级：后台扫描（不常用目录）
+}
+
 /// 新文件扫描器
 /// 负责扫描指定目录下的新文件
 class NewFilesScanner {
@@ -14,24 +21,32 @@ class NewFilesScanner {
 
   NewFilesScanner({required this.settings});
 
-  /// 获取需要扫描的路径列表
-  List<String> _getScanPaths() {
-    final paths = <String>[];
+  /// 获取扫描路径（按优先级分组）
+  Map<ScanPriority, List<String>> _getScanPathsByPriority() {
+    final Map<ScanPriority, List<String>> pathsByPriority = {
+      ScanPriority.high: [],
+      ScanPriority.medium: [],
+      ScanPriority.low: [],
+    };
 
-    // 系统下载（始终扫描）
-    paths.add('/storage/emulated/0/Download');
+    // 高优先级：最常用的目录（立即扫描，1-3秒内快速显示）
+    pathsByPriority[ScanPriority.high]!.addAll([
+      '/storage/emulated/0/Download',        // 下载
+      '/storage/emulated/0/DCIM/Camera',     // 相机
+      '/storage/emulated/0/Pictures/WeiXin', // 微信图片
+    ]);
 
-    // 相机和截屏路径（始终扫描，隐私控制在Presenter层过滤）
-    paths.add('/storage/emulated/0/DCIM/Camera');
-    paths.add('/storage/emulated/0/Pictures/Screenshots');
-    paths.add('/storage/emulated/0/Pictures/WeiXin');
+    // 中优先级：常用目录（延迟扫描，2-4秒显示）
+    pathsByPriority[ScanPriority.medium]!.addAll([
+      '/storage/emulated/0/Pictures/Screenshots',      // 截屏
+      '/storage/emulated/0/tencent/MicroMsg/Download', // 微信下载
+      '/storage/emulated/0/Documents',                 // 文档
+      '/storage/emulated/0/bluetooth',                 // 蓝牙
+    ]);
 
-    // 添加其他常见路径
-    paths.addAll([
-      '/storage/emulated/0/Documents',
-      '/storage/emulated/0/bluetooth',
+    // 低优先级：不常用目录（后台扫描，不阻塞UI）
+    pathsByPriority[ScanPriority.low]!.addAll([
       '/storage/emulated/0/DingTalk',
-      '/storage/emulated/0/tencent/MicroMsg/Download',
       '/storage/emulated/0/tencent/QQfile_recv',
       '/storage/emulated/0/tencent/WXWork',
       '/storage/emulated/0/BaiduNetdisk',
@@ -40,10 +55,20 @@ class NewFilesScanner {
       '/storage/emulated/0/Recordings',
     ]);
 
-    // 添加用户自定义路径
-    paths.addAll(settings.customScanPaths);
+    // 自定义路径归为低优先级
+    pathsByPriority[ScanPriority.low]!.addAll(settings.customScanPaths);
 
-    return paths;
+    return pathsByPriority;
+  }
+
+  /// 获取需要扫描的路径列表（兼容旧方法）
+  List<String> _getScanPaths() {
+    final pathsByPriority = _getScanPathsByPriority();
+    return [
+      ...pathsByPriority[ScanPriority.high]!,
+      ...pathsByPriority[ScanPriority.medium]!,
+      ...pathsByPriority[ScanPriority.low]!,
+    ];
   }
 
   /// 扫描新文件
@@ -276,5 +301,123 @@ class NewFilesScanner {
     logger.i('Incremental scan complete, found ${results.length} new files');
 
     return mergedList.take(settings.displayCount * 10).toList();
+  }
+
+  /// 分批扫描（支持优先级和渐进式结果）
+  /// 
+  /// 按优先级批次扫描，并通过回调逐步返回结果：
+  /// - 第1批（高优先级）：1-3秒内完成，立即显示
+  /// - 第2批（中优先级）：3-5秒内完成，更新显示
+  /// - 第3批（低优先级）：后台扫描，不阻塞UI
+  Future<List<NewFileItem>> scanNewFilesByPriority({
+    Function(List<NewFileItem> partialResults)? onPartialResults,
+  }) async {
+    final cutoffDate = DateTime.now().subtract(Duration(days: settings.retentionDays));
+    final allResults = <NewFileItem>[];
+    final pathsByPriority = _getScanPathsByPriority();
+
+    logger.i('NewFilesScanner: Starting priority-based scan');
+
+    // 批次1：高优先级（立即扫描）
+    logger.i('Batch 1: Scanning high priority paths...');
+    final highPriorityResults = await _scanPathsBatch(
+      pathsByPriority[ScanPriority.high]!,
+      cutoffDate,
+    );
+    allResults.addAll(highPriorityResults);
+    
+    // 第一批结果返回（快速显示）
+    if (onPartialResults != null && highPriorityResults.isNotEmpty) {
+      final sortedResults = List<NewFileItem>.from(allResults)
+        ..sort((a, b) => b.created.compareTo(a.created));
+      onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
+      logger.i('Batch 1 complete: ${highPriorityResults.length} files');
+    }
+
+    // 批次2：中优先级（延迟扫描）
+    logger.i('Batch 2: Scanning medium priority paths...');
+    final mediumPriorityResults = await _scanPathsBatch(
+      pathsByPriority[ScanPriority.medium]!,
+      cutoffDate,
+    );
+    allResults.addAll(mediumPriorityResults);
+    
+    // 第二批结果返回（更新显示）
+    if (onPartialResults != null && mediumPriorityResults.isNotEmpty) {
+      final sortedResults = List<NewFileItem>.from(allResults)
+        ..sort((a, b) => b.created.compareTo(a.created));
+      onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
+      logger.i('Batch 2 complete: ${mediumPriorityResults.length} files');
+    }
+
+    // 批次3：低优先级（后台扫描，不阻塞）
+    _scanLowPriorityInBackground(
+      pathsByPriority[ScanPriority.low]!,
+      cutoffDate,
+      allResults,
+      onPartialResults,
+    );
+
+    // 返回高+中优先级的结果（低优先级结果通过回调异步返回）
+    final sortedResults = allResults
+      ..sort((a, b) => b.created.compareTo(a.created));
+
+    _lastScanTime = DateTime.now();
+    logger.i('Priority scan complete: ${sortedResults.length} files (excluding low priority)');
+
+    return sortedResults.take(settings.displayCount * 10).toList();
+  }
+
+  /// 扫描一批路径
+  Future<List<NewFileItem>> _scanPathsBatch(
+    List<String> paths,
+    DateTime cutoffDate,
+  ) async {
+    final results = <NewFileItem>[];
+
+    for (final dirPath in paths) {
+      try {
+        final dir = Directory(dirPath);
+        if (!dir.existsSync()) {
+          logger.d('Directory does not exist: $dirPath');
+          continue;
+        }
+
+        logger.d('Scanning: $dirPath');
+        final items = await _scanDirectory(dir, cutoffDate);
+        results.addAll(items);
+        logger.d('Found ${items.length} files in $dirPath');
+      } catch (e) {
+        logger.e('Error scanning $dirPath: $e');
+      }
+    }
+
+    return results;
+  }
+
+  /// 后台扫描低优先级路径（不阻塞UI）
+  void _scanLowPriorityInBackground(
+    List<String> paths,
+    DateTime cutoffDate,
+    List<NewFileItem> existingResults,
+    Function(List<NewFileItem>)? onPartialResults,
+  ) {
+    // 异步后台执行
+    Future(() async {
+      logger.i('Batch 3: Scanning low priority paths in background...');
+      final lowPriorityResults = await _scanPathsBatch(paths, cutoffDate);
+      
+      if (lowPriorityResults.isNotEmpty) {
+        existingResults.addAll(lowPriorityResults);
+        
+        // 第三批结果返回（后台更新）
+        if (onPartialResults != null) {
+          final sortedResults = List<NewFileItem>.from(existingResults)
+            ..sort((a, b) => b.created.compareTo(a.created));
+          onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
+          logger.i('Batch 3 complete: ${lowPriorityResults.length} files');
+        }
+      }
+    });
   }
 }

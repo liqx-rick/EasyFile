@@ -1348,7 +1348,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             false, // 不显示高亮，保持视觉简洁
             onTap: () {
               viewModel.setCurrentTab(TabView.newFiles);
-              presenter.loadNewFiles();
+              presenter.loadNewFilesByPriority(); // 使用分批加载
             },
             useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
           ),
