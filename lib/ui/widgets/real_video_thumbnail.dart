@@ -40,6 +40,9 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
   bool _hasError = false;
   String? _duration;
   final _loadQueue = VideoThumbnailLoadQueue();
+  
+  // 缓存计算的 cacheWidth，避免每次 build() 都重新计算导致 Image widget 重建
+  int? _cachedCacheWidth;
 
   /// 保持 widget 状态，避免在 GridView 滚动时被销毁后重新加载缩略图
   /// 即使 GridView 设置了 addAutomaticKeepAlives: false，
@@ -68,11 +71,18 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
         _isLoading = true;
         _hasError = false;
         _duration = null;
+        _cachedCacheWidth = null; // 重置缓存的宽度
       });
       _loadThumbnail();
       if (widget.showDuration) {
         _loadDuration();
       }
+    }
+    // 如果 size 改变，也需要重置 cacheWidth
+    else if (oldWidget.size != widget.size) {
+      setState(() {
+        _cachedCacheWidth = null; // 重置缓存的宽度
+      });
     }
   }
 
@@ -191,6 +201,12 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
       return _buildFallbackIcon();
     }
 
+    // 缓存 cacheWidth 计算结果，避免每次 build 都创建新的 Image widget
+    // 这会导致 Flutter 认为这是一个新的图片请求，触发重复的解码操作
+    _cachedCacheWidth ??= (widget.size * MediaQuery.of(context).devicePixelRatio)
+        .toInt()
+        .clamp(150, 800);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: SizedBox(
@@ -204,10 +220,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
               _thumbnailData!,
               fit: BoxFit.cover,
               // 只限制宽度，让Flutter自动保持原始宽高比，避免视频变形
-              cacheWidth:
-                  (widget.size * MediaQuery.of(context).devicePixelRatio)
-                      .toInt()
-                      .clamp(150, 800),
+              cacheWidth: _cachedCacheWidth,
               // cacheHeight 不设置，保持视频原始比例
               // 提升过滤质量以提高清晰度
               filterQuality: FilterQuality.medium,
