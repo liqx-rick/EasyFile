@@ -1,23 +1,23 @@
 /// 文件来源枚举
 enum FileSource {
-  download,      // 浏览器/应用市场下载
-  wechat,        // 微信下载/保存
-  qq,            // QQ文件
-  camera,        // 相机拍摄
-  screenshots,   // 屏幕截图
-  recordings,    // 录音/录屏
-  documents,     // 文档编辑生成
-  bluetooth,     // 蓝牙接收
-  dingtalk,      // 钉钉
-  wework,        // 企业微信
-  baidunetdisk,  // 百度网盘
-  quark,         // 夸克浏览器
-  uc,            // UC浏览器
-  sharereceive,  // 其他应用分享接收
-  easycopy,      // EasyFile复制
-  easymove,      // EasyFile移动
-  custom,        // 自定义路径
-  unknown,       // 未知来源
+  download, // 浏览器/应用市场下载
+  wechat, // 微信下载/保存
+  qq, // QQ文件
+  camera, // 相机拍摄
+  screenshots, // 屏幕截图
+  recordings, // 录音/录屏
+  documents, // 文档编辑生成
+  bluetooth, // 蓝牙接收
+  dingtalk, // 钉钉
+  wework, // 企业微信
+  baidunetdisk, // 百度网盘
+  quark, // 夸克浏览器
+  uc, // UC浏览器
+  sharereceive, // 其他应用分享接收
+  easycopy, // EasyFile复制
+  easymove, // EasyFile移动
+  custom, // 自定义路径
+  unknown, // 未知来源
 }
 
 /// FileSource 扩展方法

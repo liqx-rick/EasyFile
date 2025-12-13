@@ -181,7 +181,8 @@ class VideoThumbnailLoadQueue {
       }
 
       // 3. 缓存未命中，生成新缩略图
-      logger.d('Generating thumbnail: ${request.videoPath} (file size: $fileSize bytes)');
+      logger.d(
+          'Generating thumbnail: ${request.videoPath} (file size: $fileSize bytes)');
 
       final thumbnailData = await VideoThumbnail.thumbnailData(
         video: request.videoPath,
@@ -199,21 +200,26 @@ class VideoThumbnailLoadQueue {
       if (thumbnailData != null && thumbnailData.isNotEmpty) {
         // 4. 验证生成的缩略图数据
         if (thumbnailData.length < 100) {
-          logger.w('Generated thumbnail too small (${thumbnailData.length} bytes), possibly corrupted: ${request.videoPath}');
+          logger.w(
+              'Generated thumbnail too small (${thumbnailData.length} bytes), possibly corrupted: ${request.videoPath}');
           request.completer.complete(null);
           return;
         }
 
         // 5. 保存到缓存（只在数据有效时保存）
-        final saved = await _cacheManager.saveCache(request.videoPath, thumbnailData);
+        final saved =
+            await _cacheManager.saveCache(request.videoPath, thumbnailData);
         if (saved) {
-          logger.d('Thumbnail generated and cached: ${request.videoPath} (${thumbnailData.length} bytes)');
+          logger.d(
+              'Thumbnail generated and cached: ${request.videoPath} (${thumbnailData.length} bytes)');
         } else {
-          logger.w('Thumbnail generated but failed to cache: ${request.videoPath}');
+          logger.w(
+              'Thumbnail generated but failed to cache: ${request.videoPath}');
         }
         request.completer.complete(thumbnailData);
       } else {
-        logger.w('Failed to generate thumbnail or empty data: ${request.videoPath}');
+        logger.w(
+            'Failed to generate thumbnail or empty data: ${request.videoPath}');
         request.completer.complete(null);
       }
     } catch (e) {

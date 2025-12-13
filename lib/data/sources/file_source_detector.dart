@@ -6,7 +6,7 @@ class FileSourceDetector {
   /// 检测文件来源
   static FileSource detectSource(String filePath) {
     if (filePath.isEmpty) return FileSource.unknown;
-    
+
     final lowerPath = filePath.toLowerCase();
 
     // 系统下载

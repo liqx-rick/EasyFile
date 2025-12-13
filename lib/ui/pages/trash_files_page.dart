@@ -781,7 +781,8 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
                             return InkWell(
                               onLongPress: () {
-                                FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                FileDetailsHelper
+                                    .showTrashFileDetailsBottomSheet(
                                   context,
                                   file,
                                   trashBinName: _getTrashBinName(file),
@@ -901,11 +902,14 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
                                               if (details.localPosition.dx >=
                                                   offset) {
-                                                FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                                FileDetailsHelper
+                                                    .showTrashFileDetailsBottomSheet(
                                                   context,
                                                   file,
-                                                  trashBinName: _getTrashBinName(file),
-                                                  fileTypeLabel: _getFileTypeLabel(file),
+                                                  trashBinName:
+                                                      _getTrashBinName(file),
+                                                  fileTypeLabel:
+                                                      _getFileTypeLabel(file),
                                                 );
                                               }
                                             },

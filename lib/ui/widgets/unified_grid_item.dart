@@ -199,9 +199,9 @@ class UnifiedGridItem extends StatelessWidget {
   /// 构建缩略图区域 - 根据文件类型选择合适的布局
   Widget _buildThumbnailArea(BuildContext context, UnifiedViewConfig config) {
     // 检查是否有真实缩略图（图片/视频）
-    final hasRealThumbnail = !file.isDirectory && 
+    final hasRealThumbnail = !file.isDirectory &&
         (FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name));
-    
+
     if (hasRealThumbnail) {
       // 图片和视频：使用 Expanded 填充整个空间
       return Expanded(

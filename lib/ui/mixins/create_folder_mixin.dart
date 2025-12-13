@@ -9,13 +9,12 @@ import 'package:path/path.dart' as path;
 /// - 实现 `getCurrentPath()` 方法返回当前路径
 /// - 实现 `onFolderCreated()` 方法处理创建成功后的刷新逻辑
 mixin CreateFolderMixin<T extends StatefulWidget> on State<T> {
-  
   /// 获取当前路径（由子类实现）
   String getCurrentPath();
-  
+
   /// 文件夹创建成功后的回调（由子类实现）
   Future<void> onFolderCreated();
-  
+
   /// 显示新建文件夹对话框
   Future<void> showCreateFolderDialog() async {
     final controller = TextEditingController();

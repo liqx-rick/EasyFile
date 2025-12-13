@@ -542,7 +542,8 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   /// 构建文件列表项
   Widget _buildFileListItem(JunkFileItem file, bool isSelected) {
     return InkWell(
-      onLongPress: () => FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file),
+      onLongPress: () =>
+          FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file),
       onTap: () {
         setState(() {
           if (isSelected) {
@@ -640,7 +641,8 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                       final offset = textPainter.width;
 
                       if (details.localPosition.dx >= offset) {
-                        FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file);
+                        FileDetailsHelper.showJunkFileDetailsBottomSheet(
+                            context, file);
                       }
                     },
                     child: RichText(

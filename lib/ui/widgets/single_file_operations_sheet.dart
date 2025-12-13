@@ -9,7 +9,7 @@ import 'package:easyfile/utils/file_utils.dart';
 /// 单文件操作菜单组件
 ///
 /// 在长按文件/文件夹时显示的操作菜单，提供：
-/// 
+///
 /// 文件夹操作：
 /// - 重命名
 /// - 移动
@@ -58,8 +58,12 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // 操作列表
-          _buildOperationsList(context),
+          // 操作列表（可滚动）
+          Flexible(
+            child: SingleChildScrollView(
+              child: _buildOperationsList(context),
+            ),
+          ),
 
           // 底部安全区域
           SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -187,9 +191,8 @@ class SingleFileOperationsSheet extends StatelessWidget {
             icon: service.viewModel.isFavoriteFile(file.path)
                 ? Icons.star
                 : Icons.star_border,
-            label: service.viewModel.isFavoriteFile(file.path)
-                ? '取消收藏'
-                : '添加到收藏',
+            label:
+                service.viewModel.isFavoriteFile(file.path) ? '取消收藏' : '添加到收藏',
             onTap: () async {
               // 不关闭菜单，直接执行收藏操作
               await service.toggleFavorite(file);

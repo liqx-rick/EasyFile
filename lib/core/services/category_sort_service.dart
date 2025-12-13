@@ -21,14 +21,14 @@ class CategorySortService extends ChangeNotifier {
 
   static const String _sortTypeKey = 'category_sort_type';
   static const String _sortAscendingKey = 'category_sort_ascending';
-  
+
   SortType _sortType = SortType.modifiedTime; // 默认按修改时间排序
   bool _isAscending = false; // 默认降序
   bool _initialized = false;
 
   /// 当前排序类型
   SortType get sortType => _sortType;
-  
+
   /// 当前排序方向：true=升序，false=降序
   bool get isAscending => _isAscending;
 
@@ -47,7 +47,7 @@ class CategorySortService extends ChangeNotifier {
           orElse: () => SortType.modifiedTime,
         );
       }
-      
+
       if (savedAscending != null) {
         _isAscending = savedAscending;
       }
@@ -70,14 +70,14 @@ class CategorySortService extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   /// 切换排序方向
   void toggleSortDirection() {
     _isAscending = !_isAscending;
     _saveSortSettings();
     notifyListeners();
   }
-  
+
   /// 设置排序方向
   void setSortDirection(bool ascending) {
     if (_isAscending != ascending) {
@@ -104,7 +104,7 @@ class CategorySortService extends ChangeNotifier {
   /// 获取排序比较函数
   int Function(FileItem, FileItem) getComparator() {
     int Function(FileItem, FileItem) baseComparator;
-    
+
     switch (_sortType) {
       case SortType.name:
         baseComparator = (a, b) => a.name.compareTo(b.name);
@@ -124,7 +124,7 @@ class CategorySortService extends ChangeNotifier {
         };
         break;
     }
-    
+
     // 如果是升序，反转比较结果
     if (_isAscending) {
       return (a, b) => -baseComparator(a, b);

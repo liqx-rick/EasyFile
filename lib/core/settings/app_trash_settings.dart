@@ -2,7 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// EasyFile回收站配置管理
-/// 
+///
 /// 管理回收站相关的用户设置
 class AppTrashSettings {
   // SharedPreferences键名
@@ -42,7 +42,8 @@ class AppTrashSettings {
     final days = _prefs.getInt(_keyRetentionDays) ?? _defaultRetentionDays;
     // 验证值是否合法
     if (!retentionOptions.contains(days)) {
-      logger.w('Invalid retention days: $days, using default: $_defaultRetentionDays');
+      logger.w(
+          'Invalid retention days: $days, using default: $_defaultRetentionDays');
       return _defaultRetentionDays;
     }
     return days;
@@ -74,7 +75,8 @@ class AppTrashSettings {
   /// 设置文件保留天数
   Future<void> setRetentionDays(int days) async {
     if (!retentionOptions.contains(days)) {
-      throw ArgumentError('Invalid retention days: $days. Must be one of $retentionOptions');
+      throw ArgumentError(
+          'Invalid retention days: $days. Must be one of $retentionOptions');
     }
 
     try {
@@ -124,9 +126,9 @@ class AppTrashSettings {
       return '/storage/emulated/0/Movies/EasyFile_Restored';
     } else if (mimeTypeLower.startsWith('audio/')) {
       return '/storage/emulated/0/Music/EasyFile_Restored';
-    } else if (mimeTypeLower.contains('pdf') || 
-               mimeTypeLower.contains('document') ||
-               mimeTypeLower.contains('text/')) {
+    } else if (mimeTypeLower.contains('pdf') ||
+        mimeTypeLower.contains('document') ||
+        mimeTypeLower.contains('text/')) {
       return '/storage/emulated/0/Documents/EasyFile_Restored';
     } else {
       return '/storage/emulated/0/Download/EasyFile_Restored';
@@ -200,7 +202,8 @@ class AppTrashSettings {
         await _prefs.setBool(_keyShowUndo, settings[_keyShowUndo] as bool);
       }
       if (settings.containsKey(_keyUndoDuration)) {
-        await _prefs.setInt(_keyUndoDuration, settings[_keyUndoDuration] as int);
+        await _prefs.setInt(
+            _keyUndoDuration, settings[_keyUndoDuration] as int);
       }
       logger.i('App trash settings imported successfully');
     } catch (e) {
@@ -212,6 +215,6 @@ class AppTrashSettings {
   @override
   String toString() {
     return 'AppTrashSettings(enabled: $isEnabled, retentionDays: $retentionDays, '
-           'showUndo: $showUndo, undoDuration: ${undoDuration}s)';
+        'showUndo: $showUndo, undoDuration: ${undoDuration}s)';
   }
 }

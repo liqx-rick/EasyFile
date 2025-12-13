@@ -12,7 +12,7 @@ class TrashConfigPage extends StatefulWidget {
 
 class _TrashConfigPageState extends State<TrashConfigPage> {
   final AppTrashSettings _settings = locator<AppTrashSettings>();
-  
+
   late bool _isEnabled;
   late int _retentionDays;
 

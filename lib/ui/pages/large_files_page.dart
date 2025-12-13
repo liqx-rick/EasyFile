@@ -50,7 +50,8 @@ class LargeFilesPage extends StatefulWidget {
   State<LargeFilesPage> createState() => _LargeFilesPageState();
 }
 
-class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, PopScopeHandlerMixin {
+class _LargeFilesPageState extends State<LargeFilesPage>
+    with EditModeMixin, PopScopeHandlerMixin {
   // 扫描配置
   late LargeFileScanConfig _config;
 
@@ -68,7 +69,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
 
   // 批量操作
   final _selectionController = SelectionController();
-  
+
   @override
   SelectionController get selectionController => _selectionController;
   late final BatchOperationsService _batchService;
@@ -180,7 +181,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
   /// ViewModel变化回调 - 同步文件列表
   void _onViewModelChanged() {
     if (!mounted) return;
-    
+
     final viewModel = locator<FileViewModel>();
 
     // 处理文件删除
@@ -226,7 +227,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
     final addedFile = viewModel.lastAddedFile;
     if (addedFile != null && !addedFile.isDirectory) {
       final minSizeBytes = _config.minSizeInMB * 1024 * 1024;
-      
+
       if (addedFile.size >= minSizeBytes) {
         setState(() {
           // 检查是否已存在（避免重复添加）
@@ -267,7 +268,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
         _largeFiles = existingFiles;
         _totalSize = existingFiles.fold<int>(0, (sum, f) => sum + f.size);
         _deletedFilesCount = deletedCount;
-        
+
         // 建议 #10：如果列表变空且处于编辑模式，自动退出编辑模式
         if (_largeFiles.isEmpty && isEditMode) {
           exitEditMode();
@@ -517,8 +518,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
         body: Column(
           children: [
             // 编辑模式提示栏
-            if (isEditMode && showEditModeHint)
-              const EditModeHintBar(),
+            if (isEditMode && showEditModeHint) const EditModeHintBar(),
 
             // 主体：卡片 + 列表（统一滚动）
             Expanded(
@@ -936,10 +936,12 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
   Widget _buildSelectionBottomBar() {
     return SelectionBottomBar(
       selectedPaths: _selectionController.selected,
-      isAllFavorite: _batchService.isAllSelectedFavorite(_selectionController.selected),
+      isAllFavorite:
+          _batchService.isAllSelectedFavorite(_selectionController.selected),
       onCopy: () {
         if (!mounted) return;
-        _batchService.batchCopy(context, _selectionController.selected, '/storage/emulated/0');
+        _batchService.batchCopy(
+            context, _selectionController.selected, '/storage/emulated/0');
       },
       onRename: () {
         if (!mounted) return;
@@ -951,11 +953,13 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       },
       onMove: () {
         if (!mounted) return;
-        _batchService.batchMove(context, _selectionController.selected, '/storage/emulated/0');
+        _batchService.batchMove(
+            context, _selectionController.selected, '/storage/emulated/0');
       },
       onToggleFavorite: () {
         if (!mounted) return;
-        _batchService.batchToggleFavorite(context, _selectionController.selected);
+        _batchService.batchToggleFavorite(
+            context, _selectionController.selected);
       },
       onDelete: () {
         if (!mounted) return;

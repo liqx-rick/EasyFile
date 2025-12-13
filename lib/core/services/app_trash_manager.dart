@@ -10,9 +10,9 @@ import 'package:easyfile/data/models/app_trash_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 
 /// EasyFile回收站管理服务
-/// 
+///
 /// 负责文件的删除、恢复、清理等核心功能
-/// 
+///
 /// 软删除机制：
 /// 1. 用户删除 → 立即标记为deleted (DB) → UI立即刷新
 /// 2. 后台队列异步移动文件到回收站
@@ -77,7 +77,7 @@ class AppTrashManager {
   // ==================== 核心功能：软删除（标记+后台移动） ====================
 
   /// 标记文件为已删除（立即返回，后台移动）
-  /// 
+  ///
   /// 这是用户删除操作的入口点：
   /// 1. 立即在数据库标记文件为deleted
   /// 2. 加入后台移动队列
@@ -85,16 +85,17 @@ class AppTrashManager {
   Future<List<String>> markFilesAsDeleted(List<FileItem> files) async {
     try {
       final trashItems = <AppTrashItem>[];
-      
+
       for (final file in files) {
         final id = _uuid.v4();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final fileName = path.basename(file.path);
         final trashPath = '$trashDir/${timestamp}_$fileName';
-        
+
         // 文件夹使用 inode/directory MIME类型
-        final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
-        
+        final mimeType =
+            file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+
         final trashItem = AppTrashItem(
           id: id,
           trashPath: trashPath,
@@ -104,19 +105,19 @@ class AppTrashManager {
           mimeType: mimeType,
           deletedAt: DateTime.now(),
         );
-        
+
         trashItems.add(trashItem);
       }
-      
+
       // 批量标记为待删除
       final ids = await _database.markBatchAsDeleted(trashItems);
-      
+
       // 加入后台移动队列
       _moveQueue.addAll(trashItems);
-      
+
       // 触发队列处理（异步，不阻塞）
       _processQueue();
-      
+
       logger.i('Marked ${files.length} files as deleted, added to move queue');
       return ids;
     } catch (e) {
@@ -126,7 +127,7 @@ class AppTrashManager {
   }
 
   /// 处理后台移动队列
-  /// 
+  ///
   /// 异步处理文件移动操作，不阻塞UI线程
   /// - 使用串行处理避免并发冲突
   /// - 单个文件失败不影响队列继续
@@ -134,27 +135,27 @@ class AppTrashManager {
   Future<void> _processQueue() async {
     // 防止并发处理和空队列处理
     if (_isProcessingQueue || _moveQueue.isEmpty) return;
-    
+
     _isProcessingQueue = true;
-    
+
     try {
       while (_moveQueue.isNotEmpty) {
         final item = _moveQueue.removeFirst();
-        
+
         try {
           // 执行实际的文件移动
           await _moveFileToTrash(item);
-          
+
           // 更新状态为已移动
           await _database.updateStatusMoved(item.id);
-          
+
           logger.d('Successfully moved to trash: ${item.originalPath}');
         } catch (e) {
           logger.e('Failed to move ${item.originalPath}: $e');
-          
+
           // 标记为失败，将来可以重试
           await _database.updateStatusFailed(item.id);
-          
+
           // 继续处理下一个文件，不中断队列
         }
       }
@@ -164,7 +165,7 @@ class AppTrashManager {
   }
 
   /// 实际执行文件移动到回收站
-  /// 
+  ///
   /// 智能处理跨分区移动：
   /// 1. 优先使用rename（同分区，速度快）
   /// 2. 跨分区时自动fallback到copy+delete
@@ -172,7 +173,7 @@ class AppTrashManager {
   Future<void> _moveFileToTrash(AppTrashItem item) async {
     // 判断是文件还是文件夹
     final isDirectory = await FileSystemEntity.isDirectory(item.originalPath);
-    
+
     // 确保源文件/文件夹存在
     if (isDirectory) {
       final sourceDir = Directory(item.originalPath);
@@ -187,7 +188,7 @@ class AppTrashManager {
         return;
       }
     }
-    
+
     try {
       // 尝试快速重命名（同分区，原子操作）
       if (isDirectory) {
@@ -214,10 +215,10 @@ class AppTrashManager {
   // ==================== 核心功能：删除（保留旧接口兼容性） ====================
 
   /// 移动文件到回收站
-  /// 
+  ///
   /// [file] 要删除的文件
   /// [onProgress] 进度回调（0.0-1.0），用于大文件
-  /// 
+  ///
   /// 返回是否成功
   Future<bool> moveToTrash(
     FileItem file, {
@@ -280,8 +281,9 @@ class AppTrashManager {
 
       // 保存元数据到数据库
       // 文件夹使用 inode/directory MIME类型
-      final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
-      
+      final mimeType =
+          file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+
       final trashItem = AppTrashItem(
         id: id,
         trashPath: trashPath,
@@ -346,7 +348,8 @@ class AppTrashManager {
   }
 
   /// 递归复制文件夹到回收站
-  Future<void> _copyDirectoryRecursive(String sourcePath, String targetPath) async {
+  Future<void> _copyDirectoryRecursive(
+      String sourcePath, String targetPath) async {
     final sourceDir = Directory(sourcePath);
     final targetDir = Directory(targetPath);
 
@@ -371,9 +374,9 @@ class AppTrashManager {
   // ==================== 核心功能：恢复 ====================
 
   /// 从回收站恢复文件
-  /// 
+  ///
   /// [item] 要恢复的文件项
-  /// 
+  ///
   /// 返回恢复结果：
   /// - success: 是否成功
   /// - targetPath: 实际恢复到的路径
@@ -389,8 +392,8 @@ class AppTrashManager {
       // 确定恢复目标路径
       final targetPath = await _determineRestorePath(item);
       final isOriginalPath = targetPath == item.originalPath;
-      final wasRenamed = !isOriginalPath && 
-                         path.dirname(targetPath) == path.dirname(item.originalPath);
+      final wasRenamed = !isOriginalPath &&
+          path.dirname(targetPath) == path.dirname(item.originalPath);
 
       // 确保目标目录存在
       final targetDir = Directory(path.dirname(targetPath));
@@ -544,7 +547,8 @@ class AppTrashManager {
       }
     }
 
-    logger.i('Batch delete completed: $successCount success, $failedCount failed');
+    logger.i(
+        'Batch delete completed: $successCount success, $failedCount failed');
 
     return {
       'success': successCount,
@@ -605,7 +609,8 @@ class AppTrashManager {
       // 删除过期文件
       final result = await deleteBatchPermanently(expiredItems);
 
-      logger.i('Expired files cleaned: ${result['success']} files, ${result['totalSize']} bytes');
+      logger.i(
+          'Expired files cleaned: ${result['success']} files, ${result['totalSize']} bytes');
 
       return {
         'deleted': result['success'],

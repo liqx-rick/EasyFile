@@ -40,7 +40,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
   bool _hasError = false;
   String? _duration;
   final _loadQueue = VideoThumbnailLoadQueue();
-  
+
   // 缓存计算的 cacheWidth，避免每次 build() 都重新计算导致 Image widget 重建
   int? _cachedCacheWidth;
 
@@ -214,9 +214,10 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
 
     // 缓存 cacheWidth 计算结果，避免每次 build 都创建新的 Image widget
     // 这会导致 Flutter 认为这是一个新的图片请求，触发重复的解码操作
-    _cachedCacheWidth ??= (widget.size * MediaQuery.of(context).devicePixelRatio)
-        .toInt()
-        .clamp(150, 800);
+    _cachedCacheWidth ??=
+        (widget.size * MediaQuery.of(context).devicePixelRatio)
+            .toInt()
+            .clamp(150, 800);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
