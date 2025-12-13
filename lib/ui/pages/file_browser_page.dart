@@ -226,7 +226,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   double _editModeEnterScrollOffset = 0.0; // 记录进入编辑模式时的滚动位置
   static const double _scrollThreshold = 50.0; // 判断是否在顶部的阈值（50像素）
   final ScrollController _scrollController = ScrollController(); // 主滚动控制器
-  final ScrollController _landscapeRightScrollController = ScrollController(); // 横屏右侧面板滚动控制器
+  final ScrollController _landscapeRightScrollController =
+      ScrollController(); // 横屏右侧面板滚动控制器
 
   // 搜索相关状态
   final TextEditingController _searchController = TextEditingController();
@@ -2006,10 +2007,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
     final groups = FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
     // 调试日志：查看分组情况
-    logger.d('Favorite files grouping: ${groups.map((key, value) => MapEntry(key, value.length))}');
+    logger.d(
+        'Favorite files grouping: ${groups.map((key, value) => MapEntry(key, value.length))}');
     groups.forEach((key, files) {
       if (files.isNotEmpty) {
-        logger.d('Group "$key": ${files.length} files, first file addedTime: ${files.first.addedTime}');
+        logger.d(
+            'Group "$key": ${files.length} files, first file addedTime: ${files.first.addedTime}');
       }
     });
     return groups;
@@ -2718,11 +2721,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final screenWidth = MediaQuery.of(context).size.width;
       final screenHeight = MediaQuery.of(context).size.height;
       final isLandscape = screenWidth > screenHeight;
-      
+
       // 横屏模式下，右侧文件浏览区约占55%宽度
       final availableWidth = isLandscape ? screenWidth * 0.55 : screenWidth;
       final crossAxisCount = _calculateCrossAxisCount(availableWidth);
-      
+
       return [
         SliverPadding(
           padding: const EdgeInsets.all(8),
@@ -2783,10 +2786,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     const spacing = 1.0;
     const horizontalPadding = 16.0;
     final effectiveWidth = availableWidth - horizontalPadding;
-    
+
     int crossAxisCount =
         ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
-    
+
     // 动态调整上限：给横屏右侧区域更多列数
     final maxColumns = effectiveWidth < 500 ? 4 : 6;
     return crossAxisCount.clamp(3, maxColumns);
@@ -2992,7 +2995,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           slivers.add(
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildFileItemWrapper(groups[key]![index], viewConfigBuilder: viewConfigBuilder),
+                (context, index) => _buildFileItemWrapper(groups[key]![index],
+                    viewConfigBuilder: viewConfigBuilder),
                 childCount: groups[key]!.length,
                 addAutomaticKeepAlives: false,
                 addRepaintBoundaries: true,
@@ -4034,10 +4038,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       // 判断是否为横屏模式
                       final isLandscape =
                           constraints.maxWidth > constraints.maxHeight;
-                      
+
                       // 计算左侧面板宽度（与 _buildLandscapeLayout 中的逻辑一致）
-                      final portraitWidth = math.min(constraints.maxWidth, constraints.maxHeight);
-                      final leftPaneWidth = isLandscape 
+                      final portraitWidth =
+                          math.min(constraints.maxWidth, constraints.maxHeight);
+                      final leftPaneWidth = isLandscape
                           ? math.max(portraitWidth, constraints.maxWidth * 0.45)
                           : 0.0;
 
@@ -4047,7 +4052,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           isLandscape
                               ? _buildLandscapeLayout(viewModel, constraints)
                               : _buildPortraitLayout(viewModel),
-                          
+
                           // 批量操作底部工具栏 - 横屏时只显示在右侧区域
                           if (_selectionController.isSelectionMode)
                             Positioned(

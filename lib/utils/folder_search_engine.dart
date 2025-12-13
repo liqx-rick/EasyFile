@@ -23,7 +23,10 @@ class FolderMatch {
 class FolderSearchEngine {
   // 预建索引：常见应用名 → 路径映射
   static final Map<String, List<String>> _appPathIndex = {
-    '钉钉': ['/storage/emulated/0/DingTalk', '/storage/emulated/0/DingTalk/download'],
+    '钉钉': [
+      '/storage/emulated/0/DingTalk',
+      '/storage/emulated/0/DingTalk/download'
+    ],
     'dingtalk': ['/storage/emulated/0/DingTalk'],
     '企业微信': ['/storage/emulated/0/tencent/WXWork'],
     '企微': ['/storage/emulated/0/tencent/WXWork'],
@@ -82,7 +85,8 @@ class FolderSearchEngine {
     final searchPaths = ['/storage/emulated/0'];
     for (final searchPath in searchPaths) {
       try {
-        final matches = await _searchFileSystem(searchPath, lowerQuery, maxDepth: 2);
+        final matches =
+            await _searchFileSystem(searchPath, lowerQuery, maxDepth: 2);
         results.addAll(matches);
       } catch (e) {
         logger.e('Error searching $searchPath: $e');
@@ -122,7 +126,9 @@ class FolderSearchEngine {
     // 模糊匹配
     int fuzzyScore = 0;
     int queryIndex = 0;
-    for (int i = 0; i < lowerText.length && queryIndex < lowerQuery.length; i++) {
+    for (int i = 0;
+        i < lowerText.length && queryIndex < lowerQuery.length;
+        i++) {
       if (lowerText[i] == lowerQuery[queryIndex]) {
         fuzzyScore += 5;
         queryIndex++;
@@ -133,11 +139,8 @@ class FolderSearchEngine {
   }
 
   /// 搜索文件系统
-  Future<List<FolderMatch>> _searchFileSystem(
-    String basePath,
-    String query,
-    {int maxDepth = 2}
-  ) async {
+  Future<List<FolderMatch>> _searchFileSystem(String basePath, String query,
+      {int maxDepth = 2}) async {
     final results = <FolderMatch>[];
 
     if (maxDepth <= 0) return results;

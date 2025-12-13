@@ -4,9 +4,9 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/app_trash_item.dart';
 
 /// EasyFile回收站数据库
-/// 
+///
 /// 管理回收站文件的元数据存储
-/// 
+///
 /// 状态说明：
 /// - pending: 已标记删除，文件仍在原位，待后台移动
 /// - moved: 已移动到回收站
@@ -41,7 +41,7 @@ class AppTrashDatabase {
   }
 
   /// 创建数据库表
-  /// 
+  ///
   /// Schema v2 字段说明：
   /// - id: 唯一标识符（UUID）
   /// - trash_path: 回收站中的文件路径（唯一）
@@ -94,12 +94,14 @@ class AppTrashDatabase {
   /// 数据库升级
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     logger.i('Upgrading app trash database from v$oldVersion to v$newVersion');
-    
+
     if (oldVersion < 2) {
       // 添加status相关字段
-      await db.execute('ALTER TABLE $_tableName ADD COLUMN status TEXT DEFAULT "moved"');
+      await db.execute(
+          'ALTER TABLE $_tableName ADD COLUMN status TEXT DEFAULT "moved"');
       await db.execute('ALTER TABLE $_tableName ADD COLUMN moved_at INTEGER');
-      await db.execute('ALTER TABLE $_tableName ADD COLUMN retry_count INTEGER DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE $_tableName ADD COLUMN retry_count INTEGER DEFAULT 0');
       await db.execute('CREATE INDEX idx_status ON $_tableName(status)');
       logger.i('Added status tracking fields for soft delete support');
     }
@@ -128,7 +130,7 @@ class AppTrashDatabase {
     try {
       final db = await database;
       final batch = db.batch();
-      
+
       for (final item in items) {
         batch.insert(
           _tableName,
@@ -136,7 +138,7 @@ class AppTrashDatabase {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
-      
+
       await batch.commit(noResult: true);
       logger.d('Inserted ${items.length} trash items in batch');
     } catch (e) {
@@ -154,7 +156,7 @@ class AppTrashDatabase {
         where: 'id = ?',
         whereArgs: [id],
       );
-      
+
       if (count > 0) {
         logger.d('Deleted trash item: $id');
       } else {
@@ -173,7 +175,7 @@ class AppTrashDatabase {
     try {
       final db = await database;
       final batch = db.batch();
-      
+
       for (final id in ids) {
         batch.delete(
           _tableName,
@@ -181,7 +183,7 @@ class AppTrashDatabase {
           whereArgs: [id],
         );
       }
-      
+
       await batch.commit(noResult: true);
       logger.d('Deleted ${ids.length} trash items in batch');
     } catch (e) {
@@ -242,7 +244,8 @@ class AppTrashDatabase {
         orderBy: 'deleted_at ASC',
       );
 
-      logger.d('Found ${results.length} expired items (older than $retentionDays days)');
+      logger.d(
+          'Found ${results.length} expired items (older than $retentionDays days)');
       return results.map((map) => AppTrashItem.fromMap(map)).toList();
     } catch (e) {
       logger.e('Failed to get expired trash items: $e');
@@ -279,7 +282,8 @@ class AppTrashDatabase {
   Future<int> getTotalCount() async {
     try {
       final db = await database;
-      final result = await db.rawQuery('SELECT COUNT(*) as count FROM $_tableName');
+      final result =
+          await db.rawQuery('SELECT COUNT(*) as count FROM $_tableName');
       return Sqflite.firstIntValue(result) ?? 0;
     } catch (e) {
       logger.e('Failed to get total count: $e');
@@ -291,7 +295,8 @@ class AppTrashDatabase {
   Future<int> getTotalSize() async {
     try {
       final db = await database;
-      final result = await db.rawQuery('SELECT SUM(file_size) as total FROM $_tableName');
+      final result =
+          await db.rawQuery('SELECT SUM(file_size) as total FROM $_tableName');
       return Sqflite.firstIntValue(result) ?? 0;
     } catch (e) {
       logger.e('Failed to get total size: $e');
@@ -336,22 +341,22 @@ class AppTrashDatabase {
   }
 
   /// 标记文件为待删除（软删除）
-  /// 
+  ///
   /// 文件状态变为'pending'，等待后台移动到回收站
   Future<String> markAsDeleted(AppTrashItem item) async {
     try {
       final db = await database;
-      
+
       final data = item.toMap();
       data['status'] = 'pending';
       data['moved_at'] = null;
-      
+
       await db.insert(
         _tableName,
         data,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      
+
       logger.i('Marked file as deleted (pending): ${item.originalPath}');
       return item.id;
     } catch (e) {
@@ -366,12 +371,12 @@ class AppTrashDatabase {
       final db = await database;
       final batch = db.batch();
       final ids = <String>[];
-      
+
       for (final item in items) {
         final data = item.toMap();
         data['status'] = 'pending';
         data['moved_at'] = null;
-        
+
         batch.insert(
           _tableName,
           data,
@@ -379,7 +384,7 @@ class AppTrashDatabase {
         );
         ids.add(item.id);
       }
-      
+
       await batch.commit(noResult: true);
       logger.i('Marked ${items.length} files as deleted (pending)');
       return ids;
@@ -434,7 +439,7 @@ class AppTrashDatabase {
         whereArgs: ['pending'],
         orderBy: 'deleted_at ASC', // 先删除的先处理
       );
-      
+
       return maps.map((map) => AppTrashItem.fromMap(map)).toList();
     } catch (e) {
       logger.e('Failed to get pending files: $e');
@@ -452,7 +457,7 @@ class AppTrashDatabase {
         where: 'status IN (?, ?)',
         whereArgs: ['pending', 'moved'],
       );
-      
+
       return maps.map((map) => map['original_path'] as String).toSet();
     } catch (e) {
       logger.e('Failed to get deleted file paths: $e');

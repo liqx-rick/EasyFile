@@ -44,7 +44,7 @@ class StoragePage extends StatefulWidget {
   State<StoragePage> createState() => _StoragePageState();
 }
 
-class _StoragePageState extends State<StoragePage> 
+class _StoragePageState extends State<StoragePage>
     with EditModeMixin, CreateFolderMixin, PopScopeHandlerMixin {
   String _searchQuery = '';
   bool _isSearchMode = false;
@@ -53,7 +53,7 @@ class _StoragePageState extends State<StoragePage>
   // 批量操作相关状态（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
   late final SelectionController _selectionController;
-  
+
   // EditModeMixin 接口实现
   @override
   SelectionController get selectionController => _selectionController;
@@ -113,8 +113,9 @@ class _StoragePageState extends State<StoragePage>
   /// 显示排序选项菜单
   void _showSortOptions() {
     final currentSortType = PageSettingsService().getSortType(PageId.storage);
-    final currentAscending = PageSettingsService().getSortAscending(PageId.storage);
-    
+    final currentAscending =
+        PageSettingsService().getSortAscending(PageId.storage);
+
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -126,12 +127,14 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.storage);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.storage, SortType.name);
@@ -143,12 +146,14 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.storage);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.storage, SortType.modifiedTime);
@@ -160,12 +165,14 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.storage);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.storage, SortType.size);
@@ -177,12 +184,14 @@ class _StoragePageState extends State<StoragePage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService().toggleSortDirection(PageId.storage);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.storage);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.storage, SortType.fileType);
@@ -215,7 +224,7 @@ class _StoragePageState extends State<StoragePage>
   // CreateFolderMixin 接口实现
   @override
   String getCurrentPath() => _currentPath;
-  
+
   @override
   Future<void> onFolderCreated() async {
     await _loadFilesInPath(_currentPath);
@@ -470,7 +479,7 @@ class _StoragePageState extends State<StoragePage>
   /// ViewModel变化回调 - 同步文件列表
   void _onViewModelChanged() {
     if (!mounted) return;
-    
+
     // 处理文件删除
     final deletedPath = widget.viewModel.lastDeletedFilePath;
     if (deletedPath != null) {
@@ -479,12 +488,13 @@ class _StoragePageState extends State<StoragePage>
         _files.removeWhere((f) => f.path == deletedPath);
         final removed = initialLength - _files.length;
         if (removed > 0) {
-          logger.d('Storage page: Removed $removed file(s). Remaining: ${_files.length}');
+          logger.d(
+              'Storage page: Removed $removed file(s). Remaining: ${_files.length}');
         }
       });
       return;
     }
-    
+
     // 处理文件更新（重命名/移动）
     final oldPath = widget.viewModel.lastUpdatedOldPath;
     final newFile = widget.viewModel.lastUpdatedNewFile;
@@ -496,21 +506,23 @@ class _StoragePageState extends State<StoragePage>
         if (index != -1) {
           // 判断文件是移动到其他目录还是在当前目录重命名
           final newFileDir = path.dirname(newFile.path);
-          
+
           if (newFileDir == _currentPath) {
             // 在当前目录内重命名/移动 → 更新路径
             _files[index] = newFile;
-            logger.d('Updated file in storage page: $oldPath -> ${newFile.path}');
+            logger
+                .d('Updated file in storage page: $oldPath -> ${newFile.path}');
           } else {
             // 移动到其他目录 → 从列表中移除
             _files.removeAt(index);
-            logger.d('File moved to different directory, removed from list: $oldPath');
+            logger.d(
+                'File moved to different directory, removed from list: $oldPath');
           }
         }
       });
       return;
     }
-    
+
     // 处理文件添加（复制/恢复操作）
     final addedFile = widget.viewModel.lastAddedFile;
     if (addedFile != null) {
@@ -523,9 +535,12 @@ class _StoragePageState extends State<StoragePage>
             _files.add(addedFile);
             // 重新排序
             final sortType = PageSettingsService().getSortType(PageId.storage);
-            final ascending = PageSettingsService().getSortAscending(PageId.storage);
-            FileComparatorUtil.sortFilesInPlace(_files, sortType, ascending: ascending);
-            logger.d('Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
+            final ascending =
+                PageSettingsService().getSortAscending(PageId.storage);
+            FileComparatorUtil.sortFilesInPlace(_files, sortType,
+                ascending: ascending);
+            logger.d(
+                'Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
           }
         });
       }
@@ -657,8 +672,10 @@ class _StoragePageState extends State<StoragePage>
 
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final ascending = PageSettingsService().getSortAscending(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
+        final ascending =
+            PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType,
+            ascending: ascending);
 
         setState(() {
           _files = files;
@@ -797,8 +814,10 @@ class _StoragePageState extends State<StoragePage>
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final ascending = PageSettingsService().getSortAscending(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
+        final ascending =
+            PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType,
+            ascending: ascending);
         setState(() {
           _files = files;
           _isLoading = false;
@@ -914,8 +933,10 @@ class _StoragePageState extends State<StoragePage>
             (file.category == FileCategory.image ||
                 file.category == FileCategory.video);
         if (shouldUseCompactMode) {
-          final showFileInfo = PageSettingsService().getGridShowFileInfo(PageId.storage);
-          return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
+          final showFileInfo =
+              PageSettingsService().getGridShowFileInfo(PageId.storage);
+          return UnifiedViewConfig.fromContext(context,
+              compactMode: !showFileInfo);
         }
         return null;
       };
@@ -1006,47 +1027,44 @@ class _StoragePageState extends State<StoragePage>
                   visualDensity: VisualDensity.compact,
                   iconSize: 22,
                 ),
-          automaticallyImplyLeading: false,  // 禁用自动 leading
+          automaticallyImplyLeading: false, // 禁用自动 leading
           leadingWidth: 48,
           titleSpacing: 4,
           title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                    // 主标题：当前文件夹名称
-                    Text(
-                      _getCurrentFolderName(),
-                      style: const TextStyle(fontSize: 18),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    // 副标题：路径 + 统计信息
-                    if (!_isLoading)
-                      InkWell(
-                        onTap: () => _showBreadcrumbMenu(context),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${_getSimplifiedBreadcrumb()} · ${_getStatisticsText()}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(
-                                    context,
-                                  )
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.6),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 主标题：当前文件夹名称
+              Text(
+                _getCurrentFolderName(),
+                style: const TextStyle(fontSize: 18),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              // 副标题：路径 + 统计信息
+              if (!_isLoading)
+                InkWell(
+                  onTap: () => _showBreadcrumbMenu(context),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${_getSimplifiedBreadcrumb()} · ${_getStatisticsText()}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
+            ],
+          ),
           actions: [
             // 使用Row来控制按钮间距
             Padding(
@@ -1108,7 +1126,7 @@ class _StoragePageState extends State<StoragePage>
                       // 编辑提示条（3秒自动隐藏）
                       if (isEditMode && showEditModeHint)
                         const EditModeHintBar(),
-                      
+
                       // 搜索栏（使用统一的FileSearchBar组件）
                       if (_isSearchMode)
                         FileSearchBar(
@@ -1269,9 +1287,7 @@ class _StoragePageState extends State<StoragePage>
           },
         ),
         // 批量操作底部工具栏
-        bottomNavigationBar: isEditMode
-            ? _buildSelectionBottomBar()
-            : null,
+        bottomNavigationBar: isEditMode ? _buildSelectionBottomBar() : null,
       ),
     );
   }

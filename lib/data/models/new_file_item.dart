@@ -6,9 +6,9 @@ import 'package:easyfile/data/models/file_source.dart';
 /// 新文件数据模型（轻量级索引）
 class NewFileItem {
   final String path;
-  final DateTime created;    // 文件创建/修改时间
+  final DateTime created; // 文件创建/修改时间
   final DateTime discovered; // 发现时间（首次扫描到）
-  final FileSource source;   // 自动识别的来源
+  final FileSource source; // 自动识别的来源
 
   const NewFileItem({
     required this.path,

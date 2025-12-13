@@ -528,7 +528,7 @@ class FilePresenter {
         // 获取精确的MIME类型以便正确显示缩略图
         final mimeType = FileUtils.getMimeType(existingFilePaths[0]);
         logger.d('Sharing file with MIME type: $mimeType');
-        
+
         await platform.invokeMethod('shareFile', {
           'filePath': existingFilePaths[0],
           'mimeType': mimeType,
@@ -1668,7 +1668,7 @@ class FilePresenter {
   }
 
   /// 加载新文件列表
-  /// 
+  ///
   /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
   Future<void> loadNewFiles({bool isUserRefresh = false}) async {
     logger.i('FilePresenter.loadNewFiles called (userRefresh: $isUserRefresh)');
@@ -1677,8 +1677,9 @@ class FilePresenter {
     try {
       // 重新加载设置以获取最新的配置
       final latestSettings = await NewFilesSettings.load();
-      logger.d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
-      
+      logger
+          .d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+
       // 先从本地缓存加载
       final cachedItems = await newFilesLocalSource.loadCachedIndex();
 
@@ -1742,7 +1743,8 @@ class FilePresenter {
       }
 
       // 更新视图模型（传递retentionDays设置）
-      viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+      viewModel.setNewFiles(fileItems,
+          retentionDays: latestSettings.retentionDays);
     } catch (e) {
       logger.e('Error loading new files: $e');
       viewModel.setError('加载新文件失败：$e');
@@ -1759,7 +1761,8 @@ class FilePresenter {
     try {
       // 重新加载设置以获取最新的配置
       final latestSettings = await NewFilesSettings.load();
-      logger.d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+      logger
+          .d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
       // 执行完整扫描
       final newFileItems = await newFilesScanner.scanNewFiles();
       logger.d('Refreshed ${newFileItems.length} new file items');
@@ -1810,7 +1813,8 @@ class FilePresenter {
       }
 
       // 更新视图模型（传递retentionDays设置）
-      viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+      viewModel.setNewFiles(fileItems,
+          retentionDays: latestSettings.retentionDays);
     } catch (e) {
       logger.e('Error refreshing new files: $e');
       viewModel.setError('刷新新文件失败：$e');
@@ -1820,21 +1824,21 @@ class FilePresenter {
   }
 
   /// 立即加载缓存的新文件（不显示loading状态）
-  /// 
+  ///
   /// 用于Tab切换时快速显示内容，避免白屏
   /// 返回是否成功加载到缓存数据
   Future<bool> loadCachedNewFiles() async {
     logger.i('FilePresenter.loadCachedNewFiles called');
-    
+
     try {
       final settings = await NewFilesSettings.load();
       final cachedItems = await newFilesLocalSource.loadCachedIndex();
-      
+
       if (cachedItems.isEmpty) {
         logger.d('No cached new files found');
         return false;
       }
-      
+
       logger.d('Loading ${cachedItems.length} cached items');
       await _updateUIWithNewFiles(cachedItems, settings);
       logger.i('Successfully loaded ${cachedItems.length} cached new files');
@@ -1846,11 +1850,11 @@ class FilePresenter {
   }
 
   /// 后台刷新新文件列表（不阻塞UI）
-  /// 
+  ///
   /// 静默执行扫描和更新，用户无感知
   void refreshNewFilesInBackground() {
     logger.i('FilePresenter.refreshNewFilesInBackground called');
-    
+
     // 异步执行，不等待结果，不阻塞UI
     // silent=true 表示不显示loading状态
     loadNewFilesByPriority(isUserRefresh: false, silent: true).catchError((e) {
@@ -1859,16 +1863,18 @@ class FilePresenter {
   }
 
   /// 分批加载新文件列表（支持渐进式显示）
-  /// 
+  ///
   /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
   /// [silent] - 是否静默刷新（不显示loading状态，用于后台更新）
   /// 用户将看到：
   /// - 1-3秒：高优先级文件（下载、相机、微信）
   /// - 3-5秒：中优先级文件（截屏、文档、蓝牙）
   /// - 后台：低优先级文件（其他应用目录）
-  Future<void> loadNewFilesByPriority({bool isUserRefresh = false, bool silent = false}) async {
-    logger.i('FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh, silent: $silent)');
-    
+  Future<void> loadNewFilesByPriority(
+      {bool isUserRefresh = false, bool silent = false}) async {
+    logger.i(
+        'FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh, silent: $silent)');
+
     // 只有非静默模式才显示loading
     if (!silent) {
       viewModel.setLoading(true);
@@ -1877,7 +1883,7 @@ class FilePresenter {
     try {
       // 重新加载设置
       final latestSettings = await NewFilesSettings.load();
-      
+
       // 分批扫描，支持渐进式结果
       await newFilesScanner.scanNewFilesByPriority(
         onPartialResults: (partialItems) async {

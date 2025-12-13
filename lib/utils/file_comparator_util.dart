@@ -12,23 +12,24 @@ class FileComparatorUtil {
   /// 1. 文件夹始终排在文件前面
   /// 2. 文件夹内部按指定规则排序
   /// 3. 文件内部按指定规则排序
-  /// 
+  ///
   /// [sortType] 排序类型
   /// [ascending] 排序方向：true=升序，false=降序（默认）
-  /// 
+  ///
   /// 标准的排序定义：
   /// - 升序（↑）：A→Z, 小→大, 旧→新（数值递增）
   /// - 降序（↓）：Z→A, 大→小, 新→旧（数值递减）
-  /// 
+  ///
   /// 各排序类型的默认值（ascending=false）：
   /// - 按名称：默认升序 A-Z（文件管理器习惯）
   /// - 按时间：默认降序 新的在前（文件管理器习惯）
   /// - 按大小：默认降序 大的在前（文件管理器习惯）
-  static Comparator<FileItem> getComparator(SortType sortType, {bool ascending = false}) {
+  static Comparator<FileItem> getComparator(SortType sortType,
+      {bool ascending = false}) {
     switch (sortType) {
       case SortType.name:
         // 按名称：默认A-Z（升序），切换后Z-A（降序）
-        return ascending 
+        return ascending
             ? (a, b) => _compareByNameDescending(a, b)
             : (a, b) => _compareByNameAscending(a, b);
       case SortType.modifiedTime:
@@ -161,22 +162,24 @@ class FileComparatorUtil {
   }
 
   /// 对文件列表进行排序（返回新列表）
-  /// 
+  ///
   /// [files] 待排序的文件列表
   /// [sortType] 排序类型
   /// [ascending] 排序方向：true=升序，false=降序（默认）
-  static List<FileItem> sortFiles(List<FileItem> files, SortType sortType, {bool ascending = false}) {
+  static List<FileItem> sortFiles(List<FileItem> files, SortType sortType,
+      {bool ascending = false}) {
     final result = List<FileItem>.from(files);
     result.sort(getComparator(sortType, ascending: ascending));
     return result;
   }
 
   /// 对文件列表进行原地排序
-  /// 
+  ///
   /// [files] 待排序的文件列表
   /// [sortType] 排序类型
   /// [ascending] 排序方向：true=升序，false=降序（默认）
-  static void sortFilesInPlace(List<FileItem> files, SortType sortType, {bool ascending = false}) {
+  static void sortFilesInPlace(List<FileItem> files, SortType sortType,
+      {bool ascending = false}) {
     files.sort(getComparator(sortType, ascending: ascending));
   }
 }

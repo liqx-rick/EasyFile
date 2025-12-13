@@ -633,12 +633,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         if (operationSuccess && widget.viewModel != null) {
           setState(() {
             _fileModified = true;
-            
+
             // 从 ViewModel 中获取更新后的文件信息
             final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
             if (updatedFile != null && widget.fileList != null) {
               // 更新 fileList 中的文件对象
-              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
+              final index =
+                  widget.fileList!.indexWhere((f) => f.path == file.path);
               if (index != -1) {
                 widget.fileList![index] = updatedFile;
               }
@@ -652,12 +653,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         if (operationSuccess && widget.viewModel != null) {
           setState(() {
             _fileModified = true;
-            
+
             // 从 ViewModel 中获取更新后的文件信息
             final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
             if (updatedFile != null && widget.fileList != null) {
               // 更新 fileList 中的文件对象（路径已更新）
-              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
+              final index =
+                  widget.fileList!.indexWhere((f) => f.path == file.path);
               if (index != -1) {
                 widget.fileList![index] = updatedFile;
               }

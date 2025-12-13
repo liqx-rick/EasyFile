@@ -118,7 +118,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     final isDark = theme.brightness == Brightness.dark;
 
     // 判断是否为横屏模式
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AlertDialog(
       contentPadding: const EdgeInsets.all(0),
@@ -245,117 +246,118 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                // 提示文字
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '请在右侧选择文件夹',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    if (_currentPath != _rootPath)
-                      IconButton(
-                        icon: const Icon(Icons.arrow_upward, size: 20),
-                        onPressed: _navigateUp,
-                        tooltip: '返回上级',
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              isDark ? Colors.grey[800] : Colors.grey[100],
-                          padding: const EdgeInsets.all(8),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // 当前浏览路径卡片
-                _buildCurrentPathCard(theme, isDark),
-                const SizedBox(height: 16),
-
-                // 底部按钮
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () =>
-                            Navigator.of(context).pop(_currentPath),
-                        child: const Text('选择此文件夹'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // 操作标识（图标和文字在同一行）
-                if (widget.sourceFileName != null) ...[
-                  const SizedBox(height: 25),
+                  // 提示文字
                   Row(
                     children: [
-                      Icon(
-                        widget.operationType == '复制'
-                            ? Icons.copy
-                            : Icons.drive_file_move,
-                        size: 40,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '您正在${widget.operationType}：${widget.sourceFileName!}',
+                          '请在右侧选择文件夹',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.primary,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_currentPath != _rootPath)
+                        IconButton(
+                          icon: const Icon(Icons.arrow_upward, size: 20),
+                          onPressed: _navigateUp,
+                          tooltip: '返回上级',
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                isDark ? Colors.grey[800] : Colors.grey[100],
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 当前浏览路径卡片
+                  _buildCurrentPathCard(theme, isDark),
+                  const SizedBox(height: 16),
+
+                  // 底部按钮
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              Navigator.of(context).pop(_currentPath),
+                          child: const Text('选择此文件夹'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('取消'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
 
-                  // 当前位置
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '当前位置：',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.grey[400] : Colors.grey[700],
+                  // 操作标识（图标和文字在同一行）
+                  if (widget.sourceFileName != null) ...[
+                    const SizedBox(height: 25),
+                    Row(
+                      children: [
+                        Icon(
+                          widget.operationType == '复制'
+                              ? Icons.copy
+                              : Icons.drive_file_move,
+                          size: 40,
+                          color: theme.colorScheme.primary,
                         ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          _getDisplayPath(widget.currentPath),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '您正在${widget.operationType}：${widget.sourceFileName!}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 当前位置
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '当前位置：',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.grey[400] : Colors.grey[700],
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
-                  ),
+                        Expanded(
+                          child: Text(
+                            _getDisplayPath(widget.currentPath),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color:
+                                  isDark ? Colors.grey[400] : Colors.grey[600],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
         ),
         // 分割线
         Container(

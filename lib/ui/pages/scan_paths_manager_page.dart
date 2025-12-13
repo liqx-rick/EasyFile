@@ -46,9 +46,8 @@ class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
       final matches = await searchEngine.search(query);
 
       setState(() {
-        _searchResults = matches
-            .map((m) => {'name': m.name, 'path': m.path})
-            .toList();
+        _searchResults =
+            matches.map((m) => {'name': m.name, 'path': m.path}).toList();
         _searching = false;
       });
     } catch (e) {
@@ -132,7 +131,8 @@ class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
                     return ActionChip(
                       label: Text(name),
                       avatar: isAdded
-                          ? const Icon(Icons.check_circle, size: 18, color: Colors.green)
+                          ? const Icon(Icons.check_circle,
+                              size: 18, color: Colors.green)
                           : const Icon(Icons.add_circle_outline, size: 18),
                       onPressed: () {
                         if (isAdded) {
@@ -252,7 +252,8 @@ class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
                       final path = _settings.customScanPaths[index];
 
                       return ListTile(
-                        leading: const Icon(Icons.folder_special, color: Colors.blue),
+                        leading: const Icon(Icons.folder_special,
+                            color: Colors.blue),
                         title: Text(path),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete),

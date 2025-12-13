@@ -8,9 +8,9 @@ import 'package:easyfile/platform/file_stats_channel.dart';
 
 /// 扫描优先级
 enum ScanPriority {
-  high,   // 高优先级：立即扫描（最常用目录）
+  high, // 高优先级：立即扫描（最常用目录）
   medium, // 中优先级：延迟扫描（常用目录）
-  low,    // 低优先级：后台扫描（不常用目录）
+  low, // 低优先级：后台扫描（不常用目录）
 }
 
 /// 新文件扫描器
@@ -31,17 +31,17 @@ class NewFilesScanner {
 
     // 高优先级：最常用的目录（立即扫描，1-3秒内快速显示）
     pathsByPriority[ScanPriority.high]!.addAll([
-      '/storage/emulated/0/Download',        // 下载
-      '/storage/emulated/0/DCIM/Camera',     // 相机
+      '/storage/emulated/0/Download', // 下载
+      '/storage/emulated/0/DCIM/Camera', // 相机
       '/storage/emulated/0/Pictures/WeiXin', // 微信图片
     ]);
 
     // 中优先级：常用目录（延迟扫描，2-4秒显示）
     pathsByPriority[ScanPriority.medium]!.addAll([
-      '/storage/emulated/0/Pictures/Screenshots',      // 截屏
+      '/storage/emulated/0/Pictures/Screenshots', // 截屏
       '/storage/emulated/0/tencent/MicroMsg/Download', // 微信下载
-      '/storage/emulated/0/Documents',                 // 文档
-      '/storage/emulated/0/bluetooth',                 // 蓝牙
+      '/storage/emulated/0/Documents', // 文档
+      '/storage/emulated/0/bluetooth', // 蓝牙
     ]);
 
     // 低优先级：不常用目录（后台扫描，不阻塞UI）
@@ -207,7 +207,7 @@ class NewFilesScanner {
   }
 
   /// 快速扫描（智能缓存策略）
-  /// 
+  ///
   /// 根据使用场景决定是否需要重新扫描：
   /// - 应用启动：1小时内使用缓存，后台增量扫描
   /// - 用户手动刷新：始终执行快速扫描
@@ -224,20 +224,21 @@ class NewFilesScanner {
     // 应用启动加载：智能缓存策略
     if (_lastScanTime != null) {
       final age = DateTime.now().difference(_lastScanTime!);
-      
+
       // 1小时内使用缓存（立即显示）
       if (age < Duration(hours: 1)) {
         logger.d(
             'Using cached scan results (scanned ${age.inMinutes} minutes ago)');
-        
+
         // 后台静默扫描（不阻塞UI）
         _backgroundIncrementalScan(cachedItems);
-        
+
         return null; // 使用缓存
       }
-      
+
       // 超过1小时：执行完整扫描
-      logger.i('Cache expired (${age.inHours} hours old), performing full scan');
+      logger
+          .i('Cache expired (${age.inHours} hours old), performing full scan');
     }
 
     // 首次扫描或缓存过期
@@ -252,7 +253,7 @@ class NewFilesScanner {
         logger.d('Starting background incremental scan...');
         final newItems = await incrementalScan(cachedItems);
         logger.i('Background scan complete: ${newItems.length} items');
-        
+
         // 注意：这里只是扫描，不自动更新UI
         // UI更新由Presenter层控制
       } catch (e) {
@@ -304,7 +305,7 @@ class NewFilesScanner {
   }
 
   /// 分批扫描（支持优先级和渐进式结果）
-  /// 
+  ///
   /// 按优先级批次扫描，并通过回调逐步返回结果：
   /// - 第1批（高优先级）：1-3秒内完成，立即显示
   /// - 第2批（中优先级）：3-5秒内完成，更新显示
@@ -312,7 +313,8 @@ class NewFilesScanner {
   Future<List<NewFileItem>> scanNewFilesByPriority({
     Function(List<NewFileItem> partialResults)? onPartialResults,
   }) async {
-    final cutoffDate = DateTime.now().subtract(Duration(days: settings.retentionDays));
+    final cutoffDate =
+        DateTime.now().subtract(Duration(days: settings.retentionDays));
     final allResults = <NewFileItem>[];
     final pathsByPriority = _getScanPathsByPriority();
 
@@ -325,7 +327,7 @@ class NewFilesScanner {
       cutoffDate,
     );
     allResults.addAll(highPriorityResults);
-    
+
     // 第一批结果返回（快速显示）
     if (onPartialResults != null && highPriorityResults.isNotEmpty) {
       final sortedResults = List<NewFileItem>.from(allResults)
@@ -341,7 +343,7 @@ class NewFilesScanner {
       cutoffDate,
     );
     allResults.addAll(mediumPriorityResults);
-    
+
     // 第二批结果返回（更新显示）
     if (onPartialResults != null && mediumPriorityResults.isNotEmpty) {
       final sortedResults = List<NewFileItem>.from(allResults)
@@ -363,7 +365,8 @@ class NewFilesScanner {
       ..sort((a, b) => b.created.compareTo(a.created));
 
     _lastScanTime = DateTime.now();
-    logger.i('Priority scan complete: ${sortedResults.length} files (excluding low priority)');
+    logger.i(
+        'Priority scan complete: ${sortedResults.length} files (excluding low priority)');
 
     return sortedResults.take(settings.displayCount * 10).toList();
   }
@@ -406,15 +409,16 @@ class NewFilesScanner {
     Future(() async {
       logger.i('Batch 3: Scanning low priority paths in background...');
       final lowPriorityResults = await _scanPathsBatch(paths, cutoffDate);
-      
+
       if (lowPriorityResults.isNotEmpty) {
         existingResults.addAll(lowPriorityResults);
-        
+
         // 第三批结果返回（后台更新）
         if (onPartialResults != null) {
           final sortedResults = List<NewFileItem>.from(existingResults)
             ..sort((a, b) => b.created.compareTo(a.created));
-          onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
+          onPartialResults(
+              sortedResults.take(settings.displayCount * 10).toList());
           logger.i('Batch 3 complete: ${lowPriorityResults.length} files');
         }
       }

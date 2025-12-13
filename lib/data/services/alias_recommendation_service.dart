@@ -159,7 +159,9 @@ class AliasRecommendationService {
     }
 
     // WeChat 特殊路径
-    if (path.contains('MicroMsg') || path.contains('WeChat') || path.contains('weixin')) {
+    if (path.contains('MicroMsg') ||
+        path.contains('WeChat') ||
+        path.contains('weixin')) {
       if (path.contains('image') || path.contains('Image')) {
         return '微信图片';
       }

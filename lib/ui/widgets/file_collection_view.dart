@@ -392,7 +392,7 @@ class FileCollectionView extends StatelessWidget {
     // 计算能容纳的列数
     int crossAxisCount =
         ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
-    
+
     // 动态调整上限：给横屏右侧区域更多列数
     final maxColumns = effectiveWidth < 500 ? 4 : 6;
     return crossAxisCount.clamp(3, maxColumns);
@@ -402,7 +402,8 @@ class FileCollectionView extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 使用实际可用宽度而不是屏幕宽度
-        final crossAxisCount = _calculateCrossAxisCount(context, constraints.maxWidth);
+        final crossAxisCount =
+            _calculateCrossAxisCount(context, constraints.maxWidth);
 
         return GridView.builder(
           padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
@@ -431,8 +432,9 @@ class FileCollectionView extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 使用实际可用宽度计算列数
-        final crossAxisCount = _calculateCrossAxisCount(context, constraints.maxWidth);
-        
+        final crossAxisCount =
+            _calculateCrossAxisCount(context, constraints.maxWidth);
+
         return _GroupedSliverView(
           key: ValueKey('grouped_${gridMode ? 'grid' : 'list'}'),
           groups: groups!,
@@ -468,7 +470,7 @@ class FileCollectionView extends StatelessWidget {
     if (gridMode && useUnifiedGridItem) {
       // 获取该文件的视图配置（支持每个文件不同的配置）
       final itemConfig = viewConfigBuilder?.call(item) ?? config;
-      
+
       // 添加唯一 key 以保持 widget 状态
       // 这确保滚动时 widget 不会被完全重建，子组件的状态得以保留
       // 特别重要：视频缩略图不会重新显示 loading 状态

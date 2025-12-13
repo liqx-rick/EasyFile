@@ -80,7 +80,8 @@ class _ScanPathPickerDialogState extends State<ScanPathPickerDialog> {
       }
 
       // 按名称排序
-      folders.sort((a, b) => path.basename(a.path).compareTo(path.basename(b.path)));
+      folders.sort(
+          (a, b) => path.basename(a.path).compareTo(path.basename(b.path)));
 
       setState(() {
         _folders = folders;
@@ -130,7 +131,9 @@ class _ScanPathPickerDialogState extends State<ScanPathPickerDialog> {
                   // 返回按钮
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: _currentPath != '/storage/emulated/0' ? _navigateUp : null,
+                    onPressed: _currentPath != '/storage/emulated/0'
+                        ? _navigateUp
+                        : null,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -160,7 +163,8 @@ class _ScanPathPickerDialogState extends State<ScanPathPickerDialog> {
                             final folderName = path.basename(folder.path);
 
                             return ListTile(
-                              leading: const Icon(Icons.folder, color: Colors.orange),
+                              leading: const Icon(Icons.folder,
+                                  color: Colors.orange),
                               title: Text(folderName),
                               onTap: () {
                                 _navigateToFolder(folder.path);

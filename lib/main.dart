@@ -54,26 +54,31 @@ Future<void> main() async {
   try {
     final cacheManager = ThumbnailCacheManager();
     await cacheManager.init();
-    
+
     // 诊断缓存状态
     final diagnosis = await cacheManager.diagnoseCache();
     logger.i('Thumbnail cache diagnosis: $diagnosis');
-    
+
     // 如果初始化失败，尝试强制重新初始化
-    if (diagnosis['initialized'] == false || diagnosis['cacheDirNull'] == true) {
-      logger.w('Thumbnail cache not properly initialized, attempting force reinitialization...');
+    if (diagnosis['initialized'] == false ||
+        diagnosis['cacheDirNull'] == true) {
+      logger.w(
+          'Thumbnail cache not properly initialized, attempting force reinitialization...');
       final success = await cacheManager.forceReinitialize();
       if (success) {
         logger.i('Thumbnail cache force reinitialization successful');
       } else {
-        logger.e('Thumbnail cache force reinitialization failed - thumbnails will not be cached');
+        logger.e(
+            'Thumbnail cache force reinitialization failed - thumbnails will not be cached');
       }
     } else if (diagnosis['writable'] == false) {
-      logger.e('Thumbnail cache directory is not writable - thumbnails will not be cached');
+      logger.e(
+          'Thumbnail cache directory is not writable - thumbnails will not be cached');
       logger.e('Write error: ${diagnosis['writeError']}');
     } else {
       logger.i('Thumbnail cache initialized successfully');
-      logger.i('Cache size: ${diagnosis['cacheSize']} bytes, count: ${diagnosis['cacheCount']} files');
+      logger.i(
+          'Cache size: ${diagnosis['cacheSize']} bytes, count: ${diagnosis['cacheCount']} files');
     }
   } catch (e, stackTrace) {
     logger.e('Failed to initialize thumbnail cache: $e');

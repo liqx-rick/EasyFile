@@ -37,10 +37,10 @@ class FileViewModel extends ChangeNotifier {
   // 文件更新跟踪（用于页面同步更新）
   String? _lastUpdatedOldPath;
   FileItem? _lastUpdatedNewFile;
-  
+
   // 文件删除跟踪（用于页面同步删除）
   String? _lastDeletedFilePath;
-  
+
   // 文件添加跟踪（用于页面同步添加，如复制、恢复操作）
   String? _lastAddedFilePath;
   FileItem? _lastAddedFile;
@@ -232,7 +232,7 @@ class FileViewModel extends ChangeNotifier {
   }
 
   /// 获取更新后的文件（通过旧路径查找新文件）
-  /// 
+  ///
   /// 用于文件重命名/移动后，获取更新后的文件信息
   /// 如果找不到更新后的文件，返回 null
   FileItem? getUpdatedFile(String oldPath) {
@@ -297,9 +297,10 @@ class FileViewModel extends ChangeNotifier {
     _lastUpdatedOldPath = null;
     _lastUpdatedNewFile = null;
 
-    logger.d('Added and sorted file in list, notifying listeners: ${newFile.path}');
+    logger.d(
+        'Added and sorted file in list, notifying listeners: ${newFile.path}');
     notifyListeners();
-    
+
     // 通知完成后清除添加标记，避免重复处理
     // 延迟清除，确保所有监听器都能收到通知
     Future.microtask(() {
@@ -323,7 +324,7 @@ class FileViewModel extends ChangeNotifier {
 
     logger.d('Notifying listeners about added file: ${newFile.path}');
     notifyListeners();
-    
+
     // 通知完成后清除添加标记，避免重复处理
     // 延迟清除，确保所有监听器都能收到通知
     Future.microtask(() {
@@ -339,7 +340,7 @@ class FileViewModel extends ChangeNotifier {
     _allFiles.removeWhere((f) => f.path == filePath);
     _files.removeWhere((f) => f.path == filePath);
     _newFiles.removeWhere((f) => f.path == filePath); // 同步更新新文件列表
-    
+
     // 记录删除的文件路径，用于通知其他页面
     _lastDeletedFilePath = filePath;
     // 清除更新标记，避免冲突
@@ -349,7 +350,7 @@ class FileViewModel extends ChangeNotifier {
     logger.d('File removed, remaining: ${_files.length} items');
     logger.d('Notifying listeners about deleted file: $filePath');
     notifyListeners();
-    
+
     // 通知完成后清除删除标记，避免重复处理
     // 延迟清除，确保所有监听器都能收到通知
     Future.microtask(() {
@@ -363,11 +364,11 @@ class FileViewModel extends ChangeNotifier {
     // 1. 必须是浏览模式（非搜索、非最近、非收藏）
     // 2. 选择了具体分类（非"全部"）
     // 3. 当前目录下有子文件夹
-    final shouldHideFolders = _currentTab == TabView.browse && 
-                               !_isSearchMode && 
-                               _selectedCategory != FileCategory.all &&
-                               _allFiles.any((item) => item.isDirectory);
-    
+    final shouldHideFolders = _currentTab == TabView.browse &&
+        !_isSearchMode &&
+        _selectedCategory != FileCategory.all &&
+        _allFiles.any((item) => item.isDirectory);
+
     _files = _fileTypeAnalyzer.filterByCategory(
       _allFiles,
       _selectedCategory,

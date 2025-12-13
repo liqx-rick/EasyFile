@@ -17,7 +17,8 @@ class FileDetailsHelper {
     FileItem file,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     showModalBottomSheet(
       context: context,
@@ -60,7 +61,8 @@ class FileDetailsHelper {
                   icon: const Icon(Icons.close, size: 20),
                   onPressed: () => Navigator.pop(context),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
@@ -170,8 +172,9 @@ class FileDetailsHelper {
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     final screenHeight = MediaQuery.of(context).size.height;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     // 横屏模式下使用更大的高度比例
     final maxHeight = isLandscape ? screenHeight * 0.8 : screenHeight * 0.6;
 
@@ -192,120 +195,120 @@ class FileDetailsHelper {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+              // 标题
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: colorScheme.primary,
+                    size: 24,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 内容区域（可滚动）
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 文件名
-                    _buildDetailRow(
-                      '文件名',
-                      file.name,
-                      colorScheme,
-                      isSelectable: true,
+                  const SizedBox(width: 12),
+                  Text(
+                    '文件详情',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
 
-                    // 类型
-                    _buildDetailRow(
-                      '类型',
-                      file.type.displayName,
-                      colorScheme,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 文件大小
-                    _buildDetailRow(
-                      '文件大小',
-                      FileSizeFormatter.formatBytes(file.size),
-                      colorScheme,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 修改时间
-                    _buildDetailRow(
-                      '修改时间',
-                      FileListItemBuilder.formatDetailDate(file.modified),
-                      colorScheme,
-                    ),
-
-                    // 包名（如果有）
-                    if (file.packageName != null) ...[
-                      const SizedBox(height: 16),
+              // 内容区域（可滚动）
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 文件名
                       _buildDetailRow(
-                        '包名',
-                        file.packageName!,
+                        '文件名',
+                        file.name,
                         colorScheme,
                         isSelectable: true,
                       ),
+                      const SizedBox(height: 16),
+
+                      // 类型
+                      _buildDetailRow(
+                        '类型',
+                        file.type.displayName,
+                        colorScheme,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 文件大小
+                      _buildDetailRow(
+                        '文件大小',
+                        FileSizeFormatter.formatBytes(file.size),
+                        colorScheme,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 修改时间
+                      _buildDetailRow(
+                        '修改时间',
+                        FileListItemBuilder.formatDetailDate(file.modified),
+                        colorScheme,
+                      ),
+
+                      // 包名（如果有）
+                      if (file.packageName != null) ...[
+                        const SizedBox(height: 16),
+                        _buildDetailRow(
+                          '包名',
+                          file.packageName!,
+                          colorScheme,
+                          isSelectable: true,
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+                      Divider(color: colorScheme.outlineVariant),
+                      const SizedBox(height: 16),
+
+                      // 完整路径
+                      _buildDetailRow(
+                        '完整路径',
+                        file.path,
+                        colorScheme,
+                        isSelectable: true,
+                        isPath: true,
+                      ),
                     ],
-
-                    const SizedBox(height: 16),
-                    Divider(color: colorScheme.outlineVariant),
-                    const SizedBox(height: 16),
-
-                    // 完整路径
-                    _buildDetailRow(
-                      '完整路径',
-                      file.path,
-                      colorScheme,
-                      isSelectable: true,
-                      isPath: true,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // 操作按钮
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: file.path));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('路径已复制到剪贴板'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('复制路径'),
-                ),
-              ],
-            ),
+              // 操作按钮
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('关闭'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: file.path));
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('路径已复制到剪贴板'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('复制路径'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -388,7 +391,7 @@ class FileDetailsHelper {
   }
 
   /// 显示 TrashFileItem 详情的 BottomSheet
-  /// 
+  ///
   /// [trashBinName] - 回收站名称（需要从页面传入）
   /// [fileTypeLabel] - 文件类型标签（需要从页面传入）
   static void showTrashFileDetailsBottomSheet(
@@ -399,8 +402,9 @@ class FileDetailsHelper {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final screenHeight = MediaQuery.of(context).size.height;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     // 横屏模式下使用更大的高度比例
     final maxHeight = isLandscape ? screenHeight * 0.8 : screenHeight * 0.6;
 
@@ -421,77 +425,77 @@ class FileDetailsHelper {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // 标题
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '文件详情',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+              // 标题
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: colorScheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '文件详情',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 详情内容区域（可滚动）
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDetailRow('文件名', file.name, colorScheme),
+                      _buildDetailRow('文件类型', fileTypeLabel, colorScheme),
+                      _buildDetailRow(
+                        '大小',
+                        FileSizeFormatter.formatBytes(file.size),
+                        colorScheme,
+                      ),
+                      _buildDetailRow(
+                        '删除时间',
+                        FileListItemBuilder.formatDetailDate(
+                            file.trashedTime ?? file.modified),
+                        colorScheme,
+                      ),
+                      _buildDetailRow('回收站', trashBinName, colorScheme),
+                      _buildDetailRow('完整路径', file.path, colorScheme,
+                          isPath: true),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 详情内容区域（可滚动）
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDetailRow('文件名', file.name, colorScheme),
-                    _buildDetailRow('文件类型', fileTypeLabel, colorScheme),
-                    _buildDetailRow(
-                      '大小',
-                      FileSizeFormatter.formatBytes(file.size),
-                      colorScheme,
-                    ),
-                    _buildDetailRow(
-                      '删除时间',
-                      FileListItemBuilder.formatDetailDate(
-                          file.trashedTime ?? file.modified),
-                      colorScheme,
-                    ),
-                    _buildDetailRow('回收站', trashBinName, colorScheme),
-                    _buildDetailRow('完整路径', file.path, colorScheme,
-                        isPath: true),
-                  ],
-                ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // 操作按钮
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: file.path));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('路径已复制到剪贴板')),
-                    );
-                  },
-                  child: const Text('复制路径'),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
-                ),
-              ],
-            ),
+              // 操作按钮
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: file.path));
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('路径已复制到剪贴板')),
+                      );
+                    },
+                    child: const Text('复制路径'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('关闭'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

@@ -161,7 +161,7 @@ class LocalFileRepository implements FileRepository {
       logger.i('Moving file to trash: ${file.path}');
       final trashManager = locator<AppTrashManager>();
       final success = await trashManager.moveToTrash(file);
-      
+
       if (success) {
         logger.i('File moved to trash successfully: ${file.path}');
       } else {

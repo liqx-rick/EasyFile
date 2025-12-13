@@ -292,6 +292,7 @@ class BatchOperationsService {
     // 启用回收站，后台移至回收站（用户无感知）
     await _moveToTrashWithProgress(context, filesToDelete);
   }
+
   /// 永久删除文件（回收站禁用时）
   Future<void> _permanentDelete(
     BuildContext context,
@@ -372,11 +373,11 @@ class BatchOperationsService {
               fileDeleted = true;
             }
           }
-          
+
           // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
           // if (fileDeleted && !file.isDirectory) {
           //   final fileName = file.name.toLowerCase();
-          //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
+          //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
           //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
           //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
           //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
@@ -389,7 +390,8 @@ class BatchOperationsService {
           //   }
           // }
           if (fileDeleted) {
-            logger.d('Skipping thumbnail cache deletion (preserving for fast reload)');
+            logger.d(
+                'Skipping thumbnail cache deletion (preserving for fast reload)');
           }
         } catch (e) {
           logger.w('Error checking file existence: ${file.path}, $e');
@@ -426,7 +428,7 @@ class BatchOperationsService {
   }
 
   /// 移至回收站（软删除模式）
-  /// 
+  ///
   /// 采用立即标记+后台移动的方式：
   /// 1. 立即在数据库中标记为已删除（毫秒级）
   /// 2. 立即刷新UI（文件瞬间消失）
@@ -436,7 +438,7 @@ class BatchOperationsService {
     List<FileItem> files,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    
+
     // 等待回收站管理器初始化完成
     await locator.isReady<AppTrashManager>();
     final trashManager = locator<AppTrashManager>();
@@ -444,18 +446,18 @@ class BatchOperationsService {
     try {
       // 立即标记删除（仅写数据库，速度极快）
       await trashManager.markFilesAsDeleted(files);
-      
+
       if (!_isMounted(context)) return;
 
       // 立即从列表移除已删除的文件
       // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
       for (final file in files) {
         viewModel.removeFileFromList(file.path);
-        
+
         // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
         // if (!file.isDirectory) {
         //   final fileName = file.name.toLowerCase();
-        //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') || 
+        //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
         //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
         //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
         //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
@@ -467,7 +469,8 @@ class BatchOperationsService {
         //     }
         //   }
         // }
-        logger.d('Skipping thumbnail cache deletion (preserving for fast reload)');
+        logger.d(
+            'Skipping thumbnail cache deletion (preserving for fast reload)');
       }
 
       // 注意：不调用 onRefresh，因为文件已通过 removeFileFromList 从列表移除
@@ -489,10 +492,10 @@ class BatchOperationsService {
       // 后台队列会自动处理文件移动，用户无感知
     } catch (e) {
       if (!_isMounted(context)) return;
-      
+
       // 退出多选模式（即使失败也退出）
       onExitSelectionMode();
-      
+
       messenger.showSnackBar(
         SnackBar(
           content: Text('删除失败：$e'),
@@ -501,7 +504,7 @@ class BatchOperationsService {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      
+
       logger.e('Failed to mark files as deleted: $e');
     }
   }
@@ -509,7 +512,7 @@ class BatchOperationsService {
   /// 批量移动
   ///
   /// 注意：context必须从调用处传入，并在调用前检查mounted状态
-  /// 
+  ///
   /// [shouldRefresh] - 移动后是否需要刷新页面（浏览器页面需要，分类页面不需要）
   Future<void> batchMove(
     BuildContext context,
@@ -665,7 +668,7 @@ class BatchOperationsService {
           } else if (entity == FileSystemEntityType.file) {
             await File(path).rename(targetPath);
           }
-          
+
           // 记录成功移动的文件
           movedFiles[path] = targetPath;
           successCount++;
@@ -677,12 +680,12 @@ class BatchOperationsService {
 
       if (!_isMounted(context)) return;
       navigator.pop();
-      
+
       // 立即更新文件路径（对于分类页面等需要保留文件的场景）
       for (final entry in movedFiles.entries) {
         final oldPath = entry.key;
         final newPath = entry.value;
-        
+
         try {
           // 获取移动后的文件信息
           final entity = FileSystemEntity.typeSync(newPath);
@@ -710,10 +713,11 @@ class BatchOperationsService {
             viewModel.updateFileInList(oldPath, movedDir);
           }
         } catch (e) {
-          logger.w('Failed to update file path in list: $oldPath -> $newPath, $e');
+          logger.w(
+              'Failed to update file path in list: $oldPath -> $newPath, $e');
         }
       }
-      
+
       // 根据调用页面决定是否刷新
       // 浏览器页面需要刷新以重新加载目录
       // 分类页面不需要刷新，因为文件已通过 updateFileInList 更新
@@ -865,7 +869,7 @@ class BatchOperationsService {
           if (entity == FileSystemEntityType.directory) {
             // 递归复制文件夹
             await _copyDirectory(Directory(sourcePath), Directory(targetPath));
-            
+
             // 添加目录到 ViewModel（用于同步到其他页面）
             try {
               final dir = Directory(targetPath);
@@ -879,11 +883,12 @@ class BatchOperationsService {
               );
               viewModel.addFileToList(copiedDir);
             } catch (e) {
-              logger.w('Failed to add copied directory to ViewModel: $targetPath, $e');
+              logger.w(
+                  'Failed to add copied directory to ViewModel: $targetPath, $e');
             }
           } else if (entity == FileSystemEntityType.file) {
             await File(sourcePath).copy(targetPath);
-            
+
             // 添加文件到 ViewModel（用于同步到其他页面）
             try {
               final file = File(targetPath);
@@ -897,7 +902,8 @@ class BatchOperationsService {
               );
               viewModel.addFileToList(copiedFile);
             } catch (e) {
-              logger.w('Failed to add copied file to ViewModel: $targetPath, $e');
+              logger
+                  .w('Failed to add copied file to ViewModel: $targetPath, $e');
             }
           }
 
@@ -1138,7 +1144,7 @@ class BatchOperationsService {
       }
 
       // 如果文件被收藏，同步更新收藏记录中的路径
-      if (entity == FileSystemEntityType.file && 
+      if (entity == FileSystemEntityType.file &&
           viewModel.isFavoriteFile(sourcePath)) {
         logger.d('File is favorited, updating favorite path');
 

@@ -165,11 +165,11 @@ class SingleFileOperationsService {
 
     // 显示重命名对话框
     final controller = TextEditingController(text: file.name);
-    
+
     // 检测横屏模式
     final mediaQuery = MediaQuery.of(context);
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
-    
+
     final newName = isLandscape
         ? await _showRenameBottomSheet(context, controller, file)
         : await _showRenameDialog(context, controller, file);
@@ -665,8 +665,7 @@ class SingleFileOperationsService {
       // 限制内容长度，避免生成过大的 PDF
       const maxLength = 50000; // 约 50KB 文本
       if (content.length > maxLength) {
-        content =
-            '${content.substring(0, maxLength)}\n\n... (内容过长，已截断) ...';
+        content = '${content.substring(0, maxLength)}\n\n... (内容过长，已截断) ...';
       }
 
       await Printing.layoutPdf(
@@ -728,8 +727,8 @@ class SingleFileOperationsService {
               children: [
                 _buildDetailRow('名称', file.name),
                 const Divider(),
-                _buildDetailRow('类型',
-                    file.isDirectory ? '文件夹' : _getFileType(file.name)),
+                _buildDetailRow(
+                    '类型', file.isDirectory ? '文件夹' : _getFileType(file.name)),
                 const Divider(),
                 _buildDetailRow(
                     '大小', FileSizeFormatter.formatBytesWithSpace(file.size)),

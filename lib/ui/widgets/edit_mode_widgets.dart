@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Edit mode action button for AppBar
-/// 
+///
 /// Shows "编辑" button in normal mode and "关闭" button in edit mode.
 /// Used in AppBar actions across file management pages.
-/// 
+///
 /// Example:
 /// ```dart
 /// AppBar(
@@ -19,20 +19,20 @@ import 'package:flutter/material.dart';
 class EditModeActionButton extends StatelessWidget {
   /// Whether the page is in edit mode
   final bool isEditMode;
-  
+
   /// Callback when button is pressed
   final VoidCallback onPressed;
-  
+
   /// Icon size (default: 22)
   final double iconSize;
-  
+
   const EditModeActionButton({
     super.key,
     required this.isEditMode,
     required this.onPressed,
     this.iconSize = 22,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return IconButton(
@@ -53,10 +53,10 @@ class EditModeActionButton extends StatelessWidget {
 }
 
 /// Edit mode leading indicator for AppBar
-/// 
+///
 /// Shows a blue circular indicator with edit icon when in edit mode.
 /// Used as AppBar leading widget.
-/// 
+///
 /// Example:
 /// ```dart
 /// AppBar(
@@ -68,16 +68,16 @@ class EditModeActionButton extends StatelessWidget {
 class EditModeLeadingIndicator extends StatelessWidget {
   /// Icon size (default: 18)
   final double iconSize;
-  
+
   /// Container size (default: 32)
   final double size;
-  
+
   const EditModeLeadingIndicator({
     super.key,
     this.iconSize = 18,
     this.size = 32,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -98,10 +98,10 @@ class EditModeLeadingIndicator extends StatelessWidget {
 }
 
 /// Select all button for AppBar
-/// 
+///
 /// Three-state checkbox button (none/partial/all selected).
 /// Shows appropriate icon based on selection state.
-/// 
+///
 /// Example:
 /// ```dart
 /// AppBar(
@@ -117,16 +117,16 @@ class EditModeLeadingIndicator extends StatelessWidget {
 class SelectAllButton extends StatelessWidget {
   /// Number of selected items
   final int selectedCount;
-  
+
   /// Total number of selectable items
   final int totalCount;
-  
+
   /// Callback when button is pressed
   final VoidCallback onPressed;
-  
+
   /// Icon size (default: 24)
   final double iconSize;
-  
+
   const SelectAllButton({
     super.key,
     required this.selectedCount,
@@ -134,12 +134,12 @@ class SelectAllButton extends StatelessWidget {
     required this.onPressed,
     this.iconSize = 24,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     final IconData icon;
     final String tooltip;
-    
+
     if (selectedCount == 0) {
       icon = Icons.check_box_outline_blank;
       tooltip = '全选';
@@ -150,7 +150,7 @@ class SelectAllButton extends StatelessWidget {
       icon = Icons.indeterminate_check_box;
       tooltip = '全选';
     }
-    
+
     return IconButton(
       icon: Icon(icon, size: iconSize),
       onPressed: onPressed,
@@ -166,10 +166,10 @@ class SelectAllButton extends StatelessWidget {
 }
 
 /// Edit mode toolbar button/indicator combo
-/// 
+///
 /// Shows edit button in normal mode and exit button in edit mode.
 /// Used in file management page toolbars (Browse/Recent/Favorite tabs).
-/// 
+///
 /// Example:
 /// ```dart
 /// FileToolbar(
@@ -185,16 +185,16 @@ class SelectAllButton extends StatelessWidget {
 class EditModeToolbarButton extends StatelessWidget {
   /// Whether the page is in edit mode
   final bool isEditMode;
-  
+
   /// Callback when entering edit mode (only called in normal mode)
   final VoidCallback onEnterEditMode;
-  
+
   /// Callback when exiting edit mode (only called in edit mode)
   final VoidCallback? onExitEditMode;
-  
+
   /// Icon size for edit button (default: 18)
   final double iconSize;
-  
+
   const EditModeToolbarButton({
     super.key,
     required this.isEditMode,
@@ -202,11 +202,11 @@ class EditModeToolbarButton extends StatelessWidget {
     this.onExitEditMode,
     this.iconSize = 18,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return IconButton(
       icon: Icon(
         isEditMode ? Icons.close : Icons.edit_outlined,

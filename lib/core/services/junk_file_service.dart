@@ -111,7 +111,8 @@ class JunkFileService {
       // 扫描文件和子目录
       for (final entity in entities) {
         if (entity is File) {
-          await _scanFile(entity, config: config, results: results, seenPaths: seenPaths);
+          await _scanFile(entity,
+              config: config, results: results, seenPaths: seenPaths);
         } else if (entity is Directory) {
           await _scanDirectory(
             entity,

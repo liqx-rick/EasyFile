@@ -434,7 +434,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     // 仅当路径完全匹配时高亮，避免父目录也被高亮
     final currentPath = widget.fileViewModel.currentPath;
     final currentTab = widget.fileViewModel.currentTab;
-    final isSelected = currentTab == TabView.browse && currentPath == folder.path;
+    final isSelected =
+        currentTab == TabView.browse && currentPath == folder.path;
 
     // 根据卡片高度动态调整图标和文字大小
     final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
@@ -482,7 +483,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: fontSize,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                       color: exists
                           ? (isSelected
                               ? Theme.of(context).colorScheme.primary

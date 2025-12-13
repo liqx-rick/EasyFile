@@ -103,14 +103,15 @@ class SelectionBottomBar extends StatelessWidget {
 
             // 操作按钮区域 - 移动、删除、更多
             const SizedBox(width: 8),
-            
+
             // 移动按钮
             TextButton.icon(
               icon: const Icon(Icons.drive_file_move, size: 18),
               label: const Text('移动'),
               onPressed: hasSelection && onMove != null ? onMove : null,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 minimumSize: const Size(0, 36),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -124,7 +125,8 @@ class SelectionBottomBar extends StatelessWidget {
               label: const Text('删除'),
               onPressed: hasSelection && onDelete != null ? onDelete : null,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 minimumSize: const Size(0, 36),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
