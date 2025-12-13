@@ -17,10 +17,17 @@ class FileDetailsHelper {
     FileItem file,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: colorScheme.surface,
+      isScrollControlled: true,
+      constraints: isLandscape
+          ? BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            )
+          : null,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -162,19 +169,29 @@ class FileDetailsHelper {
     JunkFileItem file,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // 横屏模式下使用更大的高度比例
+    final maxHeight = isLandscape ? screenHeight * 0.8 : screenHeight * 0.6;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: colorScheme.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight,
+          minHeight: isLandscape ? screenHeight * 0.5 : 0,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // 标题
             Row(
               children: [
@@ -289,7 +306,8 @@ class FileDetailsHelper {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -380,19 +398,29 @@ class FileDetailsHelper {
     required String fileTypeLabel,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // 横屏模式下使用更大的高度比例
+    final maxHeight = isLandscape ? screenHeight * 0.8 : screenHeight * 0.6;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: colorScheme.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight,
+          minHeight: isLandscape ? screenHeight * 0.5 : 0,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // 标题
             Row(
               children: [
@@ -464,7 +492,8 @@ class FileDetailsHelper {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

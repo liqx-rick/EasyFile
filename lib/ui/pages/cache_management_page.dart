@@ -195,29 +195,31 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确认清理全部缓存'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('确定要清理全部缓存吗？'),
-            SizedBox(height: 8),
-            Text(
-              '这将清理以下内容：',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-            ),
-            Text('• 视频和音频缩略图', style: TextStyle(fontSize: 13)),
-            Text('• 应用日志文件', style: TextStyle(fontSize: 13)),
-            Text('• 分类统计和文件列表', style: TextStyle(fontSize: 13)),
-            Text('• 搜索历史记录', style: TextStyle(fontSize: 13)),
-            Text('• 视频播放数据', style: TextStyle(fontSize: 13)),
-            Text('• 大文件扫描缓存', style: TextStyle(fontSize: 13)),
-            Text('• 重复文件扫描缓存', style: TextStyle(fontSize: 13)),
-            SizedBox(height: 8),
-            Text(
-              '⚠️ 缩略图和文件列表将重新生成，视频将从头播放',
-              style: TextStyle(fontSize: 12, color: Colors.orange),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('确定要清理全部缓存吗？'),
+              SizedBox(height: 8),
+              Text(
+                '这将清理以下内容：',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              Text('• 视频和音频缩略图', style: TextStyle(fontSize: 13)),
+              Text('• 应用日志文件', style: TextStyle(fontSize: 13)),
+              Text('• 分类统计和文件列表', style: TextStyle(fontSize: 13)),
+              Text('• 搜索历史记录', style: TextStyle(fontSize: 13)),
+              Text('• 视频播放数据', style: TextStyle(fontSize: 13)),
+              Text('• 大文件扫描缓存', style: TextStyle(fontSize: 13)),
+              Text('• 重复文件扫描缓存', style: TextStyle(fontSize: 13)),
+              SizedBox(height: 8),
+              Text(
+                '⚠️ 缩略图和文件列表将重新生成，视频将从头播放',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(

@@ -33,7 +33,10 @@ class FavoriteFileItem {
   factory FavoriteFileItem.fromJson(Map<String, dynamic> json) {
     return FavoriteFileItem(
       filePath: json['filePath'] as String,
-      addedTime: DateTime.parse(json['addedTime'] as String),
+      // 兼容旧数据：如果没有 addedTime 字段，使用当前时间
+      addedTime: json['addedTime'] != null
+          ? DateTime.parse(json['addedTime'] as String)
+          : DateTime.now(),
       lastAccessTime: json['lastAccessTime'] != null
           ? DateTime.parse(json['lastAccessTime'] as String)
           : null,

@@ -116,11 +116,9 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final screenSize = MediaQuery.of(context).size;
 
     // 判断是否为横屏模式
-    final isLandscape =
-        screenSize.width > 700 && screenSize.width / screenSize.height > 1.4;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AlertDialog(
       contentPadding: const EdgeInsets.all(0),
@@ -240,12 +238,13 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         // 左侧信息面板
         Expanded(
           flex: 1,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // 提示文字
                 Row(
                   children: [
@@ -356,6 +355,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               ],
             ),
           ),
+        ),
         ),
         // 分割线
         Container(

@@ -226,6 +226,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   double _editModeEnterScrollOffset = 0.0; // 记录进入编辑模式时的滚动位置
   static const double _scrollThreshold = 50.0; // 判断是否在顶部的阈值（50像素）
   final ScrollController _scrollController = ScrollController(); // 主滚动控制器
+  final ScrollController _landscapeRightScrollController = ScrollController(); // 横屏右侧面板滚动控制器
 
   // 搜索相关状态
   final TextEditingController _searchController = TextEditingController();
@@ -351,6 +352,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
+    _landscapeRightScrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _favoriteSearchController.dispose();
@@ -2002,7 +2004,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 获取收藏文件的日期分组
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
-    return FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
+    final groups = FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
+    // 调试日志：查看分组情况
+    logger.d('Favorite files grouping: ${groups.map((key, value) => MapEntry(key, value.length))}');
+    groups.forEach((key, files) {
+      if (files.isNotEmpty) {
+        logger.d('Group "$key": ${files.length} files, first file addedTime: ${files.first.addedTime}');
+      }
+    });
+    return groups;
   }
 
   /// 获取浏览文件的日期分组
@@ -2539,8 +2549,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -2702,8 +2714,15 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       PageId pageId,
       UnifiedViewConfig? Function(FileItem)? viewConfigBuilder) {
     if (isGridView) {
-      // 网格视图
-      final crossAxisCount = _calculateCrossAxisCount();
+      // 网格视图 - 根据屏幕方向计算可用宽度
+      final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
+      final isLandscape = screenWidth > screenHeight;
+      
+      // 横屏模式下，右侧文件浏览区约占55%宽度
+      final availableWidth = isLandscape ? screenWidth * 0.55 : screenWidth;
+      final crossAxisCount = _calculateCrossAxisCount(availableWidth);
+      
       return [
         SliverPadding(
           padding: const EdgeInsets.all(8),
@@ -2759,15 +2778,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 计算网格视图的列数
-  int _calculateCrossAxisCount() {
-    final width = MediaQuery.sizeOf(context).width;
-    const minCardWidth = 100.0;
+  int _calculateCrossAxisCount(double availableWidth) {
+    const minCardWidth = 95.0; // 最小卡片宽度，平衡清晰度和数量
     const spacing = 1.0;
     const horizontalPadding = 16.0;
-    final availableWidth = width - horizontalPadding;
+    final effectiveWidth = availableWidth - horizontalPadding;
+    
     int crossAxisCount =
-        ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
-    return crossAxisCount.clamp(3, 6);
+        ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
+    
+    // 动态调整上限：给横屏右侧区域更多列数
+    final maxColumns = effectiveWidth < 500 ? 4 : 6;
+    return crossAxisCount.clamp(3, maxColumns);
   }
 
   /// 构建文件项的包装器（处理点击、选择等）
@@ -2789,7 +2811,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final viewConfig = viewConfigBuilder?.call(item);
 
       return UnifiedGridItem(
-        key: ValueKey('grid_item_${item.path}'),
+        key: ValueKey('browser_grid_${item.path}'),
         file: item,
         isSelected: isSelected,
         showCheckbox: isEditMode,
@@ -2897,8 +2919,30 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final retentionDays = viewModel.newFilesRetentionDays;
     final groups = _groupFilesByDateWithRetention(files, retentionDays);
     final groupKeys = _getGroupKeysForRetention(retentionDays);
-    final crossAxisCount = _calculateCrossAxisCount();
 
+    // 根据屏幕方向计算可用宽度
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = screenWidth > screenHeight;
+    final availableWidth = isLandscape ? screenWidth * 0.55 : screenWidth;
+    final crossAxisCount = _calculateCrossAxisCount(availableWidth);
+
+    return _buildGroupedSlivers(
+      groupKeys: groupKeys,
+      groups: groups,
+      isGridView: isGridView,
+      crossAxisCount: crossAxisCount,
+      viewConfigBuilder: viewConfigBuilder,
+    );
+  }
+
+  List<Widget> _buildGroupedSlivers({
+    required List<String> groupKeys,
+    required Map<String, List<FileItem>> groups,
+    required bool isGridView,
+    required int crossAxisCount,
+    required UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
+  }) {
     List<Widget> slivers = [];
     for (final key in groupKeys) {
       if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
@@ -2948,7 +2992,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           slivers.add(
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildFileItemWrapper(groups[key]![index]),
+                (context, index) => _buildFileItemWrapper(groups[key]![index], viewConfigBuilder: viewConfigBuilder),
                 childCount: groups[key]!.length,
                 addAutomaticKeepAlives: false,
                 addRepaintBoundaries: true,
@@ -3007,84 +3051,21 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
     final groups = _groupFavoriteFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    final crossAxisCount = _calculateCrossAxisCount();
 
-    List<Widget> slivers = [];
-    for (final key in groupKeys) {
-      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
-        final count = groups[key]!.length;
-        // 分组头部
-        slivers.add(
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Text(
-                '$key（$count个文件）',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-          ),
-        );
-        // 分组内容
-        if (isGridView) {
-          slivers.add(
-            SliverPadding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 1,
-                  mainAxisSpacing: 1,
-                  childAspectRatio: 0.70,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildFileItemWrapper(
-                    groups[key]![index],
-                    viewConfigBuilder: viewConfigBuilder,
-                  ),
-                  childCount: groups[key]!.length,
-                  addAutomaticKeepAlives: false,
-                  addRepaintBoundaries: true,
-                  addSemanticIndexes: false,
-                ),
-              ),
-            ),
-          );
-        } else {
-          slivers.add(
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 0.5,
-                        ),
-                      ),
-                    ),
-                    child: _buildFileItemWrapper(
-                      groups[key]![index],
-                      viewConfigBuilder: viewConfigBuilder,
-                    ),
-                  );
-                },
-                childCount: groups[key]!.length,
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-                addSemanticIndexes: false,
-              ),
-            ),
-          );
-        }
-      }
-    }
-    return slivers;
+    // 根据屏幕方向计算可用宽度
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = screenWidth > screenHeight;
+    final availableWidth = isLandscape ? screenWidth * 0.55 : screenWidth;
+    final crossAxisCount = _calculateCrossAxisCount(availableWidth);
+
+    return _buildGroupedSlivers(
+      groupKeys: groupKeys,
+      groups: groups,
+      isGridView: isGridView,
+      crossAxisCount: crossAxisCount,
+      viewConfigBuilder: viewConfigBuilder,
+    );
   }
 
   /// 构建浏览Tab分组视图的Sliver组件
@@ -3096,84 +3077,21 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
     final groups = _groupBrowseFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
-    final crossAxisCount = _calculateCrossAxisCount();
 
-    List<Widget> slivers = [];
-    for (final key in groupKeys) {
-      if (groups.containsKey(key) && groups[key]!.isNotEmpty) {
-        final count = groups[key]!.length;
-        // 分组头部
-        slivers.add(
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Text(
-                '$key（$count个文件）',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-          ),
-        );
-        // 分组内容
-        if (isGridView) {
-          slivers.add(
-            SliverPadding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 1,
-                  mainAxisSpacing: 1,
-                  childAspectRatio: 0.70,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildFileItemWrapper(
-                    groups[key]![index],
-                    viewConfigBuilder: viewConfigBuilder,
-                  ),
-                  childCount: groups[key]!.length,
-                  addAutomaticKeepAlives: false,
-                  addRepaintBoundaries: true,
-                  addSemanticIndexes: false,
-                ),
-              ),
-            ),
-          );
-        } else {
-          slivers.add(
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 0.5,
-                        ),
-                      ),
-                    ),
-                    child: _buildFileItemWrapper(
-                      groups[key]![index],
-                      viewConfigBuilder: viewConfigBuilder,
-                    ),
-                  );
-                },
-                childCount: groups[key]!.length,
-                addAutomaticKeepAlives: false,
-                addRepaintBoundaries: true,
-                addSemanticIndexes: false,
-              ),
-            ),
-          );
-        }
-      }
-    }
-    return slivers;
+    // 根据屏幕方向计算可用宽度
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = screenWidth > screenHeight;
+    final availableWidth = isLandscape ? screenWidth * 0.55 : screenWidth;
+    final crossAxisCount = _calculateCrossAxisCount(availableWidth);
+
+    return _buildGroupedSlivers(
+      groupKeys: groupKeys,
+      groups: groups,
+      isGridView: isGridView,
+      crossAxisCount: crossAxisCount,
+      viewConfigBuilder: viewConfigBuilder,
+    );
   }
 
   /// 构建列表/网格视图（使用FileCollectionView）
@@ -3714,7 +3632,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     await presenter.refreshCurrent();
                   },
                   child: CustomScrollView(
-                    controller: _scrollController,
+                    controller: _landscapeRightScrollController,
                     slivers: [
                       // 最近Tab工具栏 - recent模式固定显示
                       if (vm.currentTab == TabView.recent)
@@ -4116,17 +4034,32 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       // 判断是否为横屏模式
                       final isLandscape =
                           constraints.maxWidth > constraints.maxHeight;
+                      
+                      // 计算左侧面板宽度（与 _buildLandscapeLayout 中的逻辑一致）
+                      final portraitWidth = math.min(constraints.maxWidth, constraints.maxHeight);
+                      final leftPaneWidth = isLandscape 
+                          ? math.max(portraitWidth, constraints.maxWidth * 0.45)
+                          : 0.0;
 
                       // 根据屏幕方向选择不同的布局
-                      return isLandscape
-                          ? _buildLandscapeLayout(viewModel, constraints)
-                          : _buildPortraitLayout(viewModel);
+                      return Stack(
+                        children: [
+                          isLandscape
+                              ? _buildLandscapeLayout(viewModel, constraints)
+                              : _buildPortraitLayout(viewModel),
+                          
+                          // 批量操作底部工具栏 - 横屏时只显示在右侧区域
+                          if (_selectionController.isSelectionMode)
+                            Positioned(
+                              left: leftPaneWidth,
+                              right: 0,
+                              bottom: 0,
+                              child: _buildSelectionBottomBar(),
+                            ),
+                        ],
+                      );
                     },
                   ),
-                  // 批量操作底部工具栏
-                  bottomNavigationBar: _selectionController.isSelectionMode
-                      ? _buildSelectionBottomBar()
-                      : null,
                 );
               },
             ),

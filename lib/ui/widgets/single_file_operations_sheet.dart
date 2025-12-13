@@ -58,8 +58,12 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // 操作列表
-          _buildOperationsList(context),
+          // 操作列表（可滚动）
+          Flexible(
+            child: SingleChildScrollView(
+              child: _buildOperationsList(context),
+            ),
+          ),
 
           // 底部安全区域
           SizedBox(height: MediaQuery.of(context).padding.bottom),

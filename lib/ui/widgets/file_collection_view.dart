@@ -379,55 +379,69 @@ class FileCollectionView extends StatelessWidget {
 
   /// 计算网格视图的列数
   ///
-  /// 根据屏幕宽度和最小卡片宽度动态计算列数，确保：
-  /// - 最小卡片宽度为 110px，保证可读性
+  /// 根据实际可用宽度和最小卡片宽度动态计算列数，确保：
+  /// - 最小卡片宽度为 95px，平衡清晰度和数量
   /// - 列数限制在 3-6 列之间
   /// - 考虑水平内边距和间距
-  int _calculateCrossAxisCount(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    const minCardWidth = 100.0; // 最小卡片宽度（从110减少到100，允许更大的缩略图）
+  int _calculateCrossAxisCount(BuildContext context, double availableWidth) {
+    const minCardWidth = 95.0; // 最小卡片宽度，平衡清晰度和数量
     const spacing = 1.0;
     final horizontalPadding = (padding as EdgeInsets?)?.horizontal ?? 16.0;
-    final availableWidth = width - horizontalPadding;
+    final effectiveWidth = availableWidth - horizontalPadding;
 
-    // 计算能容纳的列数，限制在3-6列之间
+    // 计算能容纳的列数
     int crossAxisCount =
-        ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
-    return crossAxisCount.clamp(3, 6);
+        ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
+    
+    // 动态调整上限：给横屏右侧区域更多列数
+    final maxColumns = effectiveWidth < 500 ? 4 : 6;
+    return crossAxisCount.clamp(3, maxColumns);
   }
 
   Widget _buildGrid(BuildContext context) {
-    final crossAxisCount = _calculateCrossAxisCount(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 使用实际可用宽度而不是屏幕宽度
+        final crossAxisCount = _calculateCrossAxisCount(context, constraints.maxWidth);
 
-    return GridView.builder(
-      padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
-      // 增加预构建范围，改善滚动体验（使用传入值或默认 800px）
-      cacheExtent: cacheExtent ?? 800.0,
-      // 禁用自动保持 widget，减少内存占用
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
-      addSemanticIndexes: false,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 1,
-        crossAxisSpacing: 1,
-        childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
-      ),
-      itemCount: items!.length,
-      itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
+        return GridView.builder(
+          padding: padding as EdgeInsets? ?? const EdgeInsets.all(8),
+          // 增加预构建范围，改善滚动体验（使用传入值或默认 800px）
+          cacheExtent: cacheExtent ?? 800.0,
+          // 禁用自动保持 widget，减少内存占用
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          addSemanticIndexes: false,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 1,
+            crossAxisSpacing: 1,
+            childAspectRatio: 0.70, // 调整宽高比以0.75到0.70，适应增加的文件名高度
+          ),
+          itemCount: items!.length,
+          itemBuilder: (c, i) => _buildItemWrapper(context, items![i]),
+        );
+      },
     );
   }
 
   Widget _buildGroupedView(BuildContext context) {
     // 使用 CustomScrollView + Slivers 实现真正的懒加载
     // 关键：添加 key 确保 gridMode 切换时重建 widget，触发 dispose
-    return _GroupedSliverView(
-      key: ValueKey('grouped_${gridMode ? 'grid' : 'list'}'),
-      groups: groups!,
-      gridMode: gridMode,
-      groupHeaderBuilder: groupHeaderBuilder,
-      itemWrapper: _buildItemWrapper,
-      crossAxisCount: _calculateCrossAxisCount(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 使用实际可用宽度计算列数
+        final crossAxisCount = _calculateCrossAxisCount(context, constraints.maxWidth);
+        
+        return _GroupedSliverView(
+          key: ValueKey('grouped_${gridMode ? 'grid' : 'list'}'),
+          groups: groups!,
+          gridMode: gridMode,
+          groupHeaderBuilder: groupHeaderBuilder,
+          itemWrapper: _buildItemWrapper,
+          crossAxisCount: crossAxisCount,
+        );
+      },
     );
   }
 
