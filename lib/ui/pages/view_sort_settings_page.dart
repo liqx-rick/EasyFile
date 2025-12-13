@@ -198,11 +198,13 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
             final pageId = entry.key;
             final settings = entry.value;
             return ExpansionTile(
-              leading: Icon(Icons.folder_open, color: colorScheme.primary, size: 20),
+              leading:
+                  Icon(Icons.folder_open, color: colorScheme.primary, size: 20),
               title: Text(PageDefaultSettings.getDescription(pageId)),
               subtitle: Text(
                 _formatSettingsBrief(settings),
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                    fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
               children: [
                 Padding(
@@ -210,11 +212,14 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSettingRow('视图模式', _formatViewMode(settings.viewMode)),
+                      _buildSettingRow(
+                          '视图模式', _formatViewMode(settings.viewMode)),
                       const SizedBox(height: 8),
-                      _buildSettingRow('排序方式', _formatSortType(settings.sortType)),
+                      _buildSettingRow(
+                          '排序方式', _formatSortType(settings.sortType)),
                       const SizedBox(height: 8),
-                      _buildSettingRow('分组设置', settings.groupEnabled == true ? '时间分组' : '不分组'),
+                      _buildSettingRow('分组设置',
+                          settings.groupEnabled == true ? '时间分组' : '不分组'),
                     ],
                   ),
                 ),
@@ -272,7 +277,8 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
                             PageDefaultSettings.getReason(pageId),
                             style: TextStyle(
                               fontSize: 12,
-                              color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.8),
                               fontStyle: FontStyle.italic,
                             ),
                           ),

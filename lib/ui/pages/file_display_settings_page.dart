@@ -8,7 +8,8 @@ class FileDisplaySettingsPage extends StatefulWidget {
   const FileDisplaySettingsPage({super.key});
 
   @override
-  State<FileDisplaySettingsPage> createState() => _FileDisplaySettingsPageState();
+  State<FileDisplaySettingsPage> createState() =>
+      _FileDisplaySettingsPageState();
 }
 
 class _FileDisplaySettingsPageState extends State<FileDisplaySettingsPage> {
@@ -28,7 +29,8 @@ class _FileDisplaySettingsPageState extends State<FileDisplaySettingsPage> {
 
   /// 加载设置
   Future<void> _loadSettings() async {
-    final showInfo = _settingsService.getGridShowFileInfo(PageId.categoryImages);
+    final showInfo =
+        _settingsService.getGridShowFileInfo(PageId.categoryImages);
     final showHidden = await _displaySettings.getShowHiddenFiles();
     final showSystem = await _displaySettings.getShowSystemFiles();
     final showFullPath = await _displaySettings.getShowFullPath();
@@ -141,7 +143,9 @@ class _FileDisplaySettingsPageState extends State<FileDisplaySettingsPage> {
             ),
             title: const Text('显示系统文件'),
             subtitle: Text(
-              _showSystemFiles ? '当前显示 Android、.thumbnails 等系统文件夹' : '当前隐藏系统文件夹和文件',
+              _showSystemFiles
+                  ? '当前显示 Android、.thumbnails 等系统文件夹'
+                  : '当前隐藏系统文件夹和文件',
               style: TextStyle(
                 fontSize: 12,
                 color: colorScheme.onSurfaceVariant,
