@@ -57,9 +57,7 @@ class _TrashPageState extends State<TrashPage> {
               children: [
                 _buildStatisticsCard(),
                 Expanded(
-                  child: _items.isEmpty
-                      ? _buildEmptyState()
-                      : _buildFileList(),
+                  child: _items.isEmpty ? _buildEmptyState() : _buildFileList(),
                 ),
               ],
             ),
@@ -98,12 +96,13 @@ class _TrashPageState extends State<TrashPage> {
     final totalSize = (_statistics!['totalSize'] as int?) ?? 0;
     final retentionDays = (_statistics!['retentionDays'] as int?) ?? 7;
     final hasItems = _items.isNotEmpty;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -155,6 +154,8 @@ class _TrashPageState extends State<TrashPage> {
 
   /// 构建统计行
   Widget _buildStatRow(String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -162,14 +163,15 @@ class _TrashPageState extends State<TrashPage> {
           label,
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[700],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
           ),
         ),
       ],
@@ -257,7 +259,8 @@ class _TrashPageState extends State<TrashPage> {
                         onPressed: () => _restoreFile(item),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 0),
                           minimumSize: const Size(48, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -273,7 +276,8 @@ class _TrashPageState extends State<TrashPage> {
                         onPressed: () => _confirmDeleteFile(item),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 0),
                           minimumSize: const Size(48, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -294,7 +298,7 @@ class _TrashPageState extends State<TrashPage> {
   Widget _buildThumbnail(AppTrashItem item) {
     final fileName = _getFileName(item.originalPath);
     final isDirectory = item.mimeType.toLowerCase() == 'inode/directory';
-    
+
     // 使用统一的 FileListItemBuilder 构建缩略图
     return FileListItemBuilder.buildFileThumbnail(
       filePath: item.trashPath,

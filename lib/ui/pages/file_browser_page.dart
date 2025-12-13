@@ -29,6 +29,7 @@ import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
+import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
@@ -393,7 +394,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     if (state == AppLifecycleState.resumed) {
       // 1. 重新检查权限状态
       _checkPermissionAfterResume();
-      
+
       // 2. 如果在新文件Tab，自动后台刷新列表
       _refreshNewFilesOnResume();
     }
@@ -431,7 +432,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   void _refreshNewFilesOnResume() {
     // 添加诊断日志
     logger.d('_refreshNewFilesOnResume: currentTab=${viewModel.currentTab}');
-    
+
     // 只有当前在新文件Tab时才刷新
     if (viewModel.currentTab == TabView.newFiles) {
       logger.i('App resumed on newFiles tab, refreshing in background...');
@@ -825,10 +826,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 如果是图片、视频或音频，传递文件列表以支持滑动切换
     if (isImageOrVideo || FileUtils.isAudioFile(file.name)) {
       // 根据当前Tab获取正确的文件列表
-      final sourceFiles = viewModel.currentTab == TabView.newFiles 
-          ? viewModel.newFiles 
+      final sourceFiles = viewModel.currentTab == TabView.newFiles
+          ? viewModel.newFiles
           : viewModel.files;
-      
+
       // 根据当前文件类型只过滤同类型文件
       final mediaFiles = sourceFiles.where((f) {
         if (FileUtils.isImageFile(file.name)) {
@@ -960,6 +961,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             builder: (context) => const AppManagementPage(
               isFromStorageManagement: false,
             ),
+          ),
+        );
+        break;
+      case 'trash':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrashPage(),
           ),
         );
         break;
@@ -1978,7 +1986,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 应用页面级排序
     final sortType = PageSettingsService().getSortType(PageId.homeFavorite);
-    final ascending = PageSettingsService().getSortAscending(PageId.homeFavorite);
+    final ascending =
+        PageSettingsService().getSortAscending(PageId.homeFavorite);
     FileComparatorUtil.sortFilesInPlace(result, sortType, ascending: ascending);
 
     return result;
@@ -2022,7 +2031,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getSortType(PageId.homeFavorite);
     final currentAscending =
         PageSettingsService().getSortAscending(PageId.homeFavorite);
-    
+
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -2034,12 +2043,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeFavorite);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeFavorite, SortType.name);
@@ -2051,15 +2062,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
-                  } else {
                     await PageSettingsService()
-                        .setSortType(PageId.homeFavorite, SortType.modifiedTime);
+                        .toggleSortDirection(PageId.homeFavorite);
+                  } else {
+                    await PageSettingsService().setSortType(
+                        PageId.homeFavorite, SortType.modifiedTime);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2068,12 +2081,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeFavorite);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeFavorite, SortType.size);
@@ -2085,12 +2100,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeFavorite);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeFavorite, SortType.fileType);
@@ -2111,7 +2128,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         PageSettingsService().getSortType(PageId.homeBrowse);
     final currentAscending =
         PageSettingsService().getSortAscending(PageId.homeBrowse);
-    
+
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -2123,12 +2140,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeBrowse);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeBrowse, SortType.name);
@@ -2140,12 +2159,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeBrowse);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeBrowse, SortType.modifiedTime);
@@ -2157,12 +2178,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(
+                        _getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeBrowse);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeBrowse, SortType.size);
@@ -2174,12 +2197,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(
+                        SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService()
+                        .toggleSortDirection(PageId.homeBrowse);
                   } else {
                     await PageSettingsService()
                         .setSortType(PageId.homeBrowse, SortType.fileType);
@@ -2641,7 +2666,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     } else if (vm.currentTab == TabView.newFiles) {
       // 新文件Tab：使用newFiles列表（已按发现时间排序）
       displayFiles = vm.newFiles;
-      
+
       // 应用搜索过滤
       if (_newFilesSearchMode && _newFilesSearchQuery.isNotEmpty) {
         displayFiles = displayFiles.where((file) {
@@ -2867,7 +2892,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   ) {
     final isGridView =
         PageSettingsService().getViewMode(PageId.homeNewFiles) == ViewMode.grid;
-    
+
     // 从 viewModel 获取 retentionDays 设置
     final retentionDays = viewModel.newFilesRetentionDays;
     final groups = _groupFilesByDateWithRetention(files, retentionDays);
@@ -2883,7 +2908,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -2993,7 +3018,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -3082,7 +3107,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -4027,53 +4052,63 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
                       actions: [
                         PopupMenuButton<String>(
-                                onSelected: _handleMenuAction,
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'settings',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.settings),
-                                        SizedBox(width: 8),
-                                        Text('设置'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  const PopupMenuItem(
-                                    value: 'app_management',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.apps),
-                                        SizedBox(width: 8),
-                                        Text('应用管理'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'manage_quick_access',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.folder_special),
-                                        SizedBox(width: 8),
-                                        Text('快速访问管理'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  const PopupMenuItem(
-                                    value: 'about',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.info_outline),
-                                        SizedBox(width: 8),
-                                        Text('关于'),
-                                      ],
-                                    ),
-                                  ),
+                          onSelected: _handleMenuAction,
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'settings',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.settings),
+                                  SizedBox(width: 8),
+                                  Text('设置'),
                                 ],
                               ),
-                            ],
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(
+                              value: 'app_management',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.apps),
+                                  SizedBox(width: 8),
+                                  Text('应用管理'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'manage_quick_access',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.folder_special),
+                                  SizedBox(width: 8),
+                                  Text('快速访问管理'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'trash',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete_outline),
+                                  SizedBox(width: 8),
+                                  Text('回收站'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(
+                              value: 'about',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline),
+                                  SizedBox(width: 8),
+                                  Text('关于'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   body: LayoutBuilder(

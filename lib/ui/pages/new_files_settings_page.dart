@@ -84,14 +84,14 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
 
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('新文件设置')),
+        appBar: AppBar(title: const Text('新文件发现模块设置')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('新文件设置'),
+        title: const Text('新文件发现模块设置'),
         elevation: 0,
       ),
       body: ListView(
