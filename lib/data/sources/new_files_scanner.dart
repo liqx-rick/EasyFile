@@ -230,9 +230,7 @@ class NewFilesScanner {
         logger.d(
             'Using cached scan results (scanned ${age.inMinutes} minutes ago)');
 
-        // 后台静默扫描（不阻塞UI）
-        _backgroundIncrementalScan(cachedItems);
-
+        // 返回null表示使用缓存，后台刷新由Presenter层控制
         return null; // 使用缓存
       }
 
@@ -243,23 +241,6 @@ class NewFilesScanner {
 
     // 首次扫描或缓存过期
     return await scanNewFiles();
-  }
-
-  /// 后台增量扫描（不阻塞UI）
-  void _backgroundIncrementalScan(List<NewFileItem> cachedItems) {
-    // 异步执行，不等待结果
-    Future.microtask(() async {
-      try {
-        logger.d('Starting background incremental scan...');
-        final newItems = await incrementalScan(cachedItems);
-        logger.i('Background scan complete: ${newItems.length} items');
-
-        // 注意：这里只是扫描，不自动更新UI
-        // UI更新由Presenter层控制
-      } catch (e) {
-        logger.e('Background scan error: $e');
-      }
-    });
   }
 
   /// 增量扫描（只扫描自上次扫描后的新文件）

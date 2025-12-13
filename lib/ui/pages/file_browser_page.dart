@@ -3137,7 +3137,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         GestureDetector(
           // 手势功能说明：
           // 1. 浏览Tab - 左右滑切换分类Tab（全部|文档|图片|视频等）
-          // 2. 最近/收藏Tab - 左右滑切换Tab
+          // 2. 最近/收藏Tab - 左右滑切换Tab（仅在列表顶部触发）
           onHorizontalDragEnd: (details) {
             if (details.primaryVelocity == null) {
               return;
@@ -3148,7 +3148,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             final isSwipeLeft = velocity < -500; // 左滑
 
             // 搜索模式下禁用所有手势
-            if (vm.isSearchMode || _favoriteSearchMode) {
+            if (vm.isSearchMode || _favoriteSearchMode || _newFilesSearchMode) {
               return;
             }
 
@@ -3176,13 +3176,28 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               }
             }
 
-            // 功能2: 在最近/收藏Tab之间左右滑动切换
-            if (vm.currentTab == TabView.recent && isSwipeLeft) {
-              // 最近Tab左滑 → 切换到收藏Tab
-              viewModel.setCurrentTab(TabView.favorite);
-              presenter.loadFavoriteFiles();
+            // 功能2: 在最近/收藏/新文件Tab之间左右滑动切换
+            // 限制：仅在列表顶部（滚动偏移 < 50）时才允许切换Tab，避免滑动列表时误触发
+            if (_scrollController.hasClients && _scrollController.offset > 50) {
+              return; // 列表已滚动，禁用Tab切换手势
+            }
+
+            if (vm.currentTab == TabView.recent) {
+              if (isSwipeLeft) {
+                // 最近Tab左滑 → 切换到收藏Tab
+                viewModel.setCurrentTab(TabView.favorite);
+                presenter.loadFavoriteFiles();
+              } else if (isSwipeRight) {
+                // 最近Tab右滑 → 切换到新文件Tab
+                viewModel.setCurrentTab(TabView.newFiles);
+                presenter.loadNewFiles();
+              }
             } else if (vm.currentTab == TabView.favorite && isSwipeRight) {
               // 收藏Tab右滑 → 切换到最近Tab
+              viewModel.setCurrentTab(TabView.recent);
+              presenter.loadRecentFiles();
+            } else if (vm.currentTab == TabView.newFiles && isSwipeLeft) {
+              // 新文件Tab左滑 → 切换到最近Tab
               viewModel.setCurrentTab(TabView.recent);
               presenter.loadRecentFiles();
             }

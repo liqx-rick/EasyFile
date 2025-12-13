@@ -1737,14 +1737,23 @@ class FilePresenter {
 
       logger.i('Loaded ${fileItems.length} new files');
 
-      // 保存到本地缓存（用于下次快速加载）
-      if (newFileItems.isNotEmpty) {
-        await newFilesLocalSource.saveCachedIndex(newFileItems);
-      }
-
       // 更新视图模型（传递retentionDays设置）
       viewModel.setNewFiles(fileItems,
           retentionDays: latestSettings.retentionDays);
+
+      // 后台异步保存到本地缓存（不阻塞UI显示）
+      if (newFileItems.isNotEmpty) {
+        newFilesLocalSource.saveCachedIndex(newFileItems).catchError((e) {
+          logger.e('Error saving cache: $e');
+          return false;
+        });
+      }
+
+      // 如果使用了缓存数据，启动后台静默刷新以获取最新结果
+      if (scannedItems == null && !isUserRefresh) {
+        logger.d('Starting background refresh to update with latest files...');
+        refreshNewFilesInBackground();
+      }
     } catch (e) {
       logger.e('Error loading new files: $e');
       viewModel.setError('加载新文件失败：$e');
