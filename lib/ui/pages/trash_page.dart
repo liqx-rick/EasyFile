@@ -98,12 +98,13 @@ class _TrashPageState extends State<TrashPage> {
     final totalSize = (_statistics!['totalSize'] as int?) ?? 0;
     final retentionDays = (_statistics!['retentionDays'] as int?) ?? 7;
     final hasItems = _items.isNotEmpty;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -155,6 +156,8 @@ class _TrashPageState extends State<TrashPage> {
 
   /// 构建统计行
   Widget _buildStatRow(String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -162,14 +165,15 @@ class _TrashPageState extends State<TrashPage> {
           label,
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[700],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
           ),
         ),
       ],

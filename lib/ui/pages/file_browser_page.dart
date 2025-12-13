@@ -29,6 +29,7 @@ import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
+import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/widgets/category_nav_bar.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
@@ -960,6 +961,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             builder: (context) => const AppManagementPage(
               isFromStorageManagement: false,
             ),
+          ),
+        );
+        break;
+      case 'trash':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrashPage(),
           ),
         );
         break;
@@ -2883,7 +2891,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -2993,7 +3001,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -3082,7 +3090,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           SliverToBoxAdapter(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFF0F0F0), // 明显的灰色，与文件列表区分
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Text(
                 '$key（$count个文件）',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -4057,6 +4065,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                         Icon(Icons.folder_special),
                                         SizedBox(width: 8),
                                         Text('快速访问管理'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'trash',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline),
+                                        SizedBox(width: 8),
+                                        Text('回收站'),
                                       ],
                                     ),
                                   ),
