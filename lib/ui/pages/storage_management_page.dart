@@ -591,10 +591,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: color.withOpacity(0.3),
+          color: color.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -643,7 +643,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  color.withOpacity(0.6),
+                                  color.withValues(alpha: 0.6),
                                 ),
                               ),
                             ),
@@ -651,7 +651,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                             Text(
                               '计算中',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurface.withOpacity(0.5),
+                                color: colorScheme.onSurface.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -944,7 +944,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -1359,7 +1359,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-              color: colorScheme.outlineVariant.withOpacity(0.5),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
             ),
           ),
           child: Padding(
@@ -1378,7 +1378,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   if (i < categories.length - 1)
                     Divider(
                       height: 1,
-                      color: colorScheme.outlineVariant.withOpacity(0.3),
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.3),
                     ),
                 ],
               ],
@@ -1443,7 +1443,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withOpacity(0.3),
+                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,

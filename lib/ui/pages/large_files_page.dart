@@ -841,7 +841,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       selected: isSelected,
-      selectedTileColor: colorScheme.primaryContainer.withOpacity(0.3),
+      selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
       leading: _buildThumbnail(file, 48),
       title: Text(
         file.name,

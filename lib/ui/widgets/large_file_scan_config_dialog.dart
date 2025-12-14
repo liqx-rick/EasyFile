@@ -66,7 +66,7 @@ class _LargeFileScanConfigDialogState extends State<LargeFileScanConfigDialog> {
                       activeTrackColor: colorScheme.primary,
                       inactiveTrackColor: Colors.grey[300],
                       thumbColor: colorScheme.primary,
-                      overlayColor: colorScheme.primary.withOpacity(0.2),
+                      overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                       valueIndicatorColor: colorScheme.primary,
                       trackHeight: 4,
                     ),
@@ -168,7 +168,7 @@ class _LargeFileScanConfigDialogState extends State<LargeFileScanConfigDialog> {
     final color = _getColorForType(type);
 
     return Material(
-      color: isSelected ? color.withOpacity(0.15) : Colors.grey[100],
+      color: isSelected ? color.withValues(alpha: 0.15) : Colors.grey[100],
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () {

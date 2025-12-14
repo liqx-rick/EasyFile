@@ -1414,7 +1414,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? theme.colorScheme.primaryContainer.withOpacity(0.8)
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.8)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -1476,7 +1476,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -3540,7 +3540,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),

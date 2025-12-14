@@ -158,7 +158,7 @@ class _SplashPageState extends State<SplashPage>
           '一个简洁高效的文件管理器',
           style: TextStyle(
             fontSize: 16,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             letterSpacing: 0.5,
           ),
         ),
@@ -194,7 +194,7 @@ class _SplashPageState extends State<SplashPage>
             viewModel.initMessage,
             style: TextStyle(
               fontSize: 14,
-              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
             ),
             textAlign: TextAlign.center,
           ),
@@ -212,7 +212,7 @@ class _SplashPageState extends State<SplashPage>
           'Version 1.0.0',
           style: TextStyle(
             fontSize: 12,
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
         const SizedBox(height: 4),
@@ -220,7 +220,7 @@ class _SplashPageState extends State<SplashPage>
           'Powered by EasyFile',
           style: TextStyle(
             fontSize: 12,
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
       ],

@@ -76,7 +76,7 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
 
     return Card(
       elevation: 2,
-      color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -251,7 +251,7 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Card(
-                    color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
@@ -278,7 +278,7 @@ class _ViewSortSettingsPageState extends State<ViewSortSettingsPage> {
                             style: TextStyle(
                               fontSize: 12,
                               color:
-                                  colorScheme.onSurfaceVariant.withOpacity(0.8),
+                                  colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                               fontStyle: FontStyle.italic,
                             ),
                           ),
