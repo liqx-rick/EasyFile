@@ -299,6 +299,27 @@ class BatchOperationsService {
   }
 
   /// 永久删除文件（回收站禁用时）
+  ///
+  /// 危险操作警告：此方法直接删除文件，无法恢复！
+  ///
+  /// 执行流程：
+  /// 1. 显示进度对话框（不可取消，防止中途打断）
+  /// 2. 逐个删除文件/文件夹：
+  ///    - 文件夹：递归删除所有子项
+  ///    - 文件：直接删除
+  /// 3. 记录操作日志（包含风险等级评估）
+  /// 4. 验证删除结果，从UI列表移除已删除项
+  /// 5. 显示删除统计（成功/失败数量）
+  ///
+  /// 安全措施：
+  /// - PathSecurity风险评估和日志记录
+  /// - 删除后验证文件是否存在
+  /// - 失败不中断，统计失败数量
+  /// - context.mounted检查，防止widget销毁后操作
+  ///
+  /// 性能优化：
+  /// - 禁用缩略图缓存删除，保留缓存加速重新加载
+  /// - 逐个删除而非批量，提供更好的错误处理
   Future<void> _permanentDelete(
     BuildContext context,
     List<FileItem> files,
@@ -361,7 +382,6 @@ class BatchOperationsService {
       navigator.pop(); // 关闭进度对话框
 
       // 立即从列表移除已删除的文件
-      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
       for (final file in files) {
         try {
           bool fileDeleted = false;
@@ -379,21 +399,6 @@ class BatchOperationsService {
             }
           }
 
-          // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
-          // if (fileDeleted && !file.isDirectory) {
-          //   final fileName = file.name.toLowerCase();
-          //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
-          //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
-          //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
-          //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
-          //     try {
-          //       await cacheManager.deleteCached(file.path);
-          //       logger.d('Deleted video thumbnail cache for: ${file.path}');
-          //     } catch (e) {
-          //       logger.w('Failed to delete thumbnail cache: $e');
-          //     }
-          //   }
-          // }
           if (fileDeleted) {
             logger.d(
                 'Skipping thumbnail cache deletion (preserving for fast reload)');
@@ -455,25 +460,8 @@ class BatchOperationsService {
       if (!context.mounted) return;
 
       // 立即从列表移除已删除的文件
-      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
       for (final file in files) {
         viewModel.removeFileFromList(file.path);
-
-        // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
-        // if (!file.isDirectory) {
-        //   final fileName = file.name.toLowerCase();
-        //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
-        //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
-        //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
-        //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
-        //     try {
-        //       await cacheManager.deleteCached(file.path);
-        //       logger.d('Deleted video thumbnail cache for: ${file.path}');
-        //     } catch (e) {
-        //       logger.w('Failed to delete thumbnail cache: $e');
-        //     }
-        //   }
-        // }
         logger.d(
             'Skipping thumbnail cache deletion (preserving for fast reload)');
       }
