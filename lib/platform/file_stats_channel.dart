@@ -30,7 +30,7 @@ class FileStatsChannel {
 
   /// 批量获取文件的创建时间
   ///
-  /// 返回 Map<filePath, DateTime?>
+  /// 返回 `Map<filePath, DateTime?>`
   static Future<Map<String, DateTime?>> getFilesCreationTimes(
       List<String> filePaths) async {
     try {

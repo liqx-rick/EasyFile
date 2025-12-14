@@ -21,17 +21,15 @@ class DuplicateFileScanConfig {
         );
 
   /// 完整检测配置
-  const DuplicateFileScanConfig.fullScan({int minSizeInKB = 10})
-      : minSizeInKB = minSizeInKB,
-        scanMode = DuplicateScanMode.full,
+  const DuplicateFileScanConfig.fullScan({this.minSizeInKB = 10})
+      : scanMode = DuplicateScanMode.full,
         selectedType = null;
 
   /// 分类检测配置
   const DuplicateFileScanConfig.categoryScan({
     required FileTypeFilter type,
-    int minSizeInKB = 10,
-  })  : minSizeInKB = minSizeInKB,
-        scanMode = DuplicateScanMode.category,
+    this.minSizeInKB = 10,
+  })  : scanMode = DuplicateScanMode.category,
         selectedType = type;
 
   /// 获取要扫描的文件类型集合
