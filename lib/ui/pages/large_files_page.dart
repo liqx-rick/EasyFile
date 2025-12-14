@@ -324,11 +324,16 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           _isScanning = false;
         });
 
+        // Capture messenger before async operation
+        final messenger = ScaffoldMessenger.of(context);
+
         // 保存到缓存
         await _cacheManager.saveCache(files: _largeFiles, config: _config);
 
+        if (!mounted) return;
+
         if (files.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text('未找到大于 ${_config.minSizeInMB} MB 的文件'),
               duration: const Duration(seconds: 2),

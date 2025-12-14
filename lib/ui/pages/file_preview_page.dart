@@ -1123,10 +1123,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () async {
+                      // Capture messenger before async operation
+                      final messenger = ScaffoldMessenger.of(context);
                       final result = await OpenFile.open(widget.file.path);
                       if (result.type != ResultType.done) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text('打开失败: ${result.message}')),
                           );
                         }

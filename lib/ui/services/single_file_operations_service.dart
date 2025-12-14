@@ -53,9 +53,10 @@ class SingleFileOperationsService {
     }
   }
 
-  void _showSnackBar(String message, {Duration? duration}) {
+  void _showSnackBar(String message, {Duration? duration, ScaffoldMessengerState? messenger}) {
     if (!_isMounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
       SnackBar(
         content: Text(message),
         duration: duration ?? const Duration(seconds: 2),
@@ -63,9 +64,10 @@ class SingleFileOperationsService {
     );
   }
 
-  void _showErrorSnackBar(String message, [Color? backgroundColor]) {
+  void _showErrorSnackBar(String message, [Color? backgroundColor, ScaffoldMessengerState? messenger]) {
     if (!_isMounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: backgroundColor ?? Colors.red,
@@ -76,6 +78,9 @@ class SingleFileOperationsService {
 
   /// 切换文件收藏状态
   Future<void> toggleFavorite(FileItem file) async {
+    // Capture messenger before async operations
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final wasOriginallyFavorite = viewModel.isFavoriteFile(file.path);
 
@@ -89,25 +94,28 @@ class SingleFileOperationsService {
       final operationSucceeded = (newFavoriteState != wasOriginallyFavorite);
 
       if (operationSucceeded) {
-        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏');
+        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏', messenger: messenger);
         // 收藏操作通过 viewModel.addFavoriteFile/removeFavoriteFile 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
       } else {
         final action = wasOriginallyFavorite ? '取消收藏' : '添加到收藏';
-        _showErrorSnackBar('$action失败');
+        _showErrorSnackBar('$action失败', null, messenger);
       }
     } catch (e) {
       logger.e('Toggle favorite failed: $e');
       if (_isMounted) {
-        _showErrorSnackBar('操作失败：$e');
+        _showErrorSnackBar('操作失败：$e', null, messenger);
       }
     }
   }
 
   /// 分享文件
   Future<void> shareFile(FileItem file) async {
+    // Capture messenger before any async operations
+    final messenger = ScaffoldMessenger.of(context);
+
     if (file.isDirectory) {
-      _showErrorSnackBar('无法分享文件夹', Colors.orange);
+      _showErrorSnackBar('无法分享文件夹', Colors.orange, messenger);
       return;
     }
 
@@ -117,12 +125,12 @@ class SingleFileOperationsService {
       if (!_isMounted) return;
 
       if (!success) {
-        _showErrorSnackBar('分享失败，请检查文件是否存在');
+        _showErrorSnackBar('分享失败，请检查文件是否存在', null, messenger);
       }
     } catch (e) {
       logger.e('Share file failed: $e');
       if (_isMounted) {
-        _showErrorSnackBar('分享失败：$e');
+        _showErrorSnackBar('分享失败：$e', null, messenger);
       }
     }
   }
@@ -131,12 +139,18 @@ class SingleFileOperationsService {
   ///
   /// 返回 true 表示重命名成功，需要刷新父页面
   Future<bool> renameFile(FileItem file) async {
+    // Capture messenger and navigator before async operations
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar(
         PathSecurity.getOperationDeniedMessage(file.path, '重命名'),
+        null,
+        messenger,
       );
       logger.w('Rename blocked: ${file.path} (Risk: ${riskLevel.name})');
       return false;
@@ -145,7 +159,7 @@ class SingleFileOperationsService {
     if (PathSecurity.isSystemFolderName(file.name)) {
       await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('🔒 禁止重命名'),
           content: Text(
             '"${file.name}" 是系统重要文件夹！\n\n'
@@ -154,7 +168,7 @@ class SingleFileOperationsService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => navigator.pop(),
               child: const Text('我知道了'),
             ),
           ],
@@ -170,12 +184,18 @@ class SingleFileOperationsService {
     final mediaQuery = MediaQuery.of(context);
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
 
+    // Check mounted before showing rename dialog
+    if (!_isMounted) return false;
+
     final newName = isLandscape
         ? await _showRenameBottomSheet(context, controller, file)
         : await _showRenameDialog(context, controller, file);
 
     if (newName == null || newName.trim().isEmpty || !_isMounted) return false;
     if (newName == file.name) return false;
+
+    // Check mounted before showing dialog
+    if (!_isMounted) return false;
 
     // 显示进度
     showDialog(
@@ -205,34 +225,38 @@ class SingleFileOperationsService {
       final success = await presenter.renameFile(file, newName.trim());
 
       if (!_isMounted) return false;
-      Navigator.of(context).pop(); // 关闭进度对话框
+      navigator.pop(); // 关闭进度对话框
 
       if (success) {
-        _showSnackBar('重命名成功');
+        _showSnackBar('重命名成功', messenger: messenger);
         // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true; // 返回 true 表示操作成功
       } else {
-        _showErrorSnackBar('重命名失败');
+        _showErrorSnackBar('重命名失败', null, messenger);
         return false;
       }
     } catch (e) {
       if (!_isMounted) return false;
-      Navigator.of(context).pop();
-      _showErrorSnackBar('重命名失败：$e');
+      navigator.pop();
+      _showErrorSnackBar('重命名失败：$e', null, messenger);
       return false;
     }
   }
 
   /// 删除文件
   Future<void> deleteFile(FileItem file) async {
+    // Capture messenger and navigator before async operations
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
       await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('🛑 禁止删除'),
           content: Text(
             '"${file.name}" 是受保护的系统目录！\n\n'
@@ -241,7 +265,7 @@ class SingleFileOperationsService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => navigator.pop(),
               child: const Text('我知道了'),
             ),
           ],
@@ -254,7 +278,7 @@ class SingleFileOperationsService {
     if (PathSecurity.isSystemFolderName(file.name)) {
       await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('🔒 禁止删除'),
           content: Text(
             '"${file.name}" 是系统重要文件夹！\n\n'
@@ -263,7 +287,7 @@ class SingleFileOperationsService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => navigator.pop(),
               child: const Text('我知道了'),
             ),
           ],
@@ -272,6 +296,9 @@ class SingleFileOperationsService {
       return;
     }
 
+    // Check mounted before showing delete confirmation dialog
+    if (!_isMounted) return;
+
     // 使用增强的删除确认对话框
     final confirmed = await EnhancedDeleteDialog.showSingleDeleteConfirmation(
       context: context,
@@ -279,6 +306,9 @@ class SingleFileOperationsService {
     );
 
     if (!confirmed || !_isMounted) return;
+
+    // Check mounted before showing dialog
+    if (!_isMounted) return;
 
     // 显示进度
     showDialog(
@@ -316,19 +346,19 @@ class SingleFileOperationsService {
       final success = await presenter.deleteFile(file);
 
       if (!_isMounted) return;
-      Navigator.of(context).pop(); // 关闭进度对话框
+      navigator.pop(); // 关闭进度对话框
 
       if (success) {
-        _showSnackBar('删除成功');
+        _showSnackBar('删除成功', messenger: messenger);
         // 文件删除成功，通知调用者（通常需要关闭预览页）
         onFileDeleted?.call();
       } else {
-        _showErrorSnackBar('删除失败');
+        _showErrorSnackBar('删除失败', null, messenger);
       }
     } catch (e) {
       if (!_isMounted) return;
-      Navigator.of(context).pop();
-      _showErrorSnackBar('删除失败：$e');
+      navigator.pop();
+      _showErrorSnackBar('删除失败：$e', null, messenger);
     }
   }
 
@@ -336,11 +366,15 @@ class SingleFileOperationsService {
   ///
   /// 返回 true 表示移动成功，需要刷新父页面
   Future<bool> moveFile(FileItem file) async {
+    // Capture messenger and navigator before async operations
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
-      _showErrorSnackBar('无法移动 "${file.name}"：这是受保护的系统目录');
+      _showErrorSnackBar('无法移动 "${file.name}"：这是受保护的系统目录', null, messenger);
       logger.w('Move blocked: ${file.path} (Risk: ${riskLevel.name})');
       return false;
     }
@@ -349,7 +383,7 @@ class SingleFileOperationsService {
       if (!_isMounted) return false;
       await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('🔒 禁止移动'),
           content: Text(
             '"${file.name}" 是系统重要文件夹！\n\n'
@@ -358,7 +392,7 @@ class SingleFileOperationsService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => navigator.pop(),
               child: const Text('我知道了'),
             ),
           ],
@@ -387,7 +421,7 @@ class SingleFileOperationsService {
 
     // 检查是否移动到相同目录
     if (currentPath == destinationPath) {
-      _showSnackBar('无法移动：目标位置与源位置相同', duration: const Duration(seconds: 2));
+      _showSnackBar('无法移动：目标位置与源位置相同', duration: const Duration(seconds: 2), messenger: messenger);
       return false;
     }
 
@@ -395,7 +429,7 @@ class SingleFileOperationsService {
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
     if (targetRiskLevel == PathRiskLevel.forbidden ||
         targetRiskLevel == PathRiskLevel.danger) {
-      _showErrorSnackBar('目标位置不安全，无法移动文件');
+      _showErrorSnackBar('目标位置不安全，无法移动文件', null, messenger);
       logger.w('Move blocked: target path $destinationPath is protected');
       return false;
     }
@@ -404,10 +438,13 @@ class SingleFileOperationsService {
     if (file.isDirectory) {
       if (destinationPath.startsWith(file.path + Platform.pathSeparator) ||
           destinationPath == file.path) {
-        _showErrorSnackBar('不能将文件夹移动到自己的子目录中');
+        _showErrorSnackBar('不能将文件夹移动到自己的子目录中', null, messenger);
         return false;
       }
     }
+
+    // Check mounted before showing dialog
+    if (!_isMounted) return false;
 
     // 显示进度
     showDialog(
@@ -445,21 +482,21 @@ class SingleFileOperationsService {
       final success = await presenter.moveFile(file, destinationPath);
 
       if (!_isMounted) return false;
-      Navigator.of(context).pop(); // 关闭进度对话框
+      navigator.pop(); // 关闭进度对话框
 
       if (success) {
-        _showSnackBar('移动成功');
+        _showSnackBar('移动成功', messenger: messenger);
         // 移动成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
-        _showErrorSnackBar('移动失败');
+        _showErrorSnackBar('移动失败', null, messenger);
         return false;
       }
     } catch (e) {
       if (!_isMounted) return false;
-      Navigator.of(context).pop();
-      _showErrorSnackBar('移动失败：$e');
+      navigator.pop();
+      _showErrorSnackBar('移动失败：$e', null, messenger);
       return false;
     }
   }
@@ -468,11 +505,15 @@ class SingleFileOperationsService {
   ///
   /// 返回 true 表示复制成功，需要刷新父页面
   Future<bool> copyFile(FileItem file) async {
+    // Capture messenger and navigator before async operations
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
-      _showErrorSnackBar('无法复制 "${file.name}"：这是受保护的系统目录');
+      _showErrorSnackBar('无法复制 "${file.name}"：这是受保护的系统目录', null, messenger);
       logger.w('Copy blocked: ${file.path} (Risk: ${riskLevel.name})');
       return false;
     }
@@ -499,10 +540,13 @@ class SingleFileOperationsService {
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
     if (targetRiskLevel == PathRiskLevel.forbidden ||
         targetRiskLevel == PathRiskLevel.danger) {
-      _showErrorSnackBar('目标位置不安全，无法复制文件');
+      _showErrorSnackBar('目标位置不安全，无法复制文件', null, messenger);
       logger.w('Copy blocked: target path $destinationPath is protected');
       return false;
     }
+
+    // Check mounted before showing dialog
+    if (!_isMounted) return false;
 
     // 显示进度
     showDialog(
@@ -532,21 +576,21 @@ class SingleFileOperationsService {
       final success = await presenter.copyFile(file, destinationPath);
 
       if (!_isMounted) return false;
-      Navigator.of(context).pop(); // 关闭进度对话框
+      navigator.pop(); // 关闭进度对话框
 
       if (success) {
-        _showSnackBar('复制成功');
+        _showSnackBar('复制成功', messenger: messenger);
         // 复制成功后通过 viewModel.addFileToList 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
         return true;
       } else {
-        _showErrorSnackBar('复制失败');
+        _showErrorSnackBar('复制失败', null, messenger);
         return false;
       }
     } catch (e) {
       if (!_isMounted) return false;
-      Navigator.of(context).pop();
-      _showErrorSnackBar('复制失败：$e');
+      navigator.pop();
+      _showErrorSnackBar('复制失败：$e', null, messenger);
       return false;
     }
   }
@@ -571,8 +615,11 @@ class SingleFileOperationsService {
   /// - PDF：直接打印原始文件
   /// - 文本：格式化为 PDF 后打印
   Future<void> printFile(FileItem file) async {
+    // Capture messenger before any async operations
+    final messenger = ScaffoldMessenger.of(context);
+
     if (!canPrint(file)) {
-      _showErrorSnackBar('该文件类型不支持打印');
+      _showErrorSnackBar('该文件类型不支持打印', null, messenger);
       return;
     }
 
@@ -587,7 +634,7 @@ class SingleFileOperationsService {
     } catch (e) {
       logger.e('Print failed: $e');
       if (_isMounted) {
-        _showErrorSnackBar('打印失败: $e');
+        _showErrorSnackBar('打印失败: $e', null, messenger);
       }
     }
   }

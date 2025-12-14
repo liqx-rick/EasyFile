@@ -15,7 +15,7 @@ class ScanPathPickerDialog extends StatefulWidget {
   });
 
   @override
-  _ScanPathPickerDialogState createState() => _ScanPathPickerDialogState();
+  State<ScanPathPickerDialog> createState() => _ScanPathPickerDialogState();
 
   /// 显示扫描路径选择对话框
   static Future<String?> show(

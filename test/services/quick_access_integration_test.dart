@@ -24,14 +24,14 @@ void main() {
         originalName: oldFavorite['name'] as String,
         type: QuickAccessFolderType.system,
         createdAt: DateTime.parse(oldFavorite['createdAt'] as String),
-        pinned: oldFavorite['pinned'] as bool,
+        homeDisplayOrder: (oldFavorite['pinned'] as bool) ? 0 : null,
         iconName: oldFavorite['iconName'] as String,
       );
 
       expect(quickAccess.id, equals('test_123'));
       expect(quickAccess.displayName, equals('下载'));
       expect(quickAccess.type, equals(QuickAccessFolderType.system));
-      expect(quickAccess.pinned, isTrue);
+      expect(quickAccess.homeDisplayOrder, isNotNull);
     });
 
     test('应该正确处理别名优先级', () {
@@ -105,7 +105,7 @@ void main() {
         createdAt: DateTime.now(),
         lastAccessedAt: DateTime.now(),
         accessCount: 5,
-        pinned: true,
+        homeDisplayOrder: 0,
         stats: FolderStats(
           totalFiles: 100,
           totalFolders: 10,
@@ -126,7 +126,7 @@ void main() {
       expect(restored.userAlias, equals(original.userAlias));
       expect(restored.type, equals(original.type));
       expect(restored.accessCount, equals(original.accessCount));
-      expect(restored.pinned, equals(original.pinned));
+      expect(restored.homeDisplayOrder, equals(original.homeDisplayOrder));
       expect(restored.stats?.totalFiles, equals(100));
     });
 

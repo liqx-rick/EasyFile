@@ -72,10 +72,11 @@ class DataMigrationService {
           final quickAccessFolder = await _convertToQuickAccessFolder(favorite);
 
           if (quickAccessFolder != null) {
-            final success = await _quickAccessSource.addFolder(
+            final addResult = await _quickAccessSource.addFolderWithResult(
               quickAccessFolder,
             );
-            if (success) {
+            if (addResult == AddFolderResult.added ||
+                addResult == AddFolderResult.unhidden) {
               result.successCount++;
               logger.d('Migrated: ${favorite.path}');
             } else {
@@ -151,7 +152,7 @@ class DataMigrationService {
         type: folderType,
         createdAt: DateTime.now(),
         stats: stats,
-        pinned: false, // 默认不置顶，用户可以手动设置
+        homeDisplayOrder: null, // 默认不在首页显示，用户可以手动设置
       );
     } catch (e) {
       logger.e('Error converting favorite ${favorite.path}: $e');

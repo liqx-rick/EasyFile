@@ -284,6 +284,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
 
+      // Check if widget is still mounted before using context
+      if (!mounted) return;
+
       // 初始化单文件操作服务
       _singleFileOperationsService = SingleFileOperationsService(
         context: context,
@@ -1197,7 +1200,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             type: QuickAccessFolderType.userCustom,
             createdAt: DateTime.now(),
             isAddedToQuickAccess: true,
-            pinned: false,
+            homeDisplayOrder: null,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(

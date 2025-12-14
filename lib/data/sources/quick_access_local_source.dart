@@ -290,7 +290,7 @@ class QuickAccessLocalSource {
       }
 
       final updatedFolder = folders[index].copyWith(
-        pinned: !folders[index].pinned,
+        homeDisplayOrder: folders[index].homeDisplayOrder == null ? 0 : null,
       );
 
       folders[index] = updatedFolder;
@@ -339,11 +339,11 @@ class QuickAccessLocalSource {
     }
   }
 
-  /// 获取固定的文件夹
+  /// 获取固定的文件夹（显示在首页的）
   Future<List<QuickAccessFolder>> getPinnedFolders() async {
     try {
       final folders = await getAllFolders();
-      return folders.where((f) => f.pinned).toList();
+      return folders.where((f) => f.homeDisplayOrder != null).toList();
     } catch (e, stackTrace) {
       logger.e('Error getting pinned folders: $e\nStackTrace: $stackTrace');
       return [];

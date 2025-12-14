@@ -425,6 +425,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         if (!context.mounted) return;
 
         for (final file in batch) {
+          if (!context.mounted) return;
           try {
             await precacheImage(FileImage(File(file.path)), context);
           } catch (e) {
@@ -533,13 +534,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         // 初始化默认选中状态
         _initializeDefaultSelection();
 
+        // Capture messenger before async operation
+        final messenger = ScaffoldMessenger.of(context);
+
         // 保存配置（记住用户的选择）
         await _cacheManager.saveConfig(_config);
 
         if (!context.mounted) return;
 
         if (groups.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text(
                 '未找到重复文件（最小大小: ${FileDisplaySettingsService.formatFileSize(_config.minSizeInKB * 1024)}）',

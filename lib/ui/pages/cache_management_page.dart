@@ -124,6 +124,9 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
 
     if (confirmed != true || !mounted) return;
 
+    // 在异步操作前获取 ScaffoldMessenger
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isClearing = true;
       _clearingItemName = item.name;
@@ -178,10 +181,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       await _loadCacheData();
     }
 
-    if (!context.mounted) return;
-
     // 显示结果
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(success ? '${item.name}已清理' : '清理失败，请重试'),
         backgroundColor: success ? Colors.green : Colors.red,

@@ -58,8 +58,9 @@ class QuickAccessPresenter {
   Future<bool> addFolder(QuickAccessFolder folder) async {
     logger.i('QuickAccessPresenter.addFolder called: ${folder.path}');
     try {
-      final success = await _localSource.addFolder(folder);
-      if (success) {
+      final result = await _localSource.addFolderWithResult(folder);
+      if (result == AddFolderResult.added ||
+          result == AddFolderResult.unhidden) {
         await loadQuickAccessFolders();
         return true;
       }
@@ -822,8 +823,11 @@ class QuickAccessPresenter {
 
     for (final folder in folders) {
       try {
-        final success = await _localSource.addFolder(folder);
-        if (success) addedCount++;
+        final result = await _localSource.addFolderWithResult(folder);
+        if (result == AddFolderResult.added ||
+            result == AddFolderResult.unhidden) {
+          addedCount++;
+        }
       } catch (e) {
         logger.w('Error adding folder ${folder.path}: $e');
       }

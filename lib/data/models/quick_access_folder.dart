@@ -53,10 +53,6 @@ class QuickAccessFolder {
   /// 访问次数
   final int accessCount;
 
-  /// 是否固定在主页显示（已废弃，使用 homeDisplayOrder）
-  @Deprecated('Use homeDisplayOrder instead')
-  final bool pinned;
-
   /// 是否已加入快速访问（false=仅扫描出来但未加入）
   final bool isAddedToQuickAccess;
 
@@ -83,7 +79,6 @@ class QuickAccessFolder {
     required this.createdAt,
     this.lastAccessedAt,
     this.accessCount = 0,
-    @Deprecated('Use homeDisplayOrder instead') this.pinned = false,
     this.isAddedToQuickAccess = true,
     this.isHidden = false,
     this.homeDisplayOrder,
@@ -137,12 +132,10 @@ class QuickAccessFolder {
           ? DateTime.parse(json['lastAccessedAt'] as String)
           : null,
       accessCount: (json['accessCount'] as int?) ?? 0,
-      pinned: (json['pinned'] as bool?) ?? false, // 保留用于迁移
-      isAddedToQuickAccess: (json['isAddedToQuickAccess'] as bool?) ??
-          (json['pinned'] as bool?) ??
-          true, // 迁移：旧数据默认已加入
+      isAddedToQuickAccess: (json['isAddedToQuickAccess'] as bool?) ?? true,
       isHidden: (json['isHidden'] as bool?) ?? false,
-      homeDisplayOrder: json['homeDisplayOrder'] as int?,
+      homeDisplayOrder: json['homeDisplayOrder'] as int? ??
+          ((json['pinned'] as bool?) == true ? 0 : null), // 迁移：pinned=true 转为首页第一位
       stats: json['stats'] != null
           ? FolderStats.fromJson(json['stats'] as Map<String, dynamic>)
           : null,
@@ -163,7 +156,6 @@ class QuickAccessFolder {
       'createdAt': createdAt.toIso8601String(),
       'lastAccessedAt': lastAccessedAt?.toIso8601String(),
       'accessCount': accessCount,
-      'pinned': pinned, // 保留用于向后兼容
       'isAddedToQuickAccess': isAddedToQuickAccess,
       'isHidden': isHidden,
       'homeDisplayOrder': homeDisplayOrder,
@@ -183,7 +175,6 @@ class QuickAccessFolder {
       createdAt: favorite.createdAt,
       lastAccessedAt: favorite.lastAccessedAt,
       accessCount: 0,
-      pinned: favorite.pinned, // 保留旧的 pinned 状态
       isAddedToQuickAccess: true, // 旧数据默认已加入快速访问
       isHidden: false,
       homeDisplayOrder: favorite.pinned ? 0 : null, // pinned=true 转为首页第一位
@@ -203,7 +194,6 @@ class QuickAccessFolder {
     DateTime? createdAt,
     DateTime? lastAccessedAt,
     int? accessCount,
-    bool? pinned,
     bool? isAddedToQuickAccess,
     bool? isHidden,
     Object? homeDisplayOrder = _undefined,
@@ -221,7 +211,6 @@ class QuickAccessFolder {
       createdAt: createdAt ?? this.createdAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
       accessCount: accessCount ?? this.accessCount,
-      pinned: pinned ?? this.pinned,
       isAddedToQuickAccess: isAddedToQuickAccess ?? this.isAddedToQuickAccess,
       isHidden: isHidden ?? this.isHidden,
       homeDisplayOrder: homeDisplayOrder == _undefined

@@ -190,9 +190,13 @@ class BatchOperationsService {
       if (riskLevel == PathRiskLevel.forbidden ||
           riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(Platform.pathSeparator).last;
+        // Check mounted before showing dialog
+        if (!context.mounted) return;
+        // Capture navigator before async dialog
+        final navigator = Navigator.of(context);
         await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('🛑 禁止删除'),
             content: Text(
               '选中的文件包含受保护的系统目录 "$fileName"！\n\n'
@@ -204,7 +208,7 @@ class BatchOperationsService {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => navigator.pop(),
                 child: const Text('我知道了'),
               ),
             ],
@@ -218,9 +222,13 @@ class BatchOperationsService {
       // 检查是否为系统关键文件夹
       final fileName = path.split(Platform.pathSeparator).last;
       if (PathSecurity.isSystemFolderName(fileName)) {
+        // Check mounted before showing dialog
+        if (!context.mounted) return;
+        // Capture navigator before async dialog
+        final navigator = Navigator.of(context);
         await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('🔒 禁止删除'),
             content: Text(
               '"$fileName" 是系统重要文件夹！\n\n'
@@ -229,7 +237,7 @@ class BatchOperationsService {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => navigator.pop(),
                 child: const Text('我知道了'),
               ),
             ],
@@ -1220,6 +1228,9 @@ class BatchOperationsService {
     }
 
     try {
+      // Capture messenger before any async operations
+      final messenger = ScaffoldMessenger.of(context);
+
       // 检查是否包含非图片文件
       final hasNonImage = filePaths.any((path) {
         final extension = path.split('.').last.toLowerCase();
@@ -1229,6 +1240,7 @@ class BatchOperationsService {
 
       // 如果选择了多个文件且包含非图片文件，显示提示
       if (filePaths.length > 1 && hasNonImage) {
+        if (!context.mounted) return;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -1255,9 +1267,6 @@ class BatchOperationsService {
 
         if (confirmed != true) return;
       }
-
-      // Capture messenger before awaiting presenter
-      final messenger = ScaffoldMessenger.of(context);
 
       // 使用presenter批量分享
       final success = await presenter.batchShareFiles(filePaths);

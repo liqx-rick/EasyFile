@@ -1,4 +1,5 @@
 #!/usr/bin/env dart
+// ignore_for_file: avoid_print
 
 /// Flutter 性能检查工具
 ///
@@ -8,6 +9,7 @@
 /// 3. 视图切换是否正确管理资源
 ///
 /// 运行方式：dart scripts/check_performance.dart
+library;
 
 import 'dart:io';
 

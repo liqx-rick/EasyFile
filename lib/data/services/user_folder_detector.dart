@@ -46,7 +46,6 @@ class UserFolder {
       parentApp: parentApp,
       createdAt: createdAt,
       stats: stats,
-      pinned: false,
       isAddedToQuickAccess: false, // 检测出的项默认不加入快速访问
       isHidden: false,
       homeDisplayOrder: null,

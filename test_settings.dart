@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:easyfile/data/models/new_files_settings.dart';
 
 void main() async {
