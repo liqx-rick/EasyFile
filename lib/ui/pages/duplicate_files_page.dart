@@ -422,6 +422,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
         await Future.delayed(const Duration(milliseconds: 50));
 
+        if (!context.mounted) return;
+
         for (final file in batch) {
           try {
             await precacheImage(FileImage(File(file.path)), context);
@@ -533,6 +535,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
         // 保存配置（记住用户的选择）
         await _cacheManager.saveConfig(_config);
+
+        if (!context.mounted) return;
 
         if (groups.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
