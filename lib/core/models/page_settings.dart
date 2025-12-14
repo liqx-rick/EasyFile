@@ -109,11 +109,11 @@ class PageDefaultSettings {
       groupEnabled: true,
     ),
 
-    // 主页-收藏Tab: 列表/按修改时间/时间分组
+    // 主页-收藏Tab: 列表/按修改时间/不分组
     PageId.homeFavorite: PageSettings(
       viewMode: ViewMode.list,
       sortType: SortType.modifiedTime,
-      groupEnabled: true,
+      groupEnabled: false,
     ),
 
     // 主页-快速访问Tab: 列表/按名称/不分组
@@ -144,11 +144,11 @@ class PageDefaultSettings {
       groupEnabled: true,
     ),
 
-    // 音乐分类: 列表/按名称/不分组
+    // 音乐分类: 列表/按修改时间/时间分组
     PageId.categoryMusic: PageSettings(
       viewMode: ViewMode.list,
-      sortType: SortType.name,
-      groupEnabled: false,
+      sortType: SortType.modifiedTime,
+      groupEnabled: true,
     ),
 
     // 视频分类: 网格/按修改时间/时间分组
