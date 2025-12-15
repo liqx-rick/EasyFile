@@ -29,6 +29,9 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 ///
 /// 复用 FilePresenter 的单文件操作方法和 BatchOperationsService 的 UI 逻辑
 class SingleFileOperationsService {
+  /// 打印文本文件时的最大内容长度（约 50KB），避免生成过大的 PDF
+  static const int _maxPrintTextLength = 50000;
+
   final BuildContext context;
   final FileViewModel viewModel;
   final FilePresenter presenter;
@@ -180,67 +183,71 @@ class SingleFileOperationsService {
     // 显示重命名对话框
     final controller = TextEditingController(text: file.name);
 
-    // 检测横屏模式
-    final mediaQuery = MediaQuery.of(context);
-    final isLandscape = mediaQuery.orientation == Orientation.landscape;
+    try {
+      // 检测横屏模式
+      final mediaQuery = MediaQuery.of(context);
+      final isLandscape = mediaQuery.orientation == Orientation.landscape;
 
-    // Check mounted before showing rename dialog
-    if (!_isMounted) return false;
+      // Check mounted before showing rename dialog
+      if (!_isMounted) return false;
 
-    final newName = isLandscape
-        ? await _showRenameBottomSheet(context, controller, file)
-        : await _showRenameDialog(context, controller, file);
+      final newName = isLandscape
+          ? await _showRenameBottomSheet(context, controller, file)
+          : await _showRenameDialog(context, controller, file);
 
-    if (newName == null || newName.trim().isEmpty || !_isMounted) return false;
-    if (newName == file.name) return false;
+      if (newName == null || newName.trim().isEmpty || !_isMounted) return false;
+      if (newName == file.name) return false;
 
-    // Check mounted before showing dialog
-    if (!_isMounted) return false;
+      if (!_isMounted) return false;
 
-    // 显示进度
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在重命名...'),
-                ],
+      // 显示进度
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PopScope(
+          canPop: false,
+          child: const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('正在重命名...'),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    try {
-      final success = await presenter.renameFile(file, newName.trim());
+      try {
+        final success = await presenter.renameFile(file, newName.trim());
 
-      if (!_isMounted) return false;
-      navigator.pop(); // 关闭进度对话框
+        if (!_isMounted) return false;
+        navigator.pop(); // 关闭进度对话框
 
-      if (success) {
-        _showSnackBar('重命名成功', messenger: messenger);
-        // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
-        // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
-        return true; // 返回 true 表示操作成功
-      } else {
-        _showErrorSnackBar('重命名失败', null, messenger);
+        if (success) {
+          _showSnackBar('重命名成功', messenger: messenger);
+          // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
+          // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
+          return true; // 返回 true 表示操作成功
+        } else {
+          _showErrorSnackBar('重命名失败', null, messenger);
+          return false;
+        }
+      } catch (e) {
+        if (!_isMounted) return false;
+        navigator.pop();
+        _showErrorSnackBar('重命名失败：$e', null, messenger);
         return false;
       }
-    } catch (e) {
-      if (!_isMounted) return false;
-      navigator.pop();
-      _showErrorSnackBar('重命名失败：$e', null, messenger);
-      return false;
+    } finally {
+      // 确保释放 TextEditingController 资源
+      controller.dispose();
     }
   }
 
@@ -307,7 +314,6 @@ class SingleFileOperationsService {
 
     if (!confirmed || !_isMounted) return;
 
-    // Check mounted before showing dialog
     if (!_isMounted) return;
 
     // 显示进度
@@ -443,7 +449,6 @@ class SingleFileOperationsService {
       }
     }
 
-    // Check mounted before showing dialog
     if (!_isMounted) return false;
 
     // 显示进度
@@ -545,7 +550,6 @@ class SingleFileOperationsService {
       return false;
     }
 
-    // Check mounted before showing dialog
     if (!_isMounted) return false;
 
     // 显示进度
@@ -710,9 +714,8 @@ class SingleFileOperationsService {
       }
 
       // 限制内容长度，避免生成过大的 PDF
-      const maxLength = 50000; // 约 50KB 文本
-      if (content.length > maxLength) {
-        content = '${content.substring(0, maxLength)}\n\n... (内容过长，已截断) ...';
+      if (content.length > _maxPrintTextLength) {
+        content = '${content.substring(0, _maxPrintTextLength)}\n\n... (内容过长，已截断) ...';
       }
 
       await Printing.layoutPdf(
