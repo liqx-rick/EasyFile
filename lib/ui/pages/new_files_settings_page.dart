@@ -8,7 +8,7 @@ class NewFilesSettingsPage extends StatefulWidget {
   const NewFilesSettingsPage({super.key});
 
   @override
-  _NewFilesSettingsPageState createState() => _NewFilesSettingsPageState();
+  State<NewFilesSettingsPage> createState() => _NewFilesSettingsPageState();
 }
 
 class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {

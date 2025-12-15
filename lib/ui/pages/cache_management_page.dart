@@ -124,6 +124,9 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
 
     if (confirmed != true || !mounted) return;
 
+    // 在异步操作前获取 ScaffoldMessenger
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isClearing = true;
       _clearingItemName = item.name;
@@ -146,48 +149,46 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       success = false;
     }
 
-    if (mounted) {
-      // 针对日志文件特殊优化：清理后直接设置为0，不重新加载
-      // 因为重新加载会因为日志写入而显示非0值
-      if (success && item.type == CacheType.log) {
-        setState(() {
-          _isClearing = false;
-          _clearingItemName = null;
-          // 直接更新日志文件的大小为0
-          final logIndex = _cacheItems.indexWhere(
-            (i) => i.type == CacheType.log,
-          );
-          if (logIndex >= 0) {
-            _cacheItems[logIndex] = CacheItem(
-              name: '日志文件',
-              description: '应用运行日志',
-              size: 0,
-              type: CacheType.log,
-            );
-            // 更新总大小
-            _totalSize = _cacheItems.fold(0, (sum, item) => sum + item.size);
-          }
-        });
-      } else {
-        setState(() {
-          _isClearing = false;
-          _clearingItemName = null;
-        });
-        // 其他缓存正常重新加载
-        await _loadCacheData();
-      }
+    if (!mounted) return;
 
-      // 显示结果
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? '${item.name}已清理' : '清理失败，请重试'),
-          backgroundColor: success ? Colors.green : Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    // 针对日志文件特殊优化：清理后直接设置为0，不重新加载
+    // 因为重新加载会因为日志写入而显示非0值
+    if (success && item.type == CacheType.log) {
+      setState(() {
+        _isClearing = false;
+        _clearingItemName = null;
+        // 直接更新日志文件的大小为0
+        final logIndex = _cacheItems.indexWhere(
+          (i) => i.type == CacheType.log,
+        );
+        if (logIndex >= 0) {
+          _cacheItems[logIndex] = CacheItem(
+            name: '日志文件',
+            description: '应用运行日志',
+            size: 0,
+            type: CacheType.log,
+          );
+          // 更新总大小
+          _totalSize = _cacheItems.fold(0, (sum, item) => sum + item.size);
+        }
+      });
+    } else {
+      setState(() {
+        _isClearing = false;
+        _clearingItemName = null;
+      });
+      // 其他缓存正常重新加载
+      await _loadCacheData();
     }
 
-    logger.i('=== END: Clearing ${item.name} ===');
+    // 显示结果
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(success ? '${item.name}已清理' : '清理失败，请重试'),
+        backgroundColor: success ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _clearAllCache() async {

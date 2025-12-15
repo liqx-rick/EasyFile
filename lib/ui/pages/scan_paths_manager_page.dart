@@ -11,7 +11,7 @@ class ScanPathsManagerPage extends StatefulWidget {
   const ScanPathsManagerPage({super.key});
 
   @override
-  _ScanPathsManagerPageState createState() => _ScanPathsManagerPageState();
+  State<ScanPathsManagerPage> createState() => _ScanPathsManagerPageState();
 }
 
 class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
@@ -71,9 +71,14 @@ class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
     setState(() {
       _settings.customScanPaths.add(path);
     });
+
+    // Capture messenger before async operation
+    final messenger = ScaffoldMessenger.of(context);
     await _settings.save();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+
+    messenger.showSnackBar(
       SnackBar(content: Text('已添加: $path')),
     );
   }
@@ -83,9 +88,14 @@ class _ScanPathsManagerPageState extends State<ScanPathsManagerPage> {
     setState(() {
       _settings.customScanPaths.remove(path);
     });
+
+    // Capture messenger before async operation
+    final messenger = ScaffoldMessenger.of(context);
     await _settings.save();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+
+    messenger.showSnackBar(
       SnackBar(content: Text('已删除: $path')),
     );
   }

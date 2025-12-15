@@ -34,9 +34,9 @@ class QuickAccessViewModel extends ChangeNotifier {
       .where((f) => f.type == QuickAccessFolderType.userCustom && !f.isHidden)
       .toList();
 
-  /// 获取置顶的文件夹
+  /// 获取置顶的文件夹（首页显示）
   List<QuickAccessFolder> get pinnedFolders =>
-      _folders.where((f) => f.pinned).toList();
+      _folders.where((f) => f.homeDisplayOrder != null).toList();
 
   /// 设置文件夹列表
   void setFolders(List<QuickAccessFolder> folders) {

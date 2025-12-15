@@ -284,6 +284,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
 
+      // Check if widget is still mounted before using context
+      if (!mounted) return;
+
       // 初始化单文件操作服务
       _singleFileOperationsService = SingleFileOperationsService(
         context: context,
@@ -1197,7 +1200,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             type: QuickAccessFolderType.userCustom,
             createdAt: DateTime.now(),
             isAddedToQuickAccess: true,
-            pinned: false,
+            homeDisplayOrder: null,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
@@ -1414,7 +1417,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? theme.colorScheme.primaryContainer.withOpacity(0.8)
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.8)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -1476,7 +1479,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -3540,7 +3543,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),

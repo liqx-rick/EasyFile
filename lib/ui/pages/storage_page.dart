@@ -600,6 +600,9 @@ class _StoragePageState extends State<StoragePage>
   }
 
   Future<void> _loadStorageFiles() async {
+    // Capture messenger before any async operations
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isLoading = true;
     });
@@ -691,7 +694,6 @@ class _StoragePageState extends State<StoragePage>
       setState(() {
         _isLoading = false;
       });
-      final messenger = ScaffoldMessenger.of(context);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('加载失败: $e')));
     }
@@ -758,6 +760,9 @@ class _StoragePageState extends State<StoragePage>
 
   // 新增：加载指定路径下的文件
   Future<void> _loadFilesInPath(String path) async {
+    // Capture messenger before any async operations
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isLoading = true;
     });
@@ -832,7 +837,6 @@ class _StoragePageState extends State<StoragePage>
       setState(() {
         _isLoading = false;
       });
-      final messenger = ScaffoldMessenger.of(context);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('加载失败: $e')));
     }

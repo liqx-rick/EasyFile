@@ -43,7 +43,6 @@ class AppFolder {
       createdAt: DateTime.now(),
       stats: stats,
       iconName: iconName,
-      pinned: false,
       isAddedToQuickAccess: false, // 扫描出的项默认不加入快速访问
       isHidden: false,
       homeDisplayOrder: null,

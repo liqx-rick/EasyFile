@@ -169,7 +169,7 @@ class UnifiedGridItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.white.withOpacity(0.9),
+                        : Colors.white.withValues(alpha: 0.9),
                     shape: BoxShape.circle,
                     border: !isSelected
                         ? Border.all(

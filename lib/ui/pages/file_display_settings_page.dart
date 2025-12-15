@@ -72,9 +72,11 @@ class _FileDisplaySettingsPageState extends State<FileDisplaySettingsPage> {
               setState(() {
                 _gridShowFileInfo = value;
               });
+              // Capture messenger before async operation
+              final messenger = ScaffoldMessenger.of(context);
               await _settingsService.setGridShowFileInfo(value);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                       value ? '已开启文件信息显示' : '已切换到简洁模式（图片/视频）',

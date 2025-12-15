@@ -98,7 +98,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
 
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         child: Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: 1.0),
@@ -124,7 +124,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 32,
                     spreadRadius: 0,
                     offset: const Offset(0, 8),

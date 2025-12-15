@@ -422,7 +422,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
         await Future.delayed(const Duration(milliseconds: 50));
 
+        if (!context.mounted) return;
+
         for (final file in batch) {
+          if (!context.mounted) return;
           try {
             await precacheImage(FileImage(File(file.path)), context);
           } catch (e) {
@@ -531,11 +534,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         // 初始化默认选中状态
         _initializeDefaultSelection();
 
+        // Capture messenger before async operation
+        final messenger = ScaffoldMessenger.of(context);
+
         // 保存配置（记住用户的选择）
         await _cacheManager.saveConfig(_config);
 
+        if (!context.mounted) return;
+
         if (groups.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text(
                 '未找到重复文件（最小大小: ${FileDisplaySettingsService.formatFileSize(_config.minSizeInKB * 1024)}）',
@@ -941,10 +949,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withOpacity(0.3),
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: colorScheme.primary.withOpacity(0.2),
+                      color: colorScheme.primary.withValues(alpha: 0.2),
                       width: 1,
                     ),
                   ),
@@ -1366,7 +1374,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Icon(
               Icons.check_circle_outline,
               size: 80,
-              color: colorScheme.primary.withOpacity(0.5),
+              color: colorScheme.primary.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 24),
             Text(
@@ -1381,10 +1389,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: colorScheme.outline.withOpacity(0.2),
+                  color: colorScheme.outline.withValues(alpha: 0.2),
                 ),
               ),
               child: Column(
@@ -1481,7 +1489,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -1640,10 +1648,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: Colors.green.withOpacity(0.3),
+                                    color: Colors.green.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                 ),
@@ -1708,7 +1716,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color:
-                          colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                          colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -1802,13 +1810,13 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         color: colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: colorScheme.outlineVariant.withOpacity(0.5),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
             width: 1,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -1843,7 +1851,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: colorScheme.primary,
                     disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withOpacity(0.38),
+                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                   ),
                   child: const Text('推荐', style: TextStyle(fontSize: 14)),
                 ),
@@ -1859,7 +1867,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: colorScheme.onSurfaceVariant,
                     disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withOpacity(0.38),
+                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                   ),
                   child: const Text('清空', style: TextStyle(fontSize: 14)),
                 ),
@@ -1878,7 +1886,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     disabledBackgroundColor:
                         colorScheme.surfaceContainerHighest,
                     disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withOpacity(0.38),
+                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

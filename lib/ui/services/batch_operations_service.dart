@@ -33,7 +33,7 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 ///
 /// 1. **不存储BuildContext**：所有需要context的方法都要求调用者传入
 /// 2. **调用点检查**：调用者需在调用前检查`mounted`状态
-/// 3. **方法内检查**：每次使用context前都通过`_isMounted(context)`检查
+/// 3. **异步后检查**：每次异步操作后通过`context.mounted`检查widget状态
 /// 4. **回调保护**：`onExitSelectionMode`等回调在调用前确保widget仍然挂载
 ///
 /// ### 典型用法
@@ -69,7 +69,7 @@ class BatchOperationsService {
   /// **关键点**：
   /// - 如果全部已收藏 → 批量取消收藏
   /// - 如果有未收藏的 → 只添加未收藏的文件（跳过已收藏和文件夹）
-  /// - 异步操作后必须检查`_isMounted(context)`，防止在widget销毁后使用context
+  /// - 异步操作后必须检查`context.mounted`，防止在widget销毁后使用context
   /// - 操作成功后退出选择模式（`onExitSelectionMode()`）
   ///
   /// @param context 用于显示SnackBar的BuildContext，必须从外部传入
@@ -93,7 +93,7 @@ class BatchOperationsService {
             await presenter.batchRemoveFavoriteFiles(selectedItems.toList());
 
         // ⚠️ 异步操作后必须检查widget是否还存在
-        if (!_isMounted(context)) return;
+        if (!context.mounted) return;
 
         final message = failCount > 0
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
@@ -132,7 +132,7 @@ class BatchOperationsService {
 
         // 如果过滤后没有可添加的文件，提示并退出
         if (filesToAdd.isEmpty) {
-          if (_isMounted(context)) {
+          if (context.mounted) {
             // ⚠️ 延迟退出选择模式和显示消息，确保PopupMenu完全关闭
             WidgetsBinding.instance.addPostFrameCallback((_) {
               onExitSelectionMode();
@@ -146,7 +146,7 @@ class BatchOperationsService {
             await presenter.batchAddFavoriteFiles(filesToAdd);
 
         // ⚠️ 异步操作后必须检查widget是否还存在
-        if (!_isMounted(context)) return;
+        if (!context.mounted) return;
 
         final message = failCount > 0
             ? '$action完成：成功 $successCount 个，失败 $failCount 个'
@@ -160,7 +160,7 @@ class BatchOperationsService {
       }
     } catch (e, stackTrace) {
       logger.e('Batch toggle favorite failed: $e\n$stackTrace');
-      if (_isMounted(context)) {
+      if (context.mounted) {
         // ⚠️ 延迟退出选择模式和显示错误消息，确保PopupMenu完全关闭
         WidgetsBinding.instance.addPostFrameCallback((_) {
           onExitSelectionMode();
@@ -190,9 +190,13 @@ class BatchOperationsService {
       if (riskLevel == PathRiskLevel.forbidden ||
           riskLevel == PathRiskLevel.danger) {
         final fileName = path.split(Platform.pathSeparator).last;
+        // Check mounted before showing dialog
+        if (!context.mounted) return;
+        // Capture navigator before async dialog
+        final navigator = Navigator.of(context);
         await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('🛑 禁止删除'),
             content: Text(
               '选中的文件包含受保护的系统目录 "$fileName"！\n\n'
@@ -204,12 +208,13 @@ class BatchOperationsService {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => navigator.pop(),
                 child: const Text('我知道了'),
               ),
             ],
           ),
         );
+        if (!context.mounted) return;
         logger.w('Delete blocked by UI: $path (Risk: ${riskLevel.name})');
         return;
       }
@@ -217,9 +222,13 @@ class BatchOperationsService {
       // 检查是否为系统关键文件夹
       final fileName = path.split(Platform.pathSeparator).last;
       if (PathSecurity.isSystemFolderName(fileName)) {
+        // Check mounted before showing dialog
+        if (!context.mounted) return;
+        // Capture navigator before async dialog
+        final navigator = Navigator.of(context);
         await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('🔒 禁止删除'),
             content: Text(
               '"$fileName" 是系统重要文件夹！\n\n'
@@ -228,16 +237,19 @@ class BatchOperationsService {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => navigator.pop(),
                 child: const Text('我知道了'),
               ),
             ],
           ),
         );
+        if (!context.mounted) return;
         logger.w('Delete blocked: "$fileName" is a system folder');
         return;
       }
     }
+
+    if (!context.mounted) return;
 
     // 转换为FileItem列表
     final filesToDelete = <FileItem>[];
@@ -280,7 +292,8 @@ class BatchOperationsService {
       folderCount: folderCount,
     );
 
-    if (!confirmed || !_isMounted(context)) return;
+    if (!context.mounted) return;
+    if (!confirmed) return;
 
     // 检查是否启用回收站
     if (!trashSettings.isEnabled) {
@@ -294,6 +307,27 @@ class BatchOperationsService {
   }
 
   /// 永久删除文件（回收站禁用时）
+  ///
+  /// 危险操作警告：此方法直接删除文件，无法恢复！
+  ///
+  /// 执行流程：
+  /// 1. 显示进度对话框（不可取消，防止中途打断）
+  /// 2. 逐个删除文件/文件夹：
+  ///    - 文件夹：递归删除所有子项
+  ///    - 文件：直接删除
+  /// 3. 记录操作日志（包含风险等级评估）
+  /// 4. 验证删除结果，从UI列表移除已删除项
+  /// 5. 显示删除统计（成功/失败数量）
+  ///
+  /// 安全措施：
+  /// - PathSecurity风险评估和日志记录
+  /// - 删除后验证文件是否存在
+  /// - 失败不中断，统计失败数量
+  /// - context.mounted检查，防止widget销毁后操作
+  ///
+  /// 性能优化：
+  /// - 禁用缩略图缓存删除，保留缓存加速重新加载
+  /// - 逐个删除而非批量，提供更好的错误处理
   Future<void> _permanentDelete(
     BuildContext context,
     List<FileItem> files,
@@ -352,11 +386,10 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop(); // 关闭进度对话框
 
       // 立即从列表移除已删除的文件
-      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
       for (final file in files) {
         try {
           bool fileDeleted = false;
@@ -374,21 +407,6 @@ class BatchOperationsService {
             }
           }
 
-          // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
-          // if (fileDeleted && !file.isDirectory) {
-          //   final fileName = file.name.toLowerCase();
-          //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
-          //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
-          //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
-          //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
-          //     try {
-          //       await cacheManager.deleteCached(file.path);
-          //       logger.d('Deleted video thumbnail cache for: ${file.path}');
-          //     } catch (e) {
-          //       logger.w('Failed to delete thumbnail cache: $e');
-          //     }
-          //   }
-          // }
           if (fileDeleted) {
             logger.d(
                 'Skipping thumbnail cache deletion (preserving for fast reload)');
@@ -419,7 +437,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop(); // 关闭进度对话框
       messenger.showSnackBar(
         SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
@@ -447,28 +465,11 @@ class BatchOperationsService {
       // 立即标记删除（仅写数据库，速度极快）
       await trashManager.markFilesAsDeleted(files);
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
 
       // 立即从列表移除已删除的文件
-      // final cacheManager = ThumbnailCacheManager(); // 已禁用缓存删除
       for (final file in files) {
         viewModel.removeFileFromList(file.path);
-
-        // 清理视频缩略图缓存（已禁用：保留缓存以优化删除后的重载性能）
-        // if (!file.isDirectory) {
-        //   final fileName = file.name.toLowerCase();
-        //   if (fileName.endsWith('.mp4') || fileName.endsWith('.avi') ||
-        //       fileName.endsWith('.mkv') || fileName.endsWith('.mov') ||
-        //       fileName.endsWith('.wmv') || fileName.endsWith('.flv') ||
-        //       fileName.endsWith('.webm') || fileName.endsWith('.m4v')) {
-        //     try {
-        //       await cacheManager.deleteCached(file.path);
-        //       logger.d('Deleted video thumbnail cache for: ${file.path}');
-        //     } catch (e) {
-        //       logger.w('Failed to delete thumbnail cache: $e');
-        //     }
-        //   }
-        // }
         logger.d(
             'Skipping thumbnail cache deletion (preserving for fast reload)');
       }
@@ -491,7 +492,7 @@ class BatchOperationsService {
 
       // 后台队列会自动处理文件移动，用户无感知
     } catch (e) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
 
       // 退出多选模式（即使失败也退出）
       onExitSelectionMode();
@@ -572,7 +573,7 @@ class BatchOperationsService {
       ),
     );
 
-    if (destinationPath == null || !_isMounted(context)) return;
+    if (destinationPath == null || !context.mounted) return;
 
     // 检查是否移动到相同目录
     for (final path in selectedItems) {
@@ -678,7 +679,7 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
 
       // 立即更新文件路径（对于分类页面等需要保留文件的场景）
@@ -743,7 +744,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('移动失败：$e'), backgroundColor: Colors.red),
@@ -786,7 +787,7 @@ class BatchOperationsService {
       ),
     );
 
-    if (destinationPath == null || !_isMounted(context)) return;
+    if (destinationPath == null || !context.mounted) return;
 
     // 🔒 验证目标路径安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
@@ -916,7 +917,7 @@ class BatchOperationsService {
         }
       }
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
       onRefresh();
       onExitSelectionMode();
@@ -941,7 +942,7 @@ class BatchOperationsService {
         );
       }
     } catch (e) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('复制失败：$e'), backgroundColor: Colors.red),
@@ -989,7 +990,7 @@ class BatchOperationsService {
     // 禁止重命名系统关键目录
     if (riskLevel == PathRiskLevel.forbidden ||
         riskLevel == PathRiskLevel.danger) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       _showErrorSnackBar(
         context,
         PathSecurity.getOperationDeniedMessage(sourcePath, '重命名'),
@@ -1000,7 +1001,7 @@ class BatchOperationsService {
 
     // 检查是否为系统关键文件夹名称
     if (PathSecurity.isSystemFolderName(currentName)) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1067,9 +1068,8 @@ class BatchOperationsService {
       ),
     );
 
-    if (newName == null || newName.trim().isEmpty || !_isMounted(context)) {
-      return;
-    }
+    if (!context.mounted) return;
+    if (newName == null || newName.trim().isEmpty) return;
     if (newName == currentName) return;
 
     // 显示进度
@@ -1107,7 +1107,7 @@ class BatchOperationsService {
       // 检查目标文件名是否已存在
       if (FileSystemEntity.typeSync(targetPath) !=
           FileSystemEntityType.notFound) {
-        if (!_isMounted(context)) return;
+        if (!context.mounted) return;
         navigator.pop(); // 关闭进度对话框
         messenger.showSnackBar(
           SnackBar(
@@ -1122,7 +1122,7 @@ class BatchOperationsService {
       final targetRiskLevel = PathSecurity.getPathRiskLevel(targetPath);
       if (targetRiskLevel == PathRiskLevel.forbidden ||
           targetRiskLevel == PathRiskLevel.danger) {
-        if (!_isMounted(context)) return;
+        if (!context.mounted) return;
         Navigator.pop(context); // 关闭进度对话框
         _showErrorSnackBar(context, '重命名失败：目标路径不安全');
         logger.w('Rename blocked: target path $targetPath is protected');
@@ -1191,7 +1191,7 @@ class BatchOperationsService {
         logger.w('Failed to update file in list after rename: $e');
       }
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
       onRefresh();
       onExitSelectionMode();
@@ -1200,7 +1200,7 @@ class BatchOperationsService {
         const SnackBar(content: Text('重命名成功'), backgroundColor: Colors.green),
       );
     } catch (e) {
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('重命名失败：$e'), backgroundColor: Colors.red),
@@ -1228,6 +1228,9 @@ class BatchOperationsService {
     }
 
     try {
+      // Capture messenger before any async operations
+      final messenger = ScaffoldMessenger.of(context);
+
       // 检查是否包含非图片文件
       final hasNonImage = filePaths.any((path) {
         final extension = path.split('.').last.toLowerCase();
@@ -1237,6 +1240,7 @@ class BatchOperationsService {
 
       // 如果选择了多个文件且包含非图片文件，显示提示
       if (filePaths.length > 1 && hasNonImage) {
+        if (!context.mounted) return;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -1264,13 +1268,10 @@ class BatchOperationsService {
         if (confirmed != true) return;
       }
 
-      // Capture messenger before awaiting presenter
-      final messenger = ScaffoldMessenger.of(context);
-
       // 使用presenter批量分享
       final success = await presenter.batchShareFiles(filePaths);
 
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       if (success) {
         // 分享成功后退出多选模式
         onExitSelectionMode();
@@ -1284,31 +1285,12 @@ class BatchOperationsService {
       }
     } catch (e) {
       logger.e('Failed to share files: $e');
-      if (!_isMounted(context)) return;
+      if (!context.mounted) return;
       _showErrorSnackBar(context, '分享失败：$e');
     }
   }
 
   // ========== 辅助方法 ==========
-
-  /// 检查BuildContext是否仍然有效（widget是否还挂载）
-  ///
-  /// 这是防止"Looking up a deactivated widget's ancestor is unsafe"异常的核心方法。
-  /// 在所有异步操作后、使用context之前，都必须调用此方法检查。
-  ///
-  /// **实现原理**：
-  /// - 使用try-catch包裹`context.mounted`，防止访问已释放的context导致异常
-  /// - 如果context已失效，访问`mounted`属性本身就会抛异常，catch后返回false
-  ///
-  /// @param context 需要检查的BuildContext
-  /// @return true=widget仍然挂载，可以安全使用context；false=widget已销毁
-  bool _isMounted(BuildContext context) {
-    try {
-      return context.mounted;
-    } catch (_) {
-      return false;
-    }
-  }
 
   /// 显示错误提示的SnackBar（红色背景）
   ///
@@ -1319,7 +1301,7 @@ class BatchOperationsService {
   /// @param backgroundColor 背景颜色，默认红色
   void _showErrorSnackBar(BuildContext context, String message,
       [Color? backgroundColor]) {
-    if (!_isMounted(context)) return;
+    if (!context.mounted) return;
     try {
       // 先获取messenger，避免在已销毁的widget树中查找
       final messenger = ScaffoldMessenger.of(context);

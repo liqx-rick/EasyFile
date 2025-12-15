@@ -82,10 +82,13 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
   }
 
   Widget _buildRetentionOption(int days, String label) {
+    // ignore: deprecated_member_use
     return RadioListTile<int>(
       title: Text(label),
       value: days,
+      // ignore: deprecated_member_use
       groupValue: _retentionDays,
+      // ignore: deprecated_member_use
       onChanged: (value) async {
         if (value != null) {
           setState(() => _retentionDays = value);

@@ -324,11 +324,16 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           _isScanning = false;
         });
 
+        // Capture messenger before async operation
+        final messenger = ScaffoldMessenger.of(context);
+
         // 保存到缓存
         await _cacheManager.saveCache(files: _largeFiles, config: _config);
 
+        if (!mounted) return;
+
         if (files.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text('未找到大于 ${_config.minSizeInMB} MB 的文件'),
               duration: const Duration(seconds: 2),
@@ -841,7 +846,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       selected: isSelected,
-      selectedTileColor: colorScheme.primaryContainer.withOpacity(0.3),
+      selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
       leading: _buildThumbnail(file, 48),
       title: Text(
         file.name,

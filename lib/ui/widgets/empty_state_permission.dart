@@ -24,7 +24,7 @@ class EmptyStatePermission extends StatelessWidget {
             Icon(
               Icons.folder_off_outlined,
               size: 80,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 24),
 
@@ -47,7 +47,7 @@ class EmptyStatePermission extends StatelessWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.7),
+                        .withValues(alpha: 0.7),
                     height: 1.5,
                   ),
               textAlign: TextAlign.center,
@@ -133,7 +133,7 @@ class EmptyStatePermission extends StatelessWidget {
                       color: Theme.of(context)
                           .colorScheme
                           .onSurface
-                          .withOpacity(0.5),
+                          .withValues(alpha: 0.5),
                     ),
                 textAlign: TextAlign.center,
               ),
@@ -155,7 +155,7 @@ class EmptyStatePermission extends StatelessWidget {
           icon,
           size: 16,
           color:
-              Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+              Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -166,7 +166,7 @@ class EmptyStatePermission extends StatelessWidget {
               color: Theme.of(context)
                   .colorScheme
                   .onSurfaceVariant
-                  .withOpacity(0.8),
+                  .withValues(alpha: 0.8),
             ),
           ),
         ),

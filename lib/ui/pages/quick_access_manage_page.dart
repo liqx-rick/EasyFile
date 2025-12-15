@@ -661,7 +661,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           ),
         ),
         ...appRoots.map((root) {
-          final subfolders = hierarchy[root] ?? [];
+          final subfolders = hierarchy[root.path] ?? [];
           final isExpanded = _expandedAppFolders[root.path] ?? false;
 
           return _buildAppFolderWithSubfolders(
@@ -770,7 +770,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               ),
             ),
           ),
-          if (folder.pinned)
+          if (folder.homeDisplayOrder != null)
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Icon(
@@ -1370,10 +1370,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                   Text('超过首页展示项目数量（最多$maxHomeItems项），请选择要替换的项目：'),
                   const SizedBox(height: 16),
                   ...currentHomeFolders.map(
+                    // ignore: deprecated_member_use
                     (folder) => RadioListTile<String>(
                       dense: true,
                       value: folder.id,
+                      // ignore: deprecated_member_use
                       groupValue: selectedId,
+                      // ignore: deprecated_member_use
                       onChanged: (value) => setState(() => selectedId = value),
                       title: Text(folder.displayName),
                       subtitle: Text(

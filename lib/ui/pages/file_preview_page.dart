@@ -243,11 +243,11 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
+                        color: Colors.black.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -299,15 +299,15 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 child: Center(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 12,
                           spreadRadius: 2,
                           offset: const Offset(0, 2),
@@ -343,15 +343,15 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
                 child: Center(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 12,
                           spreadRadius: 2,
                           offset: const Offset(0, 2),
@@ -482,7 +482,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
 
     return AppBar(
-      backgroundColor: Colors.black.withOpacity(0.6), // 半透明黑色背景（60%不透明度）
+      backgroundColor: Colors.black.withValues(alpha: 0.6), // 半透明黑色背景（60%不透明度）
       elevation: 0,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1123,10 +1123,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () async {
+                      // Capture messenger before async operation
+                      final messenger = ScaffoldMessenger.of(context);
                       final result = await OpenFile.open(widget.file.path);
                       if (result.type != ResultType.done) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text('打开失败: ${result.message}')),
                           );
                         }
