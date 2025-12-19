@@ -16,6 +16,9 @@ import 'package:easyfile/core/services/first_scan_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/file_category.dart';
@@ -79,6 +82,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   bool _hasCheckedRestore = false; // 标记是否已经检查过恢复
   double _categoryCardSize = 0.0; // 存储分类卡片尺寸
   bool _isInitializing = true; // 标记是否正在初始化
+
+  // 推荐服务（全局实例，复用缓存）
+  RecommendationService? _recommendationService;
 
   // 权限和扫描相关状态
   late PermissionService _permissionService;
@@ -284,6 +290,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
 
+      // 初始化推荐服务（全局单例，带缓存）
+      await _initializeRecommendationService();
+
       // Check if widget is still mounted before using context
       if (!mounted) return;
 
@@ -349,6 +358,30 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           _isInitializing = false;
         });
       }
+    }
+  }
+
+  /// 初始化推荐服务（全局单例，带缓存）
+  Future<void> _initializeRecommendationService() async {
+    try {
+      logger.d('初始化推荐服务...');
+      
+      // 创建检测服务并初始化
+      final detectionService = AppDetectionService();
+      await detectionService.initialize();
+      
+      // 创建扫描器
+      final scanner = UnifiedAppScanner(detectionService);
+      
+      // 创建推荐服务
+      _recommendationService = RecommendationService(
+        detectionService: detectionService,
+        scanner: scanner,
+      );
+      
+      logger.d('推荐服务初始化完成');
+    } catch (e) {
+      logger.e('推荐服务初始化失败: $e');
     }
   }
 
@@ -644,6 +677,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       fileCategory = FileCategory.document;
                       break;
                     case CategoryType.downloads:
+                      fileCategory = FileCategory.other;
+                      break;
+                    case CategoryType.apk:
+                      fileCategory = FileCategory.other;
+                      break;
+                    case CategoryType.archive:
                       fileCategory = FileCategory.other;
                       break;
                   }
@@ -3241,6 +3280,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       fileViewModel: vm,
                       filePresenter: presenter,
                       categoryCardSize: _categoryCardSize,
+                      recommendationService: _recommendationService,
                     ),
                   ),
                   const SliverToBoxAdapter(
@@ -3581,6 +3621,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             fileViewModel: vm,
                             filePresenter: presenter,
                             categoryCardSize: _categoryCardSize,
+                            recommendationService: _recommendationService,
                           ),
                           const SizedBox(height: 2),
 

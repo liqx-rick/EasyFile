@@ -371,6 +371,9 @@ class NewFilesScanner {
         final items = await _scanDirectory(dir, cutoffDate);
         results.addAll(items);
         logger.d('Found ${items.length} files in $dirPath');
+        
+        // Yield给UI线程，避免阻塞
+        await Future.delayed(Duration.zero);
       } catch (e) {
         logger.e('Error scanning $dirPath: $e');
       }

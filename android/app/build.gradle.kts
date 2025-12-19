@@ -38,3 +38,7 @@ android {
 flutter {
     source = "../.."
 }
+dependencies {
+    // ExifInterface 支持（用于读取照片 EXIF 信息）
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+}

@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.provider.MediaStore
+import android.content.pm.PackageManager
 import android.util.Log
 import android.app.AppOpsManager
 import android.content.Context
@@ -17,6 +19,14 @@ import java.util.Calendar
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import androidx.exifinterface.media.ExifInterface
 
 class MainActivity : FlutterActivity() {
     // 文件分享功能通道
@@ -35,11 +45,50 @@ class MainActivity : FlutterActivity() {
     private val USAGE_STATS_CHANNEL = "com.easyfile/usage_stats"
     // 文件统计信息通道（获取文件创建时间等）
     private val FILE_STATS_CHANNEL = "com.easyfile/file_stats"
+    // MediaStore 统一扫描通道
+    private val MEDIASTORE_SCANNER_CHANNEL = "easyfile/mediastore_scanner"
+    // 应用文件扫描测试通道
+    private val APP_FILE_SCANNER_CHANNEL = "easyfile/app_file_scanner"
+    // 本机相机照片测试通道
+    private val NATIVE_CAMERA_TEST_CHANNEL = "easyfile/native_camera_test"
+    // 应用安装/卸载事件通道
+    private val APP_EVENT_CHANNEL = "easyfile/app_events"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
     private lateinit var trashHelper: MediaStoreTrashHelper
     private lateinit var storageStatsHelper: StorageStatsHelper
+    private lateinit var mediaStoreScanner: MediaStoreScanner
+    private lateinit var appFileScanner: AppFileScanner
+    private var appEventSink: EventChannel.EventSink? = null
+    
+    // 应用安装/卸载广播接收器
+    private val packageChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_PACKAGE_ADDED -> {
+                    val packageName = intent.data?.schemeSpecificPart
+                    Log.i(TAG, "应用安装: $packageName")
+                    packageName?.let {
+                        appEventSink?.success(mapOf(
+                            "event" to "installed",
+                            "packageName" to it
+                        ))
+                    }
+                }
+                Intent.ACTION_PACKAGE_REMOVED -> {
+                    val packageName = intent.data?.schemeSpecificPart
+                    Log.i(TAG, "应用卸载: $packageName")
+                    packageName?.let {
+                        appEventSink?.success(mapOf(
+                            "event" to "uninstalled",
+                            "packageName" to it
+                        ))
+                    }
+                }
+            }
+        }
+    }
 
     companion object {
         private var isFirstActivityCreate = true
@@ -57,6 +106,15 @@ class MainActivity : FlutterActivity() {
         
         // 初始化 StorageStatsHelper
         storageStatsHelper = StorageStatsHelper(this)
+        
+        // 初始化 MediaStoreScanner (统一扫描器)
+        mediaStoreScanner = MediaStoreScanner(this)
+        
+        // 初始化 AppFileScanner
+        appFileScanner = AppFileScanner(this)
+        
+        // 注册应用安装/卸载监听器
+        registerPackageChangeReceiver()
         
         // 决定是否显示 Native Splash
         if (isRestoringFromBackground) {
@@ -908,6 +966,546 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        
+        // MediaStore 统一扫描 Channel
+        MethodChannel(messenger, MEDIASTORE_SCANNER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scan" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val typeStr = call.argument<String>("type") ?: ""
+                            val mediaType = when (typeStr) {
+                                "image" -> MediaType.Image
+                                "audio" -> MediaType.Audio
+                                "video" -> MediaType.Video
+                                "document" -> MediaType.Document
+                                "apk" -> MediaType.Apk
+                                "archive" -> MediaType.Archive
+                                "cameraImage" -> MediaType.CameraImage
+                                "cameraVideo" -> MediaType.CameraVideo
+                                "recording" -> MediaType.Recording
+                                else -> {
+                                    withContext(Dispatchers.Main) {
+                                        result.error("INVALID_TYPE", "Unknown media type: $typeStr", null)
+                                    }
+                                    return@launch
+                                }
+                            }
+                            
+                            val files = mediaStoreScanner.scan(mediaType)
+                            withContext(Dispatchers.Main) {
+                                result.success(files)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error scanning with MediaStore: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                result.error("SCAN_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                "getScanStats" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val typeStr = call.argument<String>("type") ?: ""
+                            val mediaType = when (typeStr) {
+                                "image" -> MediaType.Image
+                                "audio" -> MediaType.Audio
+                                "video" -> MediaType.Video
+                                "document" -> MediaType.Document
+                                "apk" -> MediaType.Apk
+                                "archive" -> MediaType.Archive
+                                "cameraImage" -> MediaType.CameraImage
+                                "cameraVideo" -> MediaType.CameraVideo
+                                "recording" -> MediaType.Recording
+                                else -> {
+                                    withContext(Dispatchers.Main) {
+                                        result.error("INVALID_TYPE", "Unknown media type: $typeStr", null)
+                                    }
+                                    return@launch
+                                }
+                            }
+                            
+                            val stats = mediaStoreScanner.getStats(mediaType)
+                            withContext(Dispatchers.Main) {
+                                result.success(stats)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error getting MediaStore scan stats: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                result.error("STATS_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // 应用文件扫描测试 Channel
+        MethodChannel(messenger, APP_FILE_SCANNER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scanByOwnerPackage" -> {
+                    try {
+                        val packageName = call.argument<String>("packageName") ?: ""
+                        val files = appFileScanner.scanByOwnerPackage(packageName)
+                        result.success(files)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error scanning by owner package: ${e.message}")
+                        result.error("SCAN_ERROR", e.message, null)
+                    }
+                }
+                "isOwnerPackageSupported" -> {
+                    try {
+                        val supported = appFileScanner.isOwnerPackageSupported()
+                        result.success(supported)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error checking owner package support: ${e.message}")
+                        result.error("CHECK_ERROR", e.message, null)
+                    }
+                }
+                "getKnownAppPaths" -> {
+                    try {
+                        val appKey = call.argument<String>("appKey") ?: ""
+                        val paths = appFileScanner.getKnownAppPaths(appKey)
+                        result.success(paths)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error getting known app paths: ${e.message}")
+                        result.error("PATH_ERROR", e.message, null)
+                    }
+                }
+                "scanByFileNamePattern" -> {
+                    try {
+                        val patterns = call.argument<List<String>>("patterns") ?: emptyList()
+                        val files = appFileScanner.scanByFileNamePattern(patterns)
+                        result.success(files)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error scanning by file name pattern: ${e.message}")
+                        result.error("SCAN_ERROR", e.message, null)
+                    }
+                }
+                "getAppFileNamePatterns" -> {
+                    try {
+                        val appKey = call.argument<String>("appKey") ?: ""
+                        val patterns = appFileScanner.getAppFileNamePatterns(appKey)
+                        result.success(patterns)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error getting app file name patterns: ${e.message}")
+                        result.error("PATTERN_ERROR", e.message, null)
+                    }
+                }
+                "findFoldersContaining" -> {
+                    try {
+                        val basePaths = call.argument<List<String>>("basePaths") ?: emptyList()
+                        val keyword = call.argument<String>("keyword") ?: ""
+                        val folders = appFileScanner.findFoldersContaining(basePaths, keyword)
+                        result.success(folders)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error finding folders: ${e.message}")
+                        result.error("FIND_ERROR", e.message, null)
+                    }
+                }
+                "isAppInstalled" -> {
+                    try {
+                        val packageName = call.argument<String>("packageName") ?: ""
+                        val isInstalled = appFileScanner.isAppInstalled(packageName)
+                        result.success(isInstalled)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error checking app installation: ${e.message}")
+                        result.error("CHECK_ERROR", e.message, null)
+                    }
+                }
+                "getAppIcon" -> {
+                    try {
+                        val packageName = call.argument<String>("packageName") ?: ""
+                        val iconBytes = appFileScanner.getAppIcon(packageName)
+                        result.success(iconBytes)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error getting app icon: ${e.message}")
+                        result.error("ICON_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // 本机相机照片测试 Channel
+        MethodChannel(messenger, NATIVE_CAMERA_TEST_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getDeviceInfo" -> {
+                    try {
+                        val deviceInfo = mapOf(
+                            "make" to android.os.Build.MANUFACTURER,
+                            "model" to android.os.Build.MODEL
+                        )
+                        result.success(deviceInfo)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error getting device info: ${e.message}")
+                        result.error("DEVICE_INFO_ERROR", e.message, null)
+                    }
+                }
+                "scanNativeCameraPhotos" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val photos = scanNativeCameraPhotos()
+                            withContext(Dispatchers.Main) {
+                                result.success(photos)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error scanning native camera photos: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                result.error("SCAN_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                "scanCameraPackagePhotos" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val photos = scanCameraPackagePhotos()
+                            withContext(Dispatchers.Main) {
+                                result.success(photos)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error scanning camera package photos: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                result.error("SCAN_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                "scanCameraPackageVideos" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val videos = scanCameraPackageVideos()
+                            withContext(Dispatchers.Main) {
+                                result.success(videos)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error scanning camera package videos: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                result.error("SCAN_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // 应用安装/卸载事件通道
+        EventChannel(messenger, APP_EVENT_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    Log.i(TAG, "应用事件监听已启动")
+                    appEventSink = events
+                }
+                
+                override fun onCancel(arguments: Any?) {
+                    Log.i(TAG, "应用事件监听已取消")
+                    appEventSink = null
+                }
+            }
+        )
+    }
+    
+    /**
+     * 注册应用安装/卸载广播接收器
+     */
+    private fun registerPackageChangeReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
+        registerReceiver(packageChangeReceiver, filter)
+        Log.i(TAG, "应用安装/卸载监听器已注册")
+    }
+    
+    override fun onDestroy() {
+        // 注销广播接收器
+        try {
+            unregisterReceiver(packageChangeReceiver)
+            Log.i(TAG, "应用安装/卸载监听器已注销")
+        } catch (e: Exception) {
+            Log.e(TAG, "注销监听器失败: ${e.message}")
+        }
+        super.onDestroy()
+    }
+    
+    /**
+     * 扫描并分析本机相机拍摄的照片
+     * 通过读取 EXIF 信息判断是否为本机拍摄
+     */
+    private fun scanNativeCameraPhotos(): List<Map<String, Any>> {
+        Log.i(TAG, "开始扫描设备所有图片...")
+        
+        val deviceMake = android.os.Build.MANUFACTURER
+        val deviceModel = android.os.Build.MODEL
+        
+        Log.i(TAG, "设备信息: $deviceMake $deviceModel")
+        
+        val results = mutableListOf<Map<String, Any>>()
+        
+        // 扫描所有图片（不加过滤）
+        val allPhotos = mediaStoreScanner.scan(MediaType.Image)
+        
+        Log.i(TAG, "找到 ${allPhotos.size} 张图片，开始分析 EXIF...")
+        
+        for (photo in allPhotos) {
+            try {
+                val path = photo["path"] as? String ?: continue
+                val name = photo["name"] as? String ?: ""
+                val size = (photo["size"] as? Number)?.toLong() ?: 0L
+                val bucket = photo["bucket"] as? String ?: ""
+                
+                // 读取 EXIF 信息
+                val exif = ExifInterface(path)
+                val make = exif.getAttribute(ExifInterface.TAG_MAKE)
+                val model = exif.getAttribute(ExifInterface.TAG_MODEL)
+                val date = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+                
+                // 判断是否为本机拍摄
+                val isNative = isNativePhoto(make, model, deviceMake, deviceModel)
+                
+                results.add(mapOf(
+                    "path" to path,
+                    "name" to name,
+                    "size" to size,
+                    "bucket" to bucket,
+                    "make" to (make ?: ""),
+                    "model" to (model ?: ""),
+                    "date" to (date ?: ""),
+                    "isNative" to isNative
+                ))
+            } catch (e: Exception) {
+                Log.w(TAG, "读取 EXIF 失败: ${photo["path"]}, ${e.message}")
+            }
+        }
+        
+        val nativeCount = results.count { it["isNative"] as Boolean }
+        Log.i(TAG, "扫描完成: 总数 ${results.size}, 本机拍摄 $nativeCount")
+        
+        return results
+    }
+    
+    /**
+     * 判断照片是否为本机拍摄
+     * 通过比较 EXIF 中的品牌和型号与设备信息
+     */
+    private fun isNativePhoto(
+        exifMake: String?,
+        exifModel: String?,
+        deviceMake: String,
+        deviceModel: String
+    ): Boolean {
+        if (exifMake == null || exifModel == null) {
+            return false
+        }
+        
+        // 品牌匹配（不区分大小写）
+        val makeMatches = exifMake.equals(deviceMake, ignoreCase = true)
+        
+        // 型号匹配（不区分大小写，支持部分匹配）
+        val modelMatches = exifModel.equals(deviceModel, ignoreCase = true) ||
+                          exifModel.contains(deviceModel, ignoreCase = true) ||
+                          deviceModel.contains(exifModel, ignoreCase = true)
+        
+        return makeMatches && modelMatches
+    }
+    
+    /**
+     * 通过系统相机包名扫描照片
+     * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的图片
+     */
+    private fun scanCameraPackagePhotos(): List<Map<String, Any>> {
+        Log.i(TAG, "开始扫描系统相机包名创建的图片...")
+        
+        // 获取系统相机包名
+        val cameraPackageName = getCameraPackageName()
+        Log.i(TAG, "系统相机包名: $cameraPackageName")
+        
+        if (cameraPackageName.isEmpty()) {
+            Log.w(TAG, "无法获取系统相机包名")
+            return emptyList()
+        }
+        
+        val results = mutableListOf<Map<String, Any>>()
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+            "owner_package_name"  // OWNER_PACKAGE_NAME
+        )
+        
+        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
+        val selection = "owner_package_name = ?"
+        val selectionArgs = arrayOf(cameraPackageName)
+        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        
+        try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                sortOrder
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+                val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+                val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val dateTakenColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+                val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+                val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
+                val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
+                
+                Log.i(TAG, "找到 ${cursor.count} 张系统相机照片")
+                
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val name = cursor.getString(nameColumn) ?: ""
+                    val path = cursor.getString(pathColumn) ?: ""
+                    val size = cursor.getLong(sizeColumn)
+                    val dateAdded = cursor.getLong(dateAddedColumn)
+                    val dateTaken = cursor.getLong(dateTakenColumn)
+                    val bucket = cursor.getString(bucketColumn) ?: ""
+                    val width = cursor.getInt(widthColumn)
+                    val height = cursor.getInt(heightColumn)
+                    
+                    results.add(mapOf(
+                        "id" to id,
+                        "name" to name,
+                        "path" to path,
+                        "size" to size,
+                        "dateAdded" to dateAdded,
+                        "dateTaken" to dateTaken,
+                        "bucket" to bucket,
+                        "width" to width,
+                        "height" to height,
+                        "ownerPackage" to cameraPackageName
+                    ))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "扫描系统相机照片失败: ${e.message}", e)
+        }
+        
+        Log.i(TAG, "扫描完成: ${results.size} 张系统相机照片")
+        return results
+    }
+    
+    /**
+     * 获取系统相机应用的包名
+     */
+    private fun getCameraPackageName(): String {
+        return try {
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            resolveInfo?.activityInfo?.packageName ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "获取相机包名失败: ${e.message}")
+            ""
+        }
+    }
+    
+    /**
+     * 通过系统相机包名扫描视频
+     * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的视频
+     */
+    private fun scanCameraPackageVideos(): List<Map<String, Any>> {
+        Log.i(TAG, "开始扫描系统相机包名创建的视频...")
+        
+        // 获取系统相机包名
+        val cameraPackageName = getCameraPackageName()
+        Log.i(TAG, "系统相机包名: $cameraPackageName")
+        
+        if (cameraPackageName.isEmpty()) {
+            Log.w(TAG, "无法获取系统相机包名")
+            return emptyList()
+        }
+        
+        val results = mutableListOf<Map<String, Any>>()
+        val projection = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DATA,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.DATE_TAKEN,
+            MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Video.Media.WIDTH,
+            MediaStore.Video.Media.HEIGHT,
+            MediaStore.Video.Media.DURATION,
+            "owner_package_name"  // OWNER_PACKAGE_NAME
+        )
+        
+        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
+        val selection = "owner_package_name = ?"
+        val selectionArgs = arrayOf(cameraPackageName)
+        val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
+        
+        try {
+            contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                sortOrder
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
+                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+                val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+                val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+                val dateTakenColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_TAKEN)
+                val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+                val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
+                val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
+                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+                
+                Log.i(TAG, "找到 ${cursor.count} 个系统相机视频")
+                
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val name = cursor.getString(nameColumn) ?: ""
+                    val path = cursor.getString(pathColumn) ?: ""
+                    val size = cursor.getLong(sizeColumn)
+                    val dateAdded = cursor.getLong(dateAddedColumn)
+                    val dateTaken = cursor.getLong(dateTakenColumn)
+                    val bucket = cursor.getString(bucketColumn) ?: ""
+                    val width = cursor.getInt(widthColumn)
+                    val height = cursor.getInt(heightColumn)
+                    val duration = cursor.getLong(durationColumn)
+                    
+                    results.add(mapOf(
+                        "id" to id,
+                        "name" to name,
+                        "path" to path,
+                        "size" to size,
+                        "dateAdded" to dateAdded,
+                        "dateTaken" to dateTaken,
+                        "bucket" to bucket,
+                        "width" to width,
+                        "height" to height,
+                        "duration" to duration,
+                        "ownerPackage" to cameraPackageName
+                    ))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "扫描系统相机视频失败: ${e.message}", e)
+        }
+        
+        Log.i(TAG, "扫描完成: ${results.size} 个系统相机视频")
+        return results
     }
     
     /**
