@@ -15,6 +15,7 @@ import 'package:easyfile/core/services/app_storage_service.dart';
 import 'package:easyfile/core/services/app_storage_cache_manager.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
+import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -23,12 +24,9 @@ import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
-import 'package:easyfile/data/sources/theme_local_source.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
 import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/services/folder_analyzer.dart';
-import 'package:easyfile/data/services/smart_app_scanner.dart';
-import 'package:easyfile/data/services/user_folder_detector.dart';
 import 'package:easyfile/data/services/alias_recommendation_service.dart';
 import 'package:easyfile/data/services/data_migration_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -37,6 +35,12 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/splash_viewmodel.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:easyfile/ui/widgets/new_folder_notification.dart';
+import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
+import 'package:easyfile/core/services/startup/app_initialization_service.dart';
+import 'package:easyfile/core/services/startup/data_load_service.dart';
+import 'package:easyfile/core/services/startup/first_install_service.dart';
+import 'package:easyfile/core/services/startup/cache_service.dart';
+import 'package:easyfile/core/services/category_file_cache_service.dart';
 
 final locator = GetIt.instance;
 
@@ -71,9 +75,9 @@ void setupLocator() {
     return RecentFilesLocalSource();
   });
 
-  locator.registerLazySingleton<ThemeLocalSource>(() {
-    logger.d('Creating ThemeLocalSource');
-    return ThemeLocalSource();
+  locator.registerLazySingleton<ThemeSettingsService>(() {
+    logger.d('Creating ThemeSettingsService');
+    return ThemeSettingsService();
   });
 
   locator.registerLazySingleton<QuickAccessLocalSource>(() {
@@ -198,16 +202,6 @@ void setupLocator() {
     return FolderAnalyzer();
   });
 
-  locator.registerLazySingleton<SmartAppScanner>(() {
-    logger.d('Creating SmartAppScanner');
-    return SmartAppScanner();
-  });
-
-  locator.registerLazySingleton<UserFolderDetector>(() {
-    logger.d('Creating UserFolderDetector');
-    return UserFolderDetector();
-  });
-
   locator.registerLazySingleton<AliasRecommendationService>(() {
     logger.d('Creating AliasRecommendationService');
     return AliasRecommendationService();
@@ -260,11 +254,11 @@ void setupLocator() {
     final newFilesScanner = await locator.getAsync<NewFilesScanner>();
     final newFilesLocalSource = locator<NewFilesLocalSource>();
     final newFilesSettings = await locator.getAsync<NewFilesSettings>();
-    final themeSource = locator<ThemeLocalSource>();
+    final themeSettingsService = locator<ThemeSettingsService>();
     final trashDatabase = locator<AppTrashDatabase>();
 
     logger.d(
-      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSource=$themeSource, trashDatabase=$trashDatabase',
+      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSettingsService=$themeSettingsService, trashDatabase=$trashDatabase',
     );
 
     return FilePresenter(
@@ -276,7 +270,7 @@ void setupLocator() {
       newFilesScanner: newFilesScanner,
       newFilesLocalSource: newFilesLocalSource,
       newFilesSettings: newFilesSettings,
-      themeSource: themeSource,
+      themeSettingsService: themeSettingsService,
       trashDatabase: trashDatabase,
     );
   });
@@ -285,10 +279,7 @@ void setupLocator() {
     logger.d('Creating QuickAccessPresenter (Singleton)');
     final localSource = locator<QuickAccessLocalSource>();
     final viewModel = locator<QuickAccessViewModel>();
-    final appScanner = locator<SmartAppScanner>();
-    final userDetector = locator<UserFolderDetector>();
     final aliasService = locator<AliasRecommendationService>();
-    final notificationService = locator<NewFolderNotificationService>();
 
     logger.d(
       'QuickAccessPresenter dependencies: localSource=$localSource, viewModel=$viewModel',
@@ -297,10 +288,66 @@ void setupLocator() {
     return QuickAccessPresenter(
       localSource: localSource,
       viewModel: viewModel,
-      appScanner: appScanner,
-      userDetector: userDetector,
       aliasService: aliasService,
-      notificationService: notificationService,
+    );
+  });
+
+  // 启动服务注册
+  locator.registerLazySingleton<FirstInstallService>(() {
+    logger.d('Creating FirstInstallService (Singleton)');
+    return FirstInstallService();
+  });
+
+  locator.registerLazySingleton<CacheService>(() {
+    logger.d('Creating CacheService (Singleton)');
+    return CacheService();
+  });
+
+  locator.registerLazySingleton<CategoryFileCacheService>(() {
+    logger.d('Creating CategoryFileCacheService (Singleton)');
+    return CategoryFileCacheService();
+  });
+
+  locator.registerLazySingletonAsync<AppInitializationService>(() async {
+    logger.d('Creating AppInitializationService (Singleton)');
+    final filePresenter = await locator.getAsync<FilePresenter>();
+    final quickAccessPresenter = locator<QuickAccessPresenter>();
+    final firstInstallService = locator<FirstInstallService>();
+    final cacheService = locator<CacheService>();
+
+    return AppInitializationService(
+      filePresenter: filePresenter,
+      quickAccessPresenter: quickAccessPresenter,
+      firstInstallService: firstInstallService,
+      cacheService: cacheService,
+    );
+  });
+
+  locator.registerLazySingletonAsync<DataLoadService>(() async {
+    logger.d('Creating DataLoadService (Singleton)');
+    final appInitService = await locator.getAsync<AppInitializationService>();
+    final cacheService = locator<CacheService>();
+    final filePresenter = await locator.getAsync<FilePresenter>();
+    final quickAccessPresenter = locator<QuickAccessPresenter>();
+
+    return DataLoadService(
+      appInitService: appInitService,
+      cacheService: cacheService,
+      filePresenter: filePresenter,
+      quickAccessPresenter: quickAccessPresenter,
+    );
+  });
+
+  locator.registerLazySingletonAsync<StartupOrchestrator>(() async {
+    logger.d('Creating StartupOrchestrator (Singleton)');
+    final appInitService = await locator.getAsync<AppInitializationService>();
+    final dataLoadService = await locator.getAsync<DataLoadService>();
+    final firstInstallService = locator<FirstInstallService>();
+
+    return StartupOrchestrator(
+      appInitService: appInitService,
+      dataLoadService: dataLoadService,
+      firstInstallService: firstInstallService,
     );
   });
 

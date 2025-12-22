@@ -65,7 +65,7 @@ class FileViewModel extends ChangeNotifier {
   // SharedPreferences keys
   static const String _keyCurrentTab = 'current_tab';
   static const String _keyLastBrowsePath = 'last_browse_path';
-  static const String _keyThemeMode = 'theme_mode';
+  // 注意：主题模式现在由 ThemeSettingsService 专门管理
 
   FileViewModel() {
     _loadSavedState();
@@ -92,15 +92,9 @@ class FileViewModel extends ChangeNotifier {
         logger.d('Restored last browse path: $_lastBrowsePath');
       }
 
-      // 加载主题模式
-      final savedThemeMode = prefs.getString(_keyThemeMode);
-      if (savedThemeMode != null) {
-        _themeMode = ThemeMode.values.firstWhere(
-          (e) => e.toString() == savedThemeMode,
-          orElse: () => ThemeMode.system,
-        );
-        logger.d('Restored theme mode: $_themeMode');
-      }
+      // 注意：主题模式由 FilePresenter.initializeTheme() 通过 ThemeLocalSource（JSON）初始化
+      // 这里不读SharedPreferences，避免与JSON值冲突
+      // SharedPreferences 中的theme_mode 仅作为备份使用
     } catch (e) {
       logger.e('Error loading saved state: $e');
     }
@@ -111,7 +105,7 @@ class FileViewModel extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyCurrentTab, _currentTab.toString());
-      await prefs.setString(_keyThemeMode, _themeMode.toString());
+      // 注意：主题模式现在由 ThemeSettingsService 管理，不在这里保存
 
       if (_currentTab == TabView.browse && _currentPath.isNotEmpty) {
         await prefs.setString(_keyLastBrowsePath, _currentPath);
@@ -594,14 +588,14 @@ class FileViewModel extends ChangeNotifier {
 
   // 主题相关方法
   void setThemeMode(ThemeMode mode) {
-    logger.i('Setting theme mode: $mode');
+    logger.i('FileViewModel.setThemeMode: $mode');
     _themeMode = mode;
-    _saveCurrentState(); // 保存主题模式
+    // 注意：不在这里保存，持久化由 FilePresenter.setThemeMode() 通过 ThemeSettingsService 处理
     notifyListeners();
   }
 
   void toggleTheme() {
-    logger.d('Toggling theme from $_themeMode');
+    logger.d('FileViewModel.toggleTheme from $_themeMode');
     // 三模式循环：light → dark → system → light
     switch (_themeMode) {
       case ThemeMode.light:
@@ -614,7 +608,7 @@ class FileViewModel extends ChangeNotifier {
         _themeMode = ThemeMode.light;
         break;
     }
-    _saveCurrentState(); // 保存主题模式
+    // 注意：不在这里保存，持久化由 FilePresenter.toggleTheme() 通过 ThemeSettingsService 处理
     notifyListeners();
   }
 

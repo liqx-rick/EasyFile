@@ -5,35 +5,34 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/comprehensive_scan_result.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
-import 'package:easyfile/data/services/smart_app_scanner.dart';
-import 'package:easyfile/data/services/user_folder_detector.dart';
+import 'package:easyfile/core/constants/system_folders_config.dart';
+
 import 'package:easyfile/data/services/alias_recommendation_service.dart';
+import 'package:easyfile/data/services/quick_access_folder_detector.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
-import 'package:easyfile/ui/widgets/new_folder_notification.dart';
 
 /// 快速访问业务逻辑处理层
 class QuickAccessPresenter {
   final QuickAccessLocalSource _localSource;
   final QuickAccessViewModel _viewModel;
-  final SmartAppScanner _appScanner;
-  final UserFolderDetector _userDetector;
   final AliasRecommendationService _aliasService;
-  final NewFolderNotificationService _notificationService;
+  final QuickAccessFolderDetector _quickAccessDetector;
 
   QuickAccessPresenter({
     required QuickAccessLocalSource localSource,
     required QuickAccessViewModel viewModel,
-    required SmartAppScanner appScanner,
-    required UserFolderDetector userDetector,
     required AliasRecommendationService aliasService,
-    required NewFolderNotificationService notificationService,
+    QuickAccessFolderDetector? quickAccessDetector,
   })  : _localSource = localSource,
         _viewModel = viewModel,
-        _appScanner = appScanner,
-        _userDetector = userDetector,
         _aliasService = aliasService,
-        _notificationService = notificationService;
+        _quickAccessDetector = quickAccessDetector ?? QuickAccessFolderDetector();
+
+  // ==================== Getters ====================
+
+  /// 暴露 _localSource 供外部使用（用于调试日志等）
+  QuickAccessLocalSource get localSource => _localSource;
 
   // ==================== 核心CRUD操作 ====================
 
@@ -123,7 +122,7 @@ class QuickAccessPresenter {
   Future<bool> setUserAlias(String id, String? alias) async {
     logger.i('QuickAccessPresenter.setUserAlias called: $id -> $alias');
     try {
-      final success = await _localSource.setAlias(id, alias ?? '');
+      final success = await _localSource.setAlias(id, alias);
       if (success) {
         await loadQuickAccessFolders();
         return true;
@@ -151,11 +150,9 @@ class QuickAccessPresenter {
   /// 执行首次综合扫描（扫描快速访问目录 + 分类文件）
   ///
   /// 该方法会执行以下操作：
-  /// 1. 扫描应用目录 (0-10%)
-  /// 2. 扫描系统目录 (10-20%)
-  /// 3. 检测用户目录 (20-30%)
-  /// 4. 扫描分类文件 (30-95%)
-  /// 5. 保存缓存 (95-100%)
+  /// 1. 扫描系统目录 (0-20%)
+  /// 2. 扫描分类文件 (20-95%)
+  /// 3. 保存缓存 (95-100%)
   ///
   /// [scanCategoryFiles] 是一个可选的回调函数，用于扫描分类文件并返回统计结果
   /// [onProgress] 进度回调，参数为进度值 (0.0 - 1.0)，用于实时更新 UI
@@ -170,30 +167,15 @@ class QuickAccessPresenter {
     onProgress?.call(0.0);
 
     try {
-      // 1. 扫描应用目录 (0-10%)
+      // 1. 使用 QuickAccessFolderDetector 扫描快速访问文件夹 (0-20%)
       onProgress?.call(0.05);
-      final appFolders = await _appScanner.deepScan();
-      logger.i('Deep scan found ${appFolders.length} app folders');
-      onProgress?.call(0.10);
-
-      // 2. 扫描系统目录 (10-20%)
-      final systemFolders = await _scanSystemDirectories();
-      logger.i('Deep scan found ${systemFolders.length} system folders');
-      for (final folder in systemFolders) {
-        logger.d('System folder: ${folder.path}');
-      }
+      final detectedFolders = await _detectQuickAccessFolders();
+      logger.i('Detector found ${detectedFolders.length} quick access folders');
       onProgress?.call(0.20);
-
-      // 3. 检测用户目录 (20-30%)
-      final userFolders = await _userDetector.detectUserFolders();
-      logger.i('Deep scan found ${userFolders.length} user folders');
-      onProgress?.call(0.30);
 
       // 合并所有扫描结果
       final allScannedFolders = [
-        ...appFolders.map((f) => f.toQuickAccessFolder()),
-        ...systemFolders,
-        ...userFolders.map((f) => f.toQuickAccessFolder()),
+        ...detectedFolders,
       ];
 
       logger.i('Deep scan total: ${allScannedFolders.length} folders');
@@ -202,9 +184,7 @@ class QuickAccessPresenter {
       int unhidden = 0;
       int alreadyExists = 0;
       int systemCount = 0;
-      int appRootCount = 0;
-      int appSubCount = 0;
-      int userCustomCount = 0;
+      int otherCount = 0;
 
       // 添加到数据库并统计
       for (final folder in allScannedFolders) {
@@ -213,14 +193,8 @@ class QuickAccessPresenter {
           case QuickAccessFolderType.system:
             systemCount++;
             break;
-          case QuickAccessFolderType.appRoot:
-            appRootCount++;
-            break;
-          case QuickAccessFolderType.appSubfolder:
-            appSubCount++;
-            break;
-          case QuickAccessFolderType.userCustom:
-            userCustomCount++;
+          case QuickAccessFolderType.other:
+            otherCount++;
             break;
         }
 
@@ -242,6 +216,9 @@ class QuickAccessPresenter {
         }
       }
 
+      // 🆕 首次扫描特殊处理：自动将系统一级目录加入快速访问并设置别名
+      await _autoAddSystemFoldersToQuickAccess(allScannedFolders);
+
       // 4. 扫描分类文件（如果提供了扫描函数）(30-95%)
       logger.i('Starting category file scan...');
       onProgress?.call(0.30);
@@ -254,6 +231,9 @@ class QuickAccessPresenter {
       } else {
         // 回退到快速扫描（只扫描系统目录第一层）
         logger.i('Using fallback quick scan');
+        final systemFolders = detectedFolders
+            .where((f) => f.type == QuickAccessFolderType.system)
+            .toList();
         categoryFileCounts = await _scanCategoryFiles(systemFolders);
       }
       onProgress?.call(0.95);
@@ -274,9 +254,7 @@ class QuickAccessPresenter {
       return ComprehensiveScanResult(
         quickAccessFoldersFound: allScannedFolders.length,
         systemFoldersCount: systemCount,
-        appRootFoldersCount: appRootCount,
-        appSubFoldersCount: appSubCount,
-        userCustomFoldersCount: userCustomCount,
+        otherFoldersCount: otherCount,
         newlyAdded: newlyAdded,
         alreadyExists: alreadyExists,
         unhidden: unhidden,
@@ -393,6 +371,7 @@ class QuickAccessPresenter {
   }
 
   /// 执行增量扫描（带通知）
+  /// 在新架构中已移除应用扫描功能
   Future<ScanResult> performIncrementalScanWithNotification() async {
     logger.i(
       'QuickAccessPresenter.performIncrementalScanWithNotification called',
@@ -400,20 +379,13 @@ class QuickAccessPresenter {
     _viewModel.setScanning(true);
 
     try {
-      final newFolders = await _appScanner.incrementalScan();
-      logger.i('Incremental scan found ${newFolders.length} new folders');
-
-      if (newFolders.isNotEmpty) {
-        // 转换为 QuickAccessFolder 然后通知用户
-        final quickAccessFolders =
-            newFolders.map((f) => f.toQuickAccessFolder()).toList();
-        _notificationService.addNewFolders(quickAccessFolders);
-      }
+      // 新架构不再提供增量扫描
+      logger.w('Incremental scan not supported in new architecture');
 
       await loadQuickAccessFolders();
 
       return ScanResult(
-        totalFound: newFolders.length,
+        totalFound: 0,
         newlyAdded: 0, // 不自动添加，等待用户确认
         alreadyExists: 0,
       );
@@ -431,11 +403,8 @@ class QuickAccessPresenter {
     _viewModel.setScanning(true);
 
     try {
-      final appFolders = await _appScanner.incrementalScan();
-      logger.i('Incremental scan found ${appFolders.length} app folders');
-
-      final scannedFolders =
-          appFolders.map((f) => f.toQuickAccessFolder()).toList();
+      // No incremental scan from app scanner in new architecture
+      final scannedFolders = <QuickAccessFolder>[];
       final counts = _countFolderTypes(scannedFolders);
 
       int newlyAdded = 0;
@@ -473,9 +442,7 @@ class QuickAccessPresenter {
         alreadyExists: alreadyExists,
         unhidden: 0, // 增量扫描不恢复隐藏项
         systemCount: counts['system']!,
-        appRootCount: counts['appRoot']!,
-        appSubCount: counts['appSub']!,
-        userCustomCount: counts['userCustom']!,
+        otherCount: counts['other']!,
       );
     } catch (e, stackTrace) {
       logger.e('Error performing incremental scan: $e\n$stackTrace');
@@ -491,20 +458,15 @@ class QuickAccessPresenter {
     _viewModel.setScanning(true);
 
     try {
-      // 1. 扫描应用目录 (Tier1+2)
-      final appFolders = await _appScanner.userInitiatedScan();
-      logger.i('User-initiated scan found ${appFolders.length} app folders');
-
-      // 2. 扫描系统目录
-      final systemFolders = await _scanSystemDirectories();
+      // 1. 使用 QuickAccessFolderDetector 扫描快速访问文件夹
+      final detectedFolders = await _detectQuickAccessFolders();
       logger.i(
-        'User-initiated scan found ${systemFolders.length} system folders',
+        'User-initiated scan found ${detectedFolders.length} quick access folders',
       );
 
       // 合并扫描结果
       final scannedFolders = [
-        ...appFolders.map((f) => f.toQuickAccessFolder()),
-        ...systemFolders,
+        ...detectedFolders,
       ];
 
       final counts = _countFolderTypes(scannedFolders);
@@ -544,9 +506,7 @@ class QuickAccessPresenter {
         alreadyExists: alreadyExists,
         unhidden: 0, // 常规扫描不恢复隐藏项
         systemCount: counts['system']!,
-        appRootCount: counts['appRoot']!,
-        appSubCount: counts['appSub']!,
-        userCustomCount: counts['userCustom']!,
+        otherCount: counts['other']!,
       );
     } catch (e, stackTrace) {
       logger.e('Error performing user-initiated scan: $e\n$stackTrace');
@@ -556,29 +516,19 @@ class QuickAccessPresenter {
     }
   }
 
-  /// 执行深度扫描（全部Tier + 系统目录 + 用户目录）
+  /// 执行深度扫描（系统目录 + 用户目录）
   Future<ScanResult> performDeepScan() async {
     logger.i('QuickAccessPresenter.performDeepScan called');
     _viewModel.setScanning(true);
 
     try {
-      // 1. 扫描应用目录
-      final appFolders = await _appScanner.deepScan();
-      logger.i('Deep scan found ${appFolders.length} app folders');
-
-      // 2. 扫描系统目录
-      final systemFolders = await _scanSystemDirectories();
-      logger.i('Deep scan found ${systemFolders.length} system folders');
-
-      // 3. 检测用户目录
-      final userFolders = await _userDetector.detectUserFolders();
-      logger.i('Deep scan found ${userFolders.length} user folders');
+      // 1. 使用 QuickAccessFolderDetector 扫描快速访问文件夹
+      final detectedFolders = await _detectQuickAccessFolders();
+      logger.i('Deep scan found ${detectedFolders.length} quick access folders');
 
       // 合并所有扫描结果
       final allScannedFolders = [
-        ...appFolders.map((f) => f.toQuickAccessFolder()),
-        ...systemFolders,
-        ...userFolders.map((f) => f.toQuickAccessFolder()),
+        ...detectedFolders,
       ];
 
       logger.i('Deep scan total: ${allScannedFolders.length} folders');
@@ -589,9 +539,7 @@ class QuickAccessPresenter {
 
       // 按类型统计
       int systemCount = 0;
-      int appRootCount = 0;
-      int appSubCount = 0;
-      int userCustomCount = 0;
+      int otherCount = 0;
 
       for (final folder in allScannedFolders) {
         // 统计类型
@@ -599,14 +547,8 @@ class QuickAccessPresenter {
           case QuickAccessFolderType.system:
             systemCount++;
             break;
-          case QuickAccessFolderType.appRoot:
-            appRootCount++;
-            break;
-          case QuickAccessFolderType.appSubfolder:
-            appSubCount++;
-            break;
-          case QuickAccessFolderType.userCustom:
-            userCustomCount++;
+          case QuickAccessFolderType.other:
+            otherCount++;
             break;
         }
 
@@ -629,6 +571,11 @@ class QuickAccessPresenter {
         }
       }
 
+      // 2. 执行数据清理
+      logger.i('Performing data cleanup after deep scan');
+      final cleanupResult = await _performDataCleanup();
+      logger.i('Data cleanup completed: $cleanupResult');
+
       await loadQuickAccessFolders();
 
       return ScanResult(
@@ -637,9 +584,10 @@ class QuickAccessPresenter {
         alreadyExists: alreadyExists,
         unhidden: unhidden,
         systemCount: systemCount,
-        appRootCount: appRootCount,
-        appSubCount: appSubCount,
-        userCustomCount: userCustomCount,
+        otherCount: otherCount,
+        removedNonExistent: cleanupResult.removedNonExistent,
+        removedMisclassified: cleanupResult.removedMisclassified,
+        removedUnqualified: cleanupResult.removedUnqualified,
       );
     } catch (e, stackTrace) {
       logger.e('Error performing deep scan: $e\n$stackTrace');
@@ -650,16 +598,17 @@ class QuickAccessPresenter {
   }
 
   /// 检测用户自定义文件夹（不恢复隐藏项）
+  /// 在新架构中已由 QuickAccessFolderDetector 的第二部分取代
   Future<ScanResult> detectUserFolders() async {
     logger.i('QuickAccessPresenter.detectUserFolders called');
     _viewModel.setScanning(true);
 
     try {
-      final userFolders = await _userDetector.detectUserFolders();
+      // 使用 QuickAccessFolderDetector 的第二部分功能
+      final userFolders = await _detectQuickAccessFolders();
       logger.i('Detected ${userFolders.length} user folders');
 
-      final scannedFolders =
-          userFolders.map((f) => f.toQuickAccessFolder()).toList();
+      final scannedFolders = userFolders;
       final counts = _countFolderTypes(scannedFolders);
 
       int newlyAdded = 0;
@@ -697,9 +646,7 @@ class QuickAccessPresenter {
         alreadyExists: alreadyExists,
         unhidden: 0, // 用户目录检测不恢复隐藏项
         systemCount: counts['system']!,
-        appRootCount: counts['appRoot']!,
-        appSubCount: counts['appSub']!,
-        userCustomCount: counts['userCustom']!,
+        otherCount: counts['other']!,
       );
     } catch (e, stackTrace) {
       logger.e('Error detecting user folders: $e\n$stackTrace');
@@ -712,93 +659,40 @@ class QuickAccessPresenter {
   /// 统计文件夹类型
   Map<String, int> _countFolderTypes(List<QuickAccessFolder> folders) {
     int systemCount = 0;
-    int appRootCount = 0;
-    int appSubCount = 0;
-    int userCustomCount = 0;
+    int otherCount = 0;
 
     for (final folder in folders) {
       switch (folder.type) {
         case QuickAccessFolderType.system:
           systemCount++;
           break;
-        case QuickAccessFolderType.appRoot:
-          appRootCount++;
-          break;
-        case QuickAccessFolderType.appSubfolder:
-          appSubCount++;
-          break;
-        case QuickAccessFolderType.userCustom:
-          userCustomCount++;
+        case QuickAccessFolderType.other:
+          otherCount++;
           break;
       }
     }
 
     return {
       'system': systemCount,
-      'appRoot': appRootCount,
-      'appSub': appSubCount,
-      'userCustom': userCustomCount,
+      'other': otherCount,
     };
   }
 
-  /// 扫描系统预定义目录
-  Future<List<QuickAccessFolder>> _scanSystemDirectories() async {
-    logger.i('Scanning system directories');
-    final systemDirs = <QuickAccessFolder>[];
-
-    // 定义系统目录路径
-    final systemPaths = Platform.isAndroid
-        ? [
-            '/storage/emulated/0/DCIM',
-            '/storage/emulated/0/Pictures',
-            '/storage/emulated/0/Music',
-            '/storage/emulated/0/Movies',
-            '/storage/emulated/0/Documents',
-            '/storage/emulated/0/Download',
-          ]
-        : Platform.isWindows
-            ? () {
-                final userProfile = Platform.environment['USERPROFILE'];
-                return userProfile != null
-                    ? [
-                        '$userProfile\\Documents',
-                        '$userProfile\\Downloads',
-                        '$userProfile\\Pictures',
-                        '$userProfile\\Music',
-                        '$userProfile\\Videos',
-                      ]
-                    : <String>[];
-              }()
-            : [];
-
-    for (final path in systemPaths) {
-      final dir = Directory(path);
-      if (!dir.existsSync()) {
-        logger.d('System directory does not exist: $path');
-        continue;
-      }
-
-      try {
-        final name = path.split(Platform.pathSeparator).last;
-        final folder = QuickAccessFolder(
-          id: '${DateTime.now().millisecondsSinceEpoch}_$name',
-          path: path,
-          originalName: name,
-          type: QuickAccessFolderType.system,
-          createdAt: DateTime.now(),
-          isAddedToQuickAccess: false,
-          isHidden: false,
-          homeDisplayOrder: null,
-        );
-        systemDirs.add(folder);
-        logger.d('Found system directory: $name at $path');
-      } catch (e) {
-        logger.w('Error processing system directory $path: $e');
-      }
+  /// 使用 QuickAccessFolderDetector 检测快速访问文件夹
+  /// 
+  /// 该方法整合了：
+  /// 1. 系统常见目录（Pictures, Downloads 等）及其一级子目录
+  /// 2. 其他满足条件的用户文件夹（通过 5 层深度分析）
+  Future<List<QuickAccessFolder>> _detectQuickAccessFolders() async {
+    logger.i('QuickAccessPresenter._detectQuickAccessFolders called');
+    try {
+      final detectedFolders = await _quickAccessDetector.detectQuickAccessFolders();
+      logger.i('Successfully detected ${detectedFolders.length} quick access folders');
+      return detectedFolders;
+    } catch (e, stackTrace) {
+      logger.e('Error detecting quick access folders: $e\n$stackTrace');
+      return []; // 返回空列表，避免中断扫描流程
     }
-
-    logger.i('Found ${systemDirs.length} system directories');
-    return systemDirs;
   }
 
   /// 为文件夹推荐别名
@@ -870,23 +764,10 @@ class QuickAccessPresenter {
   }
 
   /// 获取应用根目录及其子目录的映射
+  @Deprecated('AppRoot and AppSubfolder types have been consolidated into Other')
   Map<String, List<QuickAccessFolder>> getAppFolderHierarchy() {
-    final folders = _viewModel.folders;
-    final appRoots =
-        folders.where((f) => f.type == QuickAccessFolderType.appRoot).toList();
-    final appSubfolders = folders
-        .where((f) => f.type == QuickAccessFolderType.appSubfolder)
-        .toList();
-
-    final hierarchy = <String, List<QuickAccessFolder>>{};
-
-    for (final root in appRoots) {
-      hierarchy[root.path] = appSubfolders
-          .where((sub) => sub.path.startsWith('${root.path}/'))
-          .toList();
-    }
-
-    return hierarchy;
+    logger.w('getAppFolderHierarchy is deprecated');
+    return {};
   }
 
   // ==================== 新增方法 ====================
@@ -895,6 +776,23 @@ class QuickAccessPresenter {
   Future<bool> addToQuickAccess(String id) async {
     logger.i('QuickAccessPresenter.addToQuickAccess called: $id');
     try {
+      // 步骤3：验证文件夹是否存在
+      final allFolders = await _localSource.getAllFolders();
+      final folder = allFolders.firstWhere(
+        (f) => f.id == id,
+        orElse: () => throw Exception('Folder not found'),
+      );
+
+      // 检查文件夹是否仍然存在于文件系统
+      final dir = Directory(folder.path);
+      if (!await dir.exists()) {
+        logger.w('Folder does not exist on file system: ${folder.path}');
+        // 自动清理不存在的文件夹
+        await _localSource.removeFolder(id);
+        await loadQuickAccessFolders();
+        return false;
+      }
+
       final success = await _localSource.addToQuickAccess(id);
       if (success) {
         await loadQuickAccessFolders();
@@ -1047,6 +945,174 @@ class QuickAccessPresenter {
       return [];
     }
   }
+
+  // ==================== 数据清理 ====================
+
+  /// 执行数据清理，移除不符合条件的记录
+  /// 
+  /// 三条清理规则：
+  /// 1. 文件夹不存在的记录（不论isAddedToQuickAccess状态）
+  /// 2. type==other 但实际是系统文件夹的记录
+  /// 3. type==other 且 !isAddedToQuickAccess 但不再满足扫描条件的记录
+  Future<CleanupResult> _performDataCleanup() async {
+    logger.i('QuickAccessPresenter._performDataCleanup called');
+    
+    int removedNonExistent = 0;
+    int removedMisclassified = 0;
+    int removedUnqualified = 0;
+
+    try {
+      // 获取所有文件夹
+      final allFolders = await _localSource.getAllFolders();
+      logger.i('Checking ${allFolders.length} folders for cleanup');
+
+      final foldersToRemove = <String>[];
+
+      for (final folder in allFolders) {
+        // 规则1：文件夹不存在的记录
+        final dir = Directory(folder.path);
+        if (!await dir.exists()) {
+          logger.i('Cleanup: Removing non-existent folder: ${folder.path}');
+          foldersToRemove.add(folder.id);
+          removedNonExistent++;
+          continue;
+        }
+
+        // 规则2：type==other 但实际是系统文件夹的记录
+        if (folder.type == QuickAccessFolderType.other && 
+            SystemFoldersConfig.isSystemFolder(folder.path)) {
+          logger.i('Cleanup: Removing misclassified system folder: ${folder.path}');
+          foldersToRemove.add(folder.id);
+          removedMisclassified++;
+          continue;
+        }
+
+        // 规则3：type==other 且 !isAddedToQuickAccess 但不再满足扫描条件的记录
+        // 这需要重新扫描该文件夹，看它是否仍然符合"other"类型的条件
+        if (folder.type == QuickAccessFolderType.other && 
+            !folder.isAddedToQuickAccess) {
+          // 使用 QuickAccessFolderDetector 判断该文件夹是否仍满足条件
+          final shouldKeep = await _shouldKeepOtherFolder(folder.path);
+          if (!shouldKeep) {
+            logger.i('Cleanup: Removing unqualified other folder: ${folder.path}');
+            foldersToRemove.add(folder.id);
+            removedUnqualified++;
+            continue;
+          }
+        }
+      }
+
+      // 批量删除
+      if (foldersToRemove.isNotEmpty) {
+        logger.i('Cleanup: Removing ${foldersToRemove.length} folders');
+        for (final id in foldersToRemove) {
+          await _localSource.removeFolder(id);
+        }
+      }
+
+      final result = CleanupResult(
+        removedNonExistent: removedNonExistent,
+        removedMisclassified: removedMisclassified,
+        removedUnqualified: removedUnqualified,
+      );
+
+      logger.i('Cleanup completed: $result');
+      return result;
+
+    } catch (e, stackTrace) {
+      logger.e('Error during data cleanup: $e\n$stackTrace');
+      return CleanupResult(
+        removedNonExistent: removedNonExistent,
+        removedMisclassified: removedMisclassified,
+        removedUnqualified: removedUnqualified,
+      );
+    }
+  }
+
+  /// 判断一个other类型的文件夹是否应该保留
+  /// 
+  /// 检查该文件夹是否仍然满足"其他文件夹"的扫描条件：
+  /// - 不是隐藏文件夹
+  /// - 有足够的文件或子文件夹
+  /// - 符合QuickAccessFolderDetector的筛选逻辑
+  Future<bool> _shouldKeepOtherFolder(String path) async {
+    try {
+      final dir = Directory(path);
+      
+      // 1. 检查是否是隐藏文件夹
+      final name = path.split('/').last;
+      if (name.startsWith('.')) {
+        return false;
+      }
+
+      // 2. 检查文件夹是否有内容
+      final entities = await dir.list().toList();
+      if (entities.isEmpty) {
+        return false;
+      }
+
+      // 3. 文件夹需要有一定数量的文件或子文件夹才能被认为是"有价值的"
+      // 这个逻辑与 QuickAccessFolderDetector 的筛选条件保持一致
+      final files = entities.whereType<File>().length;
+      final subDirs = entities.whereType<Directory>().length;
+      
+      // 需要至少有5个文件或2个子文件夹
+      return files >= 5 || subDirs >= 2;
+
+    } catch (e) {
+      logger.e('Error checking if should keep other folder: $e');
+      return false;
+    }
+  }
+
+  // ==================== 首次扫描自动配置 ====================
+
+  /// 首次扫描后自动将系统一级目录加入快速访问并设置别名
+  /// 
+  /// 在首次安装时，自动将常用的系统文件夹（Download、Pictures等）
+  /// 加入快速访问列表，并设置中文别名，提升首次使用体验
+  /// 
+  /// **执行操作**：
+  /// 1. 筛选系统一级目录（排除子目录）
+  /// 2. 将这些目录加入快速访问列表
+  /// 3. 设置对应的中文别名（从 SystemFoldersConfig 获取）
+  /// 
+  /// **返回**：成功加入的文件夹数量
+  Future<int> _autoAddSystemFoldersToQuickAccess(
+    List<QuickAccessFolder> scannedFolders,
+  ) async {
+    logger.i('[FirstScan] Auto-adding system root folders to quick access...');
+    
+    // 筛选系统一级目录（排除子目录）
+    final systemRootFolders = scannedFolders
+        .where((f) => 
+          f.type == QuickAccessFolderType.system && 
+          !f.isSystemSubfolder
+        )
+        .toList();
+    
+    logger.i('[FirstScan] Found ${systemRootFolders.length} system root folders');
+    
+    // 批量加入快速访问并设置别名
+    int successCount = 0;
+    for (final folder in systemRootFolders) {
+      try {
+        // 加入快速访问（不自动设置别名，由用户自行决定）
+        final addSuccess = await addToQuickAccess(folder.id);
+        if (addSuccess) {
+          logger.i('[FirstScan] Added system folder: ${folder.path}');
+          successCount++;
+        } else {
+          logger.w('[FirstScan] Failed to add ${folder.path} to quick access');
+        }
+      } catch (e) {
+        logger.w('[FirstScan] Failed to process ${folder.path}: $e');
+      }
+    }
+    
+    logger.i('[FirstScan] Auto-added $successCount/${systemRootFolders.length} system folders to quick access');
+    return successCount;
+  }
 }
 
 /// 扫描结果
@@ -1058,9 +1124,12 @@ class ScanResult {
 
   // 按类型统计
   final int systemCount;
-  final int appRootCount;
-  final int appSubCount;
-  final int userCustomCount;
+  final int otherCount;
+
+  // 清理统计
+  final int removedNonExistent;
+  final int removedMisclassified;
+  final int removedUnqualified;
 
   ScanResult({
     required this.totalFound,
@@ -1068,16 +1137,38 @@ class ScanResult {
     required this.alreadyExists,
     this.unhidden = 0,
     this.systemCount = 0,
-    this.appRootCount = 0,
-    this.appSubCount = 0,
-    this.userCustomCount = 0,
+    this.otherCount = 0,
+    this.removedNonExistent = 0,
+    this.removedMisclassified = 0,
+    this.removedUnqualified = 0,
   });
 
   bool get hasNewFolders => newlyAdded > 0;
   bool get hasUnhidden => unhidden > 0;
+  bool get hasCleaned => removedNonExistent > 0 || removedMisclassified > 0 || removedUnqualified > 0;
 
   @override
   String toString() {
-    return 'ScanResult(total: $totalFound, new: $newlyAdded, exists: $alreadyExists, unhidden: $unhidden, system: $systemCount, appRoot: $appRootCount, appSub: $appSubCount)';
+    return 'ScanResult(total: $totalFound, new: $newlyAdded, exists: $alreadyExists, unhidden: $unhidden, system: $systemCount, other: $otherCount, cleaned: non-exist=$removedNonExistent, misclassified=$removedMisclassified, unqualified=$removedUnqualified)';
+  }
+}
+
+/// 清理结果
+class CleanupResult {
+  final int removedNonExistent;
+  final int removedMisclassified;
+  final int removedUnqualified;
+
+  CleanupResult({
+    required this.removedNonExistent,
+    required this.removedMisclassified,
+    required this.removedUnqualified,
+  });
+
+  int get totalRemoved => removedNonExistent + removedMisclassified + removedUnqualified;
+
+  @override
+  String toString() {
+    return 'CleanupResult(non-exist: $removedNonExistent, misclassified: $removedMisclassified, unqualified: $removedUnqualified, total: $totalRemoved)';
   }
 }

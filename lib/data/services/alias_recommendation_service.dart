@@ -27,9 +27,8 @@ class AliasRecommendationService {
       return specialAlias;
     }
 
-    // 2. 应用目录特殊处理
-    if (type == QuickAccessFolderType.appRoot ||
-        type == QuickAccessFolderType.appSubfolder) {
+    // 2. 如果是其他目录类型，尝试从路径推断（比如应用目录）
+    if (type == QuickAccessFolderType.other) {
       final appAlias = _getAppFolderAlias(path, originalName);
       if (appAlias != null) {
         logger.d('Using app folder alias: $appAlias');

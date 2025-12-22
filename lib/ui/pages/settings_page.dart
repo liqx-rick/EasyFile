@@ -185,10 +185,15 @@ class _SettingsPageState extends State<SettingsPage> {
         content: SingleChildScrollView(
           child: RadioGroup<ThemeMode>(
             groupValue: viewModel.themeMode,
-            onChanged: (value) {
+            onChanged: (value) async {
               if (value != null) {
-                viewModel.setThemeMode(value);
-                Navigator.pop(context);
+                logger.i('Theme selected in dialog: $value');
+                // 通过 Presenter 保存，确保同时保存到JSON和SharedPreferences
+                final presenter = locator<FilePresenter>();
+                await presenter.setThemeMode(value);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
               }
             },
             child: Column(

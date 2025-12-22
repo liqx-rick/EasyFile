@@ -29,7 +29,7 @@ void main() {
       final alias = service.recommendAlias(
         path: '/storage/emulated/0/WhatsApp/Media/WhatsApp Images',
         originalName: 'WhatsApp Images',
-        type: QuickAccessFolderType.appSubfolder,
+        type: QuickAccessFolderType.other,
       );
       expect(alias, equals('WhatsApp图片'));
     });
@@ -38,7 +38,7 @@ void main() {
       final alias = service.recommendAlias(
         path: '/storage/emulated/0/tencent/MicroMsg/Download',
         originalName: 'Download',
-        type: QuickAccessFolderType.appSubfolder,
+        type: QuickAccessFolderType.other,
       );
       expect(alias, equals('微信下载'));
     });

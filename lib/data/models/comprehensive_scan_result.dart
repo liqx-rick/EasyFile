@@ -9,14 +9,8 @@ class ComprehensiveScanResult {
   /// 系统文件夹数量
   final int systemFoldersCount;
 
-  /// 应用根目录数量
-  final int appRootFoldersCount;
-
-  /// 应用子目录数量
-  final int appSubFoldersCount;
-
-  /// 用户自定义文件夹数量
-  final int userCustomFoldersCount;
+  /// 其他文件夹数量
+  final int otherFoldersCount;
 
   /// 新增的文件夹数量
   final int newlyAdded;
@@ -43,9 +37,7 @@ class ComprehensiveScanResult {
   ComprehensiveScanResult({
     required this.quickAccessFoldersFound,
     required this.systemFoldersCount,
-    required this.appRootFoldersCount,
-    required this.appSubFoldersCount,
-    required this.userCustomFoldersCount,
+    required this.otherFoldersCount,
     required this.newlyAdded,
     required this.alreadyExists,
     required this.unhidden,
@@ -60,9 +52,7 @@ class ComprehensiveScanResult {
     return ComprehensiveScanResult(
       quickAccessFoldersFound: 0,
       systemFoldersCount: 0,
-      appRootFoldersCount: 0,
-      appSubFoldersCount: 0,
-      userCustomFoldersCount: 0,
+      otherFoldersCount: 0,
       newlyAdded: 0,
       alreadyExists: 0,
       unhidden: 0,
@@ -77,9 +67,7 @@ class ComprehensiveScanResult {
     return ComprehensiveScanResult(
       quickAccessFoldersFound: 0,
       systemFoldersCount: 0,
-      appRootFoldersCount: 0,
-      appSubFoldersCount: 0,
-      userCustomFoldersCount: 0,
+      otherFoldersCount: 0,
       newlyAdded: 0,
       alreadyExists: 0,
       unhidden: 0,
@@ -92,10 +80,7 @@ class ComprehensiveScanResult {
 
   /// 获取快速访问文件夹的总发现数（包含所有类型）
   int get totalQuickAccessFound =>
-      systemFoldersCount +
-      appRootFoldersCount +
-      appSubFoldersCount +
-      userCustomFoldersCount;
+      systemFoldersCount + otherFoldersCount;
 
   /// 获取格式化的扫描摘要
   String getSummary() {
@@ -104,11 +89,8 @@ class ComprehensiveScanResult {
     if (systemFoldersCount > 0) {
       parts.add('$systemFoldersCount 个系统目录');
     }
-    if (appRootFoldersCount > 0) {
-      parts.add('$appRootFoldersCount 个应用目录');
-    }
-    if (userCustomFoldersCount > 0) {
-      parts.add('$userCustomFoldersCount 个用户目录');
+    if (otherFoldersCount > 0) {
+      parts.add('$otherFoldersCount 个其他目录');
     }
 
     if (parts.isEmpty) {

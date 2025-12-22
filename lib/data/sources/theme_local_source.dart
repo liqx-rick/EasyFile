@@ -25,22 +25,24 @@ class ThemeLocalSource {
       final file = File(filePath);
 
       if (!await file.exists()) {
-        logger.d(
-          'Theme settings file does not exist, returning system default',
+        logger.i(
+          '⚠️  Theme settings file does not exist at $filePath, returning system default',
         );
         return ThemeMode.system;
       }
 
       final jsonString = await file.readAsString();
+      logger.d('📖 Read theme file content: $jsonString');
+      
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
 
       final themeString = json['themeMode'] as String? ?? 'system';
       final themeMode = _stringToThemeMode(themeString);
 
-      logger.d('Loaded theme mode: $themeMode');
+      logger.i('✅ Loaded theme mode from JSON: $themeMode (string: $themeString)');
       return themeMode;
     } catch (e, stackTrace) {
-      logger.e('Error loading theme mode: $e\nStackTrace: $stackTrace');
+      logger.e('❌ Error loading theme mode: $e\nStackTrace: $stackTrace');
       return ThemeMode.system;
     }
   }
@@ -61,10 +63,15 @@ class ThemeLocalSource {
 
       await file.writeAsString(jsonEncode(json));
 
-      logger.d('Saved theme mode: $themeMode');
+      logger.i('✅ Saved theme mode to JSON file: $themeMode at $filePath');
+      
+      // 验证文件是否真的被写入
+      final savedContent = await file.readAsString();
+      logger.d('✅ Verified JSON file content: $savedContent');
+      
       return true;
     } catch (e, stackTrace) {
-      logger.e('Error saving theme mode: $e\nStackTrace: $stackTrace');
+      logger.e('❌ Error saving theme mode: $e\nStackTrace: $stackTrace');
       return false;
     }
   }

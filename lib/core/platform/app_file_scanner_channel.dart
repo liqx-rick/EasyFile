@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';

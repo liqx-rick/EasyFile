@@ -19,7 +19,7 @@ import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
-import 'package:easyfile/data/sources/theme_local_source.dart';
+import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
@@ -36,7 +36,7 @@ class FilePresenter {
   final NewFilesScanner newFilesScanner;
   final NewFilesLocalSource newFilesLocalSource;
   final NewFilesSettings newFilesSettings;
-  final ThemeLocalSource themeSource;
+  final ThemeSettingsService themeSettingsService;
   final AppTrashDatabase trashDatabase;
 
   FilePresenter({
@@ -48,7 +48,7 @@ class FilePresenter {
     required this.newFilesScanner,
     required this.newFilesLocalSource,
     required this.newFilesSettings,
-    required this.themeSource,
+    required this.themeSettingsService,
     required this.trashDatabase,
   }) {
     logger.d('FilePresenter constructor called');
@@ -846,64 +846,30 @@ class FilePresenter {
 
   // 主题相关方法
 
-  /// 初始化主题设置
-  Future<void> initializeTheme() async {
-    logger.i('FilePresenter.initializeTheme called');
+  /// 同步 ViewModel 主题（主题在 main() 和 EasyFileApp 中已初始化）
+  void initializeTheme() {
     try {
-      final themeMode = await themeSource.getThemeMode();
-      viewModel.setThemeMode(themeMode);
-
-      logger.d('Theme initialized - mode: $themeMode');
+      viewModel.setThemeMode(themeSettingsService.themeMode);
     } catch (e) {
-      logger.e('Error initializing theme: $e');
+      logger.e('Error syncing theme: $e');
     }
   }
 
   /// 切换主题
   Future<void> toggleTheme() async {
-    logger.i('FilePresenter.toggleTheme called');
     try {
-      final oldMode = viewModel.themeMode;
-      viewModel.toggleTheme();
-      final newMode = viewModel.themeMode;
-      logger.d('Theme mode changed from $oldMode to $newMode');
-
-      final success = await themeSource.saveThemeMode(newMode);
-
-      if (success) {
-        // 验证保存是否成功
-        final savedMode = await themeSource.getThemeMode();
-        logger.d('Verified saved theme mode: $savedMode');
-
-        if (savedMode != newMode) {
-          logger.w('Theme mode mismatch! Expected: $newMode, Got: $savedMode');
-          // 重新设置为正确的值
-          viewModel.setThemeMode(newMode);
-        }
-
-        logger.i('Theme toggled successfully to: $newMode');
-      } else {
-        logger.w('Failed to save theme mode, reverting to: $oldMode');
-        // 如果保存失败，恢复原来的模式
-        viewModel.setThemeMode(oldMode);
-      }
+      await themeSettingsService.toggleThemeMode();
+      viewModel.setThemeMode(themeSettingsService.themeMode);
     } catch (e) {
       logger.e('Error toggling theme: $e');
     }
   }
 
-  /// 设置特定主题模式
+  /// 设置主题模式
   Future<void> setThemeMode(ThemeMode mode) async {
-    logger.i('FilePresenter.setThemeMode called with: $mode');
     try {
+      await themeSettingsService.setThemeMode(mode);
       viewModel.setThemeMode(mode);
-      final success = await themeSource.saveThemeMode(mode);
-
-      if (success) {
-        logger.i('Theme mode set successfully to: $mode');
-      } else {
-        logger.w('Failed to save theme mode');
-      }
     } catch (e) {
       logger.e('Error setting theme mode: $e');
     }

@@ -24,14 +24,12 @@ void main() {
         originalName: oldFavorite['name'] as String,
         type: QuickAccessFolderType.system,
         createdAt: DateTime.parse(oldFavorite['createdAt'] as String),
-        homeDisplayOrder: (oldFavorite['pinned'] as bool) ? 0 : null,
         iconName: oldFavorite['iconName'] as String,
       );
 
       expect(quickAccess.id, equals('test_123'));
       expect(quickAccess.displayName, equals('下载'));
       expect(quickAccess.type, equals(QuickAccessFolderType.system));
-      expect(quickAccess.homeDisplayOrder, isNotNull);
     });
 
     test('应该正确处理别名优先级', () {
@@ -39,7 +37,7 @@ void main() {
         id: '1',
         path: '/test',
         originalName: 'TestFolder',
-        type: QuickAccessFolderType.userCustom,
+        type: QuickAccessFolderType.other,
         createdAt: DateTime.now(),
       );
       expect(folder1.displayName, equals('TestFolder'));
@@ -69,29 +67,28 @@ void main() {
         id: '2',
         path: '/storage/emulated/0/WhatsApp',
         originalName: 'WhatsApp',
-        type: QuickAccessFolderType.appRoot,
+        type: QuickAccessFolderType.other,
         createdAt: DateTime.now(),
       );
-      expect(appFolder.categoryDisplay, equals('应用目录'));
+      expect(appFolder.categoryDisplay, equals('其他文件夹'));
 
       final appSubfolder = QuickAccessFolder(
         id: '3',
         path: '/storage/emulated/0/WhatsApp/Media/Images',
         originalName: 'Images',
-        type: QuickAccessFolderType.appSubfolder,
-        parentApp: 'WhatsApp',
+        type: QuickAccessFolderType.other,
         createdAt: DateTime.now(),
       );
-      expect(appSubfolder.categoryDisplay, equals('应用目录 - WhatsApp'));
+      expect(appSubfolder.categoryDisplay, equals('其他文件夹'));
 
       final userFolder = QuickAccessFolder(
         id: '4',
         path: '/storage/emulated/0/MyCustomFolder',
         originalName: 'MyCustomFolder',
-        type: QuickAccessFolderType.userCustom,
+        type: QuickAccessFolderType.other,
         createdAt: DateTime.now(),
       );
-      expect(userFolder.categoryDisplay, equals('我的文件夹'));
+      expect(userFolder.categoryDisplay, equals('其他文件夹'));
     });
 
     test('应该正确序列化和反序列化', () {
@@ -101,11 +98,10 @@ void main() {
         originalName: 'TestFolder',
         recommendedAlias: 'Test Folder',
         userAlias: '测试文件夹',
-        type: QuickAccessFolderType.userCustom,
+        type: QuickAccessFolderType.other,
         createdAt: DateTime.now(),
         lastAccessedAt: DateTime.now(),
         accessCount: 5,
-        homeDisplayOrder: 0,
         stats: FolderStats(
           totalFiles: 100,
           totalFolders: 10,
@@ -126,7 +122,6 @@ void main() {
       expect(restored.userAlias, equals(original.userAlias));
       expect(restored.type, equals(original.type));
       expect(restored.accessCount, equals(original.accessCount));
-      expect(restored.homeDisplayOrder, equals(original.homeDisplayOrder));
       expect(restored.stats?.totalFiles, equals(100));
     });
 
@@ -153,14 +148,14 @@ void main() {
       final whatsappAlias = service.recommendAlias(
         path: '/storage/emulated/0/WhatsApp/Media/WhatsApp Images',
         originalName: 'WhatsApp Images',
-        type: QuickAccessFolderType.appSubfolder,
+        type: QuickAccessFolderType.other,
       );
       expect(whatsappAlias, equals('WhatsApp图片'));
 
       final wechatAlias = service.recommendAlias(
         path: '/storage/emulated/0/tencent/MicroMsg/download',
         originalName: 'download',
-        type: QuickAccessFolderType.appSubfolder,
+        type: QuickAccessFolderType.other,
       );
       expect(wechatAlias, equals('微信下载'));
     });
