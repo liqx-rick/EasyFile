@@ -11,6 +11,9 @@ class QuickAccessViewModel extends ChangeNotifier {
   
   // v2.0: 系统目录展开状态管理（key: 系统目录根路径，value: 是否展开）
   final Map<String, bool> _expandedSystemFolders = {};
+  
+  // 新增文件夹ID集合（会话级，关闭应用后自动清除）
+  final Set<String> _newFolderIds = {};
 
   // Getters
   List<QuickAccessFolder> get folders => _folders;
@@ -191,6 +194,21 @@ class QuickAccessViewModel extends ChangeNotifier {
   /// 清除所有展开状态（如重新扫描时）
   void clearExpandedStates() {
     _expandedSystemFolders.clear();
+    notifyListeners();
+  }
+
+  /// 检查文件夹是否是新增的
+  bool isNewFolder(String folderId) => _newFolderIds.contains(folderId);
+
+  /// 检查父目录是否有新增的子文件夹
+  bool hasNewSubfolders(String parentPath) {
+    return _folders.any((folder) =>
+        folder.parentPath == parentPath && _newFolderIds.contains(folder.id));
+  }
+
+  /// 标记新增的文件夹
+  void markAsNew(List<String> folderIds) {
+    _newFolderIds.addAll(folderIds);
     notifyListeners();
   }
 }

@@ -3,7 +3,6 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
-import 'package:easyfile/ui/dialogs/cleanup_test_dialog.dart';
 
 /// 快速访问管理页面
 ///
@@ -74,12 +73,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         ],
       ),
       actions: [
-        // 清理测试按钮
-        IconButton(
-          icon: const Icon(Icons.science),
-          tooltip: '清理规则测试',
-          onPressed: _showCleanupTestDialog,
-        ),
         // 扫描按钮 - 使用文字更清晰
         TextButton.icon(
           icon: const Icon(Icons.radar, size: 20),
@@ -114,7 +107,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           if (widget.viewModel.isScanning) _buildScanningIndicator(),
 
           // ⭐ v2.0：系统推荐区
-          if (systemFolders.isNotEmpty) _buildSystemFoldersSection(systemFolders),
+          if (systemFolders.isNotEmpty)
+            _buildSystemFoldersSection(systemFolders),
 
           // 📂 v2.0：其他目录区
           if (otherFolders.isNotEmpty) _buildOtherFoldersSection(otherFolders),
@@ -185,7 +179,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     );
   }
 
-
   Widget _buildFolderActions(QuickAccessFolder folder) {
     // v2.0: 首页推荐已移除
     // 现在所有文件夹都是完整的数据库记录，包括子文件夹
@@ -205,7 +198,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               size: 16,
             ),
           ),
-        
+
         // 操作菜单按钮（用 SizedBox 限制高度，避免 PopupMenuButton 默认约束）
         SizedBox(
           width: 30,
@@ -219,59 +212,62 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             itemBuilder: (context) {
-            final items = <PopupMenuEntry<String>>[];
+              final items = <PopupMenuEntry<String>>[];
 
-            // 别名编辑
-            items.add(
-              const PopupMenuItem(
-                value: 'alias',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.edit),
-                  title: Text('编辑别名'),
-                ),
-              ),
-            );
-
-            // 快速访问操作
-            items.add(const PopupMenuDivider());
-            if (isAdded) {
-              // 已加入快速访问，显示移除选项
+              // 别名编辑
               items.add(
                 const PopupMenuItem(
-                  value: 'remove_from_qa',
+                  value: 'alias',
                   child: ListTile(
                     dense: true,
-                    leading: Icon(Icons.remove_circle_outline),
-                    title: Text('移出快速访问'),
+                    leading: Icon(Icons.edit),
+                    title: Text('编辑别名'),
                   ),
                 ),
               );
-            } else {
-              // 未加入快速访问，显示加入选项
-              items.add(
-                const PopupMenuItem(
-                  value: 'add_to_qa',
-                  child: ListTile(
-                    dense: true,
-                    leading: Icon(Icons.add_circle_outline, color: Colors.green),
-                    title: Text('加入快速访问', style: TextStyle(color: Colors.green)),
-                  ),
-                ),
-              );
-              items.add(
-                const PopupMenuItem(
-                  value: 'hide',
-                  child: ListTile(
-                    dense: true,
-                    leading: Icon(Icons.visibility_off, color: Colors.orange),
-                    title: Text('忽略此项', style: TextStyle(color: Colors.orange)),
-                  ),
-                ),
-              );
-            }
 
-            return items;
+              // 快速访问操作
+              items.add(const PopupMenuDivider());
+              if (isAdded) {
+                // 已加入快速访问，显示移除选项
+                items.add(
+                  const PopupMenuItem(
+                    value: 'remove_from_qa',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.remove_circle_outline),
+                      title: Text('移出快速访问'),
+                    ),
+                  ),
+                );
+              } else {
+                // 未加入快速访问，显示加入选项
+                items.add(
+                  const PopupMenuItem(
+                    value: 'add_to_qa',
+                    child: ListTile(
+                      dense: true,
+                      leading:
+                          Icon(Icons.add_circle_outline, color: Colors.green),
+                      title:
+                          Text('加入快速访问', style: TextStyle(color: Colors.green)),
+                    ),
+                  ),
+                );
+                items.add(
+                  const PopupMenuItem(
+                    value: 'hide',
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.visibility_off, color: Colors.orange),
+                      title:
+                          Text('忽略此项', style: TextStyle(color: Colors.orange)),
+                    ),
+                  ),
+                );
+              }
+
+              return items;
             },
           ),
         ),
@@ -297,11 +293,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     };
 
     String displayPath = fullPath.replaceAll(RegExp(r'/+$'), ''); // 移除末尾的 /
-    
+
     // 寻找匹配的前缀
     for (final entry in pathMappings.entries) {
       if (displayPath.startsWith(entry.key)) {
-        final remaining = displayPath.substring(entry.key.length).replaceAll(RegExp(r'^/+'), '');
+        final remaining = displayPath
+            .substring(entry.key.length)
+            .replaceAll(RegExp(r'^/+'), '');
         if (remaining.isEmpty) {
           return entry.value;
         } else {
@@ -309,24 +307,23 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         }
       }
     }
-    
-    return fullPath;
-  }
 
-  /// 显示清理规则测试对话框
-  void _showCleanupTestDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => CleanupTestDialog(
-        presenter: widget.presenter,
-      ),
-    );
+    return fullPath;
   }
 
   Future<void> _handleScanAction(String action) async {
     if (widget.viewModel.isScanning) {
       _showSnackBar('正在扫描中，请稍候...');
       return;
+    }
+
+    // ⭐ 滚动到顶部以显示扫描状态
+    if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
 
     ScanResult? result;
@@ -361,7 +358,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     QuickAccessFolder folder,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    
+
     switch (action) {
       case 'add_to_qa':
         // 所有文件夹都是完整的数据库记录，直接添加
@@ -396,10 +393,10 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     if (_scrollController.hasClients) {
       savedPosition = _scrollController.offset;
     }
-    
+
     // 加载数据（会触发rebuild）
     await widget.presenter.loadQuickAccessFolders();
-    
+
     // 等待两帧后恢复位置（确保ListView完全重建）
     await Future.delayed(Duration.zero);
     if (mounted && savedPosition != null) {
@@ -410,8 +407,6 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       });
     }
   }
-
-
 
   void _showScanResultDialog(String actionName, ScanResult result) {
     showDialog(
@@ -461,7 +456,11 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // 关闭对话框后刷新数据，显示新增的目录
+              await _loadData();
+            },
             child: const Text('确定'),
           ),
         ],
@@ -506,7 +505,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   void _showAliasEditDialog(QuickAccessFolder folder) {
     // 初始值：如果有userAlias用userAlias，否则用recommendedAlias，都没有就空
     String initialValue = folder.userAlias ?? folder.recommendedAlias ?? '';
-    
+
     final controller = TextEditingController(text: initialValue);
 
     showDialog(
@@ -553,7 +552,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               final alias = controller.text.trim();
               final messenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
-              
+
               // 所有文件夹都是完整的数据库记录，直接使用ID
               final success = await widget.presenter.setUserAlias(
                 folder.id,
@@ -638,7 +637,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
-              
+
               // 所有文件夹都是完整的数据库记录，直接使用ID
               final success = await widget.presenter.hideFolder(folder.id);
               if (!mounted) return;
@@ -698,38 +697,48 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
   /// 构建系统文件夹项列表
   List<Widget> _buildSystemFoldersTiles(List<QuickAccessFolder> folders) {
     final tiles = <Widget>[];
-    
+
     // 按预定义顺序遍历每个系统目录根
     for (final rootPath in folders.map((f) => f.path).toSet()) {
       final rootFolder = folders.firstWhere((f) => f.path == rootPath);
       final isExpanded = widget.viewModel.isSystemFolderExpanded(rootPath);
-      
+
       // 动态检测是否有可见的子文件夹
       final hasSubfolders = widget.viewModel.hasSubfolders(rootPath);
+      // 检查是否有新增的子文件夹
+      final hasNewChildren = widget.viewModel.hasNewSubfolders(rootPath);
 
       // 根目录项（根据实际子文件夹情况决定是否可展开）
       tiles.add(
-        FolderItemTile(
-          folder: rootFolder,
-          icon: Icons.folder,
-          hasSubfolders: hasSubfolders,  // 动态设置
-          isExpanded: isExpanded,
-          onTap: () {
-            // 点击根目录的处理（如打开、编辑别名等）
-          },
-          onExpandToggle: hasSubfolders ? () {  // 只有有子文件夹时才提供展开回调
-            widget.viewModel.toggleSystemFolderExpanded(rootPath);
-          } : null,
-          trailingWidget: _buildFolderActions(rootFolder),
-          pathFormatter: _getFriendlyPath,
+        Container(
+          color: hasNewChildren ? Colors.blue.shade50 : Colors.transparent,
+          child: FolderItemTile(
+            folder: rootFolder,
+            icon: Icons.folder,
+            hasSubfolders: hasSubfolders, // 动态设置
+            isExpanded: isExpanded,
+            isNew: widget.viewModel.isNewFolder(rootFolder.id),
+            onTap: () {
+              // 点击根目录的处理（如打开、编辑别名等）
+            },
+            onExpandToggle: hasSubfolders
+                ? () {
+                    // 只有有子文件夹时才提供展开回调
+                    widget.viewModel.toggleSystemFolderExpanded(rootPath);
+                  }
+                : null,
+            trailingWidget: _buildFolderActions(rootFolder),
+            pathFormatter: _getFriendlyPath,
+          ),
         ),
       );
 
       // 展开时显示子目录（直接从数据库获取，无需动态扫描）
-      if (isExpanded && hasSubfolders) {  // 添加额外检查
+      if (isExpanded && hasSubfolders) {
+        // 添加额外检查
         // 从数据库获取所有子文件夹
         final subfolders = widget.viewModel.getSubfoldersFromDatabase(rootPath);
-        
+
         // 显示所有子文件夹（复用FolderItemTile）
         for (final subfolder in subfolders) {
           tiles.add(
@@ -740,6 +749,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                 icon: Icons.folder,
                 hasSubfolders: false,
                 isExpanded: false,
+                isNew: widget.viewModel.isNewFolder(subfolder.id),
                 onTap: () {},
                 trailingWidget: _buildFolderActions(subfolder),
                 pathFormatter: _getFriendlyPath,
@@ -783,12 +793,13 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
 
         // 其他目录列表（扁平结构）
         ...folders.map((folder) => FolderItemTile(
-          folder: folder,
-          icon: Icons.folder,
-          onTap: () {},
-          trailingWidget: _buildFolderActions(folder),
-          pathFormatter: _getFriendlyPath,
-        )),
+              folder: folder,
+              icon: Icons.folder,
+              isNew: widget.viewModel.isNewFolder(folder.id),
+              onTap: () {},
+              trailingWidget: _buildFolderActions(folder),
+              pathFormatter: _getFriendlyPath,
+            )),
       ],
     );
   }
@@ -800,6 +811,7 @@ class FolderItemTile extends StatelessWidget {
   final IconData icon;
   final bool hasSubfolders;
   final bool isExpanded;
+  final bool isNew;
   final VoidCallback onTap;
   final VoidCallback? onExpandToggle;
   final Widget? trailingWidget;
@@ -811,6 +823,7 @@ class FolderItemTile extends StatelessWidget {
     required this.icon,
     this.hasSubfolders = false,
     this.isExpanded = false,
+    this.isNew = false,
     required this.onTap,
     this.onExpandToggle,
     this.trailingWidget,
@@ -825,14 +838,14 @@ class FolderItemTile extends StatelessWidget {
     if (folder.userAlias != null && folder.userAlias!.isNotEmpty) {
       return '${folder.originalName} | ${folder.userAlias!}';
     }
-    
+
     return folder.originalName;
   }
 
   @override
   Widget build(BuildContext context) {
     final displayPath = pathFormatter?.call(folder.path) ?? folder.path;
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -850,9 +863,26 @@ class FolderItemTile extends StatelessWidget {
 
                 // 2. 文件夹名称（展开）
                 Expanded(
-                  child: Text(
-                    _getDisplayName(folder),
-                    style: const TextStyle(fontSize: 15),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _getDisplayName(folder),
+                          style: const TextStyle(fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // NEW 标记显示在文件夹名称右侧
+                      if (isNew) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.fiber_new,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
 

@@ -57,6 +57,91 @@ class QuickAccessDetectorConfig {
     '.Trash-1000',
     'lost+found',
   ];
+
+  /// 缓存/临时目录名称黑名单（在扫描时直接跳过，不递归进入）
+  static const List<String> cacheDirectoryNames = [
+    'cache',
+    'Cache',
+    'CACHE',
+    'temp',
+    'tmp',
+    'Temp',
+    'Tmp',
+    'TMP',
+    'log',
+    'logs',
+    'Log',
+    'Logs',
+    'backup',
+    'backups',
+    'Backup',
+    'Backups',
+  ];
+
+  /// 支持的文件类型扩展名（小写，无点）
+  /// TODO: 未来应迁移到统一的文件类型管理类/服务，实现全局扩展名配置
+  /// 当前作为接口预留点，便于后续重构和集中管理
+  static const supportedFileExtensions = {
+    // 图片类型
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'bmp',
+    'webp',
+    'svg',
+    'ico',
+    'heic',
+    'heif',
+
+    // 视频类型
+    'mp4',
+    'avi',
+    'mkv',
+    'mov',
+    'wmv',
+    'flv',
+    'webm',
+    'mpeg',
+    'mpg',
+    '3gp',
+    'm4v',
+
+    // 音频类型
+    'mp3',
+    'wav',
+    'flac',
+    'aac',
+    'ogg',
+    'wma',
+    'm4a',
+    'ape',
+    'opus',
+
+    // 文档类型
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'txt',
+    'odt',
+    'ods',
+    'odp',
+    'rtf',
+    'epub',
+
+    // 压缩包类型
+    'zip',
+    'rar',
+    '7z',
+    'tar',
+    'gz',
+    'bz2',
+    'xz',
+  };
 }
 
 /// 文件夹分析结果（内部使用）
@@ -80,53 +165,74 @@ class _FolderAnalysisResult {
   /// 检查是否包含重要文档（PDF/Office/大图片视频）
   bool get hasImportantDocuments {
     if (fileExtensions.contains('pdf')) return true;
-    
-    const officeExts = {'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'};
+
+    const officeExts = {
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'ppt',
+      'pptx',
+      'odt',
+      'ods',
+      'odp'
+    };
     if (fileExtensions.any((ext) => officeExts.contains(ext))) return true;
-    
+
     if (largeMediaFiles.isNotEmpty) return true;
-    
+
     return false;
   }
 
+  /// 检查文件夹是否包含至少一个支持的文件类型
+  /// 使用 QuickAccessDetectorConfig.supportedFileExtensions 进行判断
+  bool _hasAnySupportedFileType() {
+    return fileExtensions.any(
+      (ext) => QuickAccessDetectorConfig.supportedFileExtensions.contains(ext),
+    );
+  }
+
   /// 判断是否满足任意一个过滤条件
+  /// 
+  /// 前置条件：必须包含至少一个支持的文件类型
+  /// 
+  /// 优先级条件（满足任一即可）：
+  /// 1. 重要文档：PDF/Office/大媒体文件(>1MB)
+  /// 2. 文件数达标：≥5个文件
+  /// 3. 文件夹大小：≥5MB
+  /// 4. 文件类型多样性：≥2种类型
   bool meetsAnyCondition({
     required int minFileCount,
     required double minFolderSizeMB,
     required int maxDaysForRecent,
     required int minFileTypesDiversity,
   }) {
-    // 优先级1：重要文档（PDF/Office/大媒体文件）
+    // 前置条件：必须包含至少一个支持的文件类型（过滤纯cache/log文件夹）
+    if (!_hasAnySupportedFileType()) {
+      logger.d('$path: Folder does not contain any supported file types');
+      return false;
+    }
+
     if (hasImportantDocuments) {
       logger.d('$path: has important documents');
       return true;
     }
 
-    // 优先级2：文件数达标
     if (fileCount >= minFileCount) {
       logger.d('$path: fileCount $fileCount >= $minFileCount');
       return true;
     }
 
-    // 优先级3：文件夹大小达标
     final sizeInMB = folderSize / 1024 / 1024;
     if (sizeInMB >= minFolderSizeMB) {
-      logger.d('$path: size ${sizeInMB.toStringAsFixed(1)}MB >= $minFolderSizeMB');
+      logger.d(
+          '$path: size ${sizeInMB.toStringAsFixed(1)}MB >= $minFolderSizeMB');
       return true;
     }
 
-    // 优先级4：最近修改
-    if (lastModified != null) {
-      final daysOld = DateTime.now().difference(lastModified!).inDays;
-      if (daysOld <= maxDaysForRecent) {
-        logger.d('$path: modified $daysOld days ago <= $maxDaysForRecent');
-        return true;
-      }
-    }
-
-    // 优先级5：文件类型多样性
     if (fileExtensions.length >= minFileTypesDiversity) {
-      logger.d('$path: ${fileExtensions.length} file types >= $minFileTypesDiversity');
+      logger.d(
+          '$path: ${fileExtensions.length} file types >= $minFileTypesDiversity');
       return true;
     }
 
@@ -146,7 +252,7 @@ class _FolderAnalysisResult {
 }
 
 /// 快速访问文件夹检测器
-/// 
+///
 /// 扫描并检测应该显示在"快速访问"中的文件夹：
 /// 1. 系统常见目录（DCIM/Download等）及其直接子目录
 /// 2. 根目录下满足条件的其他用户文件夹
@@ -154,7 +260,7 @@ class QuickAccessFolderDetector {
   QuickAccessFolderDetector();
 
   /// 检测所有快速访问文件夹
-  /// 
+  ///
   /// **注意**：执行 I/O 操作，应在后台线程运行
   Future<List<QuickAccessFolder>> detectQuickAccessFolders() async {
     logger.i('QuickAccessFolderDetector.detectQuickAccessFolders called');
@@ -275,18 +381,19 @@ class QuickAccessFolderDetector {
         }
       }
 
-      logger.d('_scanCommonSubdirectories: found $subdirCount subdirs in $parentPath');
+      logger.d(
+          '_scanCommonSubdirectories: found $subdirCount subdirs in $parentPath');
     } catch (e) {
       logger.w('Error scanning subdirectories of $parentPath: $e');
     }
   }
 
   /// Part 2: 扫描其他文件夹
-  /// 
+  ///
   /// 扫描 /storage/emulated/0 根目录的一级目录，
   /// 对每个候选目录进行5级深度分析，
   /// 返回满足条件的文件夹
-  /// 
+  ///
   /// 排除：
   /// - 系统常见目录
   /// - 隐藏目录
@@ -316,7 +423,8 @@ class QuickAccessFolderDetector {
         // 检查是否达到扫描限制（0 表社无限制）
         if (QuickAccessDetectorConfig.maxFoldersToScan > 0 &&
             scannedCount >= QuickAccessDetectorConfig.maxFoldersToScan) {
-          logger.i('Reached max folders to scan limit: ${QuickAccessDetectorConfig.maxFoldersToScan}');
+          logger.i(
+              'Reached max folders to scan limit: ${QuickAccessDetectorConfig.maxFoldersToScan}');
           break;
         }
 
@@ -401,13 +509,13 @@ class QuickAccessFolderDetector {
   }
 
   /// 递归分析文件夹（5级深度）
-  /// 
+  ///
   /// 累计统计：
   /// - 文件数量
   /// - 文件总大小
   /// - 最新修改时间
   /// - 不同的文件扩展名
-  /// 
+  ///
   /// **性能优化**：
   /// - 早停：满足任意条件立即返回
   /// - 深度限制：最多递归 maxDepth 层
@@ -479,9 +587,10 @@ class QuickAccessFolderDetector {
           final name = entity.path.split(Platform.pathSeparator).last;
           return !name.startsWith('.');
         });
-        
+
         if (!hasVisibleContent) {
-          logger.d('$folderPath is considered empty (only hidden content at top level)');
+          logger.d(
+              '$folderPath is considered empty (only hidden content at top level)');
           return _FolderAnalysisResult(
             path: folderPath,
             fileCount: 0,
@@ -500,6 +609,13 @@ class QuickAccessFolderDetector {
         }
 
         if (entity is File) {
+          // 跳过隐藏文件（以.开头的文件）
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+          if (fileName.startsWith('.')) {
+            logger.d('Skipping hidden file: ${entity.path}');
+            continue;
+          }
+
           fileCount++;
           final fileSize = await entity.length();
           folderSize += fileSize;
@@ -507,8 +623,7 @@ class QuickAccessFolderDetector {
           // 更新修改时间
           try {
             final stat = await entity.stat();
-            if (lastModified == null ||
-                stat.modified.isAfter(lastModified)) {
+            if (lastModified == null || stat.modified.isAfter(lastModified)) {
               lastModified = stat.modified;
             }
           } catch (e) {
@@ -520,11 +635,20 @@ class QuickAccessFolderDetector {
           if (parts.length > 1) {
             final ext = parts.last.toLowerCase();
             extensions.add(ext);
-            
+
             // 检测大于1MB的图片或视频
-            if (fileSize > 1024 * 1024) { // 1MB
+            if (fileSize > 1024 * 1024) {
+              // 1MB
               const imageExts = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'};
-              const videoExts = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv', '3gp'};
+              const videoExts = {
+                'mp4',
+                'avi',
+                'mov',
+                'mkv',
+                'flv',
+                'wmv',
+                '3gp'
+              };
               if (imageExts.contains(ext) || videoExts.contains(ext)) {
                 largeMediaFiles.add(parts.last);
               }
@@ -533,27 +657,36 @@ class QuickAccessFolderDetector {
         } else if (entity is Directory) {
           // 过滤隐藏子目录
           final dirName = entity.path.split(Platform.pathSeparator).last;
-          if (!dirName.startsWith('.')) {
-            // 限制扫描前两级（currentDepth <= 1）
-            if (currentDepth <= 1) {
-              // 递归分析子目录
-              final subAnalysis = await _analyzeFolder(
-                entity.path,
-                currentDepth: currentDepth + 1,
-                maxDepth: maxDepth,
-                fileCountSoFar: fileCount,
-                folderSizeSoFar: folderSize,
-                lastModifiedSoFar: lastModified,
-                extensionsSoFar: extensions,
-                largeMediaFilesSoFar: largeMediaFiles,
-              );
+          if (dirName.startsWith('.')) {
+            logger.d('Skipping hidden directory: ${entity.path}');
+            continue;
+          }
 
-              fileCount = subAnalysis.fileCount;
-              folderSize = subAnalysis.folderSize;
-              lastModified = subAnalysis.lastModified;
-              extensions.addAll(subAnalysis.fileExtensions);
-              largeMediaFiles.addAll(subAnalysis.largeMediaFiles);
-            }
+          // 跳过缓存/临时目录（提升性能，减少无用扫描）
+          if (QuickAccessDetectorConfig.cacheDirectoryNames.contains(dirName)) {
+            logger.d('Skipping cache directory: ${entity.path}');
+            continue;
+          }
+
+          // 限制扫描前两级（currentDepth <= 1）
+          if (currentDepth <= 1) {
+            // 递归分析子目录
+            final subAnalysis = await _analyzeFolder(
+              entity.path,
+              currentDepth: currentDepth + 1,
+              maxDepth: maxDepth,
+              fileCountSoFar: fileCount,
+              folderSizeSoFar: folderSize,
+              lastModifiedSoFar: lastModified,
+              extensionsSoFar: extensions,
+              largeMediaFilesSoFar: largeMediaFiles,
+            );
+
+            fileCount = subAnalysis.fileCount;
+            folderSize = subAnalysis.folderSize;
+            lastModified = subAnalysis.lastModified;
+            extensions.addAll(subAnalysis.fileExtensions);
+            largeMediaFiles.addAll(subAnalysis.largeMediaFiles);
           }
         }
       }
@@ -590,7 +723,7 @@ class QuickAccessFolderDetector {
   }
 
   /// 检查目录是否包含任何文件（不检查子目录）
-  /// 
+  ///
   /// 用于过滤完全空的一级子目录
   Future<bool> _hasFiles(String dirPath) async {
     try {
