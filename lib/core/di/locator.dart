@@ -279,7 +279,6 @@ void setupLocator() {
     logger.d('Creating QuickAccessPresenter (Singleton)');
     final localSource = locator<QuickAccessLocalSource>();
     final viewModel = locator<QuickAccessViewModel>();
-    final aliasService = locator<AliasRecommendationService>();
 
     logger.d(
       'QuickAccessPresenter dependencies: localSource=$localSource, viewModel=$viewModel',
@@ -288,7 +287,6 @@ void setupLocator() {
     return QuickAccessPresenter(
       localSource: localSource,
       viewModel: viewModel,
-      aliasService: aliasService,
     );
   });
 
