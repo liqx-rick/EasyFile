@@ -13,7 +13,9 @@ import 'package:easyfile/ui/widgets/storage_management_card.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/ui/pages/recommendation_detail_page.dart';
+import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
+import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
+import 'package:easyfile/core/data_sources/data_source_factory.dart';
 
 /// 快速访问区域组件（可展开/折叠）
 ///
@@ -576,10 +578,31 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
 
   void _navigateToRecommendation(RecommendationCard card) {
     logger.d('导航到推荐详情: ${card.title}');
+    
+    // 根据推荐卡片生成页面配置
+    final config = RecommendPageConfigFactory.fromRecommendationCard(card);
+    
+    // 创建必要的服务依赖
+    final detectionService = AppDetectionService();
+    final scanner = UnifiedAppScanner(detectionService);
+    
+    // 创建数据源工厂（注入依赖）
+    final dataSourceFactory = DataSourceFactory(
+      scanner: scanner,
+      detectionService: detectionService,
+      presenter: widget.filePresenter,
+    );
+    
+    // 跳转到统一的推荐聚合页面
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RecommendationDetailPage(card: card),
+        builder: (context) => RecommendAggregatePage(
+          config: config,
+          dataSourceFactory: dataSourceFactory,
+          viewModel: widget.fileViewModel,
+          presenter: widget.filePresenter,
+        ),
       ),
     );
   }

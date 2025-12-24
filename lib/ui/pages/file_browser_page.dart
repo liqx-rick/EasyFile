@@ -134,7 +134,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return false;
     }
 
-    // 优先级5: 已在顶部且无特殊状态 → 允许pop（退出应用）
+    // 优先级5: 不在最近Tab → 不允许pop（需要先切换到最近Tab）
+    if (viewModel.currentTab != TabView.recent) {
+      return false;
+    }
+
+    // 优先级6: 已在最近Tab且在顶部且无特殊状态 → 允许pop（退出应用）
     return true;
   }
 
@@ -220,6 +225,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+      return;
+    }
+
+    // 优先级5: 不在最近Tab → 切换到最近Tab
+    if (viewModel.currentTab != TabView.recent) {
+      viewModel.setCurrentTab(TabView.recent);
       return;
     }
   }
