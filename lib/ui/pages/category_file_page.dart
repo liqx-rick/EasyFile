@@ -495,6 +495,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         // 下载目录可能包含各种类型的文件
         // 这里简单返回true，因为复制到下载目录的文件应该显示
         return true;
+      case CategoryType.apk:
+        return file.name.toLowerCase().endsWith('.apk');
+      case CategoryType.archive:
+        final ext = file.name.toLowerCase().split('.').last;
+        return ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz', 'tbz2', 'txz'].contains(ext);
     }
   }
 
@@ -664,6 +669,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         return PageId.categoryVideo;
       case CategoryType.downloads:
         return PageId.categoryDownloads;
+      case CategoryType.apk:
+        return PageId.categoryImages; // 复用images的设置
+      case CategoryType.archive:
+        return PageId.categoryDocuments; // 复用documents的设置
     }
   }
 
@@ -763,6 +772,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         return FileCategory.document;
       case CategoryType.downloads:
         return FileCategory.other; // downloads没有直接对应，使用other
+      case CategoryType.apk:
+        return FileCategory.other; // apk使用other
+      case CategoryType.archive:
+        return FileCategory.other; // archive使用other
     }
   }
 
@@ -1066,7 +1079,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 ],
               ),
               // 批量操作底部工具栏
-              bottomNavigationBar: _selectionController.isSelectionMode
+              bottomNavigationBar: isEditMode
                   ? _buildSelectionBottomBar()
                   : null,
             ),

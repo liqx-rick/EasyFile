@@ -7,87 +7,75 @@ import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
 
-  // 保持native splash显示，直到Flutter应用完全准备好
+  // 保持 native splash 显示，直到 Flutter 应用完全准备好
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   // 配置图片缓存，限制内存使用
-  PaintingBinding.instance.imageCache.maximumSize = 100; // 最多缓存100张图片
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50MB
+  PaintingBinding.instance.imageCache.maximumSize = 100;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20;
 
-  // Initialize logger before other startup so DI logs go to file
+  // Initialize logger before other startup
   await logger.init();
 
-  // 记录进程启动
   final processId = DateTime.now().millisecondsSinceEpoch;
-  logger.i('==========================================');
-  logger.i('NEW PROCESS STARTED - ID: $processId');
-  logger.i('EasyFile application starting...');
-  logger.i('==========================================');
+  logger.i('NEW PROCESS: $processId');
 
   setupLocator();
 
   // 初始化全局服务
   await ViewModeService().initialize();
-  logger.i('ViewModeService initialized');
-
   await CategorySortService().initialize();
-  logger.i('CategorySortService initialized');
-
   await CategoryGroupService().initialize();
-  logger.i('CategoryGroupService initialized');
-
   await PageSettingsService().initialize();
-  logger.i('PageSettingsService initialized');
+
+  // 初始化主题服务（在应用启动时最早加载）
+  await ThemeSettingsService().initialize();
+  final themeService = ThemeSettingsService();
+  logger.i('🎨 Theme initialized: ${themeService.themeMode}');
 
   // 启动回收站自动清理
   final trashManager = await locator.getAsync<AppTrashManager>();
   await trashManager.startAutoCleanup();
-  logger.i('AppTrashManager auto cleanup started');
 
-  // 初始化并诊断缩略图缓存
+  // 初始化缩略图缓存
   try {
     final cacheManager = ThumbnailCacheManager();
     await cacheManager.init();
-
-    // 诊断缓存状态
     final diagnosis = await cacheManager.diagnoseCache();
-    logger.i('Thumbnail cache diagnosis: $diagnosis');
 
-    // 如果初始化失败，尝试强制重新初始化
-    if (diagnosis['initialized'] == false ||
-        diagnosis['cacheDirNull'] == true) {
-      logger.w(
-          'Thumbnail cache not properly initialized, attempting force reinitialization...');
+    if (diagnosis['initialized'] == false || diagnosis['cacheDirNull'] == true) {
       final success = await cacheManager.forceReinitialize();
-      if (success) {
-        logger.i('Thumbnail cache force reinitialization successful');
-      } else {
-        logger.e(
-            'Thumbnail cache force reinitialization failed - thumbnails will not be cached');
+      if (!success) {
+        logger.w('Thumbnail cache initialization failed');
       }
-    } else if (diagnosis['writable'] == false) {
-      logger.e(
-          'Thumbnail cache directory is not writable - thumbnails will not be cached');
-      logger.e('Write error: ${diagnosis['writeError']}');
-    } else {
-      logger.i('Thumbnail cache initialized successfully');
-      logger.i(
-          'Cache size: ${diagnosis['cacheSize']} bytes, count: ${diagnosis['cacheCount']} files');
     }
-  } catch (e, stackTrace) {
+  } catch (e) {
     logger.e('Failed to initialize thumbnail cache: $e');
-    logger.e('Stack trace: $stackTrace');
-    logger.e('Application will continue but thumbnails will not be cached');
   }
 
-  logger.i('Running EasyFile app');
+  // 初始化 MediaStore 缓存服务
+  try {
+    final mediastoreCacheService = MediaStoreCacheService();
+    await mediastoreCacheService.initialize();
+    logger.i('✓ MediaStore 缓存服务已初始化');
+    
+    // 后台预热缓存（不阻塞UI启动）
+    mediastoreCacheService.warmUp().then((_) {
+      logger.i('✓ MediaStore 缓存预热完成');
+    }).catchError((e) {
+      logger.e('MediaStore 缓存预热失败: $e');
+    });
+  } catch (e) {
+    logger.e('Failed to initialize MediaStore cache service: $e');
+  }
 
-  // 启动Flutter应用
   runApp(const EasyFileApp());
 }

@@ -255,7 +255,7 @@ class QuickAccessLocalSource {
   }
 
   /// 设置别名
-  Future<bool> setAlias(String id, String alias) async {
+  Future<bool> setAlias(String id, String? alias) async {
     try {
       final folders = await getAllFolders();
       final index = folders.indexWhere((f) => f.id == id);
@@ -265,9 +265,9 @@ class QuickAccessLocalSource {
         return false;
       }
 
-      // 如果alias为空字符串，说明要清空别名，传null；否则传入alias
+      // 如果alias为null或空字符串，清空别名；否则使用传入的alias
       final updatedFolder = folders[index].copyWith(
-        userAlias: alias.isEmpty ? null : alias,
+        userAlias: (alias == null || alias.isEmpty) ? null : alias,
       );
 
       folders[index] = updatedFolder;
@@ -279,26 +279,10 @@ class QuickAccessLocalSource {
   }
 
   /// 切换固定状态
+  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
   Future<bool> togglePin(String id) async {
-    try {
-      final folders = await getAllFolders();
-      final index = folders.indexWhere((f) => f.id == id);
-
-      if (index == -1) {
-        logger.w('Quick access folder with id $id not found');
-        return false;
-      }
-
-      final updatedFolder = folders[index].copyWith(
-        homeDisplayOrder: folders[index].homeDisplayOrder == null ? 0 : null,
-      );
-
-      folders[index] = updatedFolder;
-      return await saveFolders(folders);
-    } catch (e, stackTrace) {
-      logger.e('Error toggling pin: $e\nStackTrace: $stackTrace');
-      return false;
-    }
+    logger.w('togglePin is deprecated and has no effect');
+    return true;
   }
 
   /// 批量添加文件夹
@@ -340,35 +324,19 @@ class QuickAccessLocalSource {
   }
 
   /// 获取固定的文件夹（显示在首页的）
+  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
   Future<List<QuickAccessFolder>> getPinnedFolders() async {
-    try {
-      final folders = await getAllFolders();
-      return folders.where((f) => f.homeDisplayOrder != null).toList();
-    } catch (e, stackTrace) {
-      logger.e('Error getting pinned folders: $e\nStackTrace: $stackTrace');
-      return [];
-    }
+    logger.w('getPinnedFolders is deprecated, returning empty list');
+    return [];
   }
 
   /// 根据父应用获取子文件夹
+  @Deprecated('parentApp field has been removed from QuickAccessFolder')
   Future<List<QuickAccessFolder>> getFoldersByParentApp(
     String parentApp,
   ) async {
-    try {
-      final folders = await getAllFolders();
-      return folders
-          .where(
-            (f) =>
-                f.type == QuickAccessFolderType.appSubfolder &&
-                f.parentApp == parentApp,
-          )
-          .toList();
-    } catch (e, stackTrace) {
-      logger.e(
-        'Error getting folders by parent app: $e\nStackTrace: $stackTrace',
-      );
-      return [];
-    }
+    logger.w('getFoldersByParentApp is deprecated, returning empty list');
+    return [];
   }
 
   /// 检查路径是否已存在
@@ -472,7 +440,6 @@ class QuickAccessLocalSource {
 
       final updatedFolder = folders[index].copyWith(
         isAddedToQuickAccess: false,
-        homeDisplayOrder: null, // 移出快速访问时也移出首页
       );
 
       folders[index] = updatedFolder;
@@ -494,7 +461,6 @@ class QuickAccessLocalSource {
         if (index != -1) {
           folders[index] = folders[index].copyWith(
             isAddedToQuickAccess: false,
-            homeDisplayOrder: null,
           );
           count++;
         }
@@ -528,7 +494,6 @@ class QuickAccessLocalSource {
       final updatedFolder = folders[index].copyWith(
         isHidden: true,
         isAddedToQuickAccess: false,
-        homeDisplayOrder: null,
       );
 
       folders[index] = updatedFolder;
@@ -551,7 +516,6 @@ class QuickAccessLocalSource {
           folders[index] = folders[index].copyWith(
             isHidden: true,
             isAddedToQuickAccess: false,
-            homeDisplayOrder: null,
           );
           count++;
         }
@@ -570,68 +534,24 @@ class QuickAccessLocalSource {
   }
 
   /// 设置首页展示顺序
+  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
   Future<bool> setHomeDisplayOrder(String id, int? order) async {
-    try {
-      final folders = await getAllFolders();
-      final index = folders.indexWhere((f) => f.id == id);
-
-      if (index == -1) {
-        logger.w('Quick access folder with id $id not found');
-        return false;
-      }
-
-      final updatedFolder = folders[index].copyWith(
-        homeDisplayOrder: order,
-      );
-
-      folders[index] = updatedFolder;
-      return await saveFolders(folders);
-    } catch (e, stackTrace) {
-      logger.e('Error setting home display order: $e\nStackTrace: $stackTrace');
-      return false;
-    }
+    logger.w('setHomeDisplayOrder is deprecated and has no effect');
+    return true;
   }
 
   /// 批量更新首页展示顺序（用于拖拽排序）
+  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
   Future<bool> updateHomeDisplayOrders(Map<String, int?> orderMap) async {
-    try {
-      final folders = await getAllFolders();
-
-      for (final entry in orderMap.entries) {
-        final index = folders.indexWhere((f) => f.id == entry.key);
-        if (index != -1) {
-          folders[index] = folders[index].copyWith(
-            homeDisplayOrder: entry.value,
-          );
-        }
-      }
-
-      return await saveFolders(folders);
-    } catch (e, stackTrace) {
-      logger.e(
-        'Error updating home display orders: $e\nStackTrace: $stackTrace',
-      );
-      return false;
-    }
+    logger.w('updateHomeDisplayOrders is deprecated and has no effect');
+    return true;
   }
 
   /// 获取首页展示的文件夹（按顺序排序）
+  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
   Future<List<QuickAccessFolder>> getHomeFolders() async {
-    try {
-      final folders = await getAllFolders();
-      final homeFolders =
-          folders.where((f) => f.homeDisplayOrder != null).toList()
-            ..sort(
-              (a, b) => (a.homeDisplayOrder ?? 999).compareTo(
-                b.homeDisplayOrder ?? 999,
-              ),
-            );
-
-      return homeFolders;
-    } catch (e, stackTrace) {
-      logger.e('Error getting home folders: $e\nStackTrace: $stackTrace');
-      return [];
-    }
+    logger.w('getHomeFolders is deprecated, returning empty list');
+    return [];
   }
 
   /// 获取已加入快速访问的文件夹

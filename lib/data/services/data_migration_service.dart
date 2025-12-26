@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easyfile/core/constants/system_folders_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
@@ -152,7 +153,6 @@ class DataMigrationService {
         type: folderType,
         createdAt: DateTime.now(),
         stats: stats,
-        homeDisplayOrder: null, // 默认不在首页显示，用户可以手动设置
       );
     } catch (e) {
       logger.e('Error converting favorite ${favorite.path}: $e');
@@ -160,60 +160,15 @@ class DataMigrationService {
     }
   }
 
-  /// 根据路径判断文件夹类型
+  /// 根据路径判断文件夹类型（v2.0: system 或 other）
   QuickAccessFolderType _determineFolderType(String path) {
-    final lowerPath = path.toLowerCase();
-
     // 系统文件夹判断
-    if (_isSystemFolder(lowerPath)) {
+    if (SystemFoldersConfig.isSystemFolder(path)) {
       return QuickAccessFolderType.system;
     }
 
-    // 应用文件夹判断（常见应用目录特征）
-    if (_isAppFolder(lowerPath)) {
-      return QuickAccessFolderType.appRoot;
-    }
-
-    // 默认为用户自定义
-    return QuickAccessFolderType.userCustom;
-  }
-
-  bool _isSystemFolder(String lowerPath) {
-    final systemPaths = [
-      '/dcim',
-      '/pictures',
-      '/camera',
-      '/download',
-      '/documents',
-      '/music',
-      '/movies',
-      '/alarms',
-      '/notifications',
-      '/ringtones',
-      '/podcasts',
-      '/audiobooks',
-      '/screenshots',
-    ];
-
-    return systemPaths.any((pattern) => lowerPath.contains(pattern));
-  }
-
-  bool _isAppFolder(String lowerPath) {
-    // 常见应用目录特征
-    final appPatterns = [
-      '/android/data/',
-      '/android/obb/',
-      '/tencent/',
-      '/baidu/',
-      '/alibaba/',
-      '.com.',
-      'wechat',
-      'qq',
-      'douyin',
-      'taobao',
-    ];
-
-    return appPatterns.any((pattern) => lowerPath.contains(pattern));
+    // 其他所有目录（应用文件夹、用户自定义等）
+    return QuickAccessFolderType.other;
   }
 
   /// 清理旧数据（可选，谨慎使用）

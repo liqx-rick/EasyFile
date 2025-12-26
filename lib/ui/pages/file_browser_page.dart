@@ -1,25 +1,25 @@
 import 'dart:io';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:easyfile/utils/file_utils.dart';
-
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/permission_service.dart';
-import 'package:easyfile/core/services/first_scan_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
+import 'package:easyfile/core/services/startup/app_initialization_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/file_category.dart';
-import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
@@ -80,6 +80,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   double _categoryCardSize = 0.0; // 存储分类卡片尺寸
   bool _isInitializing = true; // 标记是否正在初始化
 
+  // 推荐服务（全局实例，复用缓存）
+  RecommendationService? _recommendationService;
+
   // 权限和扫描相关状态
   late PermissionService _permissionService;
   bool _isScanning = false;
@@ -132,7 +135,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return false;
     }
 
-    // 优先级5: 已在顶部且无特殊状态 → 允许pop（退出应用）
+    // 优先级5: 不在最近Tab → 不允许pop（需要先切换到最近Tab）
+    if (viewModel.currentTab != TabView.recent) {
+      return false;
+    }
+
+    // 优先级6: 已在最近Tab且在顶部且无特殊状态 → 允许pop（退出应用）
     return true;
   }
 
@@ -220,6 +228,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       );
       return;
     }
+
+    // 优先级5: 不在最近Tab → 切换到最近Tab
+    if (viewModel.currentTab != TabView.recent) {
+      viewModel.setCurrentTab(TabView.recent);
+      return;
+    }
   }
 
   // 编辑模式滚动位置记录
@@ -283,6 +297,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
+
+      // 初始化推荐服务（全局单例，带缓存）
+      await _initializeRecommendationService();
 
       // Check if widget is still mounted before using context
       if (!mounted) return;
@@ -349,6 +366,35 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           _isInitializing = false;
         });
       }
+    }
+  }
+
+  /// 初始化推荐服务（全局单例，带缓存）
+  Future<void> _initializeRecommendationService() async {
+    try {
+      logger.d('初始化推荐服务...');
+      
+      // 创建检测服务并初始化
+      final detectionService = AppDetectionService();
+      await detectionService.initialize();
+      
+      // 创建统计缓存并初始化
+      final statisticsCache = AppStatisticsCache();
+      await statisticsCache.initialize();
+      
+      // 创建扫描器
+      final scanner = UnifiedAppScanner(detectionService);
+      
+      // 创建推荐服务
+      _recommendationService = RecommendationService(
+        detectionService: detectionService,
+        scanner: scanner,
+        statisticsCache: statisticsCache,
+      );
+      
+      logger.d('推荐服务初始化完成');
+    } catch (e) {
+      logger.e('推荐服务初始化失败: $e');
     }
   }
 
@@ -422,7 +468,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         setState(() {
           _permissionState = newState;
         });
-        await _initializeApp();
+        await _initializeAppWithOrchestrator();
       } else if (newState != _permissionState) {
         setState(() {
           _permissionState = newState;
@@ -499,8 +545,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 2. 初始化UI主题（无论是否有权限）
   /// 3. 如果有权限，进行完整的应用初始化
   /// 4. 如果没有权限，显示权限提示横幅但不阻塞页面显示
+  /// 初始化权限并启动应用
+  /// 
+  /// 1. 检查权限状态
+  /// 2. 初始化主题
+  /// 3. 如果权限已授予，调用 StartupOrchestrator 进行三场景路由初始化
+  /// 4. 如果没有权限，显示权限提示横幅但不阻塞页面显示
   Future<void> _initializeAppWithPermission() async {
-    logger.i('Initializing app with permission check...');
+    logger.i('═══════════════════════════════════════');
+    logger.i('📱 FileBrowserPage._initializeAppWithPermission started');
+    logger.i('═══════════════════════════════════════');
 
     try {
       // 先检查权限状态
@@ -509,216 +563,74 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         _permissionState = permissionState;
       });
 
-      // 无论是否有权限，都初始化UI（不阻塞显示）
-      await presenter.initializeTheme();
+      // 同步 ViewModel 主题（MaterialApp 中的主题已从 ThemeSettingsService 加载）
+      presenter.initializeTheme();
 
       if (permissionState.isGranted) {
-        // 权限已授予，开始扫描和初始化
-        await _initializeApp();
-      } else {
-        // 没有权限，显示权限提示框，但不阻塞页面显示
-        logger.i('Permission not granted, showing permission banner');
+        logger.i('Permission granted, starting orchestrator...');
+        await _initializeAppWithOrchestrator();
       }
     } catch (e) {
-      logger.e('Error during app initialization with permission: $e');
+      logger.e('Error during app initialization: $e');
     }
   }
 
-  /// 初始化回收站管理器
-  ///
-  /// 触发AppTrashManager的懒加载初始化，确保pending任务在应用启动时恢复
-  Future<void> _initializeTrashManager() async {
-    try {
-      logger.i('Initializing trash manager...');
-      await locator.isReady<AppTrashManager>();
-      logger.i('Trash manager initialized successfully');
-    } catch (e) {
-      logger.e('Failed to initialize trash manager: $e');
-    }
-  }
-
-  /// 初始化应用程序数据
-  ///
-  /// 该方法执行以下任务：
-  /// 1. 并行初始化收藏夹、收藏文件和主题
-  /// 2. 加载快速访问文件夹
-  /// 3. 检查是否需要首次深度扫描，如果需要则执行扫描并显示进度
-  /// 4. 加载初始目录
-  Future<void> _initializeApp() async {
-    logger.i('Initializing app data...');
+  /// 使用 StartupOrchestrator 进行三场景初始化
+  /// 
+  /// 检测启动场景并路由到相应的初始化流程：
+  /// - freshInstall：执行完整初始化（P0→P1→P2）
+  /// - reinstall：加载缓存数据（3秒）
+  /// - normalOpen：直接加载数据库（2秒）
+  Future<void> _initializeAppWithOrchestrator() async {
+    logger.i('[FileBrowser] Starting startup orchestration...');
 
     try {
-      // 并行初始化收藏夹、收藏文件、主题和回收站
-      await Future.wait([
-        presenter.initializeFavorites(),
-        presenter.initializeFavoriteFiles(), // 初始化收藏文件
-        presenter.initializeTheme(),
-        _initializeTrashManager(), // 初始化回收站管理器
-      ]);
-
-      // 初始化快速访问（加载已有的快速访问目录）
-      if (quickAccessPresenter != null) {
-        await quickAccessPresenter!.loadQuickAccessFolders();
-
-        // 检查是否需要执行首次深度扫描
-        // 首次扫描会发现系统目录、应用目录，并对所有文件进行分类
-        final needsScan = await FirstScanService().needsFirstScan();
-        logger.i('First scan needed: $needsScan');
-
-        if (needsScan) {
-          logger.i('Performing first-time comprehensive scan...');
-
-          // 显示首次扫描进度卡片 UI
+      // 从 locator 获取服务实例
+      final orchestrator = await locator.getAsync<StartupOrchestrator>();
+      final appInitService = await locator.getAsync<AppInitializationService>();
+      
+      // 设置进度回调（用于首次安装时显示进度）
+      appInitService.onProgress = (progress) {
+        if (mounted) {
           setState(() {
             _isScanning = true;
-            _isFirstScan = true;
-            _scanProgress = 0.0;
+            _scanProgress = progress;
           });
-
-          // 执行综合扫描（同时扫描快速访问和分类文件）
-          // onProgress 回调会实时更新 UI 进度显示 (0.0 - 1.0)
-          final scanResult =
-              await quickAccessPresenter!.performFirstTimeComprehensiveScan(
-            onProgress: (progress) {
-              if (mounted) {
-                setState(() {
-                  _scanProgress = progress;
-                });
-              }
-            },
-            scanCategoryFiles: () async {
-              // 使用 FilePresenter 的完整扫描逻辑
-              logger.i('Scanning all category files using FilePresenter...');
-              final Map<FileCategory, int> counts = {};
-
-              // 初始化所有分类计数
-              for (final category in FileCategory.values) {
-                counts[category] = 0;
-              }
-
-              // 扫描所有分类类型
-              final categoriesToScan = [
-                CategoryType.images,
-                CategoryType.video,
-                CategoryType.music,
-                CategoryType.documents,
-                CategoryType.downloads,
-              ];
-
-              int totalFiles = 0;
-              final prefs = await SharedPreferences.getInstance();
-
-              // 分类扫描的进度范围: 30% - 95%
-              // 每个分类占约 13% 进度 (65% / 5 = 13%)
-              final progressPerCategory = 0.13;
-              var currentCategoryIndex = 0;
-
-              for (final categoryType in categoriesToScan) {
-                try {
-                  // 更新当前分类扫描的进度
-                  final baseProgress =
-                      0.30 + (currentCategoryIndex * progressPerCategory);
-                  if (mounted) {
-                    setState(() {
-                      _scanProgress = baseProgress;
-                    });
-                  }
-
-                  final files =
-                      await presenter.scanFilesByCategory(categoryType);
-                  final count = files.length;
-
-                  // 映射到 FileCategory
-                  FileCategory fileCategory;
-                  switch (categoryType) {
-                    case CategoryType.images:
-                      fileCategory = FileCategory.image;
-                      break;
-                    case CategoryType.video:
-                      fileCategory = FileCategory.video;
-                      break;
-                    case CategoryType.music:
-                      fileCategory = FileCategory.audio;
-                      break;
-                    case CategoryType.documents:
-                      fileCategory = FileCategory.document;
-                      break;
-                    case CategoryType.downloads:
-                      fileCategory = FileCategory.other;
-                      break;
-                  }
-
-                  counts[fileCategory] = count;
-                  totalFiles = totalFiles + count;
-
-                  // 同时保存文件列表到分类页面缓存
-                  try {
-                    final key = 'category_cache_${categoryType.name}';
-                    final cacheData = {
-                      'timestamp': DateTime.now().millisecondsSinceEpoch,
-                      'categoryType': categoryType.name,
-                      'files': files
-                          .map((file) => {
-                                'name': file.name,
-                                'path': file.path,
-                                'size': file.size,
-                                'modified':
-                                    file.modified.millisecondsSinceEpoch,
-                              })
-                          .toList(),
-                    };
-                    await prefs.setString(key, json.encode(cacheData));
-                    logger.i('Cached $count files for ${categoryType.name}');
-                  } catch (e) {
-                    logger
-                        .e('Error caching files for ${categoryType.name}: $e');
-                  }
-
-                  logger.i(
-                      'Category ${categoryType.toString().split('.').last}: $count files');
-
-                  currentCategoryIndex++;
-                } catch (e) {
-                  logger.e('Error scanning category $categoryType: $e');
-                  currentCategoryIndex++;
-                }
-              }
-
-              counts[FileCategory.all] = totalFiles;
-              logger
-                  .i('Total files scanned across all categories: $totalFiles');
-
-              return counts;
-            },
-          );
-          logger.i(
-              'Comprehensive scan completed: ${scanResult.quickAccessFoldersFound} folders, ${scanResult.totalFilesScanned} files');
-
-          // 标记首次扫描已完成
-          await FirstScanService().markScanCompleted();
-
-          // 重要：不要立即关闭扫描状态
-          // 让 FirstScanCardOverlay 组件的 onComplete 回调来关闭
-          // 这样用户才能看到完成状态停留 2.5 秒，体验更友好
-        } else {
-          logger.i('First scan not needed, skipping...');
         }
+      };
+      
+      // 调用编排器进行初始化
+      await orchestrator.orchestrate();
+
+      // 初始化完成，隐藏进度UI
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _scanProgress = 0.0;
+        });
       }
 
       // 加载初始目录
       await _loadInitialDirectory();
 
-      logger.i('App initialization completed');
+      logger.i('[FileBrowser] Orchestration completed successfully');
     } catch (e) {
-      logger.e('Error during app initialization: $e');
-      setState(() {
-        _isScanning = false;
-        _isFirstScan = false;
-      });
-      // 即使初始化失败，也要尝试加载目录
+      logger.e('[FileBrowser] Error during orchestration: $e');
+      
+      // 出错时也要隐藏进度UI
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _scanProgress = 0.0;
+        });
+      }
+      
+      // 降级处理：仍然尝试加载初始目录
       await _loadInitialDirectory();
     }
   }
+
+
 
   /// 请求权限并重新初始化
   Future<void> _requestPermissionAndInit() async {
@@ -731,7 +643,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     if (permissionState.isGranted) {
       // 权限授予成功，开始初始化
-      await _initializeApp();
+      await _initializeAppWithOrchestrator();
     } else if (permissionState.isPermanentlyDenied) {
       // 永久拒绝，引导用户去设置
       logger.w('Permission permanently denied');
@@ -1116,6 +1028,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final right = overlay.size.width - left - menuWidth;
     final bottom = overlay.size.height - top;
 
+    // 计算菜单最大高度：从快捷访问栏下方到屏幕底部，留出底部安全边距
+    final availableHeight = overlay.size.height - top - 16.0; // 16.0 为底部留白
+    final maxMenuHeight = availableHeight.clamp(200.0, 500.0); // 最小200，最大500
+
     showMenu<QuickAccessFolder>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -1125,6 +1041,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         bottom,
       ),
       items: _buildQuickAccessMenuItems(),
+      constraints: BoxConstraints(
+        maxHeight: maxMenuHeight,
+        maxWidth: menuWidth,
+      ),
     ).then((selectedFolder) {
       if (selectedFolder != null && mounted) {
         _onQuickAccessItemTap(selectedFolder);
@@ -1140,46 +1060,30 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final items = <PopupMenuEntry<QuickAccessFolder>>[];
 
     // 获取所有已添加到快捷访问的文件夹
-    final otherFolders =
+    final allAccessFolders =
         allFolders.where((f) => f.isAddedToQuickAccess).toList();
 
-    // 按类型分组
-    final systemFolders = otherFolders
+    // 按类型分组：系统文件夹 和 其他文件夹
+    final systemFolders = allAccessFolders
         .where((f) => f.type == QuickAccessFolderType.system)
         .toList();
-    final appFolders = otherFolders
-        .where((f) =>
-            f.type == QuickAccessFolderType.appRoot ||
-            f.type == QuickAccessFolderType.appSubfolder)
-        .toList();
-    final userFolders = otherFolders
-        .where((f) => f.type == QuickAccessFolderType.userCustom)
+    final otherTypesFolders = allAccessFolders
+        .where((f) => f.type == QuickAccessFolderType.other)
         .toList();
 
-    // 系统文件夹（移除标题，直接显示）
+    // 系统文件夹
     for (var folder in systemFolders) {
       items.add(_buildFolderMenuItem(folder, Colors.blue));
     }
 
-    // 添加分隔线（如果有应用文件夹或自定义文件夹）
-    if (systemFolders.isNotEmpty &&
-        (appFolders.isNotEmpty || userFolders.isNotEmpty)) {
+    // 添加分隔线
+    if (systemFolders.isNotEmpty && otherTypesFolders.isNotEmpty) {
       items.add(const PopupMenuDivider());
     }
 
-    // 应用文件夹（移除标题，直接显示）
-    for (var folder in appFolders) {
+    // 其他文件夹
+    for (var folder in otherTypesFolders) {
       items.add(_buildFolderMenuItem(folder, Colors.orange));
-    }
-
-    // 添加分隔线（如果有自定义文件夹）
-    if (appFolders.isNotEmpty && userFolders.isNotEmpty) {
-      items.add(const PopupMenuDivider());
-    }
-
-    // 自定义文件夹（移除标题，直接显示）
-    for (var folder in userFolders) {
-      items.add(_buildFolderMenuItem(folder, Colors.green));
     }
 
     // 已恢复文件（固定入口，移除分组标题）
@@ -1197,10 +1101,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             id: 'restored_files',
             originalName: '回收站恢复',
             path: restoredPath,
-            type: QuickAccessFolderType.userCustom,
+            type: QuickAccessFolderType.other,
             createdAt: DateTime.now(),
             isAddedToQuickAccess: true,
-            homeDisplayOrder: null,
+            isHidden: false,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
@@ -1230,6 +1134,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return items;
   }
 
+  /// 获取文件夹显示名称
+  /// - 有用户别名：显示别名
+  /// - 无别名：显示原名
+  String _getFolderDisplayName(QuickAccessFolder folder) {
+    // 优先使用用户设置的别名
+    if (folder.userAlias != null && folder.userAlias!.isNotEmpty) {
+      return folder.userAlias!;
+    }
+    
+    return folder.originalName;
+  }
+
   /// 构建文件夹菜单项
   PopupMenuItem<QuickAccessFolder> _buildFolderMenuItem(
     QuickAccessFolder folder,
@@ -1237,22 +1153,31 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   ) {
     final exists = Directory(folder.path).existsSync();
     final folderIcon = _getFolderIcon(folder);
+    final isSubfolder = folder.isSystemSubfolder;
+    
+    // 子目录用黄色，一级目录用蓝色
+    final iconColor = isSubfolder ? Colors.amber[700] : Colors.blue[700];
 
     return PopupMenuItem<QuickAccessFolder>(
       value: folder,
       enabled: exists,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.only(
+        left: isSubfolder ? 32.0 : 16.0, // 子目录增加左侧缩进
+        right: 16.0,
+        top: 10.0,
+        bottom: 10.0,
+      ),
       child: Row(
         children: [
           Icon(
             folderIcon,
-            size: 18,
-            color: exists ? color : Colors.grey,
+            size: 20,
+            color: exists ? iconColor : Colors.grey,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              folder.displayName,
+              _getFolderDisplayName(folder),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -1267,29 +1192,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 获取文件夹图标
+  /// - 子目录：folder_open（黄色）
+  /// - 一级目录和其他：folder（蓝色）
   IconData _getFolderIcon(QuickAccessFolder folder) {
-    switch (folder.type) {
-      case QuickAccessFolderType.system:
-        final path = folder.path.toLowerCase();
-        if (path.contains('dcim') || path.contains('camera')) {
-          return Icons.camera_alt;
-        }
-        if (path.contains('download')) return Icons.download;
-        if (path.contains('picture') || path.contains('photo')) {
-          return Icons.photo;
-        }
-        if (path.contains('document')) return Icons.description;
-        if (path.contains('music')) return Icons.music_note;
-        if (path.contains('movie') || path.contains('video')) {
-          return Icons.video_library;
-        }
-        return Icons.folder_special;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
-        return Icons.apps;
-      case QuickAccessFolderType.userCustom:
-        return Icons.folder;
-    }
+    return folder.isSystemSubfolder ? Icons.folder_open : Icons.folder;
   }
 
   /// 处理快捷访问项点击
@@ -2266,10 +2172,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
               final folders = quickAccessViewModel!.folders;
               final userCustomizedHomeFolders = folders
-                  .where((f) => f.homeDisplayOrder != null)
-                  .toList()
-                ..sort((a, b) => (a.homeDisplayOrder ?? 999)
-                    .compareTo(b.homeDisplayOrder ?? 999));
+                  .where((f) => f.isAddedToQuickAccess && !f.isHidden)
+                  .toList();
 
               QuickAccessFolder? firstFolder;
               if (userCustomizedHomeFolders.isNotEmpty) {
@@ -2401,10 +2305,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
                 final folders = quickAccessViewModel!.folders;
                 final userCustomizedHomeFolders = folders
-                    .where((f) => f.homeDisplayOrder != null)
-                    .toList()
-                  ..sort((a, b) => (a.homeDisplayOrder ?? 999)
-                      .compareTo(b.homeDisplayOrder ?? 999));
+                    .where((f) => f.isAddedToQuickAccess && !f.isHidden)
+                    .toList();
 
                 QuickAccessFolder? firstFolder;
                 if (userCustomizedHomeFolders.isNotEmpty) {
@@ -3236,11 +3138,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   ),
                   SliverToBoxAdapter(
                     child: QuickAccessSection(
+                      key: QuickAccessSection.globalKey,
                       quickAccessViewModel: quickAccessViewModel!,
                       quickAccessPresenter: quickAccessPresenter!,
                       fileViewModel: vm,
                       filePresenter: presenter,
                       categoryCardSize: _categoryCardSize,
+                      recommendationService: _recommendationService,
                     ),
                   ),
                   const SliverToBoxAdapter(
@@ -3576,11 +3480,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                           // QuickAccessSection（快捷访问推荐区）
                           QuickAccessSection(
+                            key: QuickAccessSection.globalKey,
                             quickAccessViewModel: quickAccessViewModel!,
                             quickAccessPresenter: quickAccessPresenter!,
                             fileViewModel: vm,
                             filePresenter: presenter,
                             categoryCardSize: _categoryCardSize,
+                            recommendationService: _recommendationService,
                           ),
                           const SizedBox(height: 2),
 
@@ -3940,6 +3846,46 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    // 如果正在执行首次初始化扫描，显示进度UI
+    if (_isScanning && _scanProgress > 0) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 100,
+                height: 100,
+                child: CircularProgressIndicator(
+                  value: _scanProgress,
+                  strokeWidth: 8,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                '应用初始化中...',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${(_scanProgress * 100).toInt()}%',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _getInitStageDescription(_scanProgress),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // 如果 QuickAccess 相关还未初始化，只显示加载中
     if (quickAccessViewModel == null || quickAccessPresenter == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -3949,22 +3895,22 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       providers: [
         ChangeNotifierProvider<FileViewModel>.value(value: viewModel),
         ChangeNotifierProvider<QuickAccessViewModel>.value(
-          value: quickAccessViewModel!,
-        ),
-        ChangeNotifierProvider<NewFolderNotificationService>.value(
-          value: locator<NewFolderNotificationService>(),
-        ),
-      ],
-      child:
-          Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
-        builder: (context, vm, quickVm, pageSettingsService, _) {
-          if (vm.isLoading) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
+              value: quickAccessViewModel!,
+            ),
+            ChangeNotifierProvider<NewFolderNotificationService>.value(
+              value: locator<NewFolderNotificationService>(),
+            ),
+          ],
+          child:
+              Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
+            builder: (context, vm, quickVm, pageSettingsService, _) {
+              if (vm.isLoading) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
 
-          return wrapWithPopScope(
+              return wrapWithPopScope(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 // 判断是否为横屏模式
@@ -4072,7 +4018,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               : _buildPortraitLayout(viewModel),
 
                           // 批量操作底部工具栏 - 横屏时只显示在右侧区域
-                          if (_selectionController.isSelectionMode)
+                          if (isEditMode)
                             Positioned(
                               left: leftPaneWidth,
                               right: 0,
@@ -4145,4 +4091,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       },
     );
   }
+
+  /// 根据初始化进度返回阶段描述
+  String _getInitStageDescription(double progress) {
+    if (progress < 0.15) {
+      return '正在加载基础资源...';
+    } else if (progress < 0.30) {
+      return '正在加载分类统计...';
+    } else if (progress < 0.95) {
+      return '正在扫描文件系统...';
+    } else {
+      return '即将完成...';
+    }
+  }
+
 }

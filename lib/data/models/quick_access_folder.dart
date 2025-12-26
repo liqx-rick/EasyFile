@@ -1,22 +1,21 @@
+import 'package:easyfile/core/constants/system_folders_config.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/folder_stats.dart';
 
-/// Sentinel value for copyWith to distinguish between null and undefined
-const Object _undefined = Object();
-
-/// 快速访问文件夹类型
+/// 快速访问文件夹类型（v2.0 简化版）
 enum QuickAccessFolderType {
-  /// 系统预定义目录（Downloads, Documents等）
+  /// 系统预定义目录
+  /// 
+  /// 包括：下载、图片、相机、音乐、视频、文档、声音等
+  /// 这些目录由 [SystemFoldersConfig] 全局管理
+  /// 支持二级目录展开
   system,
 
-  /// 应用根目录（自动扫描）
-  appRoot,
-
-  /// 应用子目录（用户手动pin，归属到父应用）
-  appSubfolder,
-
-  /// 用户自建目录
-  userCustom,
+  /// 其他目录
+  /// 
+  /// 包括：应用目录、用户自建目录等
+  /// 这些目录只支持一级显示
+  other,
 }
 
 /// 快速访问文件夹模型
@@ -41,9 +40,6 @@ class QuickAccessFolder {
   /// 文件夹类型
   final QuickAccessFolderType type;
 
-  /// 父应用名称（仅当type为appSubfolder时有值）
-  final String? parentApp;
-
   /// 创建时间
   final DateTime createdAt;
 
@@ -59,14 +55,17 @@ class QuickAccessFolder {
   /// 是否被用户忽略（不在列表中显示）
   final bool isHidden;
 
-  /// 首页展示顺序（null=不在首页，0-5=在首页的位置）
-  final int? homeDisplayOrder;
-
   /// 文件夹统计信息
   final FolderStats? stats;
 
   /// 图标名称（可选）
   final String? iconName;
+
+  /// 父文件夹路径（用于子文件夹）
+  /// 
+  /// 如果该文件夹是另一个文件夹的子文件夹，此字段存储父文件夹的路径。
+  /// 仅当 [isSubfolder] 为 true 时此字段才有意义。
+  final String? parentPath;
 
   const QuickAccessFolder({
     required this.id,
@@ -75,41 +74,66 @@ class QuickAccessFolder {
     this.recommendedAlias,
     this.userAlias,
     required this.type,
-    this.parentApp,
     required this.createdAt,
     this.lastAccessedAt,
     this.accessCount = 0,
     this.isAddedToQuickAccess = true,
     this.isHidden = false,
-    this.homeDisplayOrder,
     this.stats,
     this.iconName,
+    this.parentPath,
   });
 
   /// 显示名称（优先级：userAlias > recommendedAlias > originalName）
   String get displayName => userAlias ?? recommendedAlias ?? originalName;
+
+  /// 是否是子文件夹
+  /// 
+  /// 当此值为 true 时，表示该文件夹是另一个文件夹的子文件夹，
+  /// 应该在 UI 中以缩进或嵌套方式展示在 [parentPath] 所指文件夹的下方。
+  bool get isSubfolder => parentPath != null;
+
+  /// 获取系统目录根路径（仅 system 类型有效）
+  /// 
+  /// 如果该文件夹是系统目录或其子目录，返回对应的系统目录根路径
+  /// 例如：`/storage/emulated/0/Download/WeChat/` 返回 `/storage/emulated/0/Download/`
+  /// 其他类型返回 null
+  String? get systemRoot {
+    if (type != QuickAccessFolderType.system) return null;
+    return SystemFoldersConfig.getSystemFolderRoot(path);
+  }
+
+  /// 获取相对于系统根的子路径（仅系统二级目录有效）
+  /// 
+  /// 如果该目录是系统目录的子目录，返回相对于根目录的相对路径
+  /// 例如：`/storage/emulated/0/Download/WeChat/` 返回 `WeChat/`
+  /// 如果是根目录本身，返回 null
+  String? get relativePathInSystem {
+    if (type != QuickAccessFolderType.system) return null;
+    final root = systemRoot;
+    if (root == null) return null;
+
+    if (path == root) return null;  // 根目录本身
+    return path.substring(root.length);  // 子路径
+  }
+
+  /// 是否为系统目录的二级子目录
+  /// 
+  /// 用于判断是否需要在 UI 中展开显示该目录
+  bool get isSystemSubfolder {
+    if (type != QuickAccessFolderType.system) return false;
+    return systemRoot != null && path != systemRoot;
+  }
 
   /// 获取分类显示文本
   String get categoryDisplay {
     switch (type) {
       case QuickAccessFolderType.system:
         return '系统目录';
-      case QuickAccessFolderType.appRoot:
-        return '应用目录';
-      case QuickAccessFolderType.appSubfolder:
-        return parentApp != null ? '应用目录 - $parentApp' : '应用目录';
-      case QuickAccessFolderType.userCustom:
-        return '我的文件夹';
+      case QuickAccessFolderType.other:
+        return '其他文件夹';
     }
   }
-
-  /// 是否是应用相关目录
-  bool get isAppRelated =>
-      type == QuickAccessFolderType.appRoot ||
-      type == QuickAccessFolderType.appSubfolder;
-
-  /// 是否在首页显示
-  bool get isOnHomePage => homeDisplayOrder != null;
 
   /// 是否是系统目录
   bool get isSystem => type == QuickAccessFolderType.system;
@@ -124,9 +148,8 @@ class QuickAccessFolder {
       userAlias: json['userAlias'] as String?,
       type: QuickAccessFolderType.values.firstWhere(
         (e) => e.toString() == json['type'],
-        orElse: () => QuickAccessFolderType.userCustom,
+        orElse: () => QuickAccessFolderType.other,
       ),
-      parentApp: json['parentApp'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastAccessedAt: json['lastAccessedAt'] != null
           ? DateTime.parse(json['lastAccessedAt'] as String)
@@ -134,12 +157,11 @@ class QuickAccessFolder {
       accessCount: (json['accessCount'] as int?) ?? 0,
       isAddedToQuickAccess: (json['isAddedToQuickAccess'] as bool?) ?? true,
       isHidden: (json['isHidden'] as bool?) ?? false,
-      homeDisplayOrder: json['homeDisplayOrder'] as int? ??
-          ((json['pinned'] as bool?) == true ? 0 : null), // 迁移：pinned=true 转为首页第一位
       stats: json['stats'] != null
           ? FolderStats.fromJson(json['stats'] as Map<String, dynamic>)
           : null,
       iconName: json['iconName'] as String?,
+      parentPath: json['parentPath'] as String?,
     );
   }
 
@@ -152,15 +174,14 @@ class QuickAccessFolder {
       'recommendedAlias': recommendedAlias,
       'userAlias': userAlias,
       'type': type.toString(),
-      'parentApp': parentApp,
       'createdAt': createdAt.toIso8601String(),
       'lastAccessedAt': lastAccessedAt?.toIso8601String(),
       'accessCount': accessCount,
       'isAddedToQuickAccess': isAddedToQuickAccess,
       'isHidden': isHidden,
-      'homeDisplayOrder': homeDisplayOrder,
       'stats': stats?.toJson(),
       'iconName': iconName,
+      'parentPath': parentPath,
     };
   }
 
@@ -177,7 +198,6 @@ class QuickAccessFolder {
       accessCount: 0,
       isAddedToQuickAccess: true, // 旧数据默认已加入快速访问
       isHidden: false,
-      homeDisplayOrder: favorite.pinned ? 0 : null, // pinned=true 转为首页第一位
       iconName: favorite.iconName,
     );
   }
@@ -188,38 +208,40 @@ class QuickAccessFolder {
     String? path,
     String? originalName,
     String? recommendedAlias,
-    String? userAlias,
+    // 对于userAlias，允许显式设置为null来清空别名
+    // 使用required参数或者在调用时明确指定
+    String? userAlias = _undefined,
     QuickAccessFolderType? type,
-    String? parentApp,
     DateTime? createdAt,
     DateTime? lastAccessedAt,
     int? accessCount,
     bool? isAddedToQuickAccess,
     bool? isHidden,
-    Object? homeDisplayOrder = _undefined,
     FolderStats? stats,
     String? iconName,
+    String? parentPath,
   }) {
     return QuickAccessFolder(
       id: id ?? this.id,
       path: path ?? this.path,
       originalName: originalName ?? this.originalName,
       recommendedAlias: recommendedAlias ?? this.recommendedAlias,
-      userAlias: userAlias ?? this.userAlias,
+      // 如果userAlias被显式传入（包括null），使用新值；否则保持原值
+      userAlias: userAlias == _undefined ? this.userAlias : userAlias,
       type: type ?? this.type,
-      parentApp: parentApp ?? this.parentApp,
       createdAt: createdAt ?? this.createdAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
       accessCount: accessCount ?? this.accessCount,
       isAddedToQuickAccess: isAddedToQuickAccess ?? this.isAddedToQuickAccess,
       isHidden: isHidden ?? this.isHidden,
-      homeDisplayOrder: homeDisplayOrder == _undefined
-          ? this.homeDisplayOrder
-          : homeDisplayOrder as int?,
       stats: stats ?? this.stats,
       iconName: iconName ?? this.iconName,
+      parentPath: parentPath ?? this.parentPath,
     );
   }
+
+  // Sentinel 值，用于区分"未指定"和"设为null"
+  static const String _undefined = '__undefined__';
 
   @override
   String toString() {

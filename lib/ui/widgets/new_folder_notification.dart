@@ -363,10 +363,7 @@ class _NewFolderNotificationDialogState
     switch (folder.type) {
       case QuickAccessFolderType.system:
         return Icons.folder_special;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
-        return Icons.apps;
-      case QuickAccessFolderType.userCustom:
+      case QuickAccessFolderType.other:
         return Icons.folder;
     }
   }
@@ -375,11 +372,8 @@ class _NewFolderNotificationDialogState
     switch (folder.type) {
       case QuickAccessFolderType.system:
         return Colors.blue;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
+      case QuickAccessFolderType.other:
         return Colors.orange;
-      case QuickAccessFolderType.userCustom:
-        return Colors.green;
     }
   }
 
@@ -387,11 +381,8 @@ class _NewFolderNotificationDialogState
     switch (type) {
       case QuickAccessFolderType.system:
         return Icons.security;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
-        return Icons.apps;
-      case QuickAccessFolderType.userCustom:
-        return Icons.person;
+      case QuickAccessFolderType.other:
+        return Icons.folder;
     }
   }
 
@@ -399,11 +390,8 @@ class _NewFolderNotificationDialogState
     switch (type) {
       case QuickAccessFolderType.system:
         return Colors.blue;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
+      case QuickAccessFolderType.other:
         return Colors.orange;
-      case QuickAccessFolderType.userCustom:
-        return Colors.green;
     }
   }
 
@@ -411,12 +399,8 @@ class _NewFolderNotificationDialogState
     switch (type) {
       case QuickAccessFolderType.system:
         return '系统';
-      case QuickAccessFolderType.appRoot:
-        return '应用';
-      case QuickAccessFolderType.appSubfolder:
-        return '应用子目录';
-      case QuickAccessFolderType.userCustom:
-        return '用户';
+      case QuickAccessFolderType.other:
+        return '其他';
     }
   }
 }

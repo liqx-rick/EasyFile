@@ -19,9 +19,10 @@ import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
-import 'package:easyfile/data/sources/theme_local_source.dart';
+import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
+import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/utils/file_utils.dart';
@@ -35,7 +36,7 @@ class FilePresenter {
   final NewFilesScanner newFilesScanner;
   final NewFilesLocalSource newFilesLocalSource;
   final NewFilesSettings newFilesSettings;
-  final ThemeLocalSource themeSource;
+  final ThemeSettingsService themeSettingsService;
   final AppTrashDatabase trashDatabase;
 
   FilePresenter({
@@ -47,7 +48,7 @@ class FilePresenter {
     required this.newFilesScanner,
     required this.newFilesLocalSource,
     required this.newFilesSettings,
-    required this.themeSource,
+    required this.themeSettingsService,
     required this.trashDatabase,
   }) {
     logger.d('FilePresenter constructor called');
@@ -845,64 +846,30 @@ class FilePresenter {
 
   // 主题相关方法
 
-  /// 初始化主题设置
-  Future<void> initializeTheme() async {
-    logger.i('FilePresenter.initializeTheme called');
+  /// 同步 ViewModel 主题（主题在 main() 和 EasyFileApp 中已初始化）
+  void initializeTheme() {
     try {
-      final themeMode = await themeSource.getThemeMode();
-      viewModel.setThemeMode(themeMode);
-
-      logger.d('Theme initialized - mode: $themeMode');
+      viewModel.setThemeMode(themeSettingsService.themeMode);
     } catch (e) {
-      logger.e('Error initializing theme: $e');
+      logger.e('Error syncing theme: $e');
     }
   }
 
   /// 切换主题
   Future<void> toggleTheme() async {
-    logger.i('FilePresenter.toggleTheme called');
     try {
-      final oldMode = viewModel.themeMode;
-      viewModel.toggleTheme();
-      final newMode = viewModel.themeMode;
-      logger.d('Theme mode changed from $oldMode to $newMode');
-
-      final success = await themeSource.saveThemeMode(newMode);
-
-      if (success) {
-        // 验证保存是否成功
-        final savedMode = await themeSource.getThemeMode();
-        logger.d('Verified saved theme mode: $savedMode');
-
-        if (savedMode != newMode) {
-          logger.w('Theme mode mismatch! Expected: $newMode, Got: $savedMode');
-          // 重新设置为正确的值
-          viewModel.setThemeMode(newMode);
-        }
-
-        logger.i('Theme toggled successfully to: $newMode');
-      } else {
-        logger.w('Failed to save theme mode, reverting to: $oldMode');
-        // 如果保存失败，恢复原来的模式
-        viewModel.setThemeMode(oldMode);
-      }
+      await themeSettingsService.toggleThemeMode();
+      viewModel.setThemeMode(themeSettingsService.themeMode);
     } catch (e) {
       logger.e('Error toggling theme: $e');
     }
   }
 
-  /// 设置特定主题模式
+  /// 设置主题模式
   Future<void> setThemeMode(ThemeMode mode) async {
-    logger.i('FilePresenter.setThemeMode called with: $mode');
     try {
+      await themeSettingsService.setThemeMode(mode);
       viewModel.setThemeMode(mode);
-      final success = await themeSource.saveThemeMode(mode);
-
-      if (success) {
-        logger.i('Theme mode set successfully to: $mode');
-      } else {
-        logger.w('Failed to save theme mode');
-      }
     } catch (e) {
       logger.e('Error setting theme mode: $e');
     }
@@ -1182,8 +1149,67 @@ class FilePresenter {
   // 分类相关方法
 
   /// 按文件类型扫描文件
-  Future<List<FileItem>> scanFilesByCategory(CategoryType categoryType) async {
-    logger.i('FilePresenter.scanFilesByCategory called for: $categoryType');
+  /// 
+  /// 优先使用 MediaStore 扫描（快速），下载文件夹使用文件系统扫描（全面）
+  /// 
+  /// [categoryType] 文件分类类型
+  /// [useMediaStore] 是否使用 MediaStore，默认 true（智能选择）
+  ///   - true: 图片/音乐/视频/文档使用 MediaStore，下载使用文件系统
+  ///   - false: 强制使用文件系统扫描（测试对比用）
+  Future<List<FileItem>> scanFilesByCategory(
+    CategoryType categoryType, {
+    bool useMediaStore = true,
+  }) async {
+    logger.i('FilePresenter.scanFilesByCategory called for: $categoryType (useMediaStore: $useMediaStore)');
+
+    try {
+      // 图片、音频、视频、文档使用 MediaStore 扫描（快速）
+      if (useMediaStore && categoryType != CategoryType.downloads) {
+        return await _scanByCategoryWithMediaStore(categoryType);
+      }
+      
+      // 下载文件夹或强制文件系统扫描
+      return await _scanByCategoryWithFileSystem(categoryType);
+    } catch (e) {
+      logger.e('Error scanning files by category $categoryType: $e');
+      rethrow;
+    }
+  }
+
+  /// 使用 MediaStore 扫描分类文件（快速）
+  Future<List<FileItem>> _scanByCategoryWithMediaStore(CategoryType categoryType) async {
+    logger.i('Using MediaStore for category: $categoryType');
+    
+    final scanType = _categoryTypeToMediaScanType(categoryType);
+    final files = await MediaStoreScannerChannel.scan(scanType);
+    
+    logger.i('MediaStore found ${files.length} files for category: $categoryType');
+    return files;
+  }
+
+  /// 将 CategoryType 转换为 MediaScanType
+  MediaScanType _categoryTypeToMediaScanType(CategoryType type) {
+    switch (type) {
+      case CategoryType.images:
+        return MediaScanType.image;
+      case CategoryType.music:
+        return MediaScanType.audio;
+      case CategoryType.video:
+        return MediaScanType.video;
+      case CategoryType.documents:
+        return MediaScanType.document;
+      case CategoryType.apk:
+        return MediaScanType.apk;
+      case CategoryType.archive:
+        return MediaScanType.archive;
+      default:
+        throw ArgumentError('Unsupported category type for MediaStore: $type');
+    }
+  }
+
+  /// 使用文件系统扫描分类文件（全面）
+  Future<List<FileItem>> _scanByCategoryWithFileSystem(CategoryType categoryType) async {
+    logger.i('Using file system scan for category: $categoryType');
 
     try {
       // 获取分类信息
@@ -1344,6 +1370,22 @@ class FilePresenter {
     'Ringtones', // 铃声
     'lost+found', // Android系统目录
   ];
+
+  /// 检查是否为16进制临时文件夹
+  /// 
+  /// 这类文件夹通常由浏览器下载缓存、下载管理器、应用市场等创建
+  /// 例如: 4753E391CCF6FA2, 1060A0DAF0CAB42
+  static bool _isHexTempFolder(String folderName) {
+    // 检查是否为纯16进制字符（10-20位）且大写
+    // 长度范围基于常见的UUID/GUID格式（去掉连字符）
+    if (folderName.length < 10 || folderName.length > 32) {
+      return false;
+    }
+    
+    // 必须全部是16进制字符（0-9, A-F）
+    final hexPattern = RegExp(r'^[0-9A-F]+$');
+    return hexPattern.hasMatch(folderName);
+  }
 
   /// 获取常见扫描路径（混合策略：系统目录 + 用户自定义文件夹）
   ///
@@ -1555,6 +1597,13 @@ class FilePresenter {
           continue;
         }
 
+        // 跳过16进制临时文件夹（下载缓存等）
+        if (_isHexTempFolder(folderName)) {
+          skippedExcluded++;
+          logger.d('Skipping hex temp folder in root: $folderName');
+          continue;
+        }
+
         // 这是用户自定义文件夹，添加到列表
         discovered.add(entity.path);
         foundCount++;
@@ -1646,6 +1695,13 @@ class FilePresenter {
           } else if (entity is Directory) {
             // 跳过应用/系统数据目录
             if (excludedFolders.contains(name)) continue;
+
+            // 跳过16进制命名的临时文件夹（下载缓存/应用临时文件夹）
+            // 例如: 4753E391CCF6FA2, 1060A0DAF0CAB42
+            if (_isHexTempFolder(name)) {
+              logger.d('Skipping hex temp folder: $name');
+              continue;
+            }
 
             // 递归扫描子目录
             await _scanDirectory(

@@ -473,7 +473,13 @@ class _StoragePageState extends State<StoragePage>
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
-    _loadStorageFiles();
+    
+    // 延迟加载，避免在 initState 中访问 ScaffoldMessenger
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadStorageFiles();
+      }
+    });
   }
 
   /// ViewModel变化回调 - 同步文件列表
@@ -600,9 +606,6 @@ class _StoragePageState extends State<StoragePage>
   }
 
   Future<void> _loadStorageFiles() async {
-    // Capture messenger before any async operations
-    final messenger = ScaffoldMessenger.of(context);
-
     setState(() {
       _isLoading = true;
     });
@@ -695,7 +698,9 @@ class _StoragePageState extends State<StoragePage>
         _isLoading = false;
       });
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('加载失败: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载失败: $e')),
+      );
     }
   }
 
@@ -760,9 +765,6 @@ class _StoragePageState extends State<StoragePage>
 
   // 新增：加载指定路径下的文件
   Future<void> _loadFilesInPath(String path) async {
-    // Capture messenger before any async operations
-    final messenger = ScaffoldMessenger.of(context);
-
     setState(() {
       _isLoading = true;
     });
@@ -838,7 +840,9 @@ class _StoragePageState extends State<StoragePage>
         _isLoading = false;
       });
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('加载失败: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载失败: $e')),
+      );
     }
   }
 

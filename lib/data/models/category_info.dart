@@ -16,6 +16,12 @@ enum CategoryType {
 
   /// 下载文件
   downloads,
+
+  /// APK文件
+  apk,
+
+  /// 压缩包文件
+  archive,
 }
 
 /// 文件分类信息
@@ -148,6 +154,37 @@ class CategoryInfo {
           backgroundColor: Color(0xFFE1F5FE), // 淡青色
           iconColor: Color(0xFF0277BD), // 深蓝色
           extensions: [], // 空数组表示接受所有文件类型
+        ),
+
+        // APK
+        const CategoryInfo(
+          type: CategoryType.apk,
+          name: 'APK',
+          icon: Icons.android,
+          backgroundColor: Color(0xFFE8F5E9), // 淡绿色
+          iconColor: Color(0xFF4CAF50), // 绿色
+          extensions: ['apk'],
+        ),
+
+        // 压缩包
+        const CategoryInfo(
+          type: CategoryType.archive,
+          name: '压缩包',
+          icon: Icons.archive,
+          backgroundColor: Color(0xFFFFF9C4), // 淡黄色
+          iconColor: Color(0xFFFBC02D), // 黄色
+          extensions: [
+            'zip',
+            'rar',
+            '7z',
+            'tar',
+            'gz',
+            'bz2',
+            'xz',
+            'tgz',
+            'tbz2',
+            'txz',
+          ],
         ),
       ];
 

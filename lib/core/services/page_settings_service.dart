@@ -202,6 +202,28 @@ class PageSettingsService extends ChangeNotifier {
     );
   }
 
+  /// 恢复推荐页面设置
+  Future<void> resetRecommendSettings() async {
+    _userSettings.removeWhere((pageId, _) =>
+      pageId == PageId.recommendApplication ||
+      pageId == PageId.recommendContent ||
+      pageId == PageId.recommendCleanup
+    );
+    
+    // 保存设置
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonMap = _userSettings.map(
+        (key, value) => MapEntry(key.key, value.toJson()),
+      );
+      await prefs.setString(_userSettingsKey, json.encode(jsonMap));
+    } catch (e) {
+      // 忽略保存错误
+    }
+    
+    notifyListeners();
+  }
+
   /// 获取网格模式是否显示文件信息
   /// [pageId] 页面ID（保留用于兼容性，实际未使用）
   /// 返回：true=显示文件名和大小，false=仅显示缩略图

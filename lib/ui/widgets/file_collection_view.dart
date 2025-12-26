@@ -463,7 +463,6 @@ class FileCollectionView extends StatelessWidget {
       return child;
     }
 
-    final isSelectionMode = selectionController?.isSelectionMode ?? false;
     final isSelected = selectionController?.contains(item.path) ?? false;
 
     // 网格模式且启用统一组件
@@ -483,11 +482,9 @@ class FileCollectionView extends StatelessWidget {
         showFavoriteButton: showFavoriteButton,
         config: itemConfig,
         onTap: () {
-          if (isSelectionMode) {
-            selectionController!.toggle(item.path);
-          } else {
-            if (onTap != null) onTap!(item);
-          }
+          // 不判断isSelectionMode，总是调用外部onTap
+          // 让外部根据isEditMode决定行为（toggle或打开文件）
+          if (onTap != null) onTap!(item);
         },
         onLongPress: showCheckbox
             ? () {} // 编辑模式：禁用长按
@@ -537,11 +534,9 @@ class FileCollectionView extends StatelessWidget {
                 }
               : null,
       onTap: () {
-        if (isSelectionMode) {
-          selectionController!.toggle(item.path);
-        } else {
-          if (onTap != null) onTap!(item);
-        }
+        // 不判断isSelectionMode，总是调用外部onTap
+        // 让外部根据isEditMode决定行为（toggle或打开文件）
+        if (onTap != null) onTap!(item);
       },
       onLongPress: showCheckbox
           ? () {} // 编辑模式：禁用长按

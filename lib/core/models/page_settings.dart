@@ -31,7 +31,31 @@ enum PageId {
   categoryVideo('category_video'),
 
   /// 下载分类
-  categoryDownloads('category_downloads');
+  categoryDownloads('category_downloads'),
+
+  /// 推荐页面-应用模式（统一处理所有应用：微信/QQ/Telegram/WPS）
+  recommendApplication('recommend_application'),
+
+  /// 推荐页面-应用模式-全部Tab
+  recommendApplicationAll('recommend_application_all'),
+
+  /// 推荐页面-应用模式-图片Tab
+  recommendApplicationImages('recommend_application_images'),
+
+  /// 推荐页面-应用模式-视频Tab
+  recommendApplicationVideos('recommend_application_videos'),
+
+  /// 推荐页面-应用模式-文档Tab
+  recommendApplicationDocuments('recommend_application_documents'),
+
+  /// 推荐页面-应用模式-音频Tab
+  recommendApplicationAudios('recommend_application_audios'),
+
+  /// 推荐页面-内容模式（统一处理所有内容：时光记忆/生活剪影/声音记录）
+  recommendContent('recommend_content'),
+
+  /// 推荐页面-清理模式（大文件清理建议）
+  recommendCleanup('recommend_cleanup');
 
   final String key;
   const PageId(this.key);
@@ -164,6 +188,70 @@ class PageDefaultSettings {
       sortType: SortType.modifiedTime,
       groupEnabled: true,
     ),
+
+    // 推荐页面-应用模式: auto视图（图片视频网格，其他列表）/按修改时间/默认分组
+    PageId.recommendApplication: PageSettings(
+      viewMode: null, // null表示使用auto规则
+      sortType: SortType.modifiedTime,
+      sortAscending: false, // 最新在前
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-应用模式-全部Tab: 列表/按修改时间/默认分组
+    PageId.recommendApplicationAll: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-应用模式-图片Tab: 网格/按修改时间/默认分组
+    PageId.recommendApplicationImages: PageSettings(
+      viewMode: ViewMode.grid,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-应用模式-视频Tab: 网格/按修改时间/默认分组
+    PageId.recommendApplicationVideos: PageSettings(
+      viewMode: ViewMode.grid,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-应用模式-文档Tab: 列表/按修改时间/默认分组
+    PageId.recommendApplicationDocuments: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-应用模式-音频Tab: 列表/按修改时间/默认分组
+    PageId.recommendApplicationAudios: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-内容模式: 列表/按修改时间/默认分组
+    PageId.recommendContent: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-清理模式: 列表/按大小/不分组
+    PageId.recommendCleanup: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.size,
+      sortAscending: false, // 大文件在前
+      groupEnabled: false,
+    ),
   };
 
   /// 获取页面的默认设置
@@ -194,6 +282,22 @@ class PageDefaultSettings {
         return '视频分类';
       case PageId.categoryDownloads:
         return '下载分类';
+      case PageId.recommendApplication:
+        return '应用推荐';
+      case PageId.recommendApplicationAll:
+        return '应用推荐-全部';
+      case PageId.recommendApplicationImages:
+        return '应用推荐-图片';
+      case PageId.recommendApplicationVideos:
+        return '应用推荐-视频';
+      case PageId.recommendApplicationDocuments:
+        return '应用推荐-文档';
+      case PageId.recommendApplicationAudios:
+        return '应用推荐-音频';
+      case PageId.recommendContent:
+        return '内容推荐';
+      case PageId.recommendCleanup:
+        return '清理推荐';
     }
   }
 
@@ -219,7 +323,23 @@ class PageDefaultSettings {
       case PageId.categoryVideo:
         return '类似照片，适合网格浏览';
       case PageId.categoryDownloads:
-        return '最近下载的最重要';
+        return '快速找到最近下载的文件';
+      case PageId.recommendApplication:
+        return '智能推荐应用文件';
+      case PageId.recommendApplicationAll:
+        return '显示所有应用文件';
+      case PageId.recommendApplicationImages:
+        return '图片网格展示';
+      case PageId.recommendApplicationVideos:
+        return '视频网格展示';
+      case PageId.recommendApplicationDocuments:
+        return '文档列表展示';
+      case PageId.recommendApplicationAudios:
+        return '音频列表展示';
+      case PageId.recommendContent:
+        return '个性化内容推荐';
+      case PageId.recommendCleanup:
+        return '大文件清理建议';
     }
   }
 }

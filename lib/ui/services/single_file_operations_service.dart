@@ -189,16 +189,33 @@ class SingleFileOperationsService {
       final isLandscape = mediaQuery.orientation == Orientation.landscape;
 
       // Check mounted before showing rename dialog
-      if (!_isMounted) return false;
+      if (!_isMounted) {
+        controller.dispose();
+        return false;
+      }
 
       final newName = isLandscape
-          ? await _showRenameBottomSheet(context, controller, file)
-          : await _showRenameDialog(context, controller, file);
+          ? await _showRenameBottomSheet(controller, file)
+          : await _showRenameDialog(controller, file);
 
-      if (newName == null || newName.trim().isEmpty || !_isMounted) return false;
-      if (newName == file.name) return false;
+      if (newName == null || newName.trim().isEmpty || !_isMounted) {
+        controller.dispose();
+        return false;
+      }
+      if (newName == file.name) {
+        controller.dispose();
+        return false;
+      }
 
-      if (!_isMounted) return false;
+      if (!_isMounted) {
+        controller.dispose();
+        return false;
+      }
+
+      if (!context.mounted) {
+        controller.dispose();
+        return false;
+      }
 
       // 显示进度
       showDialog(
@@ -227,27 +244,47 @@ class SingleFileOperationsService {
       try {
         final success = await presenter.renameFile(file, newName.trim());
 
-        if (!_isMounted) return false;
+        if (!_isMounted) {
+          controller.dispose();
+          return false;
+        }
         navigator.pop(); // 关闭进度对话框
 
         if (success) {
           _showSnackBar('重命名成功', messenger: messenger);
           // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
           // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
+          
+          // 延迟释放 TextEditingController，等待对话框动画完成（对话框关闭动画约200-300ms）
+          Future.delayed(const Duration(milliseconds: 350), () {
+            controller.dispose();
+          });
+          
           return true; // 返回 true 表示操作成功
         } else {
           _showErrorSnackBar('重命名失败', null, messenger);
+          Future.delayed(const Duration(milliseconds: 350), () {
+            controller.dispose();
+          });
           return false;
         }
       } catch (e) {
-        if (!_isMounted) return false;
+        if (!_isMounted) {
+          controller.dispose();
+          return false;
+        }
         navigator.pop();
+        Future.delayed(const Duration(milliseconds: 350), () {
+          controller.dispose();
+        });
         _showErrorSnackBar('重命名失败：$e', null, messenger);
         return false;
       }
-    } finally {
-      // 确保释放 TextEditingController 资源
+    } catch (e) {
+      // 如果在显示对话框时发生异常，确保dispose controller
       controller.dispose();
+      _showErrorSnackBar('操作失败：$e', null, messenger);
+      return false;
     }
   }
 
@@ -315,6 +352,8 @@ class SingleFileOperationsService {
     if (!confirmed || !_isMounted) return;
 
     if (!_isMounted) return;
+
+    if (!context.mounted) return;
 
     // 显示进度
     showDialog(
@@ -451,6 +490,8 @@ class SingleFileOperationsService {
 
     if (!_isMounted) return false;
 
+    if (!context.mounted) return false;
+
     // 显示进度
     showDialog(
       context: context,
@@ -551,6 +592,8 @@ class SingleFileOperationsService {
     }
 
     if (!_isMounted) return false;
+
+    if (!context.mounted) return false;
 
     // 显示进度
     showDialog(
@@ -842,10 +885,10 @@ class SingleFileOperationsService {
 
   /// 显示重命名对话框（竖屏模式）
   Future<String?> _showRenameDialog(
-    BuildContext context,
     TextEditingController controller,
     FileItem file,
   ) {
+    if (!_isMounted) return Future.value(null);
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -884,10 +927,10 @@ class SingleFileOperationsService {
 
   /// 显示重命名底部表单（横屏模式）
   Future<String?> _showRenameBottomSheet(
-    BuildContext context,
     TextEditingController controller,
     FileItem file,
   ) {
+    if (!_isMounted) return Future.value(null);
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,

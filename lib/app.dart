@@ -11,6 +11,7 @@ import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/ui/pages/file_browser_page.dart';
 import 'package:easyfile/ui/pages/splash_page.dart';
 import 'package:easyfile/ui/theme/app_theme.dart';
@@ -47,19 +48,22 @@ class EasyFileApp extends StatelessWidget {
         ChangeNotifierProvider<PermissionService>.value(
           value: locator<PermissionService>(),
         ),
+        ChangeNotifierProvider<ThemeSettingsService>.value(
+          value: ThemeSettingsService(),
+        ),
       ],
-      child: Consumer<FileViewModel>(
-        builder: (context, viewModel, _) {
+      child: Consumer2<FileViewModel, ThemeSettingsService>(
+        builder: (context, fileViewModel, themeService, _) {
+          final themeMode = themeService.themeMode;
+          
           return MaterialApp(
             title: 'EasyFile',
             debugShowCheckedModeBanner: false,
-            themeMode: viewModel.themeMode,
+            themeMode: themeMode,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            // 使用命名路由系统
             initialRoute: '/',
             routes: {'/': (context) => const AppNavigator()},
-            // 保持导航栈在应用生命周期中
             navigatorObservers: [_AppNavigatorObserver()],
           );
         },
@@ -81,7 +85,6 @@ class _AppNavigatorObserver extends NavigatorObserver {
   }
 }
 
-/// 应用导航器 - 管理页面切换逻辑
 class AppNavigator extends StatefulWidget {
   const AppNavigator({super.key});
 

@@ -1,15 +1,25 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
+import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/ui/widgets/files_browse_card.dart';
 import 'package:easyfile/ui/widgets/storage_management_card.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
+import 'package:easyfile/core/services/file_change_listener_service.dart';
+import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
+import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
+import 'package:easyfile/core/data_sources/data_source_factory.dart';
 
 /// 快速访问区域组件（可展开/折叠）
 ///
@@ -22,6 +32,23 @@ class QuickAccessSection extends StatefulWidget {
   final FilePresenter filePresenter;
   final double categoryCardSize;
 
+  /// 推荐服务（可选注入，如果不提供则使用默认实现）
+  final RecommendationService? recommendationService;
+
+  /// 全局Key用于从外部触发刷新
+  static final GlobalKey<_QuickAccessSectionState> globalKey = GlobalKey<_QuickAccessSectionState>();
+
+  /// 清除推荐卡片缓存（用于设置变更后强制重新加载）
+  static void clearRecommendationCache() {
+    _QuickAccessSectionState.clearCache();
+  }
+
+  /// 刷新推荐卡片（清除缓存并重新加载）
+  static Future<void> refreshRecommendations() async {
+    _QuickAccessSectionState.clearCache();
+    await globalKey.currentState?.refreshRecommendations();
+  }
+
   const QuickAccessSection({
     super.key,
     required this.quickAccessViewModel,
@@ -29,6 +56,7 @@ class QuickAccessSection extends StatefulWidget {
     required this.fileViewModel,
     required this.filePresenter,
     this.categoryCardSize = 0.0,
+    this.recommendationService,
   });
 
   @override
@@ -45,17 +73,194 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   double? _freeSpace;
   bool _loadingStorage = true;
 
+  // 推荐卡片
+  late RecommendationService _recommendationService;
+  List<RecommendationCard> _recommendationCards = [];
+  late bool _loadingRecommendations;
+  
+  // 文件监听服务
+  FileChangeListenerService? _fileChangeListener;
+
+  // 静态缓存：在App同一会话中共享
+  static List<RecommendationCard>? _cachedCards;
+  static DateTime? _cacheTime;
+  static const _cacheValidDuration = Duration(minutes: 5); // 5分钟缓存，平衡性能与数据新鲜度
+  
+  // 持久化缓存key
+  static const String _cacheKey = 'recommendation_cards_cache';
+  static const String _cacheTimeKey = 'recommendation_cards_cache_time';
+  
+  // 构造时检查缓存（静态 + 持久化）
+  _QuickAccessSectionState() {
+    // 1. 先检查静态缓存（最快）
+    final hasValidStaticCache = _cachedCards != null && 
+                                _cacheTime != null && 
+                                DateTime.now().difference(_cacheTime!) < _cacheValidDuration;
+    
+    if (hasValidStaticCache) {
+      _recommendationCards = _cachedCards!;
+      _loadingRecommendations = false;
+      logger.d('🎯 构造时命中静态缓存 (${_cachedCards!.length}个卡片)');
+      return;
+    }
+    
+    // 2. 静态缓存无效，尝试同步读取持久化缓存
+    _loadingRecommendations = _tryLoadPersistentCacheSync();
+    
+    if (!_loadingRecommendations) {
+      logger.d('💾 构造时命中持久化缓存 (${_recommendationCards.length}个卡片)');
+    } else {
+      logger.d('⏳ 无有效缓存，将显示loading');
+    }
+  }
+  
+  /// 尝试同步读取持久化缓存（非阻塞）
+  /// 返回: true=需要loading, false=已加载缓存
+  bool _tryLoadPersistentCacheSync() {
+    try {
+      // 尝试从全局单例读取（如果SharedPreferences已初始化）
+      // 注意：这里只是尝试，如果未初始化则跳过
+      _loadPersistentCacheAsync(); // 异步加载
+      return true; // 先显示loading，异步加载完成后更新
+    } catch (e) {
+      return true;
+    }
+  }
+  
+  /// 异步加载持久化缓存
+  Future<void> _loadPersistentCacheAsync() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheJson = prefs.getString(_cacheKey);
+      final cacheTimeMs = prefs.getInt(_cacheTimeKey);
+      
+      if (cacheJson != null && cacheTimeMs != null) {
+        final cacheTime = DateTime.fromMillisecondsSinceEpoch(cacheTimeMs);
+        final cacheAge = DateTime.now().difference(cacheTime);
+        
+        if (cacheAge < _cacheValidDuration) {
+          final List<dynamic> jsonList = jsonDecode(cacheJson);
+          final cards = jsonList.map((json) => RecommendationCard.fromJson(json)).toList();
+          
+          if (mounted) {
+            setState(() {
+              _recommendationCards = cards;
+              _loadingRecommendations = false;
+              // 同步更新静态缓存
+              _cachedCards = cards;
+              _cacheTime = cacheTime;
+            });
+          }
+          logger.i('✅ 加载持久化缓存成功 (${cards.length}个卡片, ${cacheAge.inSeconds}秒前)');
+        } else {
+          logger.d('🗑️ 持久化缓存已过期 (${cacheAge.inMinutes}分钟)');
+        }
+      }
+    } catch (e) {
+      logger.e('加载持久化缓存失败: $e');
+    }
+  }
+  
+  /// 保存到持久化缓存
+  Future<void> _savePersistentCache(List<RecommendationCard> cards) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = cards.map((card) => card.toJson()).toList();
+      final jsonString = jsonEncode(jsonList);
+      
+      await prefs.setString(_cacheKey, jsonString);
+      await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+      
+      logger.d('💾 保存持久化缓存成功 (${cards.length}个卡片)');
+    } catch (e) {
+      logger.e('保存持久化缓存失败: $e');
+    }
+  }
+
+  /// 内部清除缓存方法
+  static void clearCache() {
+    final hadCache = _cachedCards != null;
+    final cardsCount = _cachedCards?.length ?? 0;
+    _cachedCards = null;
+    _cacheTime = null;
+    logger.w('🔥 推荐卡片缓存已清除 (之前有缓存: $hadCache, $cardsCount个卡片)');
+    
+    // 同时清除持久化缓存
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove(_cacheKey);
+      prefs.remove(_cacheTimeKey);
+      logger.d('🔥 持久化缓存已清除');
+    }).catchError((e) {
+      logger.e('清除持久化缓存失败: $e');
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _initServices();
     _initAnimation();
     _loadStorageInfo();
+    _loadRecommendations();  // 后台异步加载/刷新
+    _initFileChangeListener(); // 初始化文件监听
     // 延迟加载避免在build期间触发setState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadQuickAccessFolders();
       }
     });
+  }
+
+  void _initServices() {
+    // 使用注入的服务或创建默认实例（兼容旧代码）
+    _recommendationService =
+        widget.recommendationService ?? _createDefaultRecommendationService();
+  }
+
+  /// 创建默认推荐服务（降级方案）
+  ///
+  /// 注意：此方法仅用于向后兼容，正常情况下应通过构造函数注入已初始化的服务。
+  /// 当前应用已在 FileBrowserPage 的 initState 中初始化并注入服务。
+  RecommendationService _createDefaultRecommendationService() {
+    logger.w('使用默认推荐服务（降级方案），建议注入已初始化的服务');
+
+    // 创建未初始化的服务（会降低性能）
+    final detectionService = AppDetectionService();
+    final scanner = UnifiedAppScanner(detectionService);
+    final statisticsCache = AppStatisticsCache();
+
+    return RecommendationService(
+      detectionService: detectionService,
+      scanner: scanner,
+      statisticsCache: statisticsCache,
+    );
+  }
+  
+  /// 初始化文件变化监听
+  Future<void> _initFileChangeListener() async {
+    try {
+      // 使用推荐服务中的statisticsCache
+      final statisticsCache = _recommendationService.statisticsCache;
+      
+      _fileChangeListener = FileChangeListenerService(
+        statisticsCache: statisticsCache,
+        onCacheCleared: () {
+          // 缓存清除后自动刷新UI
+          logger.i('🔄 文件变化 -> 自动刷新推荐卡片');
+          if (mounted) {
+            // 清除静态缓存
+            clearCache();
+            // 重新加载推荐卡片
+            _loadRecommendations();
+          }
+        },
+      );
+      await _fileChangeListener!.startListening();
+      
+      logger.i('✓ 首页快速访问: 文件监听已启动');
+    } catch (e) {
+      logger.e('启动文件监听失败: $e');
+    }
   }
 
   void _initAnimation() {
@@ -92,406 +297,416 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     await widget.quickAccessPresenter.loadQuickAccessFolders();
   }
 
+  /// 公开的刷新方法（供外部调用）
+  Future<void> refreshRecommendations() async {
+    logger.i('🔄 手动刷新推荐卡片...');
+    if (mounted) {
+      setState(() {
+        _loadingRecommendations = true;
+      });
+    }
+    
+    try {
+      // 调用 refreshRecommendations 强制重新扫描
+      final cards = await _recommendationService.refreshRecommendations();
+      if (mounted) {
+        setState(() {
+          _recommendationCards = cards;
+          _loadingRecommendations = false;
+          // 更新静态缓存
+          _cachedCards = cards;
+          _cacheTime = DateTime.now();
+        });
+        logger.d('✅ 推荐卡片刷新完成 (${cards.length}个)');
+        // 保存到持久化缓存
+        _savePersistentCache(cards);
+      }
+    } catch (e) {
+      logger.e('刷新推荐卡片失败: $e');
+      if (mounted) {
+        setState(() {
+          _loadingRecommendations = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadRecommendations() async {
+    // 检查缓存是否有效
+    final now = DateTime.now();
+    final hasCache = _cachedCards != null && _cacheTime != null;
+    final cacheAge = hasCache ? now.difference(_cacheTime!) : null;
+    final cacheValid = hasCache && cacheAge! < _cacheValidDuration;
+    
+    logger.d('📊 后台检查缓存: 有缓存=$hasCache, 缓存年龄=${cacheAge?.inSeconds}秒, 有效=$cacheValid');
+    
+    if (cacheValid) {
+      // 缓存有效，如果UI已使用缓存则无需操作
+      if (_recommendationCards.isNotEmpty) {
+        logger.d('✅ 缓存有效且UI已渲染，跳过加载');
+        return;
+      }
+      
+      // UI未更新（理论上不会发生，因为initState已同步设置）
+      if (mounted) {
+        setState(() {
+          _recommendationCards = _cachedCards!;
+          _loadingRecommendations = false;
+        });
+      }
+      logger.d('✅ 使用推荐卡片缓存 (${_cachedCards!.length}个)');
+      return;
+    }
+
+    // 缓存失效或不存在，后台静默刷新
+    // 🎯 关键：如果已有旧缓存数据在显示，不显示loading
+    final hasOldCache = _cachedCards != null && _recommendationCards.isNotEmpty;
+    logger.d('🔄 后台加载推荐卡片... (静默刷新: $hasOldCache)');
+    
+    try {
+      final cards = await _recommendationService.getRecommendations();
+      if (mounted) {
+        setState(() {
+          _recommendationCards = cards;
+          _loadingRecommendations = false;
+          // 更新静态缓存
+          _cachedCards = cards;
+          _cacheTime = DateTime.now();
+        });
+        logger.d('✅ 推荐卡片加载完成，已更新缓存 (${cards.length}个)');
+        // 保存到持久化缓存
+        _savePersistentCache(cards);
+      }
+    } catch (e) {
+      logger.e('Failed to load recommendations: $e');
+      if (mounted) {
+        setState(() {
+          _loadingRecommendations = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
+    _fileChangeListener?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final folders = widget.quickAccessViewModel.folders;
-
-    // 筛选用户定制的首页展示文件夹
-    final userCustomizedHomeFolders = folders
-        .where((f) => f.homeDisplayOrder != null)
-        .toList()
-      ..sort(
-        (a, b) =>
-            (a.homeDisplayOrder ?? 999).compareTo(b.homeDisplayOrder ?? 999),
-      );
-
-    List<QuickAccessFolder> displayFoldersForHome;
-
-    if (userCustomizedHomeFolders.isNotEmpty) {
-      // 用户已定制过首页，使用用户定制的
-      displayFoldersForHome = userCustomizedHomeFolders;
-    } else {
-      // 用户未定制，从系统目录中按优先级选择最重要的4个
-      final systemFolders =
-          folders.where((f) => f.type == QuickAccessFolderType.system).toList();
-
-      if (systemFolders.length <= 4) {
-        displayFoldersForHome = systemFolders;
-      } else {
-        // 按优先级排序：文档 > 图片 > 音乐 > 视频 > DCIM/相机 > 其他（排除Download，因为分类中已有）
-        systemFolders.sort((a, b) {
-          int getPriority(QuickAccessFolder folder) {
-            final path = folder.path.toLowerCase();
-            // Download优先级最低，避免与分类重复
-            if (path.contains('download')) return 99;
-            if (path.contains('document')) return 1;
-            if (path.contains('picture') || path.contains('photo')) return 2;
-            if (path.contains('music')) return 3;
-            if (path.contains('movie') || path.contains('video')) return 4;
-            if (path.contains('dcim') || path.contains('camera')) return 5;
-            return 98; // 其他
-          }
-
-          return getPriority(a).compareTo(getPriority(b));
-        });
-
-        // 选择优先级最高的前4个（排除Download）
-        displayFoldersForHome = systemFolders
-            .where((f) => !f.path.toLowerCase().contains('download'))
-            .take(4)
-            .toList();
-      }
-    }
-
-    if (displayFoldersForHome.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // 检查是否有快速访问列表（不在首页推荐中的）
-    final hasQuickAccessList = folders.any(
-      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
-    );
-
-    // 计算实际显示数量（包含"更多"按钮）
-    final totalDisplayCount =
-        displayFoldersForHome.length + (hasQuickAccessList ? 1 : 0);
-
-    // 根据推荐数量决定布局模式：
-    // 1个：特殊单按钮模式（与存储空间1:1）
-    // 2-3个：单行模式
-    // 4-6个：双行模式
-    final isSingleButtonMode = totalDisplayCount == 1;
-    final isCompactMode = totalDisplayCount >= 2 && totalDisplayCount <= 3;
-    final isDoubleRowMode = totalDisplayCount >= 4;
-
-    // 调试信息
-    logger.d(
-      'QuickAccessSection: folders=${displayFoldersForHome.length}, hasMore=$hasQuickAccessList, total=$totalDisplayCount, single=$isSingleButtonMode, compact=$isCompactMode, double=$isDoubleRowMode',
-    );
+    // 固定3x2网格布局（6个位置：4个推荐卡片 + 2个功能卡片）
+    // 推荐卡片数据准备暂时保留占位符，后续填充
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 3, 8, 2),
+      padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // 计算快速访问区域高度（基于分类图片高度）
-          final screenWidth = MediaQuery.of(context).size.width;
-          final isSmallScreen = screenWidth < 360;
+          // 使用 constraints.maxWidth 而不是 MediaQuery.of(context).size.width
+          // 这样在横屏模式下会使用左侧栏的宽度，而不是整个屏幕宽度
+          final availableWidth = constraints.maxWidth;
+          final isSmallScreen = availableWidth < 360;
 
-          // 根据模式计算快速访问区域实际高度
-          double quickAccessHeight;
-          if (isSingleButtonMode || isCompactMode) {
-            // 单行模式：高度=分类图片高度
-            quickAccessHeight = widget.categoryCardSize;
-          } else {
-            // 双行模式：高度=分类图片高度×2 + 行间距 + 底部间距
-            final spacing = isSmallScreen ? 2.0 : 3.0;
-            quickAccessHeight = widget.categoryCardSize * 2 + spacing + 3.0;
-          }
+          // 固定高度：分类图片高度 × 2 + 行间距
+          final spacing = isSmallScreen ? 3.0 : 4.0;
+          final totalHeight = widget.categoryCardSize * 2 + spacing;
 
-          // 动态计算flex比例，使所有卡片宽度一致
-          // flex比例决定了快速访问区域和功能卡片区域的宽度分配
-          int quickAccessFlex;
-          int functionCardsFlex;
-
-          if (isSingleButtonMode) {
-            // 单按钮模式：1个快速访问按钮 + 2个功能卡片并排 = 1:2
-            quickAccessFlex = 1;
-            functionCardsFlex = 2;
-          } else if (isCompactMode) {
-            // 单行模式：2-3个快速访问按钮 + 2个功能卡片并排
-            // flex比例 = 快速访问数量:2（例如2:2=1:1，3:2）
-            quickAccessFlex = totalDisplayCount;
-            functionCardsFlex = 2;
-          } else {
-            // 双行模式：4-6个快速访问按钮 + 2个功能卡片上下排列
-            // 固定比例2:1（功能卡片较窄，因为上下排列占用更多纵向空间）
-            quickAccessFlex = 2;
-            functionCardsFlex = 1;
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 快速访问区域 - 根据模式调整比例
-              Expanded(
-                flex: quickAccessFlex,
-                child: _buildQuickAccessCards(
-                  context,
-                  displayFoldersForHome,
-                  isSingleButtonMode,
-                  isCompactMode,
-                  isDoubleRowMode,
-                ),
-              ),
-
-              // 分隔线区域 - 高度自适应
-              SizedBox(
-                width: 8,
-                child: Center(
-                  child: Container(
-                    width: 1,
-                    height: quickAccessHeight,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Theme.of(context).dividerColor.withValues(alpha: 0),
-                          Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                          Theme.of(context).dividerColor.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // 功能卡片区域 - 根据模式调整比例和显示
-              Expanded(
-                flex: functionCardsFlex,
-                child: SizedBox(
-                  height: quickAccessHeight, // 固定高度以匹配快速访问区域
-                  child: _buildFunctionCards(
-                      context, isCompactMode || isSingleButtonMode),
-                ),
-              ),
-            ],
+          return SizedBox(
+            height: totalHeight,
+            child: PageView(
+              physics: const NeverScrollableScrollPhysics(), // 禁用滑动（预留未来多页功能）
+              children: [
+                _buildFirstPage(
+                    context, availableWidth, isSmallScreen, spacing),
+                // 第2页预留（暂不实现）
+                _buildSecondPagePlaceholder(),
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildQuickAccessCards(
+  /// 构建第1页：固定3x2网格（4推荐 + 2功能）
+  /// 布局：1:1:1（等比例）
+  /// [推荐1] [推荐2] [功能1-浏览]
+  /// [推荐3] [推荐4] [功能2-存储]
+  Widget _buildFirstPage(
     BuildContext context,
-    List<QuickAccessFolder> homeFolders,
-    bool isSingleButtonMode,
-    bool isCompactMode,
-    bool isDoubleRowMode,
+    double availableWidth,
+    bool isSmallScreen,
+    double spacing,
   ) {
-    // 检查是否有快速访问列表
-    final hasQuickAccessList = widget.quickAccessViewModel.folders.any(
-      (f) => f.isAddedToQuickAccess && f.homeDisplayOrder == null,
-    );
+    // 计算卡片尺寸 - 等比例
+    // 使用 availableWidth（容器可用宽度）而不是屏幕宽度
+    // 这样在横屏模式下会基于左侧栏宽度计算，确保卡片尺寸合适
+    final cardWidth =
+        (availableWidth - spacing * 4) / 3; // 4条间距（开头+中间2个+结尾）
+    final cardHeight = widget.categoryCardSize;
 
-    logger.d(
-      '_buildQuickAccessCards: single=$isSingleButtonMode, compact=$isCompactMode, double=$isDoubleRowMode, folders=${homeFolders.length}, hasMore=$hasQuickAccessList',
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-
-        // 根据屏幕宽度确定设备类型和尺寸参数
-        final screenWidth = MediaQuery.of(context).size.width;
-        final isSmallScreen = screenWidth < 360; // 小屏手机
-
-        if (isSingleButtonMode) {
-          // 单按钮模式：1个按钮填充整个左半部区域（与存储按钮1:1）
-          // 高度固定为分类图片高度，宽度填充可用空间
-          final minSpacing = isSmallScreen ? 2.0 : 3.0;
-
-          // 宽度=可用空间，左右各留少量间距
-          final cardWidth = availableWidth - minSpacing * 2;
-
-          return Row(
-            children: [
-              SizedBox(width: minSpacing),
-              _buildFolderCard(context, homeFolders[0], cardWidth,
-                  widget.categoryCardSize, isSmallScreen),
-              SizedBox(width: minSpacing),
-            ],
-          );
-        } else if (isCompactMode) {
-          // 单行模式：2-3个按钮
-          // 高度固定为分类图片高度，宽度根据数量平均分配
-          final totalCards = homeFolders.length;
-
-          final minSpacing = isSmallScreen ? 2.0 : 3.0;
-
-          // 2个或3个卡片：平均分配宽度
-          // 计算方式：(总宽度 - 所有间距) / 卡片数量
-          final cardWidth =
-              (availableWidth - (totalCards + 1) * minSpacing) / totalCards;
-
-          final totalCardWidth = cardWidth * totalCards;
-          final availableSpace = availableWidth - totalCardWidth;
-          final spacing = (availableSpace / (totalCards + 1))
-              .clamp(minSpacing, minSpacing * 2);
-
-          return Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      child: Column(
+        children: [
+          // 第一行：推荐1, 推荐2, 功能1
+          Row(
             children: [
               SizedBox(width: spacing),
-              for (int i = 0; i < homeFolders.length; i++) ...[
-                _buildFolderCard(context, homeFolders[i], cardWidth,
-                    widget.categoryCardSize, isSmallScreen),
-                SizedBox(width: spacing),
-              ],
-            ],
-          );
-        } else {
-          // 双行模式：4-6个按钮
-          // 高度固定为分类图片高度，宽度根据数量和行数动态分配
-          final displayFolders = homeFolders.take(6).toList();
-          final totalCards = displayFolders.length;
-
-          final minSpacing = isSmallScreen ? 2.0 : 3.0;
-
-          // 根据总卡片数决定每行布局
-          int firstRowCount;
-          int secondRowCount;
-          double firstRowCardWidth;
-          double secondRowCardWidth;
-
-          if (totalCards == 4) {
-            // 4个卡片：2行2列，各占1/2
-            firstRowCount = 2;
-            secondRowCount = 2;
-            firstRowCardWidth = (availableWidth - 3 * minSpacing) / 2;
-            secondRowCardWidth = firstRowCardWidth;
-          } else if (totalCards == 5) {
-            // 5个卡片：第一行2个（各占1/2），第二行3个（各占1/3）
-            firstRowCount = 2;
-            secondRowCount = 3;
-            firstRowCardWidth = (availableWidth - 3 * minSpacing) / 2;
-            secondRowCardWidth = (availableWidth - 4 * minSpacing) / 3;
-          } else {
-            // 6个卡片：2行3列，各占1/3
-            firstRowCount = 3;
-            secondRowCount = 3;
-            firstRowCardWidth = (availableWidth - 4 * minSpacing) / 3;
-            secondRowCardWidth = firstRowCardWidth;
-          }
-
-          final spacing = minSpacing;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 第一行
-              Row(
-                children: [
-                  SizedBox(width: spacing),
-                  for (int i = 0;
-                      i < firstRowCount && i < displayFolders.length;
-                      i++) ...[
-                    _buildFolderCard(
-                        context,
-                        displayFolders[i],
-                        firstRowCardWidth,
-                        widget.categoryCardSize,
-                        isSmallScreen),
-                    SizedBox(width: spacing),
-                  ],
-                ],
+              _buildRecommendationCard(
+                  context, cardWidth, cardHeight, 0, isSmallScreen),
+              SizedBox(width: spacing),
+              _buildRecommendationCard(
+                  context, cardWidth, cardHeight, 1, isSmallScreen),
+              SizedBox(width: spacing),
+              _buildFunctionCard(
+                context,
+                cardWidth,
+                cardHeight,
+                isBrowseCard: true,
               ),
-              if (secondRowCount > 0) ...[
-                SizedBox(height: spacing),
-                // 第二行
-                Row(
-                  children: [
-                    SizedBox(width: spacing),
-                    for (int i = firstRowCount;
-                        i < displayFolders.length;
-                        i++) ...[
-                      _buildFolderCard(
-                          context,
-                          displayFolders[i],
-                          secondRowCardWidth,
-                          widget.categoryCardSize,
-                          isSmallScreen),
-                      SizedBox(width: spacing),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 3), // 增加底部间距
-              ],
+              SizedBox(width: spacing),
             ],
-          );
-        }
-      },
+          ),
+          SizedBox(height: spacing),
+          // 第二行：推荐3, 推荐4, 功能2
+          Row(
+            children: [
+              SizedBox(width: spacing),
+              _buildRecommendationCard(
+                  context, cardWidth, cardHeight, 2, isSmallScreen),
+              SizedBox(width: spacing),
+              _buildRecommendationCard(
+                  context, cardWidth, cardHeight, 3, isSmallScreen),
+              SizedBox(width: spacing),
+              _buildFunctionCard(
+                context,
+                cardWidth,
+                cardHeight,
+                isBrowseCard: false,
+              ),
+              SizedBox(width: spacing),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  /// 构建文件夹卡片（宽度动态调整，高度固定为分类图片高度）
-  Widget _buildFolderCard(
+  /// 构建第2页占位符（预留多页滑动能力）
+  Widget _buildSecondPagePlaceholder() {
+    return Container(
+      alignment: Alignment.center,
+      child: Text(
+        '第2页预留',
+        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+      ),
+    );
+  }
+
+  /// 构建推荐卡片（支持加载状态、空状态、真实卡片）
+  Widget _buildRecommendationCard(
     BuildContext context,
-    QuickAccessFolder folder,
     double cardWidth,
     double cardHeight,
+    int index,
     bool isSmallScreen,
   ) {
-    final exists = Directory(folder.path).existsSync();
-    final color = _getFolderColorByType(folder.type);
-
-    // 检查是否被选中（只有在浏览Tab时才高亮，其他Tab不高亮）
-    // 仅当路径完全匹配时高亮，避免父目录也被高亮
-    final currentPath = widget.fileViewModel.currentPath;
-    final currentTab = widget.fileViewModel.currentTab;
-    final isSelected =
-        currentTab == TabView.browse && currentPath == folder.path;
-
-    // 根据卡片高度动态调整图标和文字大小
-    final iconSize = (cardHeight * 0.35).clamp(18.0, 28.0);
-    final fontSize = isSmallScreen ? 10.0 : (cardHeight > 60 ? 12.0 : 11.0);
-
-    // 统一的首页推荐背景色 - 适配深色/浅色主题
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isSelected
-        ? Theme.of(context).colorScheme.primaryContainer // 选中时高亮背景
-        : (isDark
-            ? Colors.white.withValues(alpha: 0.08) // 深色模式：8%白色透明度
-            : const Color(0xFFF5F5F5)); // 浅色模式：浅灰色背景
 
-    return SizedBox(
+    // 加载中
+    if (_loadingRecommendations) {
+      return Container(
+        width: cardWidth,
+        height: cardHeight,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Colors.white.withValues(alpha: 0.12),
+                    Colors.white.withValues(alpha: 0.06)
+                  ]
+                : [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 无卡片（超出范围）
+    if (index >= _recommendationCards.length) {
+      return Container(
+        width: cardWidth,
+        height: cardHeight,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    Colors.white.withValues(alpha: 0.08),
+                    Colors.white.withValues(alpha: 0.04)
+                  ]
+                : [const Color(0xFFF8F9FA), const Color(0xFFF0F0F0)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.grey.withValues(alpha: 0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            Icons.folder_outlined,
+            size: (cardHeight * 0.35).clamp(18.0, 28.0),
+            color: Colors.grey[300],
+          ),
+        ),
+      );
+    }
+
+    // 真实推荐卡片
+    final card = _recommendationCards[index];
+    final iconSize = (cardHeight * 0.47).clamp(26.0, 36.0);
+    final fontSize = (cardHeight * 0.16).clamp(10.0, 14.0);
+
+    return Container(
       width: cardWidth,
       height: cardHeight,
-      child: Material(
-        elevation: isSelected ? 4 : 2,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  Colors.white.withValues(alpha: 0.12),
+                  Colors.white.withValues(alpha: 0.06)
+                ]
+              : [Colors.white, const Color(0xFFF8F9FA)],
+        ),
         borderRadius: BorderRadius.circular(12),
-        color: backgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: exists ? () => _navigateToFolder(folder) : null,
+          onTap: () => _navigateToRecommendation(card),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Icon(
-                  _getFolderIcon(folder),
-                  size: iconSize,
-                  color: exists
-                      ? (isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : color)
-                      : Colors.grey,
+                // 左侧：应用图标 + 名称（上下排列）
+                Expanded(
+                  flex: 13,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 应用图标
+                      if (card.appIcon != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(iconSize * 0.2),
+                          child: Image.memory(
+                            card.appIcon!,
+                            width: iconSize,
+                            height: iconSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                card.icon,
+                                size: iconSize,
+                                color: card.color,
+                              );
+                            },
+                          ),
+                        )
+                      else
+                        Icon(
+                          card.icon,
+                          size: iconSize,
+                          color: card.color,
+                        ),
+                      // 应用名称
+                      Text(
+                        card.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(height: (cardHeight * 0.02).clamp(2.0, 6.0)),
-                Flexible(
-                  child: Text(
-                    folder.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: exists
-                          ? (isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : null)
-                          : Colors.grey,
-                      height: 1.1,
-                    ),
+                // 右侧：数据统计（数量和大小上下排列）
+                Expanded(
+                  flex: 10,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // 文件数量
+                      Text(
+                        '${card.fileCount}个',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      // 总大小
+                      Text(
+                        _formatSize(card.totalSize ?? 0),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -502,125 +717,46 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     );
   }
 
-  /// 构建"更多"卡片
-  Color _getFolderColorByType(QuickAccessFolderType type) {
-    switch (type) {
-      case QuickAccessFolderType.system:
-        return Colors.blue;
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
-        return Colors.orange;
-      case QuickAccessFolderType.userCustom:
-        return Colors.green;
-    }
-  }
-
-  IconData _getFolderIcon(QuickAccessFolder folder) {
-    switch (folder.type) {
-      case QuickAccessFolderType.system:
-        // 根据路径判断系统文件夹类型
-        final path = folder.path.toLowerCase();
-        if (path.contains('dcim') || path.contains('camera')) {
-          return Icons.camera_alt;
-        }
-        if (path.contains('download')) return Icons.download;
-        if (path.contains('picture') || path.contains('photo')) {
-          return Icons.photo;
-        }
-        if (path.contains('document')) return Icons.description;
-        if (path.contains('music')) return Icons.music_note;
-        if (path.contains('movie') || path.contains('video')) {
-          return Icons.video_library;
-        }
-        return Icons.folder_special;
-
-      case QuickAccessFolderType.appRoot:
-      case QuickAccessFolderType.appSubfolder:
-        return Icons.apps;
-
-      case QuickAccessFolderType.userCustom:
-        return Icons.folder;
-    }
-  }
-
-  /// 构建功能卡片区域（文件浏览卡片 + 存储管理卡片）
-  ///
-  /// 根据快速访问按钮数量自动调整布局：
-  /// - 单按钮模式：两个功能卡片并排显示（单行模式）
-  /// - 多按钮模式：两个功能卡片上下排列（双行模式）
+  /// 构建单个功能卡片（固定尺寸，嵌入3x2网格）
   ///
   /// 参数：
-  /// - [isCompactMode]: true为单行模式（并排显示），false为双行模式（上下排列）
-  Widget _buildFunctionCards(BuildContext context, bool isCompactMode) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 360;
+  /// - [isBrowseCard]: true=文件浏览卡片，false=存储管理卡片
+  Widget _buildFunctionCard(
+    BuildContext context,
+    double cardWidth,
+    double cardHeight, {
+    required bool isBrowseCard,
+  }) {
+    final availableHeight = cardHeight;
 
-    // 计算单个卡片的可用高度，用于内部元素的动态尺寸计算
-    double availableHeight;
-    if (isCompactMode) {
-      // 单行模式：卡片高度等于分类图片卡片高度
-      availableHeight = widget.categoryCardSize;
-    } else {
-      // 双行模式：两个卡片平分总高度
-      // 总高度 = 分类图片高度×2 + 间距
-      // 单个卡片高度 = (总高度 - 卡片间间距) / 2 - 内边距
-      final spacing = isSmallScreen ? 2.0 : 3.0;
-      final totalHeight = widget.categoryCardSize * 2 + spacing + 3.0;
-      final cardSpacing = 3.0;
-      availableHeight = (totalHeight - cardSpacing) / 2 - 12;
-    }
-
-    if (isCompactMode) {
-      // 单行模式：两个卡片并排显示
-      return Row(
-        children: [
-          Expanded(
-            child: FilesBrowseCard(
-              totalSpace: _totalSpace,
-              freeSpace: _freeSpace,
-              isLoading: _loadingStorage,
-              presenter: widget.filePresenter,
-              viewModel: widget.fileViewModel,
-              isCompactMode: isCompactMode,
-              availableHeight: availableHeight,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: StorageManagementCard(
-              isCompactMode: isCompactMode,
-              availableHeight: availableHeight,
-            ),
-          ),
-        ],
+    if (isBrowseCard) {
+      return SizedBox(
+        width: cardWidth,
+        height: cardHeight,
+        child: FilesBrowseCard(
+          totalSpace: _totalSpace,
+          freeSpace: _freeSpace,
+          isLoading: _loadingStorage,
+          presenter: widget.filePresenter,
+          viewModel: widget.fileViewModel,
+          isCompactMode: true, // 固定使用紧凑模式
+          availableHeight: availableHeight,
+        ),
       );
     } else {
-      // 双行模式：两个卡片上下排列
-      return Column(
-        children: [
-          Expanded(
-            child: FilesBrowseCard(
-              totalSpace: _totalSpace,
-              freeSpace: _freeSpace,
-              isLoading: _loadingStorage,
-              presenter: widget.filePresenter,
-              viewModel: widget.fileViewModel,
-              isCompactMode: isCompactMode,
-              availableHeight: availableHeight,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Expanded(
-            child: StorageManagementCard(
-              isCompactMode: isCompactMode,
-              availableHeight: availableHeight,
-            ),
-          ),
-        ],
+      return SizedBox(
+        width: cardWidth,
+        height: cardHeight,
+        child: StorageManagementCard(
+          isCompactMode: true, // 固定使用紧凑模式
+          availableHeight: availableHeight,
+        ),
       );
     }
   }
 
+  // 此方法保留用于未来可能的快捷访问导航功能
+  // ignore: unused_element
   void _navigateToFolder(QuickAccessFolder folder) {
     // 更新访问时间
     widget.quickAccessPresenter.updateAccessInfo(folder.path);
@@ -630,5 +766,53 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
 
     // 切换到浏览Tab
     widget.fileViewModel.setCurrentTab(TabView.browse);
+  }
+
+  void _navigateToRecommendation(RecommendationCard card) async {
+    logger.d('导航到推荐详情: ${card.title}');
+    
+    // 根据推荐卡片生成页面配置
+    final config = RecommendPageConfigFactory.fromRecommendationCard(card);
+    
+    // 创建必要的服务依赖
+    final detectionService = AppDetectionService();
+    final scanner = UnifiedAppScanner(detectionService);
+    
+    // 创建数据源工厂（注入依赖）
+    final dataSourceFactory = DataSourceFactory(
+      scanner: scanner,
+      detectionService: detectionService,
+      presenter: widget.filePresenter,
+    );
+    
+    // 跳转到统一的推荐聚合页面，等待返回结果
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecommendAggregatePage(
+          config: config,
+          dataSourceFactory: dataSourceFactory,
+          viewModel: widget.fileViewModel,
+          presenter: widget.filePresenter,
+        ),
+      ),
+    );
+    
+    // 如果返回值为true，表示数据可能已更新，刷新推荐卡片
+    if (result == true && mounted) {
+      logger.i('📱 详情页返回，检测到数据可能已更新，刷新推荐卡片');
+      // 清除缓存并重新加载
+      await refreshRecommendations();
+    }
+  }
+
+  /// 格式化文件大小
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)}K';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}M';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}G';
   }
 }

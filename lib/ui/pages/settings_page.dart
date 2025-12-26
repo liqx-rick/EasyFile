@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/core/di/locator.dart';
+import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
 import 'package:easyfile/ui/pages/trash_config_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
+import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
+import 'package:easyfile/ui/pages/app_file_scan_test_page.dart';
+import 'package:easyfile/ui/pages/native_camera_photos_test_page.dart';
+import 'package:easyfile/ui/widgets/quick_access_section.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -26,6 +33,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _displaySettings = FileDisplaySettingsService();
 
   int _minFileSize = FileDisplaySettingsService.defaultMinFileSize;
+  int _recommendationThreshold = RecommendationSettings.defaultFileCountThreshold;
 
   @override
   void initState() {
@@ -44,9 +52,11 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 加载设置
   Future<void> _loadSettings() async {
     final minSize = await _displaySettings.getMinFileSize();
+    final recSettings = await RecommendationSettings.load();
 
     setState(() {
       _minFileSize = minSize;
+      _recommendationThreshold = recSettings.fileCountThreshold;
     });
   }
 
@@ -82,6 +92,22 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildNewFilesPrivacyTile(context),
           const Divider(height: 1, indent: 56),
           _buildDuplicateScanSettingTile(context),
+
+          const Divider(height: 32),
+
+          // 开发者选项
+          _buildSectionHeader('开发者选项', Icons.developer_mode),
+          _buildRecommendationThresholdTile(context),
+          const Divider(height: 1, indent: 56),
+          _buildNativeCameraTestTile(context),
+          const Divider(height: 1, indent: 56),
+          _buildScanTestTile(context, '图片扫描性能测试', CategoryType.images, Icons.image),
+          _buildScanTestTile(context, '音频扫描性能测试', CategoryType.music, Icons.music_note),
+          _buildScanTestTile(context, '视频扫描性能测试', CategoryType.video, Icons.video_library),
+          _buildScanTestTile(context, '文档扫描性能测试', CategoryType.documents, Icons.description),
+          _buildScanTestTile(context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
+          _buildScanTestTile(context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
+          _buildAppFileScanTestTile(context),
 
           const Divider(height: 32),
 
@@ -159,10 +185,15 @@ class _SettingsPageState extends State<SettingsPage> {
         content: SingleChildScrollView(
           child: RadioGroup<ThemeMode>(
             groupValue: viewModel.themeMode,
-            onChanged: (value) {
+            onChanged: (value) async {
               if (value != null) {
-                viewModel.setThemeMode(value);
-                Navigator.pop(context);
+                logger.i('Theme selected in dialog: $value');
+                // 通过 Presenter 保存，确保同时保存到JSON和SharedPreferences
+                final presenter = locator<FilePresenter>();
+                await presenter.setThemeMode(value);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
               }
             },
             child: Column(
@@ -414,6 +445,70 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// 扫描性能测试入口
+  Widget _buildScanTestTile(
+    BuildContext context,
+    String title,
+    CategoryType categoryType,
+    IconData icon,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(title),
+      subtitle: const Text('对比 MediaStore 和文件系统的扫描性能'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MediaStoreScanTestPage(
+              categoryType: categoryType,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 应用文件扫描方案对比测试入口
+  Widget _buildAppFileScanTestTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.apps, color: colorScheme.primary),
+      title: const Text('应用文件扫描方案对比'),
+      subtitle: const Text('对比路径扫描 vs MediaStore OWNER_PACKAGE_NAME'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const AppFileScanTestPage(),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 本机相机拍照统计测试入口
+  Widget _buildNativeCameraTestTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.camera_alt, color: colorScheme.primary),
+      title: const Text('本机相机拍照统计'),
+      subtitle: const Text('通过 EXIF 信息判断是否为本机拍摄的照片'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const NativeCameraPhotosTestPage(),
+          ),
+        );
+      },
+    );
+  }
+
   /// 新文件设置入口
   Widget _buildNewFilesPrivacyTile(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -429,6 +524,79 @@ class _SettingsPageState extends State<SettingsPage> {
             builder: (context) => const NewFilesSettingsPage(),
           ),
         );
+      },
+    );
+  }
+
+  /// 首页推荐文件数量阈值设置
+  Widget _buildRecommendationThresholdTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      leading: Icon(Icons.filter_list, color: colorScheme.primary),
+      title: const Text('首页推荐应用文件数量阈值'),
+      subtitle: Text('当前阈值：$_recommendationThreshold 个文件'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final selected = await showDialog<int>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('选择文件数量阈值'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('应用文件数量大于此阈值时才会显示在首页推荐'),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: RecommendationSettings.availableThresholds.map((threshold) {
+                          return RadioListTile<int>(
+                            title: Text('$threshold 个文件'),
+                            value: threshold,
+                            groupValue: _recommendationThreshold,
+                            onChanged: (value) {
+                              Navigator.of(context).pop(value);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+            ],
+          ),
+        );
+
+        if (selected != null) {
+          setState(() {
+            _recommendationThreshold = selected;
+          });
+
+          // 保存设置
+          final settings = RecommendationSettings(fileCountThreshold: selected);
+          await settings.save();
+
+          // 刷新推荐卡片（清除缓存并重新加载）
+          logger.i('📌 开发者选项：阈值已修改为 $selected，刷新推荐卡片');
+          await QuickAccessSection.refreshRecommendations();
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('文件数量阈值已设置为 $selected')),
+            );
+          }
+        }
       },
     );
   }

@@ -3,6 +3,8 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/app_info.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
+import 'package:easyfile/core/services/file_change_listener_service.dart';
 import 'package:easyfile/core/services/usage_stats_permission_service.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
 
@@ -32,6 +34,9 @@ class _AppManagementPageState extends State<AppManagementPage>
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _scrollController = ScrollController();
+  
+  // 文件监听服务
+  FileChangeListenerService? _fileChangeListener;
 
   List<EasyFileAppInfo> _apps = [];
   List<EasyFileAppInfo> _filteredApps = [];
@@ -56,6 +61,24 @@ class _AppManagementPageState extends State<AppManagementPage>
     WidgetsBinding.instance.addObserver(this);
     _checkPermission();
     _loadApps();
+    _initFileChangeListener();
+  }
+  
+  /// 初始化文件变化监听
+  Future<void> _initFileChangeListener() async {
+    try {
+      final statisticsCache = AppStatisticsCache();
+      await statisticsCache.initialize();
+      
+      _fileChangeListener = FileChangeListenerService(
+        statisticsCache: statisticsCache,
+      );
+      await _fileChangeListener!.startListening();
+      
+      logger.i('✓ 应用管理页面: 文件监听已启动');
+    } catch (e) {
+      logger.e('启动文件监听失败: $e');
+    }
   }
 
   @override
@@ -64,6 +87,7 @@ class _AppManagementPageState extends State<AppManagementPage>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _scrollController.dispose();
+    _fileChangeListener?.dispose();
     super.dispose();
   }
 
