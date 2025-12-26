@@ -85,6 +85,7 @@ class AppScannerConfigs {
     'qq': _qqConfig,
     'telegram': _telegramConfig,
     'wps': _wpsConfig,
+    'dingtalk': _dingtalkConfig,
     // 可继续添加其他应用...
   };
 
@@ -133,6 +134,16 @@ class AppScannerConfigs {
     packageNames: ['cn.wps.moffice_eng', 'cn.wps.moffice'],
     appLabelPatterns: ['WPS', 'wps'],
     folderKeywords: ['WPS', 'kingsoft'],
+    filePatterns: [],
+  );
+
+  /// 钉钉配置
+  static const _dingtalkConfig = AppConfig(
+    appName: '钉钉',
+    appKey: 'dingtalk',
+    packageNames: ['com.alibaba.android.rimet'],
+    appLabelPatterns: ['钉钉', 'DingTalk', 'dingtalk'],
+    folderKeywords: ['DingTalk', 'dingtalk'],
     filePatterns: [],
   );
 

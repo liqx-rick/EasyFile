@@ -1,11 +1,11 @@
 /// 数据源抽象层统一导出
-/// 
+///
 /// 这个文件提供了所有数据源相关类的统一导入入口
-/// 
+///
 /// 使用示例：
 /// ```dart
 /// import 'package:easyfile/core/data_sources/data_sources.dart';
-/// 
+///
 /// // 创建工厂
 /// final factory = DataSourceFactory(
 ///   scanner: scanner,
@@ -16,6 +16,7 @@
 /// final dataSource = factory.create('app_files');
 /// final files = await dataSource.queryFiles({'appKey': 'wechat'});
 /// ```
+library;
 
 // 核心抽象
 export 'file_list_data_source.dart';

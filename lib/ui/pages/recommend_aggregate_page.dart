@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/file_change_listener_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/data_sources/data_sources.dart';
 import 'package:easyfile/core/data_sources/recommend_config_mapper.dart';
@@ -112,12 +114,16 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   /// 批量操作服务
   late final BatchOperationsService _batchOperationsService;
   
+  /// 文件变化监听服务
+  FileChangeListenerService? _fileChangeListener;
+  
   @override
   void initState() {
     super.initState();
     _initDataSource();
     _initServices();
     _loadFilesAndInitTabs();
+    _initFileChangeListener();
     
     // 监听PageSettingsService变化
     PageSettingsService().addListener(_onPageSettingsChanged);
@@ -126,8 +132,30 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   @override
   void dispose() {
     PageSettingsService().removeListener(_onPageSettingsChanged);
+    _fileChangeListener?.stopListening();
     _tabController?.dispose();
     super.dispose();
+  }
+  
+  @override
+  void handlePopInvoked(bool didPop, dynamic result) {
+    // 页面返回前的处理
+    if (!didPop && _dataUpdated) {
+      // 手动pop并传递结果
+      Navigator.of(context).pop(_dataUpdated);
+      return;
+    }
+    super.handlePopInvoked(didPop, result);
+  }
+  
+  @override
+  bool canPopPage() {
+    // 如果有数据更新，需要自定义pop行为来传递结果
+    // 返回false让handlePopInvoked处理
+    if (_dataUpdated) {
+      return false;
+    }
+    return super.canPopPage();
   }
   
   /// 获取当前Tab对应的PageId
@@ -195,6 +223,34 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     );
   }
   
+  /// 初始化文件变化监听
+  Future<void> _initFileChangeListener() async {
+    try {
+      // 创建统计缓存实例
+      final statisticsCache = AppStatisticsCache();
+      
+      _fileChangeListener = FileChangeListenerService(
+        statisticsCache: statisticsCache,
+        onCacheCleared: () async {
+          // 缓存清除后自动刷新文件列表
+          logger.i('🔄 文件变化 -> 自动刷新应用文件列表');
+          if (mounted) {
+            // 延迟10秒后刷新，给用户足够的时间看到新文件
+            await Future.delayed(const Duration(seconds: 10));
+            if (mounted) {
+              _loadFiles(forceRefresh: true);
+            }
+          }
+        },
+      );
+      await _fileChangeListener!.startListening();
+      
+      logger.i('✓ 应用文件列表页: 文件监听已启动');
+    } catch (e) {
+      logger.e('启动文件监听失败: $e');
+    }
+  }
+  
   /// 加载文件并初始化Tabs（仅首次调用）
   Future<void> _loadFilesAndInitTabs() async {
     setState(() {
@@ -208,6 +264,31 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       );
       
       logger.d('RecommendAggregatePage - 查询参数: $params');
+      
+      // ⚡ 快速路径：先从缓存读取文件数量（如果是应用模式）
+      if (widget.config.mode == RecommendMode.application) {
+        final appKey = params['appKey'] as String?;
+        if (appKey != null) {
+          // 尝试从缓存快速获取文件数量
+          final cachedCount = await widget.dataSourceFactory.scanner?.getFileCountFast(appKey: appKey);
+          if (cachedCount != null && cachedCount > 0) {
+            logger.d('RecommendAggregatePage - 缓存命中: $appKey = $cachedCount 文件');
+            // 立即更新UI显示缓存的数量（使用空列表占位）
+            if (mounted) {
+              setState(() {
+                _allFiles = List.generate(cachedCount, (i) => FileItem(
+                  name: '',
+                  path: '',
+                  isDirectory: false,
+                  size: 0,
+                  modified: DateTime.now(),
+                ));
+                _files = _allFiles;
+              });
+            }
+          }
+        }
+      }
       
       // 查询文件
       final files = await _dataSource.queryFiles(params);
@@ -296,10 +377,18 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   }
   
   /// 加载文件（刷新时使用）
-  Future<void> _loadFiles() async {
+  // 标记数据是否已更新（用于返回时通知主页刷新）
+  bool _dataUpdated = false;
+
+  Future<void> _loadFiles({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
+    
+    // 如果是强制刷新，标记数据可能已更新
+    if (forceRefresh) {
+      _dataUpdated = true;
+    }
     
     try {
       // 获取查询参数
@@ -320,7 +409,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         );
       }
       
-      logger.d('RecommendAggregatePage - 查询参数: $params');
+      // 添加强制刷新标志（用于缓存控制）
+      if (forceRefresh) {
+        params['forceRefresh'] = true;
+      }
+      
+      logger.d('RecommendAggregatePage - 查询参数: $params${forceRefresh ? ' (强制刷新)' : ''}');
       
       // 查询文件
       final files = await _dataSource.queryFiles(params);
@@ -528,6 +622,13 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   /// 构建 AppBar
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+          // 返回时传递数据更新标志
+          Navigator.pop(context, _dataUpdated);
+        },
+      ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -543,6 +644,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         ],
       ),
       backgroundColor: widget.config.themeColor,
+      foregroundColor: Colors.white, // 确保文字在深色背景下清晰可见
     );
   }
   
@@ -895,6 +997,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
             viewConfigBuilder: viewConfigBuilder,
             onTap: _onFileTap,
             onLongPress: _onFileLongPress,
+            onRefresh: () async {
+              await _loadFiles(forceRefresh: true);
+            },
           );
         }
         
@@ -916,6 +1021,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           viewConfigBuilder: viewConfigBuilder,
           onTap: _onFileTap,
           onLongPress: _onFileLongPress,
+          onRefresh: () async {
+            await _loadFiles(forceRefresh: true);
+          },
         );
       },
     );

@@ -18,7 +18,8 @@ class RecommendConfigDataSourceMapper {
     if (type == RecommendationType.wechat ||
         type == RecommendationType.qq ||
         type == RecommendationType.telegram ||
-        type == RecommendationType.wps) {
+        type == RecommendationType.wps ||
+        type == RecommendationType.dingtalk) {
       return 'app_files';
     }
     
@@ -74,6 +75,8 @@ class RecommendConfigDataSourceMapper {
         return {'appKey': 'telegram', 'useMediaStore': true};
       case RecommendationType.wps:
         return {'appKey': 'wps', 'useMediaStore': true};
+      case RecommendationType.dingtalk:
+        return {'appKey': 'dingtalk', 'useMediaStore': true};
         
       // 系统类推荐：不同的默认参数
       case RecommendationType.memories:

@@ -9,6 +9,7 @@ import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 
 Future<void> main() async {
@@ -58,6 +59,22 @@ Future<void> main() async {
     }
   } catch (e) {
     logger.e('Failed to initialize thumbnail cache: $e');
+  }
+
+  // 初始化 MediaStore 缓存服务
+  try {
+    final mediastoreCacheService = MediaStoreCacheService();
+    await mediastoreCacheService.initialize();
+    logger.i('✓ MediaStore 缓存服务已初始化');
+    
+    // 后台预热缓存（不阻塞UI启动）
+    mediastoreCacheService.warmUp().then((_) {
+      logger.i('✓ MediaStore 缓存预热完成');
+    }).catchError((e) {
+      logger.e('MediaStore 缓存预热失败: $e');
+    });
+  } catch (e) {
+    logger.e('Failed to initialize MediaStore cache service: $e');
   }
 
   runApp(const EasyFileApp());

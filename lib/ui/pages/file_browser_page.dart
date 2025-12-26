@@ -12,6 +12,7 @@ import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
@@ -377,6 +378,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final detectionService = AppDetectionService();
       await detectionService.initialize();
       
+      // 创建统计缓存并初始化
+      final statisticsCache = AppStatisticsCache();
+      await statisticsCache.initialize();
+      
       // 创建扫描器
       final scanner = UnifiedAppScanner(detectionService);
       
@@ -384,6 +389,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       _recommendationService = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
       
       logger.d('推荐服务初始化完成');
@@ -3132,6 +3138,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   ),
                   SliverToBoxAdapter(
                     child: QuickAccessSection(
+                      key: QuickAccessSection.globalKey,
                       quickAccessViewModel: quickAccessViewModel!,
                       quickAccessPresenter: quickAccessPresenter!,
                       fileViewModel: vm,
@@ -3473,6 +3480,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                           // QuickAccessSection（快捷访问推荐区）
                           QuickAccessSection(
+                            key: QuickAccessSection.globalKey,
                             quickAccessViewModel: quickAccessViewModel!,
                             quickAccessPresenter: quickAccessPresenter!,
                             fileViewModel: vm,

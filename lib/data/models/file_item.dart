@@ -58,4 +58,34 @@ class FileItem {
       modified: stat.modified,
     );
   }
+
+  /// 从 JSON 创建 FileItem（用于缓存反序列化）
+  factory FileItem.fromJson(Map<String, dynamic> json) {
+    return FileItem(
+      name: json['name'] as String,
+      path: json['path'] as String,
+      isDirectory: json['isDirectory'] as bool,
+      size: json['size'] as int,
+      modified: DateTime.fromMillisecondsSinceEpoch(json['modified'] as int),
+      accessedAt: json['accessedAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['accessedAt'] as int)
+          : null,
+      addedTime: json['addedTime'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['addedTime'] as int)
+          : null,
+    );
+  }
+
+  /// 转换为 JSON（用于缓存序列化）
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'path': path,
+      'isDirectory': isDirectory,
+      'size': size,
+      'modified': modified.millisecondsSinceEpoch,
+      'accessedAt': accessedAt?.millisecondsSinceEpoch,
+      'addedTime': addedTime?.millisecondsSinceEpoch,
+    };
+  }
 }

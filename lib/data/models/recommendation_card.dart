@@ -8,6 +8,7 @@ enum RecommendationType {
   qq, // QQ文件 -> appKey: 'qq'
   telegram, // Telegram文件 -> appKey: 'telegram'
   wps, // WPS文档 -> appKey: 'wps'
+  dingtalk, // 钉钉 -> appKey: 'dingtalk'
 
   // 系统类（托底卡片）- 不需要应用检测
   memories, // 时光记忆（相机）
@@ -22,6 +23,7 @@ const Map<RecommendationType, String> recommendationTypeToAppKey = {
   RecommendationType.qq: 'qq',
   RecommendationType.telegram: 'telegram',
   RecommendationType.wps: 'wps',
+  RecommendationType.dingtalk: 'dingtalk',
 };
 
 /// 推荐卡片配置（简化版 - UI 配置）
@@ -120,6 +122,43 @@ class RecommendationCard {
       weeklyGrowth: weeklyGrowth,
     );
   }
+
+  /// 序列化为JSON（用于持久化缓存）
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.toString(),
+      'title': title,
+      'iconCodePoint': icon.codePoint,
+      'colorValue': color.value,
+      'fileCount': fileCount,
+      'appKey': appKey,
+      'appIcon': appIcon?.toList(), // Uint8List转List<int>
+      'totalSize': totalSize,
+      'weeklyGrowth': weeklyGrowth,
+    };
+  }
+
+  /// 从JSON反序列化
+  factory RecommendationCard.fromJson(Map<String, dynamic> json) {
+    return RecommendationCard(
+      type: RecommendationType.values.firstWhere(
+        (e) => e.toString() == json['type'],
+      ),
+      title: json['title'] as String,
+      icon: IconData(
+        json['iconCodePoint'] as int,
+        fontFamily: 'MaterialIcons',
+      ),
+      color: Color(json['colorValue'] as int),
+      fileCount: json['fileCount'] as int,
+      appKey: json['appKey'] as String?,
+      appIcon: json['appIcon'] != null 
+          ? Uint8List.fromList(List<int>.from(json['appIcon']))
+          : null,
+      totalSize: json['totalSize'] as int?,
+      weeklyGrowth: json['weeklyGrowth'] as int?,
+    );
+  }
 }
 
 /// 默认推荐配置列表（按优先级排序）
@@ -149,18 +188,26 @@ const List<RecommendationConfig> defaultRecommendationConfigs = [
   ),
 
   RecommendationConfig(
-    type: RecommendationType.telegram,
-    title: 'Telegram',
-    icon: Icons.send,
-    color: Color(0xFF0088CC), // Telegram蓝
-    minFileCount: 3,
-  ),
-
-  RecommendationConfig(
     type: RecommendationType.wps,
     title: 'WPS',
     icon: Icons.description,
     color: Color(0xFFD9534F), // WPS红
+    minFileCount: 3,
+  ),
+
+  RecommendationConfig(
+    type: RecommendationType.dingtalk,
+    title: '钉钉',
+    icon: Icons.work,
+    color: Color(0xFF2A5CFF), // 钉钉蓝
+    minFileCount: 3,
+  ),
+
+  RecommendationConfig(
+    type: RecommendationType.telegram,
+    title: 'Telegram',
+    icon: Icons.send,
+    color: Color(0xFF0088CC), // Telegram蓝
     minFileCount: 3,
   ),
 

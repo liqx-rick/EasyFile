@@ -2,10 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/app_scanner_configs.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
+
+/// 测试用的应用统计缓存（不执行实际缓存）
+class MockAppStatisticsCache extends AppStatisticsCache {
+  @override
+  Future<void> initialize() async {
+    // Mock实现不需要实际初始化
+  }
+
+  @override
+  Future<AppStatistics?> get(String appKey) async {
+    // Mock实现始终返回null，让测试走实际扫描逻辑
+    return null;
+  }
+
+  @override
+  Future<void> set(String appKey, AppStatistics statistics) async {
+    // Mock实现不执行实际缓存
+  }
+}
 
 /// 测试用的应用检测服务（可控制检测结果）
 class MockAppDetectionService extends AppDetectionService {
@@ -84,9 +104,11 @@ void main() {
       );
       
       final scanner = MockUnifiedAppScanner(detectionService);
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -111,10 +133,11 @@ void main() {
           'wechat': 2, // 只有2个文件，要求>3
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -137,10 +160,11 @@ void main() {
           'wechat': 50, // 文件数>3
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -165,10 +189,11 @@ void main() {
           'qq': 30,
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -199,10 +224,11 @@ void main() {
           'wps': 20,
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -230,9 +256,11 @@ void main() {
 
       final detectionService = MockAppDetectionService();
       final scanner = MockUnifiedAppScanner(detectionService);
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
         configs: customConfigs,
       );
       
@@ -245,9 +273,11 @@ void main() {
     test('空配置列表 - 应返回空数组', () async {
       final detectionService = MockAppDetectionService();
       final scanner = MockUnifiedAppScanner(detectionService);
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
         configs: [],
       );
       
@@ -271,10 +301,11 @@ void main() {
           'wechat': 3, // 等于minFileCount
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -296,10 +327,11 @@ void main() {
           'wechat': 4, // 大于minFileCount
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -313,10 +345,11 @@ void main() {
         detectionService,
         fileCounts: {}, // 所有返回0
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.getRecommendations();
@@ -343,10 +376,11 @@ void main() {
           'wechat': 50,
         },
       );
-      
+      final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
+        statisticsCache: statisticsCache,
       );
 
       final cards = await service.refreshRecommendations();

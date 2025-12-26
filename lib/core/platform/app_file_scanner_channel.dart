@@ -6,9 +6,13 @@ import 'package:easyfile/data/models/file_item.dart';
 class AppFileScannerChannel {
   static const _channel = MethodChannel('easyfile/app_file_scanner');
   static const _eventChannel = EventChannel('easyfile/app_events');
+  static const _fileChangeEventChannel = EventChannel('easyfile/file_change_events');
   
   /// 应用事件流（安装/卸载）
   static Stream<Map<String, dynamic>>? _appEventStream;
+  
+  /// 文件变化事件流（MediaStore监听）
+  static Stream<Map<String, dynamic>>? _fileChangeEventStream;
 
   /// 监听应用安装/卸载事件
   /// 
@@ -29,6 +33,28 @@ class AppFileScannerChannel {
         .receiveBroadcastStream()
         .map((event) => Map<String, dynamic>.from(event as Map));
     return _appEventStream!;
+  }
+
+  /// 监听文件变化事件（MediaStore监听）
+  /// 
+  /// 返回事件流，每个事件包含：
+  /// - event: 'file_changed'
+  /// - uri: MediaStore URI
+  /// - timestamp: 变化时间戳
+  /// 
+  /// 使用示例：
+  /// ```dart
+  /// AppFileScannerChannel.watchFileChangeEvents().listen((event) {
+  ///   final uri = event['uri']; // MediaStore URI
+  ///   final timestamp = event['timestamp'];
+  ///   print('文件变化: $uri at $timestamp');
+  /// });
+  /// ```
+  static Stream<Map<String, dynamic>> watchFileChangeEvents() {
+    _fileChangeEventStream ??= _fileChangeEventChannel
+        .receiveBroadcastStream()
+        .map((event) => Map<String, dynamic>.from(event as Map));
+    return _fileChangeEventStream!;
   }
 
   /// 使用 MediaStore OWNER_PACKAGE_NAME 扫描（方案2 - Android 11+）

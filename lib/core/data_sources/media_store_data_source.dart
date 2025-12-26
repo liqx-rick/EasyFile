@@ -1,7 +1,7 @@
 import 'package:easyfile/core/data_sources/file_list_data_source.dart';
-import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 
 /// MediaStore 媒体类型枚举
 enum MediaStoreType {
@@ -90,9 +90,17 @@ class MediaStoreDataSource implements FileListDataSource {
   Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
     logger.i('$name.queryFiles - type: ${type.name}, params: $params');
     
-    // 1. 根据类型扫描文件
-    final files = await _scanFiles();
-    logger.d('$name - 扫描完成: ${files.length} 个文件');
+    // 检查是否强制刷新
+    final forceRefresh = params['forceRefresh'] as bool? ?? false;
+    
+    // 1. 使用缓存服务获取文件（自动处理缓存逻辑）
+    final cacheService = MediaStoreCacheService();
+    final files = await cacheService.getCachedOrScan(
+      type: type,
+      forceRefresh: forceRefresh,
+    );
+    
+    logger.d('$name - 获取完成: ${files.length} 个文件 (${forceRefresh ? '强制刷新' : '自动'})');
     
     // 2. 时间过滤（接口保留，暂不启用 - 未来功能）
     // var result = _applyTimeFilter(files, params);
@@ -108,18 +116,6 @@ class MediaStoreDataSource implements FileListDataSource {
     // 当前：直接返回所有文件
     logger.i('$name - 最终返回: ${files.length} 个文件（所有文件）');
     return files;
-  }
-  
-  /// 根据类型扫描文件
-  Future<List<FileItem>> _scanFiles() async {
-    switch (type) {
-      case MediaStoreType.cameraPhotos:
-        return MediaStoreScannerChannel.scanCameraPackagePhotos();
-      case MediaStoreType.cameraVideos:
-        return MediaStoreScannerChannel.scanCameraPackageVideos();
-      case MediaStoreType.recordings:
-        return MediaStoreScannerChannel.scanRecordings();
-    }
   }
   
   // 时间过滤方法（保留接口，暂不启用 - 未来功能）

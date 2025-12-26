@@ -2,6 +2,7 @@ package com.guangqi.easyfile
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.provider.MediaStore
@@ -53,6 +54,8 @@ class MainActivity : FlutterActivity() {
     private val NATIVE_CAMERA_TEST_CHANNEL = "easyfile/native_camera_test"
     // 应用安装/卸载事件通道
     private val APP_EVENT_CHANNEL = "easyfile/app_events"
+    // 文件变化事件通道（MediaStore监听）
+    private val FILE_CHANGE_EVENT_CHANNEL = "easyfile/file_change_events"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
@@ -61,6 +64,8 @@ class MainActivity : FlutterActivity() {
     private lateinit var mediaStoreScanner: MediaStoreScanner
     private lateinit var appFileScanner: AppFileScanner
     private var appEventSink: EventChannel.EventSink? = null
+    private var fileChangeEventSink: EventChannel.EventSink? = null
+    private var mediaStoreObserver: android.database.ContentObserver? = null
     
     // 应用安装/卸载广播接收器
     private val packageChangeReceiver = object : BroadcastReceiver() {
@@ -115,6 +120,9 @@ class MainActivity : FlutterActivity() {
         
         // 注册应用安装/卸载监听器
         registerPackageChangeReceiver()
+        
+        // 注册 MediaStore 监听器
+        registerMediaStoreObserver()
         
         // 决定是否显示 Native Splash
         if (isRestoringFromBackground) {
@@ -1038,6 +1046,85 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "scanRecentAppFiles" -> {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val packageName = call.argument<String>("packageName") ?: ""
+                            val days = call.argument<Int>("days") ?: 7
+
+                            if (packageName.isEmpty()) {
+                                withContext(Dispatchers.Main) {
+                                    result.error("INVALID_ARGUMENT", "packageName不能为空", null)
+                                }
+                                return@launch
+                            }
+
+                            // 计算时间戳（N天前）
+                            val daysAgo = System.currentTimeMillis() / 1000 - (days * 24 * 60 * 60)
+                            
+                            val fileList = mutableListOf<Map<String, Any>>()
+                            
+                            // 查询条件：OWNER_PACKAGE_NAME = ? AND DATE_MODIFIED > ?
+                            val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                "${MediaStore.Files.FileColumns.OWNER_PACKAGE_NAME} = ? AND ${MediaStore.Files.FileColumns.DATE_MODIFIED} > ?"
+                            } else {
+                                // Android 10及以下不支持OWNER_PACKAGE_NAME，返回空列表
+                                withContext(Dispatchers.Main) {
+                                    result.success(fileList)
+                                }
+                                return@launch
+                            }
+                            
+                            val selectionArgs = arrayOf(packageName, daysAgo.toString())
+                            val projection = arrayOf(
+                                MediaStore.Files.FileColumns._ID,
+                                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                                MediaStore.Files.FileColumns.DATA,
+                                MediaStore.Files.FileColumns.SIZE,
+                                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                            )
+                            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+
+                            contentResolver.query(
+                                MediaStore.Files.getContentUri("external"),
+                                projection,
+                                selection,
+                                selectionArgs,
+                                sortOrder
+                            )?.use { cursor ->
+                                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                                val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                                val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                                val modifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+
+                                while (cursor.moveToNext()) {
+                                    val name = cursor.getString(nameColumn) ?: continue
+                                    val path = cursor.getString(pathColumn) ?: continue
+                                    val size = cursor.getLong(sizeColumn)
+                                    val modified = cursor.getLong(modifiedColumn) * 1000 // 转为毫秒
+
+                                    fileList.add(mapOf(
+                                        "name" to name,
+                                        "path" to path,
+                                        "size" to size,
+                                        "modified" to modified,
+                                    ))
+                                }
+                            }
+
+                            Log.i(TAG, "扫描最近${days}天的应用文件: $packageName, 数量: ${fileList.size}")
+                            withContext(Dispatchers.Main) {
+                                result.success(fileList)
+                            }
+                            
+                        } catch (e: Exception) {
+                            Log.e(TAG, "扫描最近修改的应用文件失败: ${e.message}", e)
+                            withContext(Dispatchers.Main) {
+                                result.error("SCAN_ERROR", "扫描失败: ${e.message}", null)
+                            }
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -1207,6 +1294,21 @@ class MainActivity : FlutterActivity() {
                 }
             }
         )
+        
+        // 文件变化事件通道（MediaStore监听）
+        EventChannel(messenger, FILE_CHANGE_EVENT_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    Log.i(TAG, "文件变化监听已启动")
+                    fileChangeEventSink = events
+                }
+                
+                override fun onCancel(arguments: Any?) {
+                    Log.i(TAG, "文件变化监听已取消")
+                    fileChangeEventSink = null
+                }
+            }
+        )
     }
     
     /**
@@ -1222,15 +1324,83 @@ class MainActivity : FlutterActivity() {
         Log.i(TAG, "应用安装/卸载监听器已注册")
     }
     
-    override fun onDestroy() {
-        // 注销广播接收器
+    /**
+     * 注册 MediaStore ContentObserver 监听文件变化
+     */
+    private fun registerMediaStoreObserver() {
         try {
-            unregisterReceiver(packageChangeReceiver)
-            Log.i(TAG, "应用安装/卸载监听器已注销")
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            
+            mediaStoreObserver = object : android.database.ContentObserver(handler) {
+                override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
+                    super.onChange(selfChange, uri)
+                    
+                    uri?.let {
+                        Log.d(TAG, "MediaStore changed: $it")
+                        
+                        // 发送事件到 Flutter
+                        fileChangeEventSink?.success(mapOf(
+                            "event" to "file_changed",
+                            "uri" to it.toString(),
+                            "timestamp" to System.currentTimeMillis()
+                        ))
+                    }
+                }
+            }
+            
+            // 注册监听各种媒体类型
+            contentResolver.registerContentObserver(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                true,
+                mediaStoreObserver!!
+            )
+            
+            contentResolver.registerContentObserver(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                true,
+                mediaStoreObserver!!
+            )
+            
+            contentResolver.registerContentObserver(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                true,
+                mediaStoreObserver!!
+            )
+            
+            // Android 10+ 支持监听下载文件
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver.registerContentObserver(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    true,
+                    mediaStoreObserver!!
+                )
+            }
+            
+            Log.i(TAG, "MediaStore 监听已注册")
         } catch (e: Exception) {
-            Log.e(TAG, "注销监听器失败: ${e.message}")
+            Log.e(TAG, "注册 MediaStore 监听失败: ${e.message}")
         }
+    }
+    
+    /**
+     * 取消注册 MediaStore 监听
+     */
+    private fun unregisterMediaStoreObserver() {
+        try {
+            mediaStoreObserver?.let {
+                contentResolver.unregisterContentObserver(it)
+                mediaStoreObserver = null
+                Log.i(TAG, "MediaStore 监听已取消")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "取消 MediaStore 监听失败: ${e.message}")
+        }
+    }
+    
+    override fun onDestroy() {
         super.onDestroy()
+        unregisterMediaStoreObserver()
+        unregisterReceiver(packageChangeReceiver)
     }
     
     /**

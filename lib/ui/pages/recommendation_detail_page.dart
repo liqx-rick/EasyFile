@@ -4,6 +4,8 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
+import 'package:easyfile/core/services/file_change_listener_service.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
@@ -34,11 +36,22 @@ class _RecommendationDetailPageState extends State<RecommendationDetailPage> {
   String? _errorMessage;
   List<FileItem> _files = [];
   AppScanResult? _scanResult;
+  
+  // 文件变化监听服务
+  FileChangeListenerService? _fileChangeListener;
 
   @override
   void initState() {
     super.initState();
     _loadFiles();
+    _initFileChangeListener();
+  }
+  
+  @override
+  void dispose() {
+    // 停止文件监听
+    _fileChangeListener?.stopListening();
+    super.dispose();
   }
 
   /// 加载文件列表
@@ -146,6 +159,34 @@ class _RecommendationDetailPageState extends State<RecommendationDetailPage> {
     }
 
     logger.i('系统文件加载完成: ${_files.length} 个文件');
+  }
+  
+  /// 初始化文件变化监听
+  Future<void> _initFileChangeListener() async {
+    try {
+      // 创建统计缓存实例
+      final statisticsCache = AppStatisticsCache();
+      
+      _fileChangeListener = FileChangeListenerService(
+        statisticsCache: statisticsCache,
+        onCacheCleared: () async {
+          // 缓存清除后自动刷新文件列表
+          logger.i('🔄 文件变化 -> 自动刷新应用文件列表');
+          if (mounted) {
+            // 延迟10秒后刷新，给用户足够的时间看到新文件
+            await Future.delayed(const Duration(seconds: 10));
+            if (mounted) {
+              _loadFiles();
+            }
+          }
+        },
+      );
+      await _fileChangeListener!.startListening();
+      
+      logger.i('✓ 应用文件列表页: 文件监听已启动');
+    } catch (e) {
+      logger.e('启动文件监听失败: $e');
+    }
   }
 
   @override

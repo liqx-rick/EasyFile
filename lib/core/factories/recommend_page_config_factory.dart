@@ -15,7 +15,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '${card.fileCount} 个文件',
+          subtitle: '来自该应用的文件',
           mode: RecommendMode.application,
           headerType: HeaderType.applicationSummary,
           listStyle: FileListStyle.auto, // 使用自动模式：图片/视频用网格，其他用列表
@@ -58,7 +58,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '${card.fileCount} 个文件',
+          subtitle: '来自该应用的文件',
           mode: RecommendMode.application,
           headerType: HeaderType.applicationSummary,
           listStyle: FileListStyle.auto, // 使用自动模式
@@ -101,7 +101,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '${card.fileCount} 个文件',
+          subtitle: '来自该应用的文件',
           mode: RecommendMode.application,
           headerType: HeaderType.applicationSummary,
           listStyle: FileListStyle.auto, // 使用自动模式
@@ -140,11 +140,49 @@ class RecommendPageConfigFactory {
           ],
         );
       
+      case RecommendationType.dingtalk:
+        return RecommendPageConfig(
+          type: card.type,
+          title: card.title,
+          subtitle: '来自该应用的文件',
+          mode: RecommendMode.application,
+          headerType: HeaderType.applicationSummary,
+          listStyle: FileListStyle.auto, // 使用自动模式
+          themeColor: card.color,
+          tabs: [
+            TabConfig(
+              title: '全部',
+              fileTypes: null,
+              icon: Icons.folder_open,
+            ),
+            TabConfig(
+              title: '图片',
+              fileTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+              icon: Icons.image,
+            ),
+            TabConfig(
+              title: '视频',
+              fileTypes: ['mp4', 'mov', 'avi', 'mkv'],
+              icon: Icons.video_library,
+            ),
+            TabConfig(
+              title: '文档',
+              fileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
+              icon: Icons.description,
+            ),
+            TabConfig(
+              title: '其他',
+              fileTypes: const <String>[],
+              icon: Icons.insert_drive_file,
+            ),
+          ],
+        );
+      
       case RecommendationType.wps:
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '${card.fileCount} 个文档',
+          subtitle: '来自该应用的文件',
           mode: RecommendMode.application,
           headerType: HeaderType.applicationSummary,
           listStyle: FileListStyle.auto, // 使用自动模式
@@ -184,7 +222,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '那些美好的时光',
+          subtitle: '来自系统相机的照片',
           mode: RecommendMode.content,
           headerType: HeaderType.emotion,
           listStyle: FileListStyle.grid, // 照片用网格
@@ -195,7 +233,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '精彩的视频片段',
+          subtitle: '来自系统相机的视频',
           mode: RecommendMode.content,
           headerType: HeaderType.emotion,
           listStyle: FileListStyle.grid, // 视频用网格
@@ -206,7 +244,7 @@ class RecommendPageConfigFactory {
         return RecommendPageConfig(
           type: card.type,
           title: card.title,
-          subtitle: '${card.fileCount} 条录音',
+          subtitle: '来自录音应用的音频',
           mode: RecommendMode.content,
           headerType: HeaderType.emotion,
           listStyle: FileListStyle.list, // 录音用列表

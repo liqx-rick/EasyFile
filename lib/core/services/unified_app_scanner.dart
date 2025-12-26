@@ -105,9 +105,24 @@ class UnifiedAppScanner {
       try {
         final supported = await AppFileScannerChannel.isOwnerPackageSupported();
         if (supported) {
+          // 获取缓存中的旧数量
+          final oldCount = _fileCountCache != null 
+              ? await _fileCountCache!.getFileCount(appKey)
+              : null;
+          
           mediaStoreResult = await _scanByMediaStore(packageName);
-          logger.i('MediaStore扫描: ${mediaStoreResult.files.length} 文件 '
-              '(${mediaStoreResult.duration.inMilliseconds}ms)');
+          
+          // 计算增量
+          final newCount = mediaStoreResult.files.length;
+          if (oldCount != null && oldCount > 0) {
+            final delta = newCount - oldCount;
+            logger.i('MediaStore扫描: $newCount 文件 '
+                '(${mediaStoreResult.duration.inMilliseconds}ms) '
+                '[上次: $oldCount, 增量: ${delta > 0 ? '+' : ''}$delta]');
+          } else {
+            logger.i('MediaStore扫描: $newCount 文件 '
+                '(${mediaStoreResult.duration.inMilliseconds}ms)');
+          }
         } else {
           logger.w('MediaStore OWNER_PACKAGE_NAME 不支持（需要 Android 11+）');
         }
@@ -129,11 +144,69 @@ class UnifiedAppScanner {
     logger.i('差异文件: ${differenceFiles.length} 个');
 
     // 步骤7: 合并去重
+    final totalBeforeMerge = mediaStoreResult.files.length + pathScanResult.files.length;
     final allFiles = _mergeAndDeduplicate(
       mediaStoreResult.files,
       pathScanResult.files,
     );
-    logger.i('总文件数: ${allFiles.length} (去重后)');
+    final duplicates = totalBeforeMerge - allFiles.length;
+    logger.i('总文件数: ${allFiles.length} (去重后), 去重前: $totalBeforeMerge, 重复: $duplicates 个');
+    
+    // 调试：检查PDF文件的路径格式
+    if (appKey == 'wechat') {
+      // 查找PDF文件
+      final mediaStorePdfs = mediaStoreResult.files
+          .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+          .toList();
+      final pathScanPdfs = pathScanResult.files
+          .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+          .toList();
+      
+      if (mediaStorePdfs.isNotEmpty || pathScanPdfs.isNotEmpty) {
+        logger.w('⚠️ PDF文件统计:');
+        logger.w('  MediaStore: ${mediaStorePdfs.length} 个');
+        logger.w('  路径扫描: ${pathScanPdfs.length} 个');
+        
+        // 显示最近的几个PDF路径
+        if (mediaStorePdfs.length <= 3) {
+          for (final pdf in mediaStorePdfs) {
+            logger.w('  [MediaStore] ${pdf.path}');
+          }
+        }
+        if (pathScanPdfs.length <= 3) {
+          for (final pdf in pathScanPdfs) {
+            logger.w('  [PathScan]  ${pdf.path}');
+          }
+        }
+        
+        // 检查是否有重复的PDF
+        final mediaStorePdfPaths = mediaStorePdfs.map((f) => f.path).toSet();
+        final pathScanPdfPaths = pathScanPdfs.map((f) => f.path).toSet();
+        final commonPdfs = mediaStorePdfPaths.intersection(pathScanPdfPaths);
+        
+        logger.w('  共同PDF: ${commonPdfs.length} 个 (已去重)');
+        logger.w('  MediaStore独有: ${mediaStorePdfPaths.length - commonPdfs.length} 个');
+        logger.w('  PathScan独有: ${pathScanPdfPaths.length - commonPdfs.length} 个');
+        
+        // 输出独有PDF示例
+        final mediaStoreOnlyPdfs = mediaStorePdfPaths.difference(commonPdfs);
+        final pathScanOnlyPdfs = pathScanPdfPaths.difference(commonPdfs);
+        
+        if (mediaStoreOnlyPdfs.isNotEmpty) {
+          logger.w('  MediaStore独有PDF示例 (前3个):');
+          for (final path in mediaStoreOnlyPdfs.take(3)) {
+            logger.w('    - $path');
+          }
+        }
+        
+        if (pathScanOnlyPdfs.isNotEmpty) {
+          logger.w('  PathScan独有PDF示例 (前3个):');
+          for (final path in pathScanOnlyPdfs.take(3)) {
+            logger.w('    - $path');
+          }
+        }
+      }
+    }
 
     // 步骤8: 更新文件数量缓存
     if (updateCache && _fileCountCache != null) {
@@ -308,9 +381,10 @@ class UnifiedAppScanner {
               continue;
             }
 
-            if (!pathSet.contains(fileItem.path)) {
+            final normalizedPath = fileItem.path.toLowerCase();
+            if (!pathSet.contains(normalizedPath)) {
               files.add(fileItem);
-              pathSet.add(fileItem.path);
+              pathSet.add(normalizedPath);
             }
           }
         }
@@ -326,9 +400,10 @@ class UnifiedAppScanner {
             await AppFileScannerChannel.scanByFileNamePattern(filePatterns);
 
         for (final file in patternFiles) {
-          if (!pathSet.contains(file.path)) {
+          final normalizedPath = file.path.toLowerCase();
+          if (!pathSet.contains(normalizedPath)) {
             files.add(file);
-            pathSet.add(file.path);
+            pathSet.add(normalizedPath);
           }
         }
       } catch (e) {
@@ -347,10 +422,11 @@ class UnifiedAppScanner {
     List<FileItem> pathScanFiles,
     List<FileItem> mediaStoreFiles,
   ) {
-    final mediaStorePathSet = mediaStoreFiles.map((f) => f.path).toSet();
+    // 使用小写路径进行比较
+    final mediaStorePathSet = mediaStoreFiles.map((f) => f.path.toLowerCase()).toSet();
 
     return pathScanFiles.where((file) {
-      return !mediaStorePathSet.contains(file.path);
+      return !mediaStorePathSet.contains(file.path.toLowerCase());
     }).toList();
   }
 
@@ -359,22 +435,24 @@ class UnifiedAppScanner {
     List<FileItem> mediaStoreFiles,
     List<FileItem> pathScanFiles,
   ) {
-    final pathSet = <String>{};
+    final pathSet = <String>{}; // 使用小写路径进行去重
     final allFiles = <FileItem>[];
 
     // 优先添加 MediaStore 结果（更准确，有 MIME 类型等信息）
     for (final file in mediaStoreFiles) {
-      if (!pathSet.contains(file.path)) {
+      final normalizedPath = file.path.toLowerCase();
+      if (!pathSet.contains(normalizedPath)) {
         allFiles.add(file);
-        pathSet.add(file.path);
+        pathSet.add(normalizedPath);
       }
     }
 
     // 补充路径扫描结果
     for (final file in pathScanFiles) {
-      if (!pathSet.contains(file.path)) {
+      final normalizedPath = file.path.toLowerCase();
+      if (!pathSet.contains(normalizedPath)) {
         allFiles.add(file);
-        pathSet.add(file.path);
+        pathSet.add(normalizedPath);
       }
     }
 

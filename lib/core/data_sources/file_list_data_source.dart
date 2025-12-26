@@ -18,9 +18,9 @@ abstract class FileListDataSource {
   /// 
   /// [params] 查询参数（由具体实现类定义）
   /// 返回：文件列表
-  /// 
+  ///
   /// 实现要求：
-  /// - 必须返回 List<FileItem>，即使结果为空
+  /// - 必须返回 `List<FileItem>`，即使结果为空
   /// - 如果查询失败，应抛出异常（Exception 或子类）
   /// - 不应在此方法内部处理缓存逻辑（由 Controller 处理）
   Future<List<FileItem>> queryFiles(Map<String, dynamic> params);

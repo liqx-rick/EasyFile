@@ -587,9 +587,9 @@ class _SettingsPageState extends State<SettingsPage> {
           final settings = RecommendationSettings(fileCountThreshold: selected);
           await settings.save();
 
-          // 清除推荐卡片缓存，确保下次刷新时使用新阈值
-          logger.i('📌 开发者选项：阈值已修改为 $selected，清除缓存');
-          QuickAccessSection.clearRecommendationCache();
+          // 刷新推荐卡片（清除缓存并重新加载）
+          logger.i('📌 开发者选项：阈值已修改为 $selected，刷新推荐卡片');
+          await QuickAccessSection.refreshRecommendations();
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

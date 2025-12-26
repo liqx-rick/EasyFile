@@ -217,4 +217,55 @@ class MediaStoreScannerChannel {
       return [];
     }
   }
+
+  /// 扫描最近N天修改的应用文件
+  /// 
+  /// 使用MediaStore的DATE_MODIFIED索引查询，避免遍历所有文件
+  /// 适用于Android 11+（需要OWNER_PACKAGE_NAME字段）
+  /// 
+  /// [packageName] 应用包名，如 'com.tencent.mm'
+  /// [days] 天数，默认7天
+  /// 返回最近修改的文件列表
+  static Future<List<FileItem>> scanRecentAppFiles({
+    required String packageName,
+    int days = 7,
+  }) async {
+    try {
+      logger.i('扫描最近修改的应用文件 - 包名: $packageName, 天数: $days');
+      final startTime = DateTime.now();
+
+      final List<dynamic> result = await _channel.invokeMethod(
+        'scanRecentAppFiles',
+        {
+          'packageName': packageName,
+          'days': days,
+        },
+      );
+
+      final endTime = DateTime.now();
+      final duration = endTime.difference(startTime);
+
+      logger.i('扫描完成 - 包名: $packageName, 数量: ${result.length}, 耗时: ${duration.inMilliseconds}ms');
+
+      final files = <FileItem>[];
+      for (final item in result) {
+        final map = Map<String, dynamic>.from(item as Map);
+        files.add(FileItem(
+          name: map['name'] as String,
+          path: map['path'] as String,
+          size: (map['size'] as num).toInt(),
+          isDirectory: false,
+          modified: DateTime.fromMillisecondsSinceEpoch(
+            (map['modified'] as num).toInt(),
+          ),
+        ));
+      }
+      
+      return files;
+    } catch (e) {
+      logger.e('扫描最近修改的应用文件失败 - 包名: $packageName, 错误: $e');
+      return []; // 失败时返回空数组，不影响主流程
+    }
+  }
 }
+
