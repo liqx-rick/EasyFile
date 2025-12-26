@@ -103,7 +103,7 @@ class MediaStoreCacheService {
       // 预加载所有类型的缓存元数据（不加载文件列表，避免启动慢）
       int loadedCount = 0;
       for (final type in MediaStoreType.values) {
-        final hasCache = await _hasCacheMetadata(type);
+        final hasCache = _hasCacheMetadata(type);
         if (hasCache) {
           loadedCount++;
           logger.d('发现缓存: ${type.name}');

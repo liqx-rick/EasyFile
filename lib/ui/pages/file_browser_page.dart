@@ -4018,7 +4018,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               : _buildPortraitLayout(viewModel),
 
                           // 批量操作底部工具栏 - 横屏时只显示在右侧区域
-                          if (_selectionController.isSelectionMode)
+                          if (isEditMode)
                             Positioned(
                               left: leftPaneWidth,
                               right: 0,

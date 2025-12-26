@@ -532,7 +532,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           ],
         ),
         // 批量操作底部工具栏
-        bottomNavigationBar: _selectionController.isSelectionMode
+        bottomNavigationBar: isEditMode
             ? _buildSelectionBottomBar()
             : null,
       ),

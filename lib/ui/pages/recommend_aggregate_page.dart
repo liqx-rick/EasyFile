@@ -612,7 +612,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
               ? const Center(child: CircularProgressIndicator())
               : _buildFileListForNestedScroll(),
         ),
-        bottomNavigationBar: _selectionController.isSelectionMode
+        bottomNavigationBar: isEditMode
             ? _buildSelectionBottomBar()
             : null,
       ),
