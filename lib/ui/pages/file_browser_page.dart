@@ -1289,9 +1289,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             false, // 不显示高亮，保持视觉简洁
             onTap: () async {
               viewModel.setCurrentTab(TabView.newFiles);
-              // 方案1：立即加载缓存（0-100ms），后台刷新（不阻塞UI）
-              await presenter.loadCachedNewFiles();
-              presenter.refreshNewFilesInBackground();
+              // 加载新文件（MediaStore快速扫描）
+              await presenter.loadNewFiles();
             },
             useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
           ),
@@ -1469,9 +1468,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 false, // 不显示高亮，保持视觉简洁
                 onTap: () async {
                   viewModel.setCurrentTab(TabView.newFiles);
-                  // 方案1：立即加载缓存（0-100ms），后台刷新（不阻塞UI）
-                  await presenter.loadCachedNewFiles();
-                  presenter.refreshNewFilesInBackground();
+                  // 加载新文件（MediaStore快速扫描）
+                  await presenter.loadNewFiles();
                 },
                 useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
                 fontSize: 12,
@@ -2250,8 +2248,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           );
           actionButton = ElevatedButton.icon(
             onPressed: () async {
-              // 刷新新文件列表
-              await presenter.refreshNewFiles();
+              // 刷新当前视图（新文件Tab会跳过，依赖MediaStore自动监听）
+              await presenter.refreshCurrent();
             },
             icon: const Icon(Icons.refresh),
             label: const Text('刷新'),
@@ -3039,75 +3037,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Widget _buildPortraitLayout(FileViewModel vm) {
     return Stack(
       children: [
-        GestureDetector(
-          // 手势功能说明：
-          // 1. 浏览Tab - 左右滑切换分类Tab（全部|文档|图片|视频等）
-          // 2. 最近/收藏Tab - 左右滑切换Tab（仅在列表顶部触发）
-          onHorizontalDragEnd: (details) {
-            if (details.primaryVelocity == null) {
-              return;
-            }
-
-            final velocity = details.primaryVelocity!;
-            final isSwipeRight = velocity > 500; // 右滑
-            final isSwipeLeft = velocity < -500; // 左滑
-
-            // 搜索模式下禁用所有手势
-            if (vm.isSearchMode || _favoriteSearchMode || _newFilesSearchMode) {
-              return;
-            }
-
-            // 功能1: 浏览Tab - 左右滑切换分类Tab
-            if (vm.currentTab == TabView.browse) {
-              final visibleCategories = [
-                FileCategory.all,
-                ...vm.fileTypeStats.getVisibleCategories(),
-              ];
-              if (visibleCategories.length > 1) {
-                final currentIndex =
-                    visibleCategories.indexOf(vm.selectedCategory);
-                if (currentIndex != -1) {
-                  if (isSwipeLeft &&
-                      currentIndex < visibleCategories.length - 1) {
-                    // 左滑切换到下一个分类
-                    vm.setSelectedCategory(visibleCategories[currentIndex + 1]);
-                    return;
-                  } else if (isSwipeRight && currentIndex > 0) {
-                    // 右滑切换到上一个分类
-                    vm.setSelectedCategory(visibleCategories[currentIndex - 1]);
-                    return;
-                  }
-                }
-              }
-            }
-
-            // 功能2: 在最近/收藏/新文件Tab之间左右滑动切换
-            // 限制：仅在列表顶部（滚动偏移 < 50）时才允许切换Tab，避免滑动列表时误触发
-            if (_scrollController.hasClients && _scrollController.offset > 50) {
-              return; // 列表已滚动，禁用Tab切换手势
-            }
-
-            if (vm.currentTab == TabView.recent) {
-              if (isSwipeLeft) {
-                // 最近Tab左滑 → 切换到收藏Tab
-                viewModel.setCurrentTab(TabView.favorite);
-                presenter.loadFavoriteFiles();
-              } else if (isSwipeRight) {
-                // 最近Tab右滑 → 切换到新文件Tab
-                viewModel.setCurrentTab(TabView.newFiles);
-                presenter.loadNewFiles();
-              }
-            } else if (vm.currentTab == TabView.favorite && isSwipeRight) {
-              // 收藏Tab右滑 → 切换到最近Tab
-              viewModel.setCurrentTab(TabView.recent);
-              presenter.loadRecentFiles();
-            } else if (vm.currentTab == TabView.newFiles && isSwipeLeft) {
-              // 新文件Tab左滑 → 切换到最近Tab
-              viewModel.setCurrentTab(TabView.recent);
-              presenter.loadRecentFiles();
-            }
-          },
-          child: RefreshIndicator(
+        RefreshIndicator(
             onRefresh: () async {
               await presenter.refreshCurrent();
             },
@@ -3372,7 +3302,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               ],
             ),
           ),
-        ),
 
         // 权限提示横幅（在顶部显示）
         if (_permissionState == PermissionState.denied ||
@@ -3505,57 +3434,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
             // 右侧浏览区：包含控制栏和文件列表
             Expanded(
-              child: GestureDetector(
-                // 手势功能：左右滑切换分类Tab
-                onHorizontalDragEnd: (details) {
-                  if (details.primaryVelocity == null) {
-                    return;
-                  }
-
-                  final velocity = details.primaryVelocity!;
-                  final isSwipeRight = velocity > 500;
-                  final isSwipeLeft = velocity < -500;
-
-                  // 搜索模式下禁用手势
-                  if (vm.isSearchMode || _favoriteSearchMode) {
-                    return;
-                  }
-
-                  // 浏览Tab - 左右滑切换分类Tab
-                  if (vm.currentTab == TabView.browse) {
-                    final visibleCategories = [
-                      FileCategory.all,
-                      ...vm.fileTypeStats.getVisibleCategories(),
-                    ];
-                    if (visibleCategories.length > 1) {
-                      final currentIndex =
-                          visibleCategories.indexOf(vm.selectedCategory);
-                      if (currentIndex != -1) {
-                        if (isSwipeLeft &&
-                            currentIndex < visibleCategories.length - 1) {
-                          vm.setSelectedCategory(
-                              visibleCategories[currentIndex + 1]);
-                          return;
-                        } else if (isSwipeRight && currentIndex > 0) {
-                          vm.setSelectedCategory(
-                              visibleCategories[currentIndex - 1]);
-                          return;
-                        }
-                      }
-                    }
-                  }
-
-                  // 在最近/收藏Tab之间左右滑动切换
-                  if (vm.currentTab == TabView.recent && isSwipeLeft) {
-                    viewModel.setCurrentTab(TabView.favorite);
-                    presenter.loadFavoriteFiles();
-                  } else if (vm.currentTab == TabView.favorite &&
-                      isSwipeRight) {
-                    viewModel.setCurrentTab(TabView.recent);
-                    presenter.loadRecentFiles();
-                  }
-                },
-                child: RefreshIndicator(
+              child: RefreshIndicator(
                   onRefresh: () async {
                     await presenter.refreshCurrent();
                   },
@@ -3780,7 +3659,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     ],
                   ),
                 ),
-              ),
             ),
           ],
         ),
