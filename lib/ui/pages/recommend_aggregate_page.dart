@@ -643,6 +643,8 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
             ),
         ],
       ),
+      centerTitle: false, // 标题左对齐
+      titleSpacing: 0, // 减小标题与leading之间的间距
       backgroundColor: widget.config.themeColor,
       foregroundColor: Colors.white, // 确保文字在深色背景下清晰可见
     );
