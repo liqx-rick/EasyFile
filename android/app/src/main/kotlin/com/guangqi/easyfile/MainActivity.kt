@@ -56,6 +56,8 @@ class MainActivity : FlutterActivity() {
     private val APP_EVENT_CHANNEL = "easyfile/app_events"
     // 文件变化事件通道（MediaStore监听）
     private val FILE_CHANGE_EVENT_CHANNEL = "easyfile/file_change_events"
+    // 新文件扫描通道（性能优化版）
+    private val NEW_FILES_CHANNEL = "easyfile/new_files"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
@@ -63,6 +65,7 @@ class MainActivity : FlutterActivity() {
     private lateinit var storageStatsHelper: StorageStatsHelper
     private lateinit var mediaStoreScanner: MediaStoreScanner
     private lateinit var appFileScanner: AppFileScanner
+    private lateinit var newFilesScanner: NewFilesNativeScanner
     private var appEventSink: EventChannel.EventSink? = null
     private var fileChangeEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: android.database.ContentObserver? = null
@@ -117,6 +120,9 @@ class MainActivity : FlutterActivity() {
         
         // 初始化 AppFileScanner
         appFileScanner = AppFileScanner(this)
+        
+        // 初始化 NewFilesNativeScanner
+        newFilesScanner = NewFilesNativeScanner(this)
         
         // 注册应用安装/卸载监听器
         registerPackageChangeReceiver()
@@ -1309,6 +1315,35 @@ class MainActivity : FlutterActivity() {
                 }
             }
         )
+        
+        // 新文件扫描通道（性能优化版）
+        MethodChannel(messenger, NEW_FILES_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scanRecentFiles" -> {
+                    val days = call.argument<Int>("days") ?: 7
+                    
+                    Log.i(TAG, "开始扫描最近 $days 天的新文件（原生优化）")
+                    
+                    // 使用协程异步执行，避免阻塞UI
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val files = newFilesScanner.scanRecentFiles(days)
+                            
+                            withContext(Dispatchers.Main) {
+                                Log.i(TAG, "新文件扫描完成: ${files.size} 个文件")
+                                result.success(files)
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Log.e(TAG, "新文件扫描失败: ${e.message}", e)
+                                result.error("SCAN_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
     
     /**

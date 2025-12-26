@@ -68,40 +68,4 @@ class NewFilesLocalSource {
       return false;
     }
   }
-
-  /// 清除缓存
-  Future<bool> clearCache() async {
-    try {
-      final filePath = await _filePath;
-      final file = File(filePath);
-
-      if (await file.exists()) {
-        await file.delete();
-      }
-
-      logger.d('Cleared new files cache');
-      return true;
-    } catch (e, stackTrace) {
-      logger.e('Error clearing cache: $e\nStackTrace: $stackTrace');
-      return false;
-    }
-  }
-
-  /// 获取缓存大小（MB）
-  Future<double> getCacheSize() async {
-    try {
-      final filePath = await _filePath;
-      final file = File(filePath);
-
-      if (await file.exists()) {
-        final size = await file.length();
-        return size / (1024 * 1024); // 转换为MB
-      }
-
-      return 0.0;
-    } catch (e) {
-      logger.e('Error getting cache size: $e');
-      return 0.0;
-    }
-  }
 }

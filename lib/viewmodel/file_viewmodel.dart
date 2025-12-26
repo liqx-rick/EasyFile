@@ -51,7 +51,11 @@ class FileViewModel extends ChangeNotifier {
 
   // 新文件Tab相关状态
   List<FileItem> _newFiles = []; // 新添加的文件列表
-  String? _selectedSource; // 当前选择的文件来源筛选（null表示全部）
+  /// 文件来源筛选（预留功能 - 当前UI未实现）
+  /// 
+  /// ⚠️ 注意：此字段目前永远为null，相关过滤逻辑不会生效。
+  /// 如需启用此功能，需在UI层添加来源筛选按钮。
+  String? _selectedSource;
   int _newFilesRetentionDays = 7; // 新文件保留天数设置（默认7天）
 
   // 应用级状态
@@ -399,23 +403,6 @@ class FileViewModel extends ChangeNotifier {
       logger.d('Updated retention days: $_newFilesRetentionDays');
     }
     notifyListeners();
-  }
-
-  /// 设置文件来源筛选
-  void setSourceFilter(String? source) {
-    logger.d('Setting source filter: $source');
-    if (_selectedSource != source) {
-      _selectedSource = source;
-      notifyListeners();
-    }
-  }
-
-  /// 重置文件来源筛选
-  void resetSourceFilter() {
-    if (_selectedSource != null) {
-      _selectedSource = null;
-      notifyListeners();
-    }
   }
 
   void setCurrentPath(String path) {

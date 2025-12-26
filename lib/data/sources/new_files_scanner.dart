@@ -1,51 +1,52 @@
 import 'dart:io';
 
+import 'package:path_provider/path_provider.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
 import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/platform/file_stats_channel.dart';
+import 'package:easyfile/platform/new_files_native_channel.dart';
 
-/// 扫描优先级
-enum ScanPriority {
-  high, // 高优先级：立即扫描（最常用目录）
-  medium, // 中优先级：延迟扫描（常用目录）
-  low, // 低优先级：后台扫描（不常用目录）
+/// 取消令牌：用于取消正在进行的扫描
+class CancelToken {
+  bool _cancelled = false;
+  bool get isCancelled => _cancelled;
+  void cancel() {
+    _cancelled = true;
+    logger.i('CancelToken: Scan cancellation requested');
+  }
 }
 
 /// 新文件扫描器
 /// 负责扫描指定目录下的新文件
 class NewFilesScanner {
   final NewFilesSettings settings;
-  DateTime? _lastScanTime;
+  CancelToken? _currentScanToken;
 
   NewFilesScanner({required this.settings});
 
-  /// 获取扫描路径（按优先级分组）
-  Map<ScanPriority, List<String>> _getScanPathsByPriority() {
-    final Map<ScanPriority, List<String>> pathsByPriority = {
-      ScanPriority.high: [],
-      ScanPriority.medium: [],
-      ScanPriority.low: [],
-    };
+  /// 取消当前正在进行的扫描
+  void cancelCurrentScan() {
+    if (_currentScanToken != null && !_currentScanToken!.isCancelled) {
+      _currentScanToken!.cancel();
+      logger.i('NewFilesScanner: Current scan cancelled by user action');
+    }
+  }
 
-    // 高优先级：最常用的目录（立即扫描，1-3秒内快速显示）
-    pathsByPriority[ScanPriority.high]!.addAll([
-      '/storage/emulated/0/Download', // 下载
-      '/storage/emulated/0/DCIM/Camera', // 相机
-      '/storage/emulated/0/Pictures/WeiXin', // 微信图片
-    ]);
-
-    // 中优先级：常用目录（延迟扫描，2-4秒显示）
-    pathsByPriority[ScanPriority.medium]!.addAll([
-      '/storage/emulated/0/Pictures/Screenshots', // 截屏
-      '/storage/emulated/0/tencent/MicroMsg/Download', // 微信下载
-      '/storage/emulated/0/Documents', // 文档
-      '/storage/emulated/0/bluetooth', // 蓝牙
-    ]);
-
-    // 低优先级：不常用目录（后台扫描，不阻塞UI）
-    pathsByPriority[ScanPriority.low]!.addAll([
+  /// 获取需要扫描的路径列表（用于Dart降级扫描）
+  List<String> _getScanPaths() {
+    return [
+      // 常用目录
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/DCIM/Camera',
+      '/storage/emulated/0/Pictures/WeiXin',
+      '/storage/emulated/0/Pictures/Screenshots',
+      '/storage/emulated/0/tencent/MicroMsg/Download',
+      '/storage/emulated/0/Documents',
+      '/storage/emulated/0/bluetooth',
+      // 其他应用目录
       '/storage/emulated/0/DingTalk',
       '/storage/emulated/0/tencent/QQfile_recv',
       '/storage/emulated/0/tencent/WXWork',
@@ -53,27 +54,76 @@ class NewFilesScanner {
       '/storage/emulated/0/quark/Download',
       '/storage/emulated/0/UCDownloads',
       '/storage/emulated/0/Recordings',
-    ]);
-
-    // 自定义路径归为低优先级
-    pathsByPriority[ScanPriority.low]!.addAll(settings.customScanPaths);
-
-    return pathsByPriority;
-  }
-
-  /// 获取需要扫描的路径列表（兼容旧方法）
-  List<String> _getScanPaths() {
-    final pathsByPriority = _getScanPathsByPriority();
-    return [
-      ...pathsByPriority[ScanPriority.high]!,
-      ...pathsByPriority[ScanPriority.medium]!,
-      ...pathsByPriority[ScanPriority.low]!,
     ];
   }
 
-  /// 扫描新文件
+  /// 扫描新文件（性能优化版）
+  /// 
+  /// **策略**:
+  /// 1. 优先使用Android MediaStore原生扫描（快速，2-3秒）
+  /// 2. 失败时降级到Dart文件系统扫描（慢，10-15秒）
+  /// 
+  /// **取消机制**: 支持Tab切换时中断扫描
+  /// 
+  /// **返回**: 按创建时间倒序排列的文件列表（最多displayCount*2项）
   Future<List<NewFileItem>> scanNewFiles() async {
-    logger.i('NewFilesScanner: Starting scan');
+    logger.i('NewFilesScanner: Starting scan (optimized)');
+    
+    // 取消之前的扫描
+    if (_currentScanToken != null) {
+      _currentScanToken!.cancel();
+    }
+    _currentScanToken = CancelToken();
+    
+    try {
+      // 检查取消状态
+      if (_currentScanToken!.isCancelled) {
+        logger.i('NewFilesScanner: Scan cancelled before native scan');
+        return [];
+      }
+      
+      // 尝试使用原生优化扫描
+      final nativeResults = await NewFilesNativeChannel.scanRecentFiles(
+        settings.retentionDays,
+      );
+      
+      // 检查取消状态
+      if (_currentScanToken!.isCancelled) {
+        logger.i('NewFilesScanner: Scan cancelled after native scan');
+        return [];
+      }
+      
+      // 限制数量（预留2倍用于缓存）
+      final limitedResults = nativeResults.take(settings.displayCount * 2).toList();
+      
+      logger.i('NewFilesScanner: Native scan complete, found ${limitedResults.length} files');
+      return limitedResults;
+      
+    } catch (e) {
+      logger.w('NewFilesScanner: Native scan failed, fallback to Dart scan: $e');
+      
+      // 降级到Dart扫描
+      return await _dartScanFallback();
+    } finally {
+      _currentScanToken = null;
+    }
+  }
+  
+  /// Dart扫描降级方案 (Legacy Fallback)
+  /// 
+  /// ⚠️ **仅在MediaStore失败时使用** - 正常情况下不会被调用
+  /// 
+  /// **原理**: 递归扫描预定义目录，过滤隐藏文件、0B文件，判断创建时间
+  /// **性能**: 较慢（10-15秒），但能保证基本功能
+  Future<List<NewFileItem>> _dartScanFallback() async {
+    logger.i('NewFilesScanner: Using Dart fallback scan');
+    
+    // 检查取消状态
+    if (_currentScanToken?.isCancelled ?? false) {
+      logger.i('NewFilesScanner: Dart fallback cancelled before start');
+      return [];
+    }
+    
     final cutoffDate =
         DateTime.now().subtract(Duration(days: settings.retentionDays));
     final results = <NewFileItem>[];
@@ -83,6 +133,12 @@ class NewFilesScanner {
     logger.d('Scanning ${scanPaths.length} paths: $scanPaths');
 
     for (final dirPath in scanPaths) {
+      // 检查取消状态
+      if (_currentScanToken?.isCancelled ?? false) {
+        logger.i('NewFilesScanner: Dart scan cancelled at $dirPath');
+        break;
+      }
+      
       try {
         final dir = Directory(dirPath);
         if (!dir.existsSync()) {
@@ -103,11 +159,10 @@ class NewFilesScanner {
     // 按创建时间倒序排序
     results.sort((a, b) => b.created.compareTo(a.created));
 
-    // 限制数量
+    // 限制数量（预留2倍用于缓存）
     final limitedResults =
-        results.take(settings.displayCount * 10).toList(); // 存储10倍数量用于缓存
+        results.take(settings.displayCount * 2).toList();
 
-    _lastScanTime = DateTime.now();
     logger.i(
         'NewFilesScanner: Scan complete, found ${limitedResults.length} files');
 
@@ -206,11 +261,16 @@ class NewFilesScanner {
     return results;
   }
 
-  /// 快速扫描（智能缓存策略）
+  /// 智能缓存策略 - 根据场景决定是否重新扫描
   ///
-  /// 根据使用场景决定是否需要重新扫描：
-  /// - 应用启动：1小时内使用缓存，后台增量扫描
-  /// - 用户手动刷新：始终执行快速扫描
+  /// **用户主动刷新**: 总是执行扫描（保证数据最新）
+  /// **应用启动**: 检查缓存文件修改时间
+  ///   - < 1小时: 使用缓存（返回null），后台静默刷新
+  ///   - >= 1小时: 执行完整扫描
+  ///
+  /// **返回值**:
+  /// - `null`: 使用缓存，Presenter层启动后台刷新
+  /// - `List<NewFileItem>`: 新扫描结果，更新UI
   Future<List<NewFileItem>?> quickScanIfNeeded(
     List<NewFileItem> cachedItems, {
     bool isUserRefresh = false, // 是否为用户主动刷新
@@ -221,191 +281,37 @@ class NewFilesScanner {
       return await scanNewFiles();
     }
 
-    // 应用启动加载：智能缓存策略
-    if (_lastScanTime != null) {
-      final age = DateTime.now().difference(_lastScanTime!);
+    // 应用启动加载：检查缓存文件年龄
+    if (cachedItems.isNotEmpty) {
+      try {
+        // 获取缓存文件的修改时间
+        final directory = await getApplicationDocumentsDirectory();
+        final cacheFile = File('${directory.path}${Platform.pathSeparator}new_files_index.json');
+        
+        if (await cacheFile.exists()) {
+          final stat = await cacheFile.stat();
+          final age = DateTime.now().difference(stat.modified);
 
-      // 1小时内使用缓存（立即显示）
-      if (age < Duration(hours: 1)) {
-        logger.d(
-            'Using cached scan results (scanned ${age.inMinutes} minutes ago)');
+          // 1小时内使用缓存（立即显示）
+          if (age < Duration(hours: 1)) {
+            logger.d(
+                'Using cached scan results (cache file age: ${age.inMinutes} minutes)');
 
-        // 返回null表示使用缓存，后台刷新由Presenter层控制
-        return null; // 使用缓存
+            // 返回null表示使用缓存，后台刷新由Presenter层控制
+            return null; // 使用缓存
+          }
+
+          // 超过1小时：执行完整扫描
+          logger.i('Cache expired (${age.inHours} hours old), performing full scan');
+        }
+      } catch (e) {
+        logger.e('Error checking cache file age: $e');
       }
-
-      // 超过1小时：执行完整扫描
-      logger
-          .i('Cache expired (${age.inHours} hours old), performing full scan');
     }
 
     // 首次扫描或缓存过期
     return await scanNewFiles();
   }
 
-  /// 增量扫描（只扫描自上次扫描后的新文件）
-  Future<List<NewFileItem>> incrementalScan(
-    List<NewFileItem> existingItems,
-  ) async {
-    final scanStartTime =
-        _lastScanTime ?? DateTime.now().subtract(Duration(days: 1));
-    logger.i('NewFilesScanner: Incremental scan since $scanStartTime');
 
-    final cutoffDate = scanStartTime;
-    final results = <NewFileItem>[];
-    final scanPaths = _getScanPaths();
-
-    for (final dirPath in scanPaths) {
-      try {
-        final dir = Directory(dirPath);
-        if (!dir.existsSync()) continue;
-
-        final items = await _scanDirectory(dir, cutoffDate);
-        results.addAll(items);
-      } catch (e) {
-        logger.e('Error in incremental scan of $dirPath: $e');
-      }
-    }
-
-    // 合并现有项和新项，去重
-    final allItems = <String, NewFileItem>{};
-    for (final item in existingItems) {
-      allItems[item.path] = item;
-    }
-    for (final item in results) {
-      allItems[item.path] = item; // 新项覆盖旧项
-    }
-
-    final mergedList = allItems.values.toList()
-      ..sort((a, b) => b.created.compareTo(a.created));
-
-    _lastScanTime = DateTime.now();
-    logger.i('Incremental scan complete, found ${results.length} new files');
-
-    return mergedList.take(settings.displayCount * 10).toList();
-  }
-
-  /// 分批扫描（支持优先级和渐进式结果）
-  ///
-  /// 按优先级批次扫描，并通过回调逐步返回结果：
-  /// - 第1批（高优先级）：1-3秒内完成，立即显示
-  /// - 第2批（中优先级）：3-5秒内完成，更新显示
-  /// - 第3批（低优先级）：后台扫描，不阻塞UI
-  Future<List<NewFileItem>> scanNewFilesByPriority({
-    Function(List<NewFileItem> partialResults)? onPartialResults,
-  }) async {
-    final cutoffDate =
-        DateTime.now().subtract(Duration(days: settings.retentionDays));
-    final allResults = <NewFileItem>[];
-    final pathsByPriority = _getScanPathsByPriority();
-
-    logger.i('NewFilesScanner: Starting priority-based scan');
-
-    // 批次1：高优先级（立即扫描）
-    logger.i('Batch 1: Scanning high priority paths...');
-    final highPriorityResults = await _scanPathsBatch(
-      pathsByPriority[ScanPriority.high]!,
-      cutoffDate,
-    );
-    allResults.addAll(highPriorityResults);
-
-    // 第一批结果返回（快速显示）
-    if (onPartialResults != null && highPriorityResults.isNotEmpty) {
-      final sortedResults = List<NewFileItem>.from(allResults)
-        ..sort((a, b) => b.created.compareTo(a.created));
-      onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
-      logger.i('Batch 1 complete: ${highPriorityResults.length} files');
-    }
-
-    // 批次2：中优先级（延迟扫描）
-    logger.i('Batch 2: Scanning medium priority paths...');
-    final mediumPriorityResults = await _scanPathsBatch(
-      pathsByPriority[ScanPriority.medium]!,
-      cutoffDate,
-    );
-    allResults.addAll(mediumPriorityResults);
-
-    // 第二批结果返回（更新显示）
-    if (onPartialResults != null && mediumPriorityResults.isNotEmpty) {
-      final sortedResults = List<NewFileItem>.from(allResults)
-        ..sort((a, b) => b.created.compareTo(a.created));
-      onPartialResults(sortedResults.take(settings.displayCount * 10).toList());
-      logger.i('Batch 2 complete: ${mediumPriorityResults.length} files');
-    }
-
-    // 批次3：低优先级（后台扫描，不阻塞）
-    _scanLowPriorityInBackground(
-      pathsByPriority[ScanPriority.low]!,
-      cutoffDate,
-      allResults,
-      onPartialResults,
-    );
-
-    // 返回高+中优先级的结果（低优先级结果通过回调异步返回）
-    final sortedResults = allResults
-      ..sort((a, b) => b.created.compareTo(a.created));
-
-    _lastScanTime = DateTime.now();
-    logger.i(
-        'Priority scan complete: ${sortedResults.length} files (excluding low priority)');
-
-    return sortedResults.take(settings.displayCount * 10).toList();
-  }
-
-  /// 扫描一批路径
-  Future<List<NewFileItem>> _scanPathsBatch(
-    List<String> paths,
-    DateTime cutoffDate,
-  ) async {
-    final results = <NewFileItem>[];
-
-    for (final dirPath in paths) {
-      try {
-        final dir = Directory(dirPath);
-        if (!dir.existsSync()) {
-          logger.d('Directory does not exist: $dirPath');
-          continue;
-        }
-
-        logger.d('Scanning: $dirPath');
-        final items = await _scanDirectory(dir, cutoffDate);
-        results.addAll(items);
-        logger.d('Found ${items.length} files in $dirPath');
-        
-        // Yield给UI线程，避免阻塞
-        await Future.delayed(Duration.zero);
-      } catch (e) {
-        logger.e('Error scanning $dirPath: $e');
-      }
-    }
-
-    return results;
-  }
-
-  /// 后台扫描低优先级路径（不阻塞UI）
-  void _scanLowPriorityInBackground(
-    List<String> paths,
-    DateTime cutoffDate,
-    List<NewFileItem> existingResults,
-    Function(List<NewFileItem>)? onPartialResults,
-  ) {
-    // 异步后台执行
-    Future(() async {
-      logger.i('Batch 3: Scanning low priority paths in background...');
-      final lowPriorityResults = await _scanPathsBatch(paths, cutoffDate);
-
-      if (lowPriorityResults.isNotEmpty) {
-        existingResults.addAll(lowPriorityResults);
-
-        // 第三批结果返回（后台更新）
-        if (onPartialResults != null) {
-          final sortedResults = List<NewFileItem>.from(existingResults)
-            ..sort((a, b) => b.created.compareTo(a.created));
-          onPartialResults(
-              sortedResults.take(settings.displayCount * 10).toList());
-          logger.i('Batch 3 complete: ${lowPriorityResults.length} files');
-        }
-      }
-    });
-  }
 }

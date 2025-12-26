@@ -9,10 +9,9 @@ import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/models/new_file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
 import 'package:easyfile/data/models/new_files_settings.dart';
-import 'package:easyfile/data/models/new_file_item.dart';
-import 'package:easyfile/data/models/file_source.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -900,6 +899,10 @@ class FilePresenter {
   /// 加载收藏文件列表（供Tab切换时调用）
   Future<void> loadFavoriteFiles() async {
     logger.i('FilePresenter.loadFavoriteFiles called');
+    
+    // ✅ 取消后台扫描以释放I/O资源
+    newFilesScanner.cancelCurrentScan();
+    
     try {
       viewModel.setLoading(true);
 
@@ -908,43 +911,45 @@ class FilePresenter {
       logger.d('Loaded ${favoriteFiles.length} favorite files from storage');
       viewModel.setFavoriteFiles(favoriteFiles);
 
-      // 将收藏文件转换为FileItem列表以便在UI中显示
-      final fileItems = <FileItem>[];
-      int existingCount = 0;
-      int missingCount = 0;
-
-      for (final favoriteFile in favoriteFiles) {
+      // ✅ 并行异步检查文件存在性和属性
+      final fileItemFutures = favoriteFiles.map((favoriteFile) async {
         try {
           final file = File(favoriteFile.filePath);
-          if (file.existsSync()) {
-            final fileItem = FileItem(
-              name: path.basename(favoriteFile.filePath),
-              path: favoriteFile.filePath,
-              size: file.lengthSync(),
-              modified: file.lastModifiedSync(),
-              isDirectory: false,
-              addedTime: favoriteFile.addedTime, // 传递收藏时间
-            );
-            fileItems.add(fileItem);
-            existingCount++;
-          } else {
-            missingCount++;
-            logger.w(
-              'Favorite file no longer exists: ${favoriteFile.filePath}',
-            );
+          
+          // ✅ 使用异步API
+          final exists = await file.exists();
+          if (!exists) {
+            logger.w('Favorite file no longer exists: ${favoriteFile.filePath}');
+            return null;
           }
-        } catch (e) {
-          logger.w(
-            'Error processing favorite file ${favoriteFile.filePath}: $e',
+          
+          final stat = await file.stat();
+          return FileItem(
+            name: path.basename(favoriteFile.filePath),
+            path: favoriteFile.filePath,
+            size: stat.size,
+            modified: stat.modified,
+            isDirectory: false,
+            addedTime: favoriteFile.addedTime,
           );
+        } catch (e) {
+          logger.w('Error processing favorite file ${favoriteFile.filePath}: $e');
+          return null;
         }
-      }
+      }).toList();
 
-      viewModel.setFiles(fileItems);
+      // 等待所有异步操作完成
+      final fileItems = await Future.wait(fileItemFutures);
+      
+      // 过滤掉null值（不存在的文件）
+      final validFileItems = fileItems
+          .whereType<FileItem>()
+          .toList();
+
+      viewModel.setFiles(validFileItems);
       viewModel.setLoading(false);
 
-      logger.i(
-          'Loaded ${fileItems.length} favorite files for display (existing: $existingCount, missing: $missingCount)');
+      logger.i('Loaded ${validFileItems.length} favorite files for display');
     } catch (e) {
       logger.e('Error loading favorite files: $e');
       viewModel.setLoading(false);
@@ -1129,19 +1134,23 @@ class FilePresenter {
   /// 刷新当前目录
   Future<void> refreshCurrent() async {
     logger.i('FilePresenter.refreshCurrent called');
+    
+    // 新文件Tab：MediaStore自动监听，下拉刷新无需执行任何操作
+    // （收藏和最近Tab由于内容通常不满屏，实际上也无法触发下拉刷新）
+    if (viewModel.currentTab == TabView.newFiles) {
+      logger.d('New files tab: MediaStore auto-refresh handles file changes');
+      return;
+    }
+    
     // 根据当前Tab类型刷新相应内容
     if (viewModel.currentTab == TabView.favorite) {
       logger.d('Refreshing favorite files');
       await loadFavoriteFiles();
-    } else if (viewModel.currentTab == TabView.newFiles) {
-      logger.d('Refreshing new files (user triggered)');
-      // 用户刷新：使用分批加载优化体验
-      await loadNewFilesByPriority(isUserRefresh: true);
     } else if (viewModel.isRecentFilesMode) {
       logger.d('Refreshing recent files');
       await loadRecentFiles();
     } else {
-      // 否则刷新当前目录
+      // 刷新当前目录
       await loadFiles(viewModel.currentPath);
     }
   }
@@ -1749,47 +1758,13 @@ class FilePresenter {
       final newFileItems = scannedItems ?? cachedItems;
       logger.d('Got ${newFileItems.length} new file items');
 
-      // 应用隐私设置过滤
-      final filteredItems = newFileItems.where((item) {
-        // 如果选择了特定来源，只显示该来源的文件
-        if (viewModel.selectedSource != null &&
-            item.source.name != viewModel.selectedSource) {
-          return false;
-        }
-
-        // 应用隐私设置
-        switch (item.source) {
-          case FileSource.camera:
-            return !latestSettings.hideCameraPhotos;
-          case FileSource.screenshots:
-            return !latestSettings.hideScreenshots;
-          case FileSource.recordings:
-          case FileSource.wechat:
-          case FileSource.qq:
-          default:
-            return true;
-        }
-      }).toList();
+      // 应用来源过滤（当前未启用）
+      final filteredItems = newFileItems.toList();
 
       logger.d('After filtering: ${filteredItems.length} items');
 
-      // 应用显示数量限制
-      final limitedItems =
-          filteredItems.take(latestSettings.displayCount).toList();
-      logger.d('After display limit: ${limitedItems.length} items');
-
-      // 转换为 FileItem
-      final fileItems = <FileItem>[];
-      for (final newFileItem in limitedItems) {
-        try {
-          final file = File(newFileItem.path);
-          if (file.existsSync()) {
-            fileItems.add(FileItem.fromEntity(file));
-          }
-        } catch (e) {
-          logger.e('Error loading file ${newFileItem.path}: $e');
-        }
-      }
+      // 处理文件项（应用限制并转换为FileItem）
+      final fileItems = await _processNewFileItems(filteredItems, latestSettings);
 
       logger.i('Loaded ${fileItems.length} new files');
 
@@ -1818,184 +1793,25 @@ class FilePresenter {
     }
   }
 
-  /// 刷新新文件列表（强制重新扫描）
-  Future<void> refreshNewFiles() async {
-    logger.i('FilePresenter.refreshNewFiles called');
-    viewModel.setLoading(true);
-
-    try {
-      // 重新加载设置以获取最新的配置
-      final latestSettings = await NewFilesSettings.load();
-      logger
-          .d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
-      // 执行完整扫描
-      final newFileItems = await newFilesScanner.scanNewFiles();
-      logger.d('Refreshed ${newFileItems.length} new file items');
-
-      // 应用隐私设置过滤（同loadNewFiles）
-      final filteredItems = newFileItems.where((item) {
-        if (viewModel.selectedSource != null &&
-            item.source.name != viewModel.selectedSource) {
-          return false;
-        }
-
-        switch (item.source) {
-          case FileSource.camera:
-            return !latestSettings.hideCameraPhotos;
-          case FileSource.screenshots:
-            return !latestSettings.hideScreenshots;
-          case FileSource.recordings:
-          case FileSource.wechat:
-          case FileSource.qq:
-          default:
-            return true;
-        }
-      }).toList();
-
-      // 应用显示数量限制
-      final limitedItems =
-          filteredItems.take(latestSettings.displayCount).toList();
-      logger.d('After display limit: ${limitedItems.length} items');
-
-      // 转换为 FileItem
-      final fileItems = <FileItem>[];
-      for (final newFileItem in limitedItems) {
-        try {
-          final file = File(newFileItem.path);
-          if (file.existsSync()) {
-            fileItems.add(FileItem.fromEntity(file));
-          }
-        } catch (e) {
-          logger.e('Error loading file ${newFileItem.path}: $e');
-        }
-      }
-
-      logger.i('Refreshed ${fileItems.length} new files');
-
-      // 保存到本地缓存
-      if (newFileItems.isNotEmpty) {
-        await newFilesLocalSource.saveCachedIndex(newFileItems);
-      }
-
-      // 更新视图模型（传递retentionDays设置）
-      viewModel.setNewFiles(fileItems,
-          retentionDays: latestSettings.retentionDays);
-    } catch (e) {
-      logger.e('Error refreshing new files: $e');
-      viewModel.setError('刷新新文件失败：$e');
-    } finally {
-      viewModel.setLoading(false);
-    }
-  }
-
-  /// 立即加载缓存的新文件（不显示loading状态）
-  ///
-  /// 用于Tab切换时快速显示内容，避免白屏
-  /// 返回是否成功加载到缓存数据
-  Future<bool> loadCachedNewFiles() async {
-    logger.i('FilePresenter.loadCachedNewFiles called');
-
-    try {
-      final settings = await NewFilesSettings.load();
-      final cachedItems = await newFilesLocalSource.loadCachedIndex();
-
-      if (cachedItems.isEmpty) {
-        logger.d('No cached new files found');
-        return false;
-      }
-
-      logger.d('Loading ${cachedItems.length} cached items');
-      await _updateUIWithNewFiles(cachedItems, settings);
-      logger.i('Successfully loaded ${cachedItems.length} cached new files');
-      return true;
-    } catch (e) {
-      logger.e('Error loading cached new files: $e');
-      return false;
-    }
-  }
-
-  /// 后台刷新新文件列表（不阻塞UI）
-  ///
-  /// 静默执行扫描和更新，用户无感知
-  void refreshNewFilesInBackground() {
-    logger.i('FilePresenter.refreshNewFilesInBackground called');
-
-    // 异步执行，不等待结果，不阻塞UI
-    // silent=true 表示不显示loading状态
-    loadNewFilesByPriority(isUserRefresh: false, silent: true).catchError((e) {
-      logger.e('Background refresh error: $e');
-    });
-  }
-
-  /// 分批加载新文件列表（支持渐进式显示）
-  ///
-  /// [isUserRefresh] - 是否为用户主动刷新（下拉刷新）
-  /// [silent] - 是否静默刷新（不显示loading状态，用于后台更新）
-  /// 用户将看到：
-  /// - 1-3秒：高优先级文件（下载、相机、微信）
-  /// - 3-5秒：中优先级文件（截屏、文档、蓝牙）
-  /// - 后台：低优先级文件（其他应用目录）
-  Future<void> loadNewFilesByPriority(
-      {bool isUserRefresh = false, bool silent = false}) async {
-    logger.i(
-        'FilePresenter.loadNewFilesByPriority called (userRefresh: $isUserRefresh, silent: $silent)');
-
-    // 只有非静默模式才显示loading
-    if (!silent) {
-      viewModel.setLoading(true);
-    }
-
-    try {
-      // 重新加载设置
-      final latestSettings = await NewFilesSettings.load();
-
-      // 分批扫描，支持渐进式结果
-      await newFilesScanner.scanNewFilesByPriority(
-        onPartialResults: (partialItems) async {
-          // 每次收到部分结果就更新UI
-          logger.d('Received partial results: ${partialItems.length} items');
-          await _updateUIWithNewFiles(partialItems, latestSettings);
-        },
-      );
-
-      logger.i('Priority-based scan complete');
-    } catch (e) {
-      logger.e('Error loading new files by priority: $e');
-      viewModel.setError('加载新文件失败：$e');
-    } finally {
-      // 只有非静默模式才关闭loading
-      if (!silent) {
-        viewModel.setLoading(false);
-      }
-    }
-  }
-
-  /// 更新UI显示新文件（内部方法）
-  Future<void> _updateUIWithNewFiles(
+  /// 处理新文件项：应用限制并转换为FileItem
+  /// 
+  /// **公共逻辑提取** - 被loadNewFiles和refreshNewFilesInBackground共用
+  /// 
+  /// **处理流程**:
+  /// 1. 应用displayCount限制（避免UI显示过多项）
+  /// 2. 检查文件是否仍然存在（防止已删除文件）
+  /// 3. 转换NewFileItem → FileItem（添加完整文件信息）
+  /// 
+  /// **参数**:
+  /// - [newFileItems]: 扫描得到的新文件列表（已按时间倒序）
+  /// - [settings]: 用户设置（包含displayCount等）
+  Future<List<FileItem>> _processNewFileItems(
     List<NewFileItem> newFileItems,
     NewFilesSettings settings,
   ) async {
-    // 应用隐私设置过滤
-    final filteredItems = newFileItems.where((item) {
-      // 过滤来源
-      if (viewModel.selectedSource != null &&
-          item.source.name != viewModel.selectedSource) {
-        return false;
-      }
-
-      // 应用隐私设置
-      switch (item.source) {
-        case FileSource.camera:
-          return !settings.hideCameraPhotos;
-        case FileSource.screenshots:
-          return !settings.hideScreenshots;
-        default:
-          return true;
-      }
-    }).toList();
-
     // 应用显示数量限制
-    final limitedItems = filteredItems.take(settings.displayCount).toList();
+    final limitedItems = newFileItems.take(settings.displayCount).toList();
+    logger.d('Processing ${limitedItems.length} items (limit: ${settings.displayCount})');
 
     // 转换为 FileItem
     final fileItems = <FileItem>[];
@@ -2010,14 +1826,42 @@ class FilePresenter {
       }
     }
 
-    // 更新视图模型
-    viewModel.setNewFiles(fileItems, retentionDays: settings.retentionDays);
-
-    // 保存到本地缓存
-    if (newFileItems.isNotEmpty) {
-      await newFilesLocalSource.saveCachedIndex(newFileItems);
-    }
-
-    logger.d('UI updated with ${fileItems.length} files');
+    return fileItems;
   }
+
+  /// 后台刷新新文件列表（不阻塞UI）
+  ///
+  /// 静默执行扫描和更新，用户无感知
+  void refreshNewFilesInBackground() {
+    logger.i('FilePresenter.refreshNewFilesInBackground called');
+
+    // 异步后台扫描，不阻塞UI（复用loadNewFiles逻辑，但不显示loading）
+    Future(() async {
+      try {
+        // 重新加载设置
+        final latestSettings = await NewFilesSettings.load();
+
+        // 使用优化的扫描方法（MediaStore + 原生）
+        final newFileItems = await newFilesScanner.scanNewFiles();
+        logger.d('Background scan complete: ${newFileItems.length} items');
+
+        // 处理文件项（应用限制并转换为FileItem）
+        final fileItems = await _processNewFileItems(newFileItems, latestSettings);
+
+        // 静默更新UI（不显示loading状态）
+        viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+
+        // 保存缓存
+        if (newFileItems.isNotEmpty) {
+          await newFilesLocalSource.saveCachedIndex(newFileItems);
+        }
+
+        logger.i('Background refresh complete: ${fileItems.length} files');
+      } catch (e) {
+        logger.e('Background refresh error: $e');
+      }
+    });
+  }
+
+
 }
