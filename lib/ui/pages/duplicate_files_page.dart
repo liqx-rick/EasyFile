@@ -427,7 +427,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         for (final file in batch) {
           if (!context.mounted) return;
           try {
-            await precacheImage(FileImage(File(file.path)), context);
+            final imageProvider = FileImage(File(file.path));
+            if (!context.mounted) return;
+            // ignore: use_build_context_synchronously
+            await precacheImage(imageProvider, context);
           } catch (e) {
             // 忽略错误
           }

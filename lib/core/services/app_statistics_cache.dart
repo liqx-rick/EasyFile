@@ -11,6 +11,8 @@ class AppStatistics {
   final int totalSize;
   
   /// 本周新增数量
+  /// 
+  /// 注意：当前 UI 未使用此字段，保留供将来可能的趋势展示功能使用。
   final int weeklyGrowth;
   
   /// 缓存时间

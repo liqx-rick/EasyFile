@@ -217,12 +217,12 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         widget.recommendationService ?? _createDefaultRecommendationService();
   }
 
-  /// 创建默认推荐服务（无缓存优化）
+  /// 创建默认推荐服务（降级方案）
   ///
-  /// 注意：此方法仅用于向后兼容，实际使用时应注入已初始化的服务
-  /// TODO: 在应用启动时初始化服务并注入
+  /// 注意：此方法仅用于向后兼容，正常情况下应通过构造函数注入已初始化的服务。
+  /// 当前应用已在 FileBrowserPage 的 initState 中初始化并注入服务。
   RecommendationService _createDefaultRecommendationService() {
-    logger.w('使用默认推荐服务（无缓存优化），建议注入已初始化的服务');
+    logger.w('使用默认推荐服务（降级方案），建议注入已初始化的服务');
 
     // 创建未初始化的服务（会降低性能）
     final detectionService = AppDetectionService();

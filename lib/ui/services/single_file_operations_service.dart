@@ -195,8 +195,8 @@ class SingleFileOperationsService {
       }
 
       final newName = isLandscape
-          ? await _showRenameBottomSheet(context, controller, file)
-          : await _showRenameDialog(context, controller, file);
+          ? await _showRenameBottomSheet(controller, file)
+          : await _showRenameDialog(controller, file);
 
       if (newName == null || newName.trim().isEmpty || !_isMounted) {
         controller.dispose();
@@ -208,6 +208,11 @@ class SingleFileOperationsService {
       }
 
       if (!_isMounted) {
+        controller.dispose();
+        return false;
+      }
+
+      if (!context.mounted) {
         controller.dispose();
         return false;
       }
@@ -278,7 +283,7 @@ class SingleFileOperationsService {
     } catch (e) {
       // 如果在显示对话框时发生异常，确保dispose controller
       controller.dispose();
-      _showErrorSnackBar('操作失败：$e', null, ScaffoldMessenger.of(context));
+      _showErrorSnackBar('操作失败：$e', null, messenger);
       return false;
     }
   }
@@ -347,6 +352,8 @@ class SingleFileOperationsService {
     if (!confirmed || !_isMounted) return;
 
     if (!_isMounted) return;
+
+    if (!context.mounted) return;
 
     // 显示进度
     showDialog(
@@ -483,6 +490,8 @@ class SingleFileOperationsService {
 
     if (!_isMounted) return false;
 
+    if (!context.mounted) return false;
+
     // 显示进度
     showDialog(
       context: context,
@@ -583,6 +592,8 @@ class SingleFileOperationsService {
     }
 
     if (!_isMounted) return false;
+
+    if (!context.mounted) return false;
 
     // 显示进度
     showDialog(
@@ -874,10 +885,10 @@ class SingleFileOperationsService {
 
   /// 显示重命名对话框（竖屏模式）
   Future<String?> _showRenameDialog(
-    BuildContext context,
     TextEditingController controller,
     FileItem file,
   ) {
+    if (!_isMounted) return Future.value(null);
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -916,10 +927,10 @@ class SingleFileOperationsService {
 
   /// 显示重命名底部表单（横屏模式）
   Future<String?> _showRenameBottomSheet(
-    BuildContext context,
     TextEditingController controller,
     FileItem file,
   ) {
+    if (!_isMounted) return Future.value(null);
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,

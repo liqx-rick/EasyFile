@@ -326,9 +326,12 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
       );
     }
 
+    if (!context.mounted) return;
+
     ScanResult? result;
     String actionName = '';
 
+    // ignore: use_build_context_synchronously
     final messenger = ScaffoldMessenger.of(context);
 
     try {

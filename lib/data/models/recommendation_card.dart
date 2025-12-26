@@ -88,6 +88,9 @@ class RecommendationCard {
   final int? totalSize;
 
   /// 本周新增文件数量
+  /// 
+  /// 注意：当前 UI 未使用此字段，保留供将来可能的趋势展示功能使用。
+  /// 数据来源：MediaStore.DATE_MODIFIED 索引查询（最近7天）
   final int? weeklyGrowth;
 
   const RecommendationCard({
