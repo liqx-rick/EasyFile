@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
@@ -558,14 +559,65 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   
   @override
   Widget build(BuildContext context) {
+    // 检测横屏模式
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
     return wrapWithPopScope(
       child: Scaffold(
-        appBar: _buildAppBar(),
         body: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
-              // Header（根据配置选择）
-              if (widget.config.headerType != HeaderType.none)
+              // AppBar（横屏时使用SliverAppBar支持自动隐藏）
+              isLandscape
+                ? SliverAppBar(
+                    floating: true,  // 向上滑动时立即显示
+                    snap: true,      // 显示/隐藏时有吸附效果
+                    pinned: false,   // 不固定在顶部
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.pop(context, _dataUpdated),
+                    ),
+                    title: Text(
+                      widget.config.subtitle != null
+                          ? '${widget.config.title} · ${widget.config.subtitle}'
+                          : widget.config.title,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    centerTitle: false,
+                    titleSpacing: 0,
+                    toolbarHeight: 48,  // 横屏时压缩AppBar高度
+                    backgroundColor: widget.config.themeColor,
+                    foregroundColor: Colors.white,
+                    systemOverlayStyle: SystemUiOverlayStyle.light,  // 状态栏使用浅色图标（白色）
+                  )
+                : SliverAppBar(
+                    pinned: true,  // 竖屏时固定在顶部
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.pop(context, _dataUpdated),
+                    ),
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.config.title),
+                        if (widget.config.subtitle != null)
+                          Text(
+                            widget.config.subtitle!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                      ],
+                    ),
+                    centerTitle: false,
+                    titleSpacing: 0,
+                    backgroundColor: widget.config.themeColor,
+                    foregroundColor: Colors.white,
+                  ),
+              
+              // Header（横屏时隐藏以节省空间）
+              if (widget.config.headerType != HeaderType.none && !isLandscape)
                 SliverToBoxAdapter(child: _buildHeader()),
               
               // Tab Bar（仅 application 模式，吸顶显示）
@@ -574,7 +626,10 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                   pinned: true, // 吸顶
                   delegate: _StickyHeaderDelegate(
                     child: _buildTabBar(),
-                    height: 56,
+                    // 横屏时高度 = Tab高度 + 状态栏高度
+                    height: isLandscape 
+                        ? 44 + MediaQuery.of(context).padding.top
+                        : 56,
                   ),
                 ),
               
@@ -583,7 +638,13 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                 pinned: true, // 吸顶
                 delegate: _StickyHeaderDelegate(
                   child: _buildToolbar(),
-                  height: 48,
+                  // content模式（时光记忆、生活剪影、声音记录）和cleanupRecommend模式（大文件）在横屏时需要增加状态栏高度
+                  height: isLandscape 
+                      ? (widget.config.mode == RecommendMode.content || 
+                         widget.config.mode == RecommendMode.cleanupRecommend
+                          ? 40 + MediaQuery.of(context).padding.top 
+                          : 40)
+                      : 48,
                 ),
               ),
               
@@ -619,37 +680,6 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     );
   }
   
-  /// 构建 AppBar
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () {
-          // 返回时传递数据更新标志
-          Navigator.pop(context, _dataUpdated);
-        },
-      ),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.config.title),
-          if (widget.config.subtitle != null)
-            Text(
-              widget.config.subtitle!,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-              ),
-            ),
-        ],
-      ),
-      centerTitle: false, // 标题左对齐
-      titleSpacing: 0, // 减小标题与leading之间的间距
-      backgroundColor: widget.config.themeColor,
-      foregroundColor: Colors.white, // 确保文字在深色背景下清晰可见
-    );
-  }
-  
   /// 构建 Header
   Widget _buildHeader() {
     switch (widget.config.headerType) {
@@ -682,8 +712,15 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       return const SizedBox.shrink();
     }
     
+    // 检测横屏模式
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // 横屏时添加顶部安全区域，避免与系统状态栏重合
     return Container(
       color: Theme.of(context).colorScheme.surface,
+      padding: isLandscape 
+          ? EdgeInsets.only(top: MediaQuery.of(context).padding.top)
+          : EdgeInsets.zero,
       child: TabBar(
         controller: _tabController,
         isScrollable: true, // 允许滚动以显示更多Tab
@@ -691,16 +728,16 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         tabs: _visibleTabs!.map((tab) {
           return Tab(
             text: tab.title,
-            icon: tab.icon != null ? Icon(tab.icon, size: 22) : null, // Icon尺寸22
-            height: 56, // 减少Tab高度，避免遮挡
-            iconMargin: const EdgeInsets.only(bottom: 2), // 减小icon和文字的间距
+            icon: tab.icon != null ? Icon(tab.icon, size: isLandscape ? 18 : 22) : null,
+            height: isLandscape ? 44 : 56,  // 横屏时压缩高度（44避免溢出）
+            iconMargin: EdgeInsets.only(bottom: isLandscape ? 0 : 2),  // 横屏去掉底部边距
           );
         }).toList(),
         labelColor: widget.config.themeColor ?? Theme.of(context).primaryColor,
         unselectedLabelColor: Colors.grey,
         indicatorColor: widget.config.themeColor ?? Theme.of(context).primaryColor,
-        labelStyle: const TextStyle(fontSize: 13), // 略微减小文字大小
-        unselectedLabelStyle: const TextStyle(fontSize: 13),
+        labelStyle: TextStyle(fontSize: isLandscape ? 12 : 13),  // 横屏时更小的文字
+        unselectedLabelStyle: TextStyle(fontSize: isLandscape ? 12 : 13),
       ),
     );
   }
@@ -708,9 +745,16 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   /// 构建工具栏
   Widget _buildToolbar() {
     final theme = Theme.of(context);
+    // 检测横屏模式
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    // content模式（时光记忆、生活剪影、声音记录）和cleanupRecommend模式（大文件）在横屏时需要增加顶部安全区域
+    final needsTopPadding = (widget.config.mode == RecommendMode.content || 
+                             widget.config.mode == RecommendMode.cleanupRecommend) && 
+                            isLandscape;
+    final topPadding = needsTopPadding ? MediaQuery.of(context).padding.top : 0.0;
     
     return Container(
-      height: 48,
+      height: isLandscape ? 40 : 48,  // 横屏时压缩高度
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         border: Border(
@@ -718,7 +762,11 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           top: BorderSide(color: theme.dividerColor.withOpacity(0.5), width: 0.5),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: EdgeInsets.only(
+        left: isLandscape ? 6 : 8,
+        right: isLandscape ? 6 : 8,
+        top: topPadding,  // 横屏时在content模式下增加顶部安全区域
+      ),
       child: Row(
         children: [
           // 编辑模式：全选按钮（只在编辑模式且有文件时显示）
