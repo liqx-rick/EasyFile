@@ -143,16 +143,26 @@ class RecommendationCard {
 
   /// 从JSON反序列化
   factory RecommendationCard.fromJson(Map<String, dynamic> json) {
+    final type = RecommendationType.values.firstWhere(
+      (e) => e.toString() == json['type'],
+    );
+    
+    // 从预定义配置中查找对应的icon和color（编译时常量）
+    final config = defaultRecommendationConfigs.firstWhere(
+      (c) => c.type == type,
+      orElse: () => const RecommendationConfig(
+        type: RecommendationType.largeFiles,
+        title: '未知',
+        icon: Icons.help_outline,
+        color: Colors.grey,
+      ),
+    );
+    
     return RecommendationCard(
-      type: RecommendationType.values.firstWhere(
-        (e) => e.toString() == json['type'],
-      ),
+      type: type,
       title: json['title'] as String,
-      icon: IconData(
-        json['iconCodePoint'] as int,
-        fontFamily: 'MaterialIcons',
-      ),
-      color: Color(json['colorValue'] as int),
+      icon: config.icon, // 使用config中的const IconData
+      color: config.color, // 使用config中的const Color
       fileCount: json['fileCount'] as int,
       appKey: json['appKey'] as String?,
       appIcon: json['appIcon'] != null 
