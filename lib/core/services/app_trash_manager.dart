@@ -630,9 +630,6 @@ class AppTrashManager {
   Future<void> startAutoCleanup() async {
     // 立即执行一次清理
     await cleanExpiredFiles();
-
-    // TODO: 实现定期清理（每天检查一次）
-    // 可以使用 flutter_background_service 或 workmanager 插件
   }
 
   // ==================== 查询功能 ====================
