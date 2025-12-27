@@ -16,8 +16,6 @@ import 'package:easyfile/ui/pages/trash_config_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
-import 'package:easyfile/ui/pages/app_file_scan_test_page.dart';
-import 'package:easyfile/ui/pages/native_camera_photos_test_page.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 
 /// 设置页面
@@ -90,8 +88,6 @@ class _SettingsPageState extends State<SettingsPage> {
           // 功能设置
           _buildSectionHeader('功能设置', Icons.tune),
           _buildNewFilesPrivacyTile(context),
-          const Divider(height: 1, indent: 56),
-          _buildDuplicateScanSettingTile(context),
 
           const Divider(height: 32),
 
@@ -99,15 +95,10 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSectionHeader('开发者选项', Icons.developer_mode),
           _buildRecommendationThresholdTile(context),
           const Divider(height: 1, indent: 56),
-          _buildNativeCameraTestTile(context),
+          _buildDuplicateScanSettingTile(context),
           const Divider(height: 1, indent: 56),
-          _buildScanTestTile(context, '图片扫描性能测试', CategoryType.images, Icons.image),
-          _buildScanTestTile(context, '音频扫描性能测试', CategoryType.music, Icons.music_note),
-          _buildScanTestTile(context, '视频扫描性能测试', CategoryType.video, Icons.video_library),
-          _buildScanTestTile(context, '文档扫描性能测试', CategoryType.documents, Icons.description),
           _buildScanTestTile(context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
           _buildScanTestTile(context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
-          _buildAppFileScanTestTile(context),
 
           const Divider(height: 32),
 
@@ -465,44 +456,6 @@ class _SettingsPageState extends State<SettingsPage> {
             builder: (context) => MediaStoreScanTestPage(
               categoryType: categoryType,
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 应用文件扫描方案对比测试入口
-  Widget _buildAppFileScanTestTile(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListTile(
-      leading: Icon(Icons.apps, color: colorScheme.primary),
-      title: const Text('应用文件扫描方案对比'),
-      subtitle: const Text('对比路径扫描 vs MediaStore OWNER_PACKAGE_NAME'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const AppFileScanTestPage(),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 本机相机拍照统计测试入口
-  Widget _buildNativeCameraTestTile(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListTile(
-      leading: Icon(Icons.camera_alt, color: colorScheme.primary),
-      title: const Text('本机相机拍照统计'),
-      subtitle: const Text('通过 EXIF 信息判断是否为本机拍摄的照片'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const NativeCameraPhotosTestPage(),
           ),
         );
       },
