@@ -65,12 +65,12 @@ class RecommendAggregatePage extends StatefulWidget {
   final FilePresenter presenter;
   
   const RecommendAggregatePage({
-    Key? key,
+    super.key,
     required this.config,
     required this.dataSourceFactory,
     required this.viewModel,
     required this.presenter,
-  }) : super(key: key);
+  });
 
   @override
   State<RecommendAggregatePage> createState() => _RecommendAggregatePageState();
