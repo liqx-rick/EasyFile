@@ -1,4 +1,4 @@
-package com.guangqi.easyfile
+﻿package com.guangqi.easyfile
 
 import android.content.Context
 import android.content.pm.PackageManager
@@ -28,7 +28,7 @@ class AppFileScanner(private val context: Context) {
         
         // 检查 Android 版本
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            Log.w(TAG, "OWNER_PACKAGE_NAME requires Android 11+, current: ${Build.VERSION.SDK_INT}")
+            LogHelper.w(TAG, "OWNER_PACKAGE_NAME requires Android 11+, current: ${Build.VERSION.SDK_INT}")
             return files
         }
         
@@ -63,7 +63,7 @@ class AppFileScanner(private val context: Context) {
                 val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
                 val mimeColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                 
-                Log.d(TAG, "开始遍历 MediaStore 查询结果，总数: ${it.count}")
+                LogHelper.d(TAG, "开始遍历 MediaStore 查询结果，总数: ${it.count}")
                 
                 while (it.moveToNext()) {
                     val path = it.getString(pathColumn) ?: continue
@@ -89,10 +89,10 @@ class AppFileScanner(private val context: Context) {
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
             
-            Log.i(TAG, "MediaStore OWNER_PACKAGE_NAME 扫描完成: ${files.size} 个文件, 耗时: ${duration}ms")
+            LogHelper.i(TAG, "MediaStore OWNER_PACKAGE_NAME 扫描完成: ${files.size} 个文件, 耗时: ${duration}ms")
             
         } catch (e: Exception) {
-            Log.e(TAG, "MediaStore 扫描失败: ${e.message}", e)
+            LogHelper.e(TAG, "MediaStore 扫描失败: ${e.message}", e)
         }
         
         return files
@@ -145,7 +145,7 @@ class AppFileScanner(private val context: Context) {
                 val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
                 val mimeColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                 
-                Log.d(TAG, "开始遍历文件名模式查询结果，总数: ${it.count}")
+                LogHelper.d(TAG, "开始遍历文件名模式查询结果，总数: ${it.count}")
                 
                 while (it.moveToNext()) {
                     val path = it.getString(pathColumn) ?: continue
@@ -171,10 +171,10 @@ class AppFileScanner(private val context: Context) {
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
             
-            Log.i(TAG, "文件名模式扫描完成: ${files.size} 个文件, 耗时: ${duration}ms")
+            LogHelper.i(TAG, "文件名模式扫描完成: ${files.size} 个文件, 耗时: ${duration}ms")
             
         } catch (e: Exception) {
-            Log.e(TAG, "文件名模式扫描失败: ${e.message}", e)
+            LogHelper.e(TAG, "文件名模式扫描失败: ${e.message}", e)
         }
         
         return files
@@ -243,7 +243,7 @@ class AppFileScanner(private val context: Context) {
                         // 严格匹配文件夹名称（不区分大小写）
                         if (folderName == keywordLower) {
                             matchedFolders.add(file.absolutePath + "/")
-                            Log.d(TAG, "找到匹配文件夹: ${file.absolutePath}")
+                            LogHelper.d(TAG, "找到匹配文件夹: ${file.absolutePath}")
                         }
                     }
                 }
@@ -252,10 +252,10 @@ class AppFileScanner(private val context: Context) {
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
             
-            Log.i(TAG, "查找严格匹配 '$keyword' 的文件夹完成: ${matchedFolders.size} 个, 耗时: ${duration}ms")
+            LogHelper.i(TAG, "查找严格匹配 '$keyword' 的文件夹完成: ${matchedFolders.size} 个, 耗时: ${duration}ms")
             
         } catch (e: Exception) {
-            Log.e(TAG, "查找文件夹失败: ${e.message}", e)
+            LogHelper.e(TAG, "查找文件夹失败: ${e.message}", e)
         }
         
         return matchedFolders
@@ -270,13 +270,13 @@ class AppFileScanner(private val context: Context) {
     fun isAppInstalled(packageName: String): Boolean {
         return try {
             context.packageManager.getPackageInfo(packageName, 0)
-            Log.d(TAG, "应用已安装: $packageName")
+            LogHelper.d(TAG, "应用已安装: $packageName")
             true
         } catch (e: PackageManager.NameNotFoundException) {
-            Log.d(TAG, "应用未安装: $packageName")
+            LogHelper.d(TAG, "应用未安装: $packageName")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "检测应用安装失败: ${e.message}", e)
+            LogHelper.e(TAG, "检测应用安装失败: ${e.message}", e)
             false
         }
     }
@@ -321,14 +321,14 @@ class AppFileScanner(private val context: Context) {
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
             
-            Log.d(TAG, "获取应用图标成功: $packageName, 大小: ${byteArray.size} bytes, 耗时: ${duration}ms")
+            LogHelper.d(TAG, "获取应用图标成功: $packageName, 大小: ${byteArray.size} bytes, 耗时: ${duration}ms")
             
             byteArray
         } catch (e: PackageManager.NameNotFoundException) {
-            Log.w(TAG, "应用未安装，无法获取图标: $packageName")
+            LogHelper.w(TAG, "应用未安装，无法获取图标: $packageName")
             null
         } catch (e: Exception) {
-            Log.e(TAG, "获取应用图标失败: ${e.message}", e)
+            LogHelper.e(TAG, "获取应用图标失败: ${e.message}", e)
             null
         }
     }

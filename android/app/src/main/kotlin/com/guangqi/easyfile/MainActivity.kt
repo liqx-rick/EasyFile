@@ -1,4 +1,4 @@
-package com.guangqi.easyfile
+﻿package com.guangqi.easyfile
 
 import android.content.Intent
 import android.net.Uri
@@ -226,7 +226,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(messenger, STATE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isRestoringFromBackground" -> {
-                    Log.i(TAG, "Flutter query - isRestoring: $isRestoringFromBackground")
+                    LogHelper.i(TAG, "Flutter query - isRestoring: $isRestoringFromBackground")
                     result.success(isRestoringFromBackground)
                 }
                 else -> result.notImplemented()
@@ -307,7 +307,7 @@ class MainActivity : FlutterActivity() {
                             startActivity(intent)
                             result.success(true)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error opening app settings: ${e.message}")
+                            LogHelper.e(TAG, "Error opening app settings: ${e.message}")
                             result.error("INTENT_ERROR", e.message, null)
                         }
                     } else {
@@ -322,7 +322,7 @@ class MainActivity : FlutterActivity() {
                         startActivity(intent)
                         result.success(true)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error opening usage stats settings: ${e.message}")
+                        LogHelper.e(TAG, "Error opening usage stats settings: ${e.message}")
                         result.error("INTENT_ERROR", e.message, null)
                     }
                 }
@@ -344,7 +344,7 @@ class MainActivity : FlutterActivity() {
                                 val stats = storageStatsHelper.getAppStorageStats(packageName)
                                 result.success(stats)
                             } catch (e: Exception) {
-                                Log.e(TAG, "Error getting storage stats: ${e.message}")
+                                LogHelper.e(TAG, "Error getting storage stats: ${e.message}")
                                 result.error("STATS_ERROR", e.message, null)
                             }
                         } else {
@@ -362,7 +362,7 @@ class MainActivity : FlutterActivity() {
                                 val stats = storageStatsHelper.batchGetAppStorageStats(packageNames)
                                 result.success(stats)
                             } catch (e: Exception) {
-                                Log.e(TAG, "Error batch getting storage stats: ${e.message}")
+                                LogHelper.e(TAG, "Error batch getting storage stats: ${e.message}")
                                 result.error("STATS_ERROR", e.message, null)
                             }
                         } else {
@@ -379,7 +379,7 @@ class MainActivity : FlutterActivity() {
                             val packageInfo = packageManager.getPackageInfo(packageName, 0)
                             result.success(packageInfo.firstInstallTime)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error getting first install time: ${e.message}")
+                            LogHelper.e(TAG, "Error getting first install time: ${e.message}")
                             result.error("INSTALL_TIME_ERROR", e.message, null)
                         }
                     } else {
@@ -420,7 +420,7 @@ class MainActivity : FlutterActivity() {
                                 val packageInfo = packageManager.getPackageInfo(packageName, 0)
                                 lastUpdateTime = packageInfo.lastUpdateTime
                             } catch (e: Exception) {
-                                Log.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
+                                LogHelper.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
                             }
                             
                             // 如果有UsageStats或有lastUpdateTime，就返回数据
@@ -438,7 +438,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(null)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error getting usage stats: ${e.message}")
+                            LogHelper.e(TAG, "Error getting usage stats: ${e.message}")
                             result.error("USAGE_STATS_ERROR", e.message, null)
                         }
                     } else {
@@ -449,8 +449,8 @@ class MainActivity : FlutterActivity() {
                     val packageNames = call.argument<List<String>>("packageNames")
                     val daysBack = call.argument<Int>("daysBack") ?: 7
                     
-                    Log.d(TAG, "========== batchGetUsageStats ==========")
-                    Log.d(TAG, "请求参数: packageNames=${packageNames?.size}, daysBack=$daysBack")
+                    LogHelper.d(TAG, "========== batchGetUsageStats ==========")
+                    LogHelper.d(TAG, "请求参数: packageNames=${packageNames?.size}, daysBack=$daysBack")
                     
                     if (packageNames != null) {
                         try {
@@ -459,9 +459,9 @@ class MainActivity : FlutterActivity() {
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
                             
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            Log.d(TAG, "查询时间范围:")
-                            Log.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))} ($startTime)")
-                            Log.d(TAG, "  endTime:   ${dateFormat.format(Date(endTime))} ($endTime)")
+                            LogHelper.d(TAG, "查询时间范围:")
+                            LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))} ($startTime)")
+                            LogHelper.d(TAG, "  endTime:   ${dateFormat.format(Date(endTime))} ($endTime)")
                             
                             // 使用 INTERVAL_BEST 获取最精确的数据
                             val usageStatsList = usageStatsManager.queryUsageStats(
@@ -470,7 +470,7 @@ class MainActivity : FlutterActivity() {
                                 endTime
                             )
                             
-                            Log.d(TAG, "系统返回 ${usageStatsList.size} 条使用记录")
+                            LogHelper.d(TAG, "系统返回 ${usageStatsList.size} 条使用记录")
                             
                             // 按lastTimeUsed分组统计
                             var count0to7 = 0
@@ -493,12 +493,12 @@ class MainActivity : FlutterActivity() {
                                 }
                             }
                             
-                            Log.d(TAG, "使用记录时间分布:")
-                            Log.d(TAG, "  0-7天: $count0to7")
-                            Log.d(TAG, "  8-30天: $count8to30")
-                            Log.d(TAG, "  31-180天: $count31to180")
-                            Log.d(TAG, "  >180天: $countOver180")
-                            Log.d(TAG, "  lastTimeUsed=0: $countZero")
+                            LogHelper.d(TAG, "使用记录时间分布:")
+                            LogHelper.d(TAG, "  0-7天: $count0to7")
+                            LogHelper.d(TAG, "  8-30天: $count8to30")
+                            LogHelper.d(TAG, "  31-180天: $count31to180")
+                            LogHelper.d(TAG, "  >180天: $countOver180")
+                            LogHelper.d(TAG, "  lastTimeUsed=0: $countZero")
                             
                             // 为每个应用找到最新的使用记录
                             val statsMap = mutableMapOf<String, Map<String, Any?>>()
@@ -508,7 +508,7 @@ class MainActivity : FlutterActivity() {
                                 val appStatsList = usageStatsList.filter { it.packageName == packageName }
                                 
                                 if (appStatsList.isNotEmpty()) {
-                                    Log.d(TAG, "[$packageName] 找到 ${appStatsList.size} 条记录")
+                                    LogHelper.d(TAG, "[$packageName] 找到 ${appStatsList.size} 条记录")
                                     
                                     // 打印所有记录的lastTimeUsed
                                     appStatsList.forEachIndexed { index, stat ->
@@ -517,7 +517,7 @@ class MainActivity : FlutterActivity() {
                                         } else {
                                             -1
                                         }
-                                        Log.d(TAG, "  记录$index: lastTimeUsed=${stat.lastTimeUsed}, ${daysAgo}天前, totalTime=${stat.totalTimeInForeground}ms")
+                                        LogHelper.d(TAG, "  记录$index: lastTimeUsed=${stat.lastTimeUsed}, ${daysAgo}天前, totalTime=${stat.totalTimeInForeground}ms")
                                     }
                                 }
                                 
@@ -528,9 +528,9 @@ class MainActivity : FlutterActivity() {
                                 try {
                                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
                                     lastUpdateTime = packageInfo.lastUpdateTime
-                                    Log.d(TAG, "[$packageName] lastUpdateTime=${lastUpdateTime}")
+                                    LogHelper.d(TAG, "[$packageName] lastUpdateTime=${lastUpdateTime}")
                                 } catch (e: Exception) {
-                                    Log.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
+                                    LogHelper.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
                                 }
                                 
                                 // 如果有UsageStats或有lastUpdateTime，就返回数据
@@ -544,14 +544,14 @@ class MainActivity : FlutterActivity() {
                                         } else {
                                             -1
                                         }
-                                        Log.d(TAG, "[$packageName] 最新记录: lastTimeUsed=${lastTimeUsed}, ${daysSinceUsed}天前")
+                                        LogHelper.d(TAG, "[$packageName] 最新记录: lastTimeUsed=${lastTimeUsed}, ${daysSinceUsed}天前")
                                         
                                         // 特别标记超过30天的应用
                                         if (daysSinceUsed > 30) {
-                                            Log.w(TAG, "!!! [$packageName] 发现超过30天的使用记录: ${daysSinceUsed}天前 !!!")
+                                            LogHelper.w(TAG, "!!! [$packageName] 发现超过30天的使用记录: ${daysSinceUsed}天前 !!!")
                                         }
                                     } else {
-                                        Log.d(TAG, "[$packageName] 无UsageStats记录，仅使用lastUpdateTime")
+                                        LogHelper.d(TAG, "[$packageName] 无UsageStats记录，仅使用lastUpdateTime")
                                     }
                                     
                                     // 返回数据，让 Flutter 端决定如何显示
@@ -565,10 +565,10 @@ class MainActivity : FlutterActivity() {
                                 }
                             }
                             
-                            Log.d(TAG, "========== 返回 ${statsMap.size} 个应用的统计数据 ==========")
+                            LogHelper.d(TAG, "========== 返回 ${statsMap.size} 个应用的统计数据 ==========")
                             result.success(statsMap)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error batch getting usage stats: ${e.message}")
+                            LogHelper.e(TAG, "Error batch getting usage stats: ${e.message}")
                             result.error("USAGE_STATS_ERROR", e.message, null)
                         }
                     } else {
@@ -612,20 +612,20 @@ class MainActivity : FlutterActivity() {
                                         "totalTimeInForeground" to latestStats.totalTimeInForeground,
                                         "recordCount" to appStatsList.size
                                     )
-                                    Log.d(TAG, "[$name] Found ${appStatsList.size} records, lastTimeUsed=${latestStats.lastTimeUsed}")
+                                    LogHelper.d(TAG, "[$name] Found ${appStatsList.size} records, lastTimeUsed=${latestStats.lastTimeUsed}")
                                 } else {
                                     results[name] = mapOf(
                                         "lastTimeUsed" to 0,
                                         "totalTimeInForeground" to 0,
                                         "recordCount" to 0
                                     )
-                                    Log.d(TAG, "[$name] No data found")
+                                    LogHelper.d(TAG, "[$name] No data found")
                                 }
                             }
                             
                             result.success(results)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error testing intervals: ${e.message}")
+                            LogHelper.e(TAG, "Error testing intervals: ${e.message}")
                             result.error("INTERVAL_TEST_ERROR", e.message, null)
                         }
                     } else {
@@ -654,9 +654,9 @@ class MainActivity : FlutterActivity() {
                             val endTime = calendar.timeInMillis
                             
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            Log.d(TAG, "查询特定日期: $year-$month-$day")
-                            Log.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
-                            Log.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
+                            LogHelper.d(TAG, "查询特定日期: $year-$month-$day")
+                            LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
+                            LogHelper.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
                             
                             // 使用 INTERVAL_DAILY 查询当天数据
                             val usageStatsList = usageStatsManager.queryUsageStats(
@@ -665,11 +665,11 @@ class MainActivity : FlutterActivity() {
                                 endTime
                             )
                             
-                            Log.d(TAG, "系统返回 ${usageStatsList.size} 条记录")
+                            LogHelper.d(TAG, "系统返回 ${usageStatsList.size} 条记录")
                             
                             // 找到该应用的记录
                             val appStatsList = usageStatsList.filter { it.packageName == packageName }
-                            Log.d(TAG, "找到 ${appStatsList.size} 条 $packageName 的记录")
+                            LogHelper.d(TAG, "找到 ${appStatsList.size} 条 $packageName 的记录")
                             
                             if (appStatsList.isNotEmpty()) {
                                 val latestStats = appStatsList.maxByOrNull { it.lastTimeUsed }
@@ -684,7 +684,7 @@ class MainActivity : FlutterActivity() {
                                         "recordCount" to appStatsList.size
                                     )
                                     
-                                    Log.d(TAG, "查询结果: lastTimeUsed=${latestStats.lastTimeUsed}, totalTime=${latestStats.totalTimeInForeground}ms")
+                                    LogHelper.d(TAG, "查询结果: lastTimeUsed=${latestStats.lastTimeUsed}, totalTime=${latestStats.totalTimeInForeground}ms")
                                     result.success(resultMap)
                                 } else {
                                     result.success(null)
@@ -693,7 +693,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(null)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error querying specific date: ${e.message}")
+                            LogHelper.e(TAG, "Error querying specific date: ${e.message}")
                             result.error("QUERY_ERROR", e.message, null)
                         }
                     } else {
@@ -710,7 +710,7 @@ class MainActivity : FlutterActivity() {
                             val endTime = System.currentTimeMillis()
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
                             
-                            Log.d(TAG, "获取应用完整信息（使用UsageEvents）: $packageName (最近${daysBack}天)")
+                            LogHelper.d(TAG, "获取应用完整信息（使用UsageEvents）: $packageName (最近${daysBack}天)")
                             
                             val fullInfo = mutableMapOf<String, Any?>()
                             fullInfo["packageName"] = packageName
@@ -765,7 +765,7 @@ class MainActivity : FlutterActivity() {
                                 totalForegroundTime += (endTime - lastResumeTime)
                             }
                             
-                            Log.d(TAG, "找到 $eventCount 个事件，使用天数: ${usedDates.size}")
+                            LogHelper.d(TAG, "找到 $eventCount 个事件，使用天数: ${usedDates.size}")
                             
                             if (eventCount > 0) {
                                 fullInfo["eventCount"] = eventCount
@@ -776,11 +776,11 @@ class MainActivity : FlutterActivity() {
                                 
                                 result.success(fullInfo)
                             } else {
-                                Log.d(TAG, "未找到使用记录")
+                                LogHelper.d(TAG, "未找到使用记录")
                                 result.success(null)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error getting full app info: ${e.message}")
+                            LogHelper.e(TAG, "Error getting full app info: ${e.message}")
                             e.printStackTrace()
                             result.error("QUERY_ERROR", e.message, null)
                         }
@@ -809,9 +809,9 @@ class MainActivity : FlutterActivity() {
                             val endTime = calendar.timeInMillis
                             
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            Log.d(TAG, "查询UsageEvents: $year-$month-$day")
-                            Log.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
-                            Log.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
+                            LogHelper.d(TAG, "查询UsageEvents: $year-$month-$day")
+                            LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
+                            LogHelper.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
                             
                             // 使用 queryEvents 获取详细事件
                             val events = usageStatsManager.queryEvents(startTime, endTime)
@@ -838,11 +838,11 @@ class MainActivity : FlutterActivity() {
                                     eventsList.add(eventMap)
                                     count++
                                     
-                                    Log.d(TAG, "Event #$count: ${dateFormat.format(Date(event.timeStamp))} - ${getEventTypeName(event.eventType)}")
+                                    LogHelper.d(TAG, "Event #$count: ${dateFormat.format(Date(event.timeStamp))} - ${getEventTypeName(event.eventType)}")
                                 }
                             }
                             
-                            Log.d(TAG, "找到 $count 个事件")
+                            LogHelper.d(TAG, "找到 $count 个事件")
                             
                             val resultMap = mapOf(
                                 "packageName" to packageName,
@@ -852,7 +852,7 @@ class MainActivity : FlutterActivity() {
                             
                             result.success(resultMap)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error querying usage events: ${e.message}")
+                            LogHelper.e(TAG, "Error querying usage events: ${e.message}")
                             e.printStackTrace()
                             result.error("QUERY_ERROR", e.message, null)
                         }
@@ -887,9 +887,9 @@ class MainActivity : FlutterActivity() {
                             val endTime = endCalendar.timeInMillis
                             
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            Log.d(TAG, "查询日期范围: $packageName")
-                            Log.d(TAG, "  从: ${dateFormat.format(Date(startTime))}")
-                            Log.d(TAG, "  到: ${dateFormat.format(Date(endTime))}")
+                            LogHelper.d(TAG, "查询日期范围: $packageName")
+                            LogHelper.d(TAG, "  从: ${dateFormat.format(Date(startTime))}")
+                            LogHelper.d(TAG, "  到: ${dateFormat.format(Date(endTime))}")
                             
                             // 使用 queryEvents 获取详细事件
                             val events = usageStatsManager.queryEvents(startTime, endTime)
@@ -918,7 +918,7 @@ class MainActivity : FlutterActivity() {
                                 }
                             }
                             
-                            Log.d(TAG, "找到 $count 个事件")
+                            LogHelper.d(TAG, "找到 $count 个事件")
                             
                             val resultMap = mapOf(
                                 "packageName" to packageName,
@@ -930,7 +930,7 @@ class MainActivity : FlutterActivity() {
                             
                             result.success(resultMap)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error querying date range: ${e.message}")
+                            LogHelper.e(TAG, "Error querying date range: ${e.message}")
                             e.printStackTrace()
                             result.error("QUERY_ERROR", e.message, null)
                         }
@@ -1050,7 +1050,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(files)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error scanning with MediaStore: ${e.message}")
+                            LogHelper.e(TAG, "Error scanning with MediaStore: ${e.message}")
                             withContext(Dispatchers.Main) {
                                 result.error("SCAN_ERROR", e.message, null)
                             }
@@ -1084,7 +1084,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(stats)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error getting MediaStore scan stats: ${e.message}")
+                            LogHelper.e(TAG, "Error getting MediaStore scan stats: ${e.message}")
                             withContext(Dispatchers.Main) {
                                 result.error("STATS_ERROR", e.message, null)
                             }
@@ -1157,13 +1157,13 @@ class MainActivity : FlutterActivity() {
                                 }
                             }
 
-                            Log.i(TAG, "扫描最近${days}天的应用文件: $packageName, 数量: ${fileList.size}")
+                            LogHelper.i(TAG, "扫描最近${days}天的应用文件: $packageName, 数量: ${fileList.size}")
                             withContext(Dispatchers.Main) {
                                 result.success(fileList)
                             }
                             
                         } catch (e: Exception) {
-                            Log.e(TAG, "扫描最近修改的应用文件失败: ${e.message}", e)
+                            LogHelper.e(TAG, "扫描最近修改的应用文件失败: ${e.message}", e)
                             withContext(Dispatchers.Main) {
                                 result.error("SCAN_ERROR", "扫描失败: ${e.message}", null)
                             }
@@ -1183,7 +1183,7 @@ class MainActivity : FlutterActivity() {
                         val files = appFileScanner.scanByOwnerPackage(packageName)
                         result.success(files)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error scanning by owner package: ${e.message}")
+                        LogHelper.e(TAG, "Error scanning by owner package: ${e.message}")
                         result.error("SCAN_ERROR", e.message, null)
                     }
                 }
@@ -1192,7 +1192,7 @@ class MainActivity : FlutterActivity() {
                         val supported = appFileScanner.isOwnerPackageSupported()
                         result.success(supported)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error checking owner package support: ${e.message}")
+                        LogHelper.e(TAG, "Error checking owner package support: ${e.message}")
                         result.error("CHECK_ERROR", e.message, null)
                     }
                 }
@@ -1202,7 +1202,7 @@ class MainActivity : FlutterActivity() {
                         val paths = appFileScanner.getKnownAppPaths(appKey)
                         result.success(paths)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error getting known app paths: ${e.message}")
+                        LogHelper.e(TAG, "Error getting known app paths: ${e.message}")
                         result.error("PATH_ERROR", e.message, null)
                     }
                 }
@@ -1212,7 +1212,7 @@ class MainActivity : FlutterActivity() {
                         val files = appFileScanner.scanByFileNamePattern(patterns)
                         result.success(files)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error scanning by file name pattern: ${e.message}")
+                        LogHelper.e(TAG, "Error scanning by file name pattern: ${e.message}")
                         result.error("SCAN_ERROR", e.message, null)
                     }
                 }
@@ -1222,7 +1222,7 @@ class MainActivity : FlutterActivity() {
                         val patterns = appFileScanner.getAppFileNamePatterns(appKey)
                         result.success(patterns)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error getting app file name patterns: ${e.message}")
+                        LogHelper.e(TAG, "Error getting app file name patterns: ${e.message}")
                         result.error("PATTERN_ERROR", e.message, null)
                     }
                 }
@@ -1233,7 +1233,7 @@ class MainActivity : FlutterActivity() {
                         val folders = appFileScanner.findFoldersContaining(basePaths, keyword)
                         result.success(folders)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error finding folders: ${e.message}")
+                        LogHelper.e(TAG, "Error finding folders: ${e.message}")
                         result.error("FIND_ERROR", e.message, null)
                     }
                 }
@@ -1243,7 +1243,7 @@ class MainActivity : FlutterActivity() {
                         val isInstalled = appFileScanner.isAppInstalled(packageName)
                         result.success(isInstalled)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error checking app installation: ${e.message}")
+                        LogHelper.e(TAG, "Error checking app installation: ${e.message}")
                         result.error("CHECK_ERROR", e.message, null)
                     }
                 }
@@ -1253,7 +1253,7 @@ class MainActivity : FlutterActivity() {
                         val iconBytes = appFileScanner.getAppIcon(packageName)
                         result.success(iconBytes)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error getting app icon: ${e.message}")
+                        LogHelper.e(TAG, "Error getting app icon: ${e.message}")
                         result.error("ICON_ERROR", e.message, null)
                     }
                 }
@@ -1272,7 +1272,7 @@ class MainActivity : FlutterActivity() {
                         )
                         result.success(deviceInfo)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error getting device info: ${e.message}")
+                        LogHelper.e(TAG, "Error getting device info: ${e.message}")
                         result.error("DEVICE_INFO_ERROR", e.message, null)
                     }
                 }
@@ -1284,7 +1284,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(photos)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error scanning native camera photos: ${e.message}")
+                            LogHelper.e(TAG, "Error scanning native camera photos: ${e.message}")
                             withContext(Dispatchers.Main) {
                                 result.error("SCAN_ERROR", e.message, null)
                             }
@@ -1299,7 +1299,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(photos)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error scanning camera package photos: ${e.message}")
+                            LogHelper.e(TAG, "Error scanning camera package photos: ${e.message}")
                             withContext(Dispatchers.Main) {
                                 result.error("SCAN_ERROR", e.message, null)
                             }
@@ -1314,7 +1314,7 @@ class MainActivity : FlutterActivity() {
                                 result.success(videos)
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error scanning camera package videos: ${e.message}")
+                            LogHelper.e(TAG, "Error scanning camera package videos: ${e.message}")
                             withContext(Dispatchers.Main) {
                                 result.error("SCAN_ERROR", e.message, null)
                             }
@@ -1329,12 +1329,12 @@ class MainActivity : FlutterActivity() {
         EventChannel(messenger, APP_EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    Log.i(TAG, "应用事件监听已启动")
+                    LogHelper.i(TAG, "应用事件监听已启动")
                     appEventSink = events
                 }
                 
                 override fun onCancel(arguments: Any?) {
-                    Log.i(TAG, "应用事件监听已取消")
+                    LogHelper.i(TAG, "应用事件监听已取消")
                     appEventSink = null
                 }
             }
@@ -1344,12 +1344,12 @@ class MainActivity : FlutterActivity() {
         EventChannel(messenger, FILE_CHANGE_EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    Log.i(TAG, "文件变化监听已启动")
+                    LogHelper.i(TAG, "文件变化监听已启动")
                     fileChangeEventSink = events
                 }
                 
                 override fun onCancel(arguments: Any?) {
-                    Log.i(TAG, "文件变化监听已取消")
+                    LogHelper.i(TAG, "文件变化监听已取消")
                     fileChangeEventSink = null
                 }
             }
@@ -1361,7 +1361,7 @@ class MainActivity : FlutterActivity() {
                 "scanRecentFiles" -> {
                     val days = call.argument<Int>("days") ?: 7
                     
-                    Log.i(TAG, "开始扫描最近 $days 天的新文件（原生优化）")
+                    LogHelper.i(TAG, "开始扫描最近 $days 天的新文件（原生优化）")
                     
                     // 使用协程异步执行，避免阻塞UI
                     lifecycleScope.launch(Dispatchers.IO) {
@@ -1369,12 +1369,12 @@ class MainActivity : FlutterActivity() {
                             val files = newFilesScanner.scanRecentFiles(days)
                             
                             withContext(Dispatchers.Main) {
-                                Log.i(TAG, "新文件扫描完成: ${files.size} 个文件")
+                                LogHelper.i(TAG, "新文件扫描完成: ${files.size} 个文件")
                                 result.success(files)
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
-                                Log.e(TAG, "新文件扫描失败: ${e.message}", e)
+                                LogHelper.e(TAG, "新文件扫描失败: ${e.message}", e)
                                 result.error("SCAN_ERROR", e.message, null)
                             }
                         }
@@ -1395,7 +1395,7 @@ class MainActivity : FlutterActivity() {
             addDataScheme("package")
         }
         registerReceiver(packageChangeReceiver, filter)
-        Log.i(TAG, "应用安装/卸载监听器已注册")
+        LogHelper.i(TAG, "应用安装/卸载监听器已注册")
     }
     
     /**
@@ -1410,7 +1410,7 @@ class MainActivity : FlutterActivity() {
                     super.onChange(selfChange, uri)
                     
                     uri?.let {
-                        Log.d(TAG, "MediaStore changed: $it")
+                        LogHelper.d(TAG, "MediaStore changed: $it")
                         
                         // 发送事件到 Flutter
                         fileChangeEventSink?.success(mapOf(
@@ -1450,9 +1450,9 @@ class MainActivity : FlutterActivity() {
                 )
             }
             
-            Log.i(TAG, "MediaStore 监听已注册")
+            LogHelper.i(TAG, "MediaStore 监听已注册")
         } catch (e: Exception) {
-            Log.e(TAG, "注册 MediaStore 监听失败: ${e.message}")
+            LogHelper.e(TAG, "注册 MediaStore 监听失败: ${e.message}")
         }
     }
     
@@ -1464,10 +1464,10 @@ class MainActivity : FlutterActivity() {
             mediaStoreObserver?.let {
                 contentResolver.unregisterContentObserver(it)
                 mediaStoreObserver = null
-                Log.i(TAG, "MediaStore 监听已取消")
+                LogHelper.i(TAG, "MediaStore 监听已取消")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "取消 MediaStore 监听失败: ${e.message}")
+            LogHelper.e(TAG, "取消 MediaStore 监听失败: ${e.message}")
         }
     }
     
@@ -1482,19 +1482,19 @@ class MainActivity : FlutterActivity() {
      * 通过读取 EXIF 信息判断是否为本机拍摄
      */
     private fun scanNativeCameraPhotos(): List<Map<String, Any>> {
-        Log.i(TAG, "开始扫描设备所有图片...")
+        LogHelper.i(TAG, "开始扫描设备所有图片...")
         
         val deviceMake = android.os.Build.MANUFACTURER
         val deviceModel = android.os.Build.MODEL
         
-        Log.i(TAG, "设备信息: $deviceMake $deviceModel")
+        LogHelper.i(TAG, "设备信息: $deviceMake $deviceModel")
         
         val results = mutableListOf<Map<String, Any>>()
         
         // 扫描所有图片（不加过滤）
         val allPhotos = mediaStoreScanner.scan(MediaType.Image)
         
-        Log.i(TAG, "找到 ${allPhotos.size} 张图片，开始分析 EXIF...")
+        LogHelper.i(TAG, "找到 ${allPhotos.size} 张图片，开始分析 EXIF...")
         
         for (photo in allPhotos) {
             try {
@@ -1523,12 +1523,12 @@ class MainActivity : FlutterActivity() {
                     "isNative" to isNative
                 ))
             } catch (e: Exception) {
-                Log.w(TAG, "读取 EXIF 失败: ${photo["path"]}, ${e.message}")
+                LogHelper.w(TAG, "读取 EXIF 失败: ${photo["path"]}, ${e.message}")
             }
         }
         
         val nativeCount = results.count { it["isNative"] as Boolean }
-        Log.i(TAG, "扫描完成: 总数 ${results.size}, 本机拍摄 $nativeCount")
+        LogHelper.i(TAG, "扫描完成: 总数 ${results.size}, 本机拍摄 $nativeCount")
         
         return results
     }
@@ -1563,14 +1563,14 @@ class MainActivity : FlutterActivity() {
      * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的图片
      */
     private fun scanCameraPackagePhotos(): List<Map<String, Any>> {
-        Log.i(TAG, "开始扫描系统相机包名创建的图片...")
+        LogHelper.i(TAG, "开始扫描系统相机包名创建的图片...")
         
         // 获取系统相机包名
         val cameraPackageName = getCameraPackageName()
-        Log.i(TAG, "系统相机包名: $cameraPackageName")
+        LogHelper.i(TAG, "系统相机包名: $cameraPackageName")
         
         if (cameraPackageName.isEmpty()) {
-            Log.w(TAG, "无法获取系统相机包名")
+            LogHelper.w(TAG, "无法获取系统相机包名")
             return emptyList()
         }
         
@@ -1611,7 +1611,7 @@ class MainActivity : FlutterActivity() {
                 val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
                 val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
                 
-                Log.i(TAG, "找到 ${cursor.count} 张系统相机照片")
+                LogHelper.i(TAG, "找到 ${cursor.count} 张系统相机照片")
                 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -1639,10 +1639,10 @@ class MainActivity : FlutterActivity() {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "扫描系统相机照片失败: ${e.message}", e)
+            LogHelper.e(TAG, "扫描系统相机照片失败: ${e.message}", e)
         }
         
-        Log.i(TAG, "扫描完成: ${results.size} 张系统相机照片")
+        LogHelper.i(TAG, "扫描完成: ${results.size} 张系统相机照片")
         return results
     }
     
@@ -1655,7 +1655,7 @@ class MainActivity : FlutterActivity() {
             val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             resolveInfo?.activityInfo?.packageName ?: ""
         } catch (e: Exception) {
-            Log.e(TAG, "获取相机包名失败: ${e.message}")
+            LogHelper.e(TAG, "获取相机包名失败: ${e.message}")
             ""
         }
     }
@@ -1665,14 +1665,14 @@ class MainActivity : FlutterActivity() {
      * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的视频
      */
     private fun scanCameraPackageVideos(): List<Map<String, Any>> {
-        Log.i(TAG, "开始扫描系统相机包名创建的视频...")
+        LogHelper.i(TAG, "开始扫描系统相机包名创建的视频...")
         
         // 获取系统相机包名
         val cameraPackageName = getCameraPackageName()
-        Log.i(TAG, "系统相机包名: $cameraPackageName")
+        LogHelper.i(TAG, "系统相机包名: $cameraPackageName")
         
         if (cameraPackageName.isEmpty()) {
-            Log.w(TAG, "无法获取系统相机包名")
+            LogHelper.w(TAG, "无法获取系统相机包名")
             return emptyList()
         }
         
@@ -1715,7 +1715,7 @@ class MainActivity : FlutterActivity() {
                 val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
                 val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
                 
-                Log.i(TAG, "找到 ${cursor.count} 个系统相机视频")
+                LogHelper.i(TAG, "找到 ${cursor.count} 个系统相机视频")
                 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -1745,10 +1745,10 @@ class MainActivity : FlutterActivity() {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "扫描系统相机视频失败: ${e.message}", e)
+            LogHelper.e(TAG, "扫描系统相机视频失败: ${e.message}", e)
         }
         
-        Log.i(TAG, "扫描完成: ${results.size} 个系统相机视频")
+        LogHelper.i(TAG, "扫描完成: ${results.size} 个系统相机视频")
         return results
     }
     
@@ -1774,7 +1774,7 @@ class MainActivity : FlutterActivity() {
             }
             mode == AppOpsManager.MODE_ALLOWED
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking usage stats permission: ${e.message}")
+            LogHelper.e(TAG, "Error checking usage stats permission: ${e.message}")
             false
         }
     }

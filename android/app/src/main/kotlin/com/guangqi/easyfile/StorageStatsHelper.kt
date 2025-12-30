@@ -1,4 +1,4 @@
-package com.guangqi.easyfile
+﻿package com.guangqi.easyfile
 
 import android.app.usage.StorageStatsManager
 import android.content.Context
@@ -68,13 +68,13 @@ class StorageStatsHelper(private val context: Context) {
             
             // 详细日志（特别关注微信）
             if (packageName == "com.tencent.mm") {
-                Log.i("StorageStatsHelper", "=== WeChat Storage Stats (API Values) ===")
-                Log.i("StorageStatsHelper", "appBytes (code): $appBytes (${appBytes / 1024 / 1024}MB)")
-                Log.i("StorageStatsHelper", "dataBytes (all data including cache): $dataBytes (${dataBytes / 1024 / 1024}MB)")
-                Log.i("StorageStatsHelper", "cacheBytes (subset of dataBytes): $cacheBytes (${cacheBytes / 1024 / 1024}MB)")
-                Log.i("StorageStatsHelper", "OLD calculation (WRONG - double counts cache): ${(appBytes + dataBytes + cacheBytes) / 1024 / 1024}MB")
-                Log.i("StorageStatsHelper", "NEW calculation (CORRECT - no double counting): ${(appBytes + dataBytes) / 1024 / 1024}MB")
-                Log.i("StorageStatsHelper", "============================")
+                LogHelper.i("StorageStatsHelper", "=== WeChat Storage Stats (API Values) ===")
+                LogHelper.i("StorageStatsHelper", "appBytes (code): $appBytes (${appBytes / 1024 / 1024}MB)")
+                LogHelper.i("StorageStatsHelper", "dataBytes (all data including cache): $dataBytes (${dataBytes / 1024 / 1024}MB)")
+                LogHelper.i("StorageStatsHelper", "cacheBytes (subset of dataBytes): $cacheBytes (${cacheBytes / 1024 / 1024}MB)")
+                LogHelper.i("StorageStatsHelper", "OLD calculation (WRONG - double counts cache): ${(appBytes + dataBytes + cacheBytes) / 1024 / 1024}MB")
+                LogHelper.i("StorageStatsHelper", "NEW calculation (CORRECT - no double counting): ${(appBytes + dataBytes) / 1024 / 1024}MB")
+                LogHelper.i("StorageStatsHelper", "============================")
             }
 
             return mapOf(
