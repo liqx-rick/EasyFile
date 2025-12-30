@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:easyfile/core/platform/app_file_scanner_channel.dart';
-import 'package:easyfile/core/services/app_scanner_configs.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/app_scanner_config.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,7 +146,7 @@ class AppDetectionService {
   ///   print('微信已安装: ${result.packageName}');
   /// }
   /// ```
-  Future<AppDetectionResult> detectApp(AppConfig config) async {
+  Future<AppDetectionResult> detectApp(AppConfigData config) async {
     logger.i('检测应用: ${config.appName} (${config.appKey})');
 
     // 优先使用预配置的包名（快速准确）
@@ -406,7 +407,7 @@ class AppDetectionService {
     final results = <String, AppDetectionResult>{};
 
     for (final appKey in appKeys) {
-      final config = AppScannerConfigs.getConfig(appKey);
+      final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
       if (config == null) {
         logger.w('未知应用: $appKey');
         continue;

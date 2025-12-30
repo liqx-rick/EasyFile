@@ -3,7 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/app_scanner_configs.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
@@ -155,7 +155,7 @@ class RecommendationService {
     }
 
     // 1. 获取应用配置
-    final appConfig = AppScannerConfigs.getConfig(appKey);
+    final appConfig = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (appConfig == null) {
       logger.w('  未找到应用配置: $appKey');
       return null;

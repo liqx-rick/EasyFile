@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:easyfile/core/platform/app_file_scanner_channel.dart';
-import 'package:easyfile/core/services/app_scanner_configs.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/app_scanner_config.dart';
+import 'package:easyfile/core/constants/system_folders_config.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
@@ -64,10 +66,11 @@ class UnifiedAppScanner {
     bool useMediaStore = true,
     bool updateCache = true,
   }) async {
-    final config = AppScannerConfigs.getConfig(appKey);
+    final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (config == null) {
+      final enabledApps = await AppConfig.instance.appScanner.getEnabledApps();
       throw ArgumentError(
-        '未知应用: $appKey，支持的应用: ${AppScannerConfigs.getAllAppKeys()}',
+        '未知应用: $appKey，支持的应用: ${enabledApps.map((a) => a.appKey).toList()}',
       );
     }
 
@@ -295,7 +298,7 @@ class UnifiedAppScanner {
   /// 
   /// 结合基础路径、文件夹关键字和附加路径
   Future<List<String>> _buildScanPaths(
-    AppConfig config,
+    AppConfigData config,
     List<String> additionalPaths,
   ) async {
     final paths = <String>[];
@@ -305,7 +308,7 @@ class UnifiedAppScanner {
       for (final keyword in config.folderKeywords) {
         try {
           final foundPaths = await AppFileScannerChannel.findFoldersContaining(
-            AppScannerConfigs.basePaths,
+            SystemFoldersConfig.systemPaths,
             keyword,
           );
           paths.addAll(foundPaths);

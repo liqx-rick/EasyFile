@@ -36,7 +36,7 @@ class MediaStoreScanner(private val context: Context) {
             )
             
             cursor?.use {
-                Log.d(type.tag, "开始遍历 MediaStore 查询结果，总数: ${it.count}")
+                LogHelper.d(type.tag, "开始遍历 MediaStore 查询结果，总数: ${it.count}")
                 
                 while (it.moveToNext()) {
                     val fileData = extractFileData(it, type)
@@ -51,10 +51,10 @@ class MediaStoreScanner(private val context: Context) {
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
             
-            Log.i(type.tag, "MediaStore 扫描完成: ${results.size} 个${type.typeName}, 耗时: ${duration}ms")
+            LogHelper.i(type.tag, "MediaStore 扫描完成: ${results.size} 个${type.typeName}, 耗时: ${duration}ms")
             
         } catch (e: Exception) {
-            Log.e(type.tag, "MediaStore 扫描失败: ${e.message}", e)
+            LogHelper.e(type.tag, "MediaStore 扫描失败: ${e.message}", e)
         }
         
         return results
@@ -95,7 +95,7 @@ class MediaStoreScanner(private val context: Context) {
             
             data
         } catch (e: Exception) {
-            Log.w(type.tag, "提取文件数据失败: ${e.message}")
+            LogHelper.w(type.tag, "提取文件数据失败: ${e.message}")
             null
         }
     }

@@ -27,6 +27,9 @@ import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/utils/file_utils.dart';
 
 class FilePresenter {
+  /// Android 存储基础路径常量
+  static const String _androidStorageBase = '/storage/emulated/0';
+
   final FileRepository repository;
   final FileViewModel viewModel;
   final FavoritesLocalSource favoritesSource;
@@ -627,27 +630,27 @@ class FilePresenter {
         defaultPaths = [
           {
             'name': 'DCIM',
-            'path': '/storage/emulated/0/DCIM',
+            'path': '$_androidStorageBase/DCIM',
             'icon': 'pictures',
           },
           {
             'name': 'Pictures',
-            'path': '/storage/emulated/0/Pictures',
+            'path': '$_androidStorageBase/Pictures',
             'icon': 'pictures',
           },
           {
             'name': 'Documents',
-            'path': '/storage/emulated/0/Documents',
+            'path': '$_androidStorageBase/Documents',
             'icon': 'documents',
           },
           {
             'name': 'Music',
-            'path': '/storage/emulated/0/Music',
+            'path': '$_androidStorageBase/Music',
             'icon': 'music',
           },
           {
             'name': 'Movies',
-            'path': '/storage/emulated/0/Movies',
+            'path': '$_androidStorageBase/Movies',
             'icon': 'videos',
           },
         ];
@@ -1305,8 +1308,8 @@ class FilePresenter {
         // 只使用 /storage/emulated/0/ 路径，避免 /sdcard 符号链接导致的重复
         // /sdcard 是 /storage/emulated/0 的符号链接，会导致同一文件被扫描两次
         paths.addAll([
-          '/storage/emulated/0/Download',
-          '/storage/emulated/0/Downloads',
+          '$_androidStorageBase/Download',
+          '$_androidStorageBase/Downloads',
         ]);
       } else {
         final home = Platform.environment['HOME'];
@@ -1491,9 +1494,8 @@ class FilePresenter {
       }
     } else if (Platform.isAndroid) {
       // 使用统一定义的系统目录列表
-      const baseAndroidPath = '/storage/emulated/0';
       for (final folderName in _androidSystemFolderNames) {
-        paths.add('$baseAndroidPath/$folderName');
+        paths.add('$_androidStorageBase/$folderName');
       }
 
       // ✅ 优化2: 扫描所有外部存储设备（SD卡等）
@@ -1554,7 +1556,7 @@ class FilePresenter {
       // 确定扫描根目录
       String? rootPath;
       if (Platform.isAndroid) {
-        rootPath = '/storage/emulated/0';
+        rootPath = _androidStorageBase;
       } else if (Platform.isWindows) {
         rootPath = Platform.environment['USERPROFILE'];
       } else {

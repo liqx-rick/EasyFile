@@ -58,6 +58,8 @@ class MainActivity : FlutterActivity() {
     private val FILE_CHANGE_EVENT_CHANNEL = "easyfile/file_change_events"
     // 新文件扫描通道（性能优化版）
     private val NEW_FILES_CHANNEL = "easyfile/new_files"
+    // 日志配置通道（统一日志级别控制）
+    private val LOG_CONFIG_CHANNEL = "easyfile/log_config"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
@@ -76,7 +78,7 @@ class MainActivity : FlutterActivity() {
             when (intent?.action) {
                 Intent.ACTION_PACKAGE_ADDED -> {
                     val packageName = intent.data?.schemeSpecificPart
-                    Log.i(TAG, "应用安装: $packageName")
+                    LogHelper.i(TAG, "应用安装: $packageName")
                     packageName?.let {
                         appEventSink?.success(mapOf(
                             "event" to "installed",
@@ -86,7 +88,7 @@ class MainActivity : FlutterActivity() {
                 }
                 Intent.ACTION_PACKAGE_REMOVED -> {
                     val packageName = intent.data?.schemeSpecificPart
-                    Log.i(TAG, "应用卸载: $packageName")
+                    LogHelper.i(TAG, "应用卸载: $packageName")
                     packageName?.let {
                         appEventSink?.success(mapOf(
                             "event" to "uninstalled",
@@ -107,7 +109,7 @@ class MainActivity : FlutterActivity() {
         isRestoringFromBackground = savedInstanceState != null || 
                                    (intent?.flags?.and(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != 0)
         
-        Log.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate")
+        LogHelper.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate")
         
         // 初始化 MediaStoreTrashHelper
         trashHelper = MediaStoreTrashHelper(this)
@@ -146,6 +148,43 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        
+        // 日志配置 Channel（统一日志级别控制）
+        MethodChannel(messenger, LOG_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setLogLevel" -> {
+                    val level = call.argument<String>("level")
+                    if (level != null) {
+                        try {
+                            LogHelper.setLevel(level)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("CONFIG_ERROR", "Failed to set log level: ${e.message}", null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Log level is required", null)
+                    }
+                }
+                "getLogLevel" -> {
+                    try {
+                        val currentLevel = LogHelper.getLevel().name.lowercase()
+                        result.success(currentLevel)
+                    } catch (e: Exception) {
+                        result.error("CONFIG_ERROR", "Failed to get log level: ${e.message}", null)
+                    }
+                }
+                "setLogEnabled" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    try {
+                        LogHelper.setEnabled(enabled)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("CONFIG_ERROR", "Failed to set log enabled: ${e.message}", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         
         // 分享功能 Channel
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->

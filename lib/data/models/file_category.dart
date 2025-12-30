@@ -57,6 +57,9 @@ extension FileCategoryExtension on FileCategory {
   }
 
   /// 根据文件扩展名判断分类
+  /// 
+  /// ⚠️ 已弃用：请使用 AppConfig.instance.fileTypes.getCategoryByExtension()
+  @Deprecated('Use AppConfig.instance.fileTypes.getCategoryByExtension() instead')
   static FileCategory fromExtension(String extension) {
     final ext = extension.toLowerCase();
 
@@ -157,6 +160,9 @@ extension FileCategoryExtension on FileCategory {
   }
 
   /// 根据文件名判断分类
+  /// 
+  /// ⚠️ 已弃用：请使用 AppConfig.instance.fileTypes.getCategoryByExtension()
+  @Deprecated('Use AppConfig.instance.fileTypes.getCategoryByExtension() instead')
   static FileCategory fromFileName(String fileName) {
     final lastDot = fileName.lastIndexOf('.');
     if (lastDot == -1 || lastDot == fileName.length - 1) {

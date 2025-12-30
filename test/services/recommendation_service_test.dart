@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/config/app_scanner_config.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/app_scanner_configs.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 
@@ -36,7 +36,7 @@ class MockAppDetectionService extends AppDetectionService {
   }) : _installedApps = installedApps ?? {};
 
   @override
-  Future<AppDetectionResult> detectApp(AppConfig config) async {
+  Future<AppDetectionResult> detectApp(AppConfigData config) async {
     // 检查第一个包名
     if (config.packageNames.isNotEmpty) {
       final packageName = config.packageNames.first;

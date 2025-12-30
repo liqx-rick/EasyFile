@@ -116,32 +116,38 @@ class AppTrashSettings {
 
   // ==================== 默认恢复目录配置 ====================
 
+  /// Android 存储基础路径
+  static const String _storageBase = '/storage/emulated/0';
+  
+  /// 恢复目录后缀
+  static const String _restoreSuffix = '/EasyFile_Restored';
+
   /// 获取默认恢复目录（根据文件类型）
   static String getDefaultRestorePath(String mimeType) {
     final mimeTypeLower = mimeType.toLowerCase();
 
     if (mimeTypeLower.startsWith('image/')) {
-      return '/storage/emulated/0/Pictures/EasyFile_Restored';
+      return '$_storageBase/Pictures$_restoreSuffix';
     } else if (mimeTypeLower.startsWith('video/')) {
-      return '/storage/emulated/0/Movies/EasyFile_Restored';
+      return '$_storageBase/Movies$_restoreSuffix';
     } else if (mimeTypeLower.startsWith('audio/')) {
-      return '/storage/emulated/0/Music/EasyFile_Restored';
+      return '$_storageBase/Music$_restoreSuffix';
     } else if (mimeTypeLower.contains('pdf') ||
         mimeTypeLower.contains('document') ||
         mimeTypeLower.contains('text/')) {
-      return '/storage/emulated/0/Documents/EasyFile_Restored';
+      return '$_storageBase/Documents$_restoreSuffix';
     } else {
-      return '/storage/emulated/0/Download/EasyFile_Restored';
+      return '$_storageBase/Download$_restoreSuffix';
     }
   }
 
   /// 默认恢复目录映射（用于UI显示）
-  static const Map<String, String> defaultRestorePaths = {
-    'image': '/storage/emulated/0/Pictures/EasyFile_Restored',
-    'video': '/storage/emulated/0/Movies/EasyFile_Restored',
-    'audio': '/storage/emulated/0/Music/EasyFile_Restored',
-    'document': '/storage/emulated/0/Documents/EasyFile_Restored',
-    'other': '/storage/emulated/0/Download/EasyFile_Restored',
+  static Map<String, String> get defaultRestorePaths => {
+    'image': '$_storageBase/Pictures$_restoreSuffix',
+    'video': '$_storageBase/Movies$_restoreSuffix',
+    'audio': '$_storageBase/Music$_restoreSuffix',
+    'document': '$_storageBase/Documents$_restoreSuffix',
+    'other': '$_storageBase/Download$_restoreSuffix',
   };
 
   // ==================== 辅助方法 ====================
