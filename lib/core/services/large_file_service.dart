@@ -21,15 +21,15 @@ class LargeFileService {
 
   /// 扫描大文件
   ///
-  /// [minSizeInMB] 最小文件大小（MB），默认50MB
-  /// [maxResults] 最大结果数量，默认100个
+  /// [minSizeInMB] 最小文件大小（MB），默认100MB（与 FileScanConfig.largeFileThreshold 一致）
+  /// [maxResults] 最大结果数量，默认300个（与 FileScanConfig.largeFileMaxResults 一致），0表示不限制
   /// [useSizePruning] 是否启用大小剪枝优化，默认true
   /// [fileTypes] 文件类型过滤器，为null时不过滤
   ///
   /// 返回按大小降序排列的文件列表
   Future<List<FileItem>> scanLargeFiles({
-    int minSizeInMB = 50,
-    int maxResults = 100,
+    int minSizeInMB = 100,
+    int maxResults = 300,
     bool useSizePruning = true,
     Set<FileTypeFilter>? fileTypes,
   }) async {
@@ -74,11 +74,15 @@ class LargeFileService {
       final result = uniqueFiles.values.toList();
       result.sort((a, b) => b.size.compareTo(a.size));
 
-      // 注意：不限制结果数量，返回所有找到的大文件
+      // 5. 限制结果数量（防止过多结果导致UI卡顿）
+      final limitedResult = maxResults > 0 && result.length > maxResults
+          ? result.sublist(0, maxResults)
+          : result;
+
       logger.i(
-        'Large file scan completed: found ${result.length} files',
+        'Large file scan completed: found ${result.length} files, returning ${limitedResult.length} files (limit: $maxResults)',
       );
-      return result;
+      return limitedResult;
     } catch (e, stackTrace) {
       logger.e('Error scanning large files: $e\n$stackTrace');
       rethrow;

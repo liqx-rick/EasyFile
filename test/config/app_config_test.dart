@@ -65,7 +65,7 @@ void main() {
         expect(AppConfig.instance.fileScan.largeFileThreshold, 50);
         expect(AppConfig.instance.fileScan.newFilesRetentionDays, 7);
         expect(AppConfig.instance.fileScan.trashRetentionDays, 7);
-        expect(AppConfig.instance.fileScan.scanConcurrency, 4);
+        expect(AppConfig.instance.fileScan.largeFileScanTimeout, 90);
       });
 
       test('should set large file threshold', () async {
@@ -94,12 +94,12 @@ void main() {
         await AppConfig.instance.fileScan.mergeWith({
           'large_file_threshold': 200,
           'new_files_retention': 30,
-          'scan_concurrency': 8,
+          'large_file_scan_timeout': 120,
         });
 
         expect(AppConfig.instance.fileScan.largeFileThreshold, 200);
         expect(AppConfig.instance.fileScan.newFilesRetentionDays, 30);
-        expect(AppConfig.instance.fileScan.scanConcurrency, 8);
+        expect(AppConfig.instance.fileScan.largeFileScanTimeout, 120);
       });
     });
 

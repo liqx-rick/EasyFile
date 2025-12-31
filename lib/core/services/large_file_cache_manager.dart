@@ -10,7 +10,14 @@ class LargeFileCacheManager {
   static const String _cacheKey = 'large_file_scan_cache';
   static const String _configKey = 'large_file_scan_config';
   static const String _timestampKey = 'large_file_scan_timestamp';
-  static const Duration _cacheExpiration = Duration(days: 7);
+  
+  final Duration _cacheExpiration;
+
+  /// 创建缓存管理器
+  /// 
+  /// [cacheExpiryDays] 缓存有效期（天），默认7天
+  LargeFileCacheManager({int cacheExpiryDays = 7})
+      : _cacheExpiration = Duration(days: cacheExpiryDays);
 
   /// 保存扫描结果到缓存
   Future<void> saveCache({

@@ -17,11 +17,23 @@ class FileScanConfig {
   /// 
   /// 产品可能会根据用户反馈调整（30MB? 50MB? 100MB?）
   int get largeFileThreshold => 
-      _getInt('large_file_threshold', defaultValue: 50);
+      _getInt('large_file_threshold', defaultValue: 1);
 
   /// 大文件最大结果数（防止过多结果导致卡顿）
   int get largeFileMaxResults => 
-      _getInt('large_file_max_results', defaultValue: 100);
+      _getInt('large_file_max_results', defaultValue: 300);
+
+  /// 大文件缓存有效期（天）
+  /// 
+  /// 性能优化参数：缓存时间越长，重复扫描越少，但数据时效性越差
+  int get largeFileCacheExpiry => 
+      _getInt('large_file_cache_days', defaultValue: 7);
+
+  /// 大文件扫描超时时间（秒）
+  /// 
+  /// 性能参数：超时时间太长可能导致 ANR，太短可能扫描不完
+  int get largeFileScanTimeout => 
+      _getInt('large_file_scan_timeout', defaultValue: 90);
 
   // ==================== 新文件扫描（策略阈值） ====================
 
@@ -33,7 +45,7 @@ class FileScanConfig {
 
   /// 新文件显示数量（性能与体验的平衡）
   int get newFilesDisplayCount => 
-      _getInt('new_files_count', defaultValue: 50);
+      _getInt('new_files_count', defaultValue: 100);
 
   /// 新文件缓存过期时长（小时）
   /// 
@@ -45,52 +57,30 @@ class FileScanConfig {
 
   /// 最小文件大小（字节）
   /// 
-  /// 太小的文件不参与重复检测（性能考虑）
+  /// 太小的文件不参与重复检测（性能考虑），默认100KB
   int get duplicateFileMinSize => 
-      _getInt('duplicate_min_size', defaultValue: 1024);
+      _getInt('duplicate_min_size', defaultValue: 102400);
 
-  /// 是否跳过系统目录（风险开关）
-  bool get duplicateSkipSystemDirs => 
-      _getBool('duplicate_skip_system', defaultValue: true);
+  /// 最小文件大小（KB）- 用于DuplicateFileScanConfig
+  int get duplicateFileMinSizeInKB => 
+      (duplicateFileMinSize / 1024).round();
 
   // ==================== 回收站配置（策略阈值） ====================
 
+  /// 回收站默认配置常量
+  static const int _defaultTrashRetentionDays = 7;
+  static const bool _defaultTrashEnabled = true;
+
+  /// 回收站功能是否启用
+  bool get trashEnabled => 
+      _getBool('trash_enabled', defaultValue: _defaultTrashEnabled);
+
   /// 回收站保留天数
   int get trashRetentionDays => 
-      _getInt('trash_retention', defaultValue: 7);
+      _getInt('trash_retention', defaultValue: _defaultTrashRetentionDays);
 
   /// 可选的回收站保留天数列表（产品策略）
   List<int> get trashRetentionOptions => const [3, 7, 15, 30];
-
-  /// 是否显示撤销提示（体验参数）
-  bool get showTrashUndo => 
-      _getBool('trash_show_undo', defaultValue: true);
-
-  /// 撤销窗口时长（秒）- 体验参数
-  int get trashUndoDuration => _getInt('trash_undo_seconds', defaultValue: 3);
-
-  // ==================== 扫描性能（风险开关） ====================
-
-  /// 并发扫描线程数
-  /// 
-  /// 风险参数：线程太多可能导致 ANR，太少扫描慢
-  int get scanConcurrency => 
-      _getInt('scan_concurrency', defaultValue: 4);
-
-  /// 单次批量查询大小（性能参数）
-  int get scanBatchSize => 
-      _getInt('scan_batch_size', defaultValue: 1000);
-
-  /// 扫描超时时间（秒）- 风险开关
-  int get scanTimeout => _getInt('scan_timeout', defaultValue: 300);
-
-  // ==================== 应用扫描（策略阈值） ====================
-
-  /// 应用缓存最小阈值（MB）
-  /// 
-  /// 产品策略：太小的缓存不值得清理
-  int get appCacheMinThreshold => 
-      _getInt('app_cache_min_mb', defaultValue: 10);
 
   // ==================== 内部实现 ====================
 
@@ -106,6 +96,10 @@ class FileScanConfig {
     await _storage.setInt('$_keyPrefix$key', value);
   }
 
+  Future<void> _setBool(String key, bool value) async {
+    await _storage.setBool('$_keyPrefix$key', value);
+  }
+
   // ==================== 公开接口 ====================
 
   /// 修改大文件阈值
@@ -118,6 +112,18 @@ class FileScanConfig {
   Future<void> setNewFilesRetentionDays(int days) async {
     await _setInt('new_files_retention', days);
     logger.i('New files retention set to $days days');
+  }
+
+  /// 修改新文件显示数量
+  Future<void> setNewFilesDisplayCount(int count) async {
+    await _setInt('new_files_count', count);
+    logger.i('New files display count set to $count');
+  }
+
+  /// 启用/禁用回收站功能
+  Future<void> setTrashEnabled(bool enabled) async {
+    await _setBool('trash_enabled', enabled);
+    logger.i('Trash enabled set to $enabled');
   }
 
   /// 修改回收站保留天数

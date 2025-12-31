@@ -119,13 +119,13 @@ void main() {
         await AppConfig.instance.fileScan.mergeWith({
           'large_file_threshold': 200,
           'new_files_retention': 30,
-          'scan_concurrency': 8,
+          'large_file_scan_timeout': 120,
         });
 
         // 验证远程配置已应用
         expect(AppConfig.instance.fileScan.largeFileThreshold, 200);
         expect(AppConfig.instance.fileScan.newFilesRetentionDays, 30);
-        expect(AppConfig.instance.fileScan.scanConcurrency, 8);
+        expect(AppConfig.instance.fileScan.largeFileScanTimeout, 120);
       });
 
       test('simulate remote config update for app priorities', () async {

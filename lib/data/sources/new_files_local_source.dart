@@ -68,4 +68,24 @@ class NewFilesLocalSource {
       return false;
     }
   }
+
+  /// 清除缓存
+  Future<bool> clearCache() async {
+    try {
+      final filePath = await _filePath;
+      final file = File(filePath);
+
+      if (await file.exists()) {
+        await file.delete();
+        logger.i('Cleared new files cache');
+        return true;
+      }
+
+      logger.d('Cache file does not exist, nothing to clear');
+      return true;
+    } catch (e, stackTrace) {
+      logger.e('Error clearing cache: $e\nStackTrace: $stackTrace');
+      return false;
+    }
+  }
 }

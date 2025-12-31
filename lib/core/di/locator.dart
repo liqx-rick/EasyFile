@@ -16,6 +16,10 @@ import 'package:easyfile/core/services/app_storage_cache_manager.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
+import 'package:easyfile/core/config/feature_config.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
+import 'package:easyfile/core/config/storage/config_storage.dart';
+import 'package:easyfile/core/config/storage/local_config_storage.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
@@ -25,7 +29,6 @@ import 'package:easyfile/data/sources/new_files_scanner.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
-import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/services/folder_analyzer.dart';
 import 'package:easyfile/data/services/alias_recommendation_service.dart';
 import 'package:easyfile/data/services/data_migration_service.dart';
@@ -57,6 +60,24 @@ void setupLocator() {
   locator.registerLazySingleton<AppLogger>(() {
     logger.d('Registering AppLogger singleton');
     return logger;
+  });
+
+  // Configuration
+  locator.registerLazySingletonAsync<ConfigStorage>(() async {
+    logger.d('Creating ConfigStorage (LocalConfigStorage)');
+    return await LocalConfigStorage.create();
+  });
+
+  locator.registerLazySingletonAsync<FeatureConfig>(() async {
+    logger.d('Creating FeatureConfig');
+    final storage = await locator.getAsync<ConfigStorage>();
+    return FeatureConfig(storage);
+  });
+
+  locator.registerLazySingletonAsync<FileScanConfig>(() async {
+    logger.d('Creating FileScanConfig');
+    final storage = await locator.getAsync<ConfigStorage>();
+    return FileScanConfig(storage);
   });
 
   // Data Sources
@@ -95,15 +116,9 @@ void setupLocator() {
     return NewFilesLocalSource();
   });
 
-  locator.registerLazySingletonAsync<NewFilesSettings>(() async {
-    logger.d('Creating NewFilesSettings');
-    return await NewFilesSettings.load();
-  });
-
-  locator.registerLazySingletonAsync<NewFilesScanner>(() async {
+  locator.registerLazySingleton<NewFilesScanner>(() {
     logger.d('Creating NewFilesScanner');
-    final settings = await locator.getAsync<NewFilesSettings>();
-    return NewFilesScanner(settings: settings);
+    return NewFilesScanner();
   });
 
   // Services
@@ -147,7 +162,8 @@ void setupLocator() {
 
   locator.registerLazySingletonAsync<AppTrashSettings>(() async {
     logger.d('Creating AppTrashSettings');
-    return await AppTrashSettings.create();
+    final config = await locator.getAsync<FileScanConfig>();
+    return AppTrashSettings(config);
   });
 
   locator.registerLazySingletonAsync<AppTrashManager>(() async {
@@ -251,9 +267,8 @@ void setupLocator() {
     final favoritesSource = locator<FavoritesLocalSource>();
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
-    final newFilesScanner = await locator.getAsync<NewFilesScanner>();
+    final newFilesScanner = locator<NewFilesScanner>();
     final newFilesLocalSource = locator<NewFilesLocalSource>();
-    final newFilesSettings = await locator.getAsync<NewFilesSettings>();
     final themeSettingsService = locator<ThemeSettingsService>();
     final trashDatabase = locator<AppTrashDatabase>();
 
@@ -269,7 +284,6 @@ void setupLocator() {
       recentFilesSource: recentFilesSource,
       newFilesScanner: newFilesScanner,
       newFilesLocalSource: newFilesLocalSource,
-      newFilesSettings: newFilesSettings,
       themeSettingsService: themeSettingsService,
       trashDatabase: trashDatabase,
     );

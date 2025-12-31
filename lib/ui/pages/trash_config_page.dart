@@ -11,7 +11,8 @@ class TrashConfigPage extends StatefulWidget {
 }
 
 class _TrashConfigPageState extends State<TrashConfigPage> {
-  final AppTrashSettings _settings = locator<AppTrashSettings>();
+  AppTrashSettings? _settings;
+  bool _isLoading = true;
 
   late bool _isEnabled;
   late int _retentionDays;
@@ -19,18 +20,38 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
   @override
   void initState() {
     super.initState();
+    _initSettings();
+  }
+
+  Future<void> _initSettings() async {
+    // 等待 AppTrashSettings 完全初始化
+    await locator.isReady<AppTrashSettings>();
+    _settings = await locator.getAsync<AppTrashSettings>();
     _loadSettings();
   }
 
   void _loadSettings() {
+    if (_settings == null) return;
     setState(() {
-      _isEnabled = _settings.isEnabled;
-      _retentionDays = _settings.retentionDays;
+      _isEnabled = _settings!.isEnabled;
+      _retentionDays = _settings!.retentionDays;
+      _isLoading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading || _settings == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('回收站设置'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('回收站设置'),
@@ -44,7 +65,7 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
             value: _isEnabled,
             onChanged: (value) async {
               setState(() => _isEnabled = value);
-              await _settings.setEnabled(value);
+              await _settings!.setEnabled(value);
             },
           ),
           const Divider(),
@@ -58,10 +79,10 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            _buildRetentionOption(3, '3天'),
-            _buildRetentionOption(7, '7天'),
-            _buildRetentionOption(15, '15天'),
-            _buildRetentionOption(30, '30天'),
+            // 动态生成选项（从配置读取）
+            ..._settings!.retentionOptions.map((days) {
+              return _buildRetentionOption(days, '$days天');
+            }),
             const Divider(),
 
             // 说明
@@ -92,7 +113,7 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
       onChanged: (value) async {
         if (value != null) {
           setState(() => _retentionDays = value);
-          await _settings.setRetentionDays(value);
+          await _settings!.setRetentionDays(value);
         }
       },
     );

@@ -11,8 +11,9 @@ import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
-import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
@@ -37,7 +38,6 @@ class FilePresenter {
   final RecentFilesLocalSource recentFilesSource;
   final NewFilesScanner newFilesScanner;
   final NewFilesLocalSource newFilesLocalSource;
-  final NewFilesSettings newFilesSettings;
   final ThemeSettingsService themeSettingsService;
   final AppTrashDatabase trashDatabase;
 
@@ -49,7 +49,6 @@ class FilePresenter {
     required this.recentFilesSource,
     required this.newFilesScanner,
     required this.newFilesLocalSource,
-    required this.newFilesSettings,
     required this.themeSettingsService,
     required this.trashDatabase,
   }) {
@@ -1742,17 +1741,20 @@ class FilePresenter {
     viewModel.setLoading(true);
 
     try {
-      // 重新加载设置以获取最新的配置
-      final latestSettings = await NewFilesSettings.load();
-      logger
-          .d('Loaded settings: retentionDays=${latestSettings.retentionDays}');
+      // 从FileScanConfig读取最新配置
+      final fileScanConfig = await locator.getAsync<FileScanConfig>();
+      final retentionDays = fileScanConfig.newFilesRetentionDays;
+      final displayCount = fileScanConfig.newFilesDisplayCount;
+      logger.d('FileScanConfig: retentionDays=$retentionDays, displayCount=$displayCount');
 
       // 先从本地缓存加载
       final cachedItems = await newFilesLocalSource.loadCachedIndex();
 
-      // 智能扫描策略
+      // 智能扫描策略（传入最新配置）
       final scannedItems = await newFilesScanner.quickScanIfNeeded(
         cachedItems,
+        retentionDays: retentionDays,
+        maxResults: displayCount * 2, // 预留2倍空间用于缓存
         isUserRefresh: isUserRefresh,
       );
 
@@ -1766,13 +1768,12 @@ class FilePresenter {
       logger.d('After filtering: ${filteredItems.length} items');
 
       // 处理文件项（应用限制并转换为FileItem）
-      final fileItems = await _processNewFileItems(filteredItems, latestSettings);
+      final fileItems = await _processNewFileItems(filteredItems, displayCount);
 
       logger.i('Loaded ${fileItems.length} new files');
 
       // 更新视图模型（传递retentionDays设置）
-      viewModel.setNewFiles(fileItems,
-          retentionDays: latestSettings.retentionDays);
+      viewModel.setNewFiles(fileItems, retentionDays: retentionDays);
 
       // 后台异步保存到本地缓存（不阻塞UI显示）
       if (newFileItems.isNotEmpty) {
@@ -1806,14 +1807,14 @@ class FilePresenter {
   /// 
   /// **参数**:
   /// - [newFileItems]: 扫描得到的新文件列表（已按时间倒序）
-  /// - [settings]: 用户设置（包含displayCount等）
+  /// - [displayCount]: 显示数量限制
   Future<List<FileItem>> _processNewFileItems(
     List<NewFileItem> newFileItems,
-    NewFilesSettings settings,
+    int displayCount,
   ) async {
     // 应用显示数量限制
-    final limitedItems = newFileItems.take(settings.displayCount).toList();
-    logger.d('Processing ${limitedItems.length} items (limit: ${settings.displayCount})');
+    final limitedItems = newFileItems.take(displayCount).toList();
+    logger.d('Processing ${limitedItems.length} items (limit: $displayCount)');
 
     // 转换为 FileItem
     final fileItems = <FileItem>[];
@@ -1840,18 +1841,23 @@ class FilePresenter {
     // 异步后台扫描，不阻塞UI（复用loadNewFiles逻辑，但不显示loading）
     Future(() async {
       try {
-        // 重新加载设置
-        final latestSettings = await NewFilesSettings.load();
+        // 从FileScanConfig读取最新配置
+        final fileScanConfig = await locator.getAsync<FileScanConfig>();
+        final retentionDays = fileScanConfig.newFilesRetentionDays;
+        final displayCount = fileScanConfig.newFilesDisplayCount;
 
         // 使用优化的扫描方法（MediaStore + 原生）
-        final newFileItems = await newFilesScanner.scanNewFiles();
+        final newFileItems = await newFilesScanner.scanNewFiles(
+          retentionDays: retentionDays,
+          maxResults: displayCount * 2,
+        );
         logger.d('Background scan complete: ${newFileItems.length} items');
 
         // 处理文件项（应用限制并转换为FileItem）
-        final fileItems = await _processNewFileItems(newFileItems, latestSettings);
+        final fileItems = await _processNewFileItems(newFileItems, displayCount);
 
         // 静默更新UI（不显示loading状态）
-        viewModel.setNewFiles(fileItems, retentionDays: latestSettings.retentionDays);
+        viewModel.setNewFiles(fileItems, retentionDays: retentionDays);
 
         // 保存缓存
         if (newFileItems.isNotEmpty) {

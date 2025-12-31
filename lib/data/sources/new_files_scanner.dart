@@ -4,7 +4,6 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
-import 'package:easyfile/data/models/new_files_settings.dart';
 import 'package:easyfile/platform/new_files_native_channel.dart';
 
 /// 取消令牌：用于取消正在进行的扫描
@@ -19,11 +18,12 @@ class CancelToken {
 
 /// 新文件扫描器
 /// 负责扫描指定目录下的新文件
+/// 
+/// 注意：不再保存配置，每次扫描时传入最新配置确保实时生效
 class NewFilesScanner {
-  final NewFilesSettings settings;
   CancelToken? _currentScanToken;
 
-  NewFilesScanner({required this.settings});
+  NewFilesScanner();
 
   /// 取消当前正在进行的扫描
   void cancelCurrentScan() {
@@ -39,8 +39,15 @@ class NewFilesScanner {
   /// 
   /// **取消机制**: 支持Tab切换时中断扫描
   /// 
-  /// **返回**: 按创建时间倒序排列的文件列表（最多displayCount*2项）
-  Future<List<NewFileItem>> scanNewFiles() async {
+  /// **参数**:
+  /// - [retentionDays] 保留天数，从FileScanConfig传入确保使用最新配置
+  /// - [maxResults] 最大结果数，用于预留缓存空间
+  /// 
+  /// **返回**: 按创建时间倒序排列的文件列表（最多maxResults项）
+  Future<List<NewFileItem>> scanNewFiles({
+    required int retentionDays,
+    int maxResults = 200,
+  }) async {
     logger.i('NewFilesScanner: Starting native scan');
     
     // 取消之前的扫描
@@ -58,7 +65,7 @@ class NewFilesScanner {
       
       // 使用原生优化扫描
       final nativeResults = await NewFilesNativeChannel.scanRecentFiles(
-        settings.retentionDays,
+        retentionDays,
       );
       
       // 检查取消状态
@@ -67,8 +74,8 @@ class NewFilesScanner {
         return [];
       }
       
-      // 限制数量（预留2倍用于缓存）
-      final limitedResults = nativeResults.take(settings.displayCount * 2).toList();
+      // 限制数量
+      final limitedResults = nativeResults.take(maxResults).toList();
       
       logger.i('NewFilesScanner: Native scan complete, found ${limitedResults.length} files');
       return limitedResults;
@@ -94,12 +101,17 @@ class NewFilesScanner {
   /// - `List<NewFileItem>`: 新扫描结果，更新UI
   Future<List<NewFileItem>?> quickScanIfNeeded(
     List<NewFileItem> cachedItems, {
+    required int retentionDays,
+    int maxResults = 200,
     bool isUserRefresh = false, // 是否为用户主动刷新
   }) async {
     // 用户主动刷新：始终扫描（快速响应）
     if (isUserRefresh) {
       logger.i('User refresh triggered, starting quick scan...');
-      return await scanNewFiles();
+      return await scanNewFiles(
+        retentionDays: retentionDays,
+        maxResults: maxResults,
+      );
     }
 
     // 应用启动加载：检查缓存文件年龄
@@ -131,7 +143,10 @@ class NewFilesScanner {
     }
 
     // 首次扫描或缓存过期
-    return await scanNewFiles();
+    return await scanNewFiles(
+      retentionDays: retentionDays,
+      maxResults: maxResults,
+    );
   }
 
 

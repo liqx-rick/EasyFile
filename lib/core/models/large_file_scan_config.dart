@@ -1,6 +1,8 @@
 /// 大文件扫描配置
 class LargeFileScanConfig {
   /// 最小文件大小（MB）
+  /// 
+  /// 默认值100MB，与 FileScanConfig.largeFileThreshold 保持一致
   final int minSizeInMB;
 
   /// 文件类型过滤
@@ -13,7 +15,7 @@ class LargeFileScanConfig {
   final int maxResults;
 
   const LargeFileScanConfig({
-    this.minSizeInMB = 50,
+    this.minSizeInMB = 100,
     this.fileTypes = const {
       FileTypeFilter.video,
       FileTypeFilter.audio,
@@ -38,6 +40,29 @@ class LargeFileScanConfig {
       fileTypes: fileTypes ?? this.fileTypes,
       scanScope: scanScope ?? this.scanScope,
       maxResults: maxResults ?? this.maxResults,
+    );
+  }
+
+  /// 从 FileScanConfig 创建默认配置
+  /// 
+  /// 使用全局配置的阈值和最大结果数，文件类型和扫描范围使用默认值
+  factory LargeFileScanConfig.fromFileScanConfig(
+    dynamic fileScanConfig, {
+    Set<FileTypeFilter>? fileTypes,
+    ScanScope? scanScope,
+  }) {
+    return LargeFileScanConfig(
+      minSizeInMB: fileScanConfig.largeFileThreshold as int,
+      maxResults: fileScanConfig.largeFileMaxResults as int,
+      fileTypes: fileTypes ?? const {
+        FileTypeFilter.video,
+        FileTypeFilter.audio,
+        FileTypeFilter.image,
+        FileTypeFilter.document,
+        FileTypeFilter.archive,
+        FileTypeFilter.other,
+      },
+      scanScope: scanScope ?? ScanScope.allStorage,
     );
   }
 
