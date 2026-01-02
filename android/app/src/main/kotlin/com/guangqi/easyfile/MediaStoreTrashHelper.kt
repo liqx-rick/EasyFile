@@ -1,4 +1,4 @@
-package com.guangqi.easyfile
+﻿package com.guangqi.easyfile
 
 import android.content.ContentResolver
 import android.content.ContentUris
@@ -48,9 +48,9 @@ class MediaStoreTrashHelper(private val context: Context) {
                 trashedFiles.addAll(mediaTrashed)
             }
             
-            Log.i(TAG, "总计查询到 ${trashedFiles.size} 个回收站文件")
+            LogHelper.i(TAG, "总计查询到 ${trashedFiles.size} 个回收站文件")
         } catch (e: Exception) {
-            Log.e(TAG, "查询回收站文件失败: ${e.message}", e)
+            LogHelper.e(TAG, "查询回收站文件失败: ${e.message}", e)
         }
         
         return trashedFiles
@@ -82,11 +82,11 @@ class MediaStoreTrashHelper(private val context: Context) {
             val contentResolver: ContentResolver = context.contentResolver
             val uri = MediaStore.Files.getContentUri("external")
             
-            Log.d(TAG, "开始查询回收站文件...")
-            Log.d(TAG, "URI: $uri")
-            Log.d(TAG, "Selection: $selection")
-            Log.d(TAG, "SelectionArgs: ${selectionArgs.joinToString()}")
-            Log.d(TAG, "Android版本: ${Build.VERSION.SDK_INT}")
+            LogHelper.d(TAG, "开始查询回收站文件...")
+            LogHelper.d(TAG, "URI: $uri")
+            LogHelper.d(TAG, "Selection: $selection")
+            LogHelper.d(TAG, "SelectionArgs: ${selectionArgs.joinToString()}")
+            LogHelper.d(TAG, "Android版本: ${Build.VERSION.SDK_INT}")
             
             val cursor: Cursor? = contentResolver.query(
                 uri,
@@ -96,22 +96,22 @@ class MediaStoreTrashHelper(private val context: Context) {
                 sortOrder
             )
             
-            Log.d(TAG, "查询结果 cursor: ${if (cursor != null) "成功 (count=${cursor.count})" else "null"}")
+            LogHelper.d(TAG, "查询结果 cursor: ${if (cursor != null) "成功 (count=${cursor.count})" else "null"}")
             
             cursor?.use {
-                Log.d(TAG, "准备获取列索引...")
+                LogHelper.d(TAG, "准备获取列索引...")
                 val idColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-                Log.d(TAG, "idColumn: $idColumn")
+                LogHelper.d(TAG, "idColumn: $idColumn")
                 val nameColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                Log.d(TAG, "nameColumn: $nameColumn")
+                LogHelper.d(TAG, "nameColumn: $nameColumn")
                 val pathColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                Log.d(TAG, "pathColumn: $pathColumn")
+                LogHelper.d(TAG, "pathColumn: $pathColumn")
                 val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                Log.d(TAG, "sizeColumn: $sizeColumn")
+                LogHelper.d(TAG, "sizeColumn: $sizeColumn")
                 val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                Log.d(TAG, "modifiedColumn: $modifiedColumn")
+                LogHelper.d(TAG, "modifiedColumn: $modifiedColumn")
                 val mimeTypeColumn = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-                Log.d(TAG, "mimeTypeColumn: $mimeTypeColumn, 准备遍历cursor...")
+                LogHelper.d(TAG, "mimeTypeColumn: $mimeTypeColumn, 准备遍历cursor...")
                 
                 while (it.moveToNext()) {
                     val id = it.getLong(idColumn)
@@ -131,13 +131,13 @@ class MediaStoreTrashHelper(private val context: Context) {
                     )
                     
                     trashedFiles.add(fileInfo)
-                    Log.d(TAG, "找到回收站文件: $name (${size} bytes)")
+                    LogHelper.d(TAG, "找到回收站文件: $name (${size} bytes)")
                 }
             }
             
-            Log.i(TAG, "标准回收站查询完成，共找到 ${trashedFiles.size} 个文件")
+            LogHelper.i(TAG, "标准回收站查询完成，共找到 ${trashedFiles.size} 个文件")
         } catch (e: Exception) {
-            Log.e(TAG, "查询标准回收站失败: ${e.message}", e)
+            LogHelper.e(TAG, "查询标准回收站失败: ${e.message}", e)
         }
         
         return trashedFiles
@@ -151,7 +151,7 @@ class MediaStoreTrashHelper(private val context: Context) {
         val trashedFiles = mutableListOf<Map<String, Any>>()
         
         try {
-            Log.d(TAG, "开始查询相册回收站（图片和视频）...")
+            LogHelper.d(TAG, "开始查询相册回收站（图片和视频）...")
             
             // 查询图片
             trashedFiles.addAll(queryTrashedMedia(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "图片"))
@@ -159,9 +159,9 @@ class MediaStoreTrashHelper(private val context: Context) {
             // 查询视频
             trashedFiles.addAll(queryTrashedMedia(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "视频"))
             
-            Log.i(TAG, "相册回收站查询完成，共找到 ${trashedFiles.size} 个文件")
+            LogHelper.i(TAG, "相册回收站查询完成，共找到 ${trashedFiles.size} 个文件")
         } catch (e: Exception) {
-            Log.e(TAG, "查询相册回收站失败: ${e.message}", e)
+            LogHelper.e(TAG, "查询相册回收站失败: ${e.message}", e)
         }
         
         return trashedFiles
@@ -200,7 +200,7 @@ class MediaStoreTrashHelper(private val context: Context) {
             
             cursor?.use {
                 val count = it.count
-                Log.d(TAG, "$type 回收站查询结果: $count 个文件")
+                LogHelper.d(TAG, "$type 回收站查询结果: $count 个文件")
                 
                 val idColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                 val nameColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
@@ -227,11 +227,11 @@ class MediaStoreTrashHelper(private val context: Context) {
                     )
                     
                     trashedFiles.add(fileInfo)
-                    Log.d(TAG, "找到${type}回收站文件: $name (${size} bytes)")
+                    LogHelper.d(TAG, "找到${type}回收站文件: $name (${size} bytes)")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "查询${type}回收站失败: ${e.message}", e)
+            LogHelper.e(TAG, "查询${type}回收站失败: ${e.message}", e)
         }
         
         return trashedFiles
@@ -252,20 +252,20 @@ class MediaStoreTrashHelper(private val context: Context) {
                 fileId
             )
             
-            Log.d(TAG, "删除回收站文件，ID: $fileId")
+            LogHelper.d(TAG, "删除回收站文件，ID: $fileId")
             
             val deletedRows = contentResolver.delete(uri, null, null)
             val success = deletedRows > 0
             
             if (success) {
-                Log.i(TAG, "文件删除成功，ID: $fileId")
+                LogHelper.i(TAG, "文件删除成功，ID: $fileId")
             } else {
-                Log.w(TAG, "文件删除失败，ID: $fileId")
+                LogHelper.w(TAG, "文件删除失败，ID: $fileId")
             }
             
             success
         } catch (e: Exception) {
-            Log.e(TAG, "删除文件异常，ID: $fileId, 错误: ${e.message}", e)
+            LogHelper.e(TAG, "删除文件异常，ID: $fileId, 错误: ${e.message}", e)
             false
         }
     }
@@ -281,7 +281,7 @@ class MediaStoreTrashHelper(private val context: Context) {
         var successCount = 0
         var failedCount = 0
         
-        Log.i(TAG, "开始批量删除 ${fileIds.size} 个文件")
+        LogHelper.i(TAG, "开始批量删除 ${fileIds.size} 个文件")
         
         for (fileId in fileIds) {
             if (deleteTrashedFile(fileId)) {
@@ -291,7 +291,7 @@ class MediaStoreTrashHelper(private val context: Context) {
             }
         }
         
-        Log.i(TAG, "批量删除完成: 成功 $successCount, 失败 $failedCount")
+        LogHelper.i(TAG, "批量删除完成: 成功 $successCount, 失败 $failedCount")
         
         return mapOf(
             "success" to successCount,
@@ -309,7 +309,7 @@ class MediaStoreTrashHelper(private val context: Context) {
         val trashedFiles = queryTrashedFiles()
         val fileIds = trashedFiles.mapNotNull { it["id"] as? Long }
         
-        Log.i(TAG, "清空回收站: 共 ${fileIds.size} 个文件")
+        LogHelper.i(TAG, "清空回收站: 共 ${fileIds.size} 个文件")
         
         return if (fileIds.isNotEmpty()) {
             deleteMultipleTrashedFiles(fileIds)

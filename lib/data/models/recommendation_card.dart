@@ -132,7 +132,7 @@ class RecommendationCard {
       'type': type.toString(),
       'title': title,
       'iconCodePoint': icon.codePoint,
-      'colorValue': color.value,
+      // 注意：不序列化color，反序列化时使用config中的预定义颜色
       'fileCount': fileCount,
       'appKey': appKey,
       'appIcon': appIcon?.toList(), // Uint8List转List<int>

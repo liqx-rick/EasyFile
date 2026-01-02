@@ -102,7 +102,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
   }
 
   String _getFileFormat() {
-    final ext = widget.fileName.split('.').last.toUpperCase();
+    final ext = FileUtils.getExtension(widget.fileName).toUpperCase();
     return ext;
   }
 

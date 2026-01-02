@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
@@ -56,7 +57,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
   late LargeFileScanConfig _config;
 
   // 缓存管理
-  final _cacheManager = LargeFileCacheManager();
+  late final LargeFileCacheManager _cacheManager;
   LargeFileScanCache? _cache;
 
   // 状态管理
@@ -101,8 +102,14 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     // 监听ViewModel变化，同步文件操作
     locator<FileViewModel>().addListener(_onViewModelChanged);
 
-    // 自动加载缓存并开始扫描
-    _initializeAndScan();
+    // 从配置文件读取缓存有效期并初始化缓存管理器
+    locator.getAsync<FileScanConfig>().then((config) {
+      _cacheManager = LargeFileCacheManager(
+        cacheExpiryDays: config.largeFileCacheExpiry,
+      );
+      // 自动加载缓存并开始扫描
+      _initializeAndScan();
+    });
   }
 
   /// 初始化并开始扫描
@@ -121,13 +128,13 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
     // 2. 确定使用的配置
     if (widget.initialConfig != null) {
-      // 自定义扫描：使用传入的配置
+      // 使用传入的配置（快速扫描和自定义扫描都会传入）
       _config = widget.initialConfig!;
-      logger.i('Using custom config from settings');
+      logger.i('Using provided config');
     } else {
-      // 快速扫描：使用固定默认配置
+      // Fallback：如果没有传配置（理论上不应该发生），使用默认配置
       _config = const LargeFileScanConfig();
-      logger.i('Using default config for quick scan');
+      logger.w('No config provided, using fallback default');
     }
 
     // 记录当前配置
@@ -308,9 +315,9 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         fileTypes: _config.fileTypes,
       )
           .timeout(
-        const Duration(seconds: 90),
+        Duration(seconds: locator<FileScanConfig>().largeFileScanTimeout),
         onTimeout: () {
-          logger.w('Large file scan timeout after 90s');
+          logger.w('Large file scan timeout');
           return [];
         },
       );
@@ -376,7 +383,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         fileTypes: _config.fileTypes,
       )
           .timeout(
-        const Duration(seconds: 90),
+        Duration(seconds: locator<FileScanConfig>().largeFileScanTimeout),
         onTimeout: () {
           logger.w('Differential scan timeout');
           return [];
@@ -975,58 +982,46 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
   /// 获取文件图标（与分类页面保持一致）
   IconData _getFileIcon(FileItem file) {
-    final ext = path.extension(file.name).toLowerCase();
+    final config = AppConfig.instance.fileTypes;
 
     // 视频
-    if ([
-      '.mp4',
-      '.avi',
-      '.mkv',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.webm',
-      '.3gp',
-      '.m4v'
-    ].contains(ext)) {
+    if (config.isVideoFile(file.name)) {
       return Icons.videocam;
     }
     // 音频
-    else if (['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.opus']
-        .contains(ext)) {
+    else if (config.isAudioFile(file.name)) {
       return Icons.music_note;
     }
     // 图片
-    else if (['.jpg', '.png', '.gif', '.jpeg', '.bmp', '.webp', '.heic']
-        .contains(ext)) {
+    else if (config.isImageFile(file.name)) {
       return Icons.image;
     }
     // PDF
-    else if (ext == '.pdf') {
+    else if (config.isPdfFile(file.name)) {
       return Icons.picture_as_pdf;
     }
     // Word
-    else if (['.doc', '.docx'].contains(ext)) {
+    else if (config.isWordDocument(file.name)) {
       return Icons.article;
     }
     // Excel
-    else if (['.xls', '.xlsx', '.csv'].contains(ext)) {
+    else if (config.isExcelDocument(file.name)) {
       return Icons.table_chart;
     }
     // PPT
-    else if (['.ppt', '.pptx'].contains(ext)) {
+    else if (config.isPowerPointDocument(file.name)) {
       return Icons.slideshow;
     }
     // 文本
-    else if (['.txt', '.log', '.md', '.rtf'].contains(ext)) {
+    else if (config.isTextFile(file.name)) {
       return Icons.description;
     }
     // 压缩包
-    else if (['.zip', '.rar', '.7z', '.tar', '.gz'].contains(ext)) {
+    else if (config.isArchiveFile(file.name)) {
       return Icons.folder_zip;
     }
     // APK
-    else if (ext == '.apk') {
+    else if (config.isApkFile(file.name)) {
       return Icons.android;
     }
     // 其他

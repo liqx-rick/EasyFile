@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 
@@ -12,208 +13,15 @@ class RecommendPageConfigFactory {
       // ========== 应用类卡片 ==========
       
       case RecommendationType.wechat:
-        return RecommendPageConfig(
-          type: card.type,
-          title: card.title,
-          subtitle: '来自该应用的文件',
-          mode: RecommendMode.application,
-          headerType: HeaderType.applicationSummary,
-          listStyle: FileListStyle.auto, // 使用自动模式：图片/视频用网格，其他用列表
-          themeColor: card.color,
-          tabs: [
-            TabConfig(
-              title: '全部',
-              fileTypes: null, // null 表示所有文件
-              icon: Icons.folder_open,
-            ),
-            TabConfig(
-              title: '图片',
-              fileTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-              icon: Icons.image,
-            ),
-            TabConfig(
-              title: '视频',
-              fileTypes: ['mp4', 'mov', 'avi', 'mkv'],
-              icon: Icons.video_library,
-            ),
-            TabConfig(
-              title: '文档',
-              fileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
-              icon: Icons.description,
-            ),
-            TabConfig(
-              title: '音频',
-              fileTypes: ['mp3', 'wav', 'aac', 'ogg', 'flac'],
-              icon: Icons.music_note,
-            ),
-            TabConfig(
-              title: '其他',
-              fileTypes: const <String>[], // 明确的空数组：排除已知类型
-              icon: Icons.insert_drive_file,
-            ),
-          ],
-        );
-      
       case RecommendationType.qq:
-        return RecommendPageConfig(
-          type: card.type,
-          title: card.title,
-          subtitle: '来自该应用的文件',
-          mode: RecommendMode.application,
-          headerType: HeaderType.applicationSummary,
-          listStyle: FileListStyle.auto, // 使用自动模式
-          themeColor: card.color,
-          tabs: [
-            TabConfig(
-              title: '全部',
-              fileTypes: null, // null 表示所有文件
-              icon: Icons.folder_open,
-            ),
-            TabConfig(
-              title: '图片',
-              fileTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-              icon: Icons.image,
-            ),
-            TabConfig(
-              title: '视频',
-              fileTypes: ['mp4', 'mov', 'avi', 'mkv'],
-              icon: Icons.video_library,
-            ),
-            TabConfig(
-              title: '文档',
-              fileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
-              icon: Icons.description,
-            ),
-            TabConfig(
-              title: '音频',
-              fileTypes: ['mp3', 'wav', 'aac', 'ogg', 'flac'],
-              icon: Icons.music_note,
-            ),
-            TabConfig(
-              title: '其他',
-              fileTypes: const <String>[], // 明确的空数组：排除已知类型
-              icon: Icons.insert_drive_file,
-            ),
-          ],
-        );
-      
       case RecommendationType.telegram:
-        return RecommendPageConfig(
-          type: card.type,
-          title: card.title,
-          subtitle: '来自该应用的文件',
-          mode: RecommendMode.application,
-          headerType: HeaderType.applicationSummary,
-          listStyle: FileListStyle.auto, // 使用自动模式
-          themeColor: card.color,
-          tabs: [
-            TabConfig(
-              title: '全部',
-              fileTypes: null, // null 表示所有文件
-              icon: Icons.folder_open,
-            ),
-            TabConfig(
-              title: '图片',
-              fileTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-              icon: Icons.image,
-            ),
-            TabConfig(
-              title: '视频',
-              fileTypes: ['mp4', 'mov', 'avi', 'mkv'],
-              icon: Icons.video_library,
-            ),
-            TabConfig(
-              title: '文档',
-              fileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
-              icon: Icons.description,
-            ),
-            TabConfig(
-              title: '音频',
-              fileTypes: ['mp3', 'wav', 'aac', 'ogg', 'flac'],
-              icon: Icons.music_note,
-            ),
-            TabConfig(
-              title: '其他',
-              fileTypes: const <String>[], // 明确的空数组：排除已知类型
-              icon: Icons.insert_drive_file,
-            ),
-          ],
-        );
-      
       case RecommendationType.dingtalk:
-        return RecommendPageConfig(
-          type: card.type,
-          title: card.title,
-          subtitle: '来自该应用的文件',
-          mode: RecommendMode.application,
-          headerType: HeaderType.applicationSummary,
-          listStyle: FileListStyle.auto, // 使用自动模式
-          themeColor: card.color,
-          tabs: [
-            TabConfig(
-              title: '全部',
-              fileTypes: null,
-              icon: Icons.folder_open,
-            ),
-            TabConfig(
-              title: '图片',
-              fileTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-              icon: Icons.image,
-            ),
-            TabConfig(
-              title: '视频',
-              fileTypes: ['mp4', 'mov', 'avi', 'mkv'],
-              icon: Icons.video_library,
-            ),
-            TabConfig(
-              title: '文档',
-              fileTypes: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
-              icon: Icons.description,
-            ),
-            TabConfig(
-              title: '其他',
-              fileTypes: const <String>[],
-              icon: Icons.insert_drive_file,
-            ),
-          ],
-        );
+        return _createStandardApplicationConfig(card);
       
       case RecommendationType.wps:
-        return RecommendPageConfig(
-          type: card.type,
-          title: card.title,
-          subtitle: '来自该应用的文件',
-          mode: RecommendMode.application,
-          headerType: HeaderType.applicationSummary,
-          listStyle: FileListStyle.auto, // 使用自动模式
-          themeColor: card.color,
-          tabs: [
-            TabConfig(
-              title: '全部',
-              fileTypes: null, // null 表示所有文档
-              icon: Icons.folder_open,
-            ),
-            TabConfig(
-              title: 'Word',
-              fileTypes: ['doc', 'docx'],
-              icon: Icons.description,
-            ),
-            TabConfig(
-              title: 'Excel',
-              fileTypes: ['xls', 'xlsx'],
-              icon: Icons.table_chart,
-            ),
-            TabConfig(
-              title: 'PPT',
-              fileTypes: ['ppt', 'pptx'],
-              icon: Icons.slideshow,
-            ),
-            TabConfig(
-              title: 'PDF',
-              fileTypes: ['pdf'],
-              icon: Icons.picture_as_pdf,
-            ),
-          ],
+        return _createApplicationConfig(
+          card: card,
+          tabs: _createWpsApplicationTabs(),
         );
       
       // ========== 内容类卡片（系统托底） ==========
@@ -264,5 +72,107 @@ class RecommendPageConfigFactory {
           themeColor: card.color,
         );
     }
+  }
+
+  // ========== 私有辅助方法 ==========
+
+  /// 创建标准应用配置（WeChat、QQ、Telegram 等）
+  static RecommendPageConfig _createStandardApplicationConfig(
+    RecommendationCard card,
+  ) {
+    return _createApplicationConfig(
+      card: card,
+      tabs: _createStandardApplicationTabs(),
+    );
+  }
+
+  /// 创建通用应用配置
+  static RecommendPageConfig _createApplicationConfig({
+    required RecommendationCard card,
+    required List<TabConfig> tabs,
+  }) {
+    return RecommendPageConfig(
+      type: card.type,
+      title: card.title,
+      subtitle: '来自该应用的文件',
+      mode: RecommendMode.application,
+      headerType: HeaderType.applicationSummary,
+      listStyle: FileListStyle.auto,
+      themeColor: card.color,
+      tabs: tabs,
+    );
+  }
+
+  /// 创建标准应用的 Tab 列表
+  static List<TabConfig> _createStandardApplicationTabs() {
+    final config = AppConfig.instance.fileTypes;
+    final imageTypes = config.imageExtensions.take(5).toList();
+    final videoTypes = config.videoExtensions.take(4).toList();
+    final audioTypes = config.audioExtensions.take(5).toList();
+    final docTypes = config.officeDocumentExtensions;
+
+    return [
+      TabConfig(
+        title: '全部',
+        fileTypes: null,
+        icon: Icons.folder_open,
+      ),
+      TabConfig(
+        title: '图片',
+        fileTypes: imageTypes,
+        icon: Icons.image,
+      ),
+      TabConfig(
+        title: '视频',
+        fileTypes: videoTypes,
+        icon: Icons.video_library,
+      ),
+      TabConfig(
+        title: '文档',
+        fileTypes: docTypes,
+        icon: Icons.description,
+      ),
+      TabConfig(
+        title: '音频',
+        fileTypes: audioTypes,
+        icon: Icons.music_note,
+      ),
+      TabConfig(
+        title: '其他',
+        fileTypes: const <String>[],
+        icon: Icons.insert_drive_file,
+      ),
+    ];
+  }
+
+  /// 创建 WPS 应用的 Tab 列表
+  static List<TabConfig> _createWpsApplicationTabs() {
+    return [
+      TabConfig(
+        title: '全部',
+        fileTypes: null,
+        icon: Icons.folder_open,
+      ),
+      TabConfig(
+        title: 'Word',
+        fileTypes: const ['doc', 'docx'],
+        icon: Icons.description,
+      ),
+      TabConfig(
+        title: 'Excel',
+        fileTypes: const ['xls', 'xlsx'],
+        icon: Icons.table_chart,
+      ),
+      TabConfig(
+        title: 'PPT',
+        fileTypes: const ['ppt', 'pptx'],
+        icon: Icons.slideshow,
+      ),
+      TabConfig(
+        title: 'PDF',
+        fileTypes: const ['pdf'],
+        icon: Icons.picture_as_pdf,
+      ),
+    ];
   }
 }

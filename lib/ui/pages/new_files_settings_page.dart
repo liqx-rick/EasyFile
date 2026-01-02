@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'package:easyfile/data/models/new_files_settings.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
+import 'package:easyfile/core/di/locator.dart';
+import 'package:easyfile/data/sources/new_files_local_source.dart';
 
 /// 新文件设置页面
 class NewFilesSettingsPage extends StatefulWidget {
@@ -11,7 +13,11 @@ class NewFilesSettingsPage extends StatefulWidget {
 }
 
 class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
-  late NewFilesSettings _settings;
+  late FileScanConfig _fileScanConfig;
+  int _retentionDays = 7;
+  int _displayCount = 50;
+  int _originalRetentionDays = 7;
+  int _originalDisplayCount = 50;
   bool _isLoading = true;
 
   @override
@@ -21,16 +27,39 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    final settings = await NewFilesSettings.load();
+    _fileScanConfig = await locator.getAsync<FileScanConfig>();
     setState(() {
-      _settings = settings;
+      _retentionDays = _fileScanConfig.newFilesRetentionDays;
+      _displayCount = _fileScanConfig.newFilesDisplayCount;
+      _originalRetentionDays = _retentionDays;
+      _originalDisplayCount = _displayCount;
       _isLoading = false;
     });
   }
 
   Future<void> _saveSettings() async {
     try {
-      await _settings.save();
+      // 检查 displayCount 或 retentionDays 是否发生变化
+      final bool displayCountChanged = _displayCount != _originalDisplayCount;
+      final bool retentionDaysChanged = _retentionDays != _originalRetentionDays;
+      
+      // 保存到FileScanConfig
+      if (retentionDaysChanged) {
+        await _fileScanConfig.setNewFilesRetentionDays(_retentionDays);
+      }
+      if (displayCountChanged) {
+        await _fileScanConfig.setNewFilesDisplayCount(_displayCount);
+      }
+      
+      // 如果显示数量或保留天数发生变化，清除缓存以便重新扫描
+      if (displayCountChanged || retentionDaysChanged) {
+        final localSource = locator<NewFilesLocalSource>();
+        await localSource.clearCache();
+      }
+      
+      // 更新原始设置
+      _originalRetentionDays = _retentionDays;
+      _originalDisplayCount = _displayCount;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -41,7 +70,8 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
 
   Future<void> _resetToDefaults() async {
     setState(() {
-      _settings = NewFilesSettings();
+      _retentionDays = 7;
+      _displayCount = 50;
     });
     await _saveSettings();
     if (mounted) {
@@ -149,14 +179,14 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
           leading: Icon(Icons.calendar_today, color: colorScheme.primary),
           title: const Text('保留天数'),
           subtitle: Text(
-            '扫描过去 ${_settings.retentionDays} 天内的文件',
+            '扫描过去 $_retentionDays 天内的文件',
             style: TextStyle(
               fontSize: 12,
               color: colorScheme.onSurfaceVariant,
             ),
           ),
           trailing: Text(
-            '${_settings.retentionDays} 天',
+            '$_retentionDays 天',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -169,7 +199,7 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
           child: Row(
             children: [
               Text(
-                '7天',
+                '3天',
                 style: TextStyle(
                   fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
@@ -177,14 +207,16 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
               ),
               Expanded(
                 child: Slider(
-                  value: _settings.retentionDays.toDouble(),
-                  min: 7,
+                  value: _retentionDays.toDouble(),
+                  min: 3,
                   max: 14,
-                  divisions: 1,
-                  label: '${_settings.retentionDays}天',
+                  divisions: 2,
+                  label: '$_retentionDays天',
                   onChanged: (value) {
                     setState(() {
-                      _settings.retentionDays = value.toInt();
+                      // 将滑块值映射到 3/7/14
+                      final int mappedValue = value <= 5 ? 3 : (value <= 10 ? 7 : 14);
+                      _retentionDays = mappedValue;
                     });
                   },
                   onChangeEnd: (value) async {
@@ -207,14 +239,14 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
   }
 
   Widget _buildDisplayCountSlider(ColorScheme colorScheme) {
-    // 确保滑块值必须是20/50/100之一
-    int displayValue = _settings.displayCount;
-    if (displayValue != 20 && displayValue != 50 && displayValue != 100) {
+    // 确保滑块值必须是20/50/100/200之一
+    int displayValue = _displayCount;
+    if (displayValue != 20 && displayValue != 50 && displayValue != 100 && displayValue != 200) {
       displayValue = 50; // 默认值50
     }
 
-    // 映射：20->0, 50->1, 100->2
-    double sliderValue = displayValue == 20 ? 0 : (displayValue == 50 ? 1 : 2);
+    // 映射：20->0, 50->1, 100->2, 200->3
+    double sliderValue = displayValue == 20 ? 0 : (displayValue == 50 ? 1 : (displayValue == 100 ? 2 : 3));
 
     return Column(
       children: [
@@ -252,14 +284,14 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
                 child: Slider(
                   value: sliderValue,
                   min: 0,
-                  max: 2,
-                  divisions: 2,
+                  max: 3,
+                  divisions: 3,
                   label: '$displayValue个',
                   onChanged: (value) {
-                    // 映射回实际值：0->20, 1->50, 2->100
-                    int actualValue = value == 0 ? 20 : (value == 1 ? 50 : 100);
+                    // 映射回实际值：0->20, 1->50, 2->100, 3->200
+                    int actualValue = value == 0 ? 20 : (value == 1 ? 50 : (value == 2 ? 100 : 200));
                     setState(() {
-                      _settings.displayCount = actualValue;
+                      _displayCount = actualValue;
                     });
                   },
                   onChangeEnd: (value) async {
@@ -268,7 +300,7 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
                 ),
               ),
               Text(
-                '100',
+                '200',
                 style: TextStyle(
                   fontSize: 12,
                   color: colorScheme.onSurfaceVariant,

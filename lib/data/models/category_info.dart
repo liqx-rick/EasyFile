@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 /// 文件分类类型枚举
 enum CategoryType {
@@ -41,17 +43,34 @@ class CategoryInfo {
   /// 图标颜色
   final Color iconColor;
 
-  /// 文件扩展名列表
-  final List<String> extensions;
-
   const CategoryInfo({
     required this.type,
     required this.name,
     required this.icon,
     required this.backgroundColor,
     required this.iconColor,
-    required this.extensions,
   });
+
+  /// 动态获取文件扩展名列表（从 FileTypesConfig 获取）
+  List<String> getExtensions() {
+    final config = AppConfig.instance.fileTypes;
+    switch (type) {
+      case CategoryType.images:
+        return config.imageExtensions;
+      case CategoryType.video:
+        return config.videoExtensions;
+      case CategoryType.music:
+        return config.audioExtensions;
+      case CategoryType.documents:
+        return config.documentExtensions;
+      case CategoryType.archive:
+        return config.archiveExtensions;
+      case CategoryType.apk:
+        return config.apkExtensions;
+      case CategoryType.downloads:
+        return []; // 空数组表示接受所有文件类型
+    }
+  }
 
   /// 获取所有支持的分类
   static List<CategoryInfo> get allCategories => [
@@ -62,20 +81,6 @@ class CategoryInfo {
           icon: Icons.image,
           backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
           iconColor: Color(0xFF1976D2), // 蓝色
-          extensions: [
-            'jpg',
-            'jpeg',
-            'png',
-            'gif',
-            'bmp',
-            'webp',
-            'svg',
-            'ico',
-            'tiff',
-            'tif',
-            'heic',
-            'heif',
-          ],
         ),
 
         // 文档
@@ -85,22 +90,6 @@ class CategoryInfo {
           icon: Icons.description,
           backgroundColor: Color(0xFFF3E5F5), // 淡紫色
           iconColor: Color(0xFF7B1FA2), // 紫色
-          extensions: [
-            'pdf',
-            'doc',
-            'docx',
-            'txt',
-            'rtf',
-            'xls',
-            'xlsx',
-            'ppt',
-            'pptx',
-            'odt',
-            'ods',
-            'odp',
-            'csv',
-            'md',
-          ],
         ),
 
         // 音乐
@@ -110,18 +99,6 @@ class CategoryInfo {
           icon: Icons.music_note,
           backgroundColor: Color(0xFFE8F5E8), // 淡绿色
           iconColor: Color(0xFF388E3C), // 绿色
-          extensions: [
-            'mp3',
-            'wav',
-            'flac',
-            'm4a',
-            'aac',
-            'ogg',
-            'wma',
-            'opus',
-            'amr',
-            '3gp',
-          ],
         ),
 
         // 视频
@@ -131,19 +108,6 @@ class CategoryInfo {
           icon: Icons.video_library,
           backgroundColor: Color(0xFFFFF3E0), // 淡橙色
           iconColor: Color(0xFFF57C00), // 橙色
-          extensions: [
-            'mp4',
-            'avi',
-            'mov',
-            'wmv',
-            'flv',
-            'mkv',
-            'webm',
-            '3gp',
-            'rmvb',
-            'rm',
-            'asf',
-          ],
         ),
 
         // 下载
@@ -153,7 +117,6 @@ class CategoryInfo {
           icon: Icons.download,
           backgroundColor: Color(0xFFE1F5FE), // 淡青色
           iconColor: Color(0xFF0277BD), // 深蓝色
-          extensions: [], // 空数组表示接受所有文件类型
         ),
 
         // APK
@@ -163,7 +126,6 @@ class CategoryInfo {
           icon: Icons.android,
           backgroundColor: Color(0xFFE8F5E9), // 淡绿色
           iconColor: Color(0xFF4CAF50), // 绿色
-          extensions: ['apk'],
         ),
 
         // 压缩包
@@ -173,18 +135,6 @@ class CategoryInfo {
           icon: Icons.archive,
           backgroundColor: Color(0xFFFFF9C4), // 淡黄色
           iconColor: Color(0xFFFBC02D), // 黄色
-          extensions: [
-            'zip',
-            'rar',
-            '7z',
-            'tar',
-            'gz',
-            'bz2',
-            'xz',
-            'tgz',
-            'tbz2',
-            'txz',
-          ],
         ),
       ];
 
@@ -193,7 +143,7 @@ class CategoryInfo {
     final lowerExtension = extension.toLowerCase();
 
     for (final category in allCategories) {
-      if (category.extensions.contains(lowerExtension)) {
+      if (category.getExtensions().contains(lowerExtension)) {
         return category.type;
       }
     }
@@ -213,11 +163,12 @@ class CategoryInfo {
 
   /// 检查文件是否属于某个分类
   static bool isFileInCategory(String fileName, CategoryType categoryType) {
-    final extension = fileName.split('.').last.toLowerCase();
+    // 使用 FileUtils.getExtension() 支持双扩展名识别（如 app.apk.1）
+    final extension = FileUtils.getExtension(fileName);
     final categoryInfo = getInfoByType(categoryType);
 
     if (categoryInfo == null) return false;
 
-    return categoryInfo.extensions.contains(extension);
+    return categoryInfo.getExtensions().contains(extension);
   }
 }

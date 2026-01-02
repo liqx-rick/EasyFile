@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
@@ -640,56 +640,13 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 获取文件类型
   FileTypeFilter _getFileType(String fileName) {
-    final ext = path.extension(fileName).toLowerCase();
-
-    const videoExtensions = [
-      '.mp4',
-      '.avi',
-      '.mkv',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.webm',
-      '.m4v',
-      '.3gp'
-    ];
-    const audioExtensions = [
-      '.mp3',
-      '.m4a',
-      '.wav',
-      '.flac',
-      '.aac',
-      '.ogg',
-      '.wma',
-      '.opus'
-    ];
-    const imageExtensions = [
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.gif',
-      '.bmp',
-      '.webp',
-      '.heic',
-      '.svg'
-    ];
-    const documentExtensions = [
-      '.pdf',
-      '.doc',
-      '.docx',
-      '.xls',
-      '.xlsx',
-      '.ppt',
-      '.pptx',
-      '.txt'
-    ];
-    const archiveExtensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2'];
-
-    if (videoExtensions.contains(ext)) return FileTypeFilter.video;
-    if (audioExtensions.contains(ext)) return FileTypeFilter.audio;
-    if (imageExtensions.contains(ext)) return FileTypeFilter.image;
-    if (documentExtensions.contains(ext)) return FileTypeFilter.document;
-    if (archiveExtensions.contains(ext)) return FileTypeFilter.archive;
+    final config = AppConfig.instance.fileTypes;
+    
+    if (config.isVideoFile(fileName)) return FileTypeFilter.video;
+    if (config.isAudioFile(fileName)) return FileTypeFilter.audio;
+    if (config.isImageFile(fileName)) return FileTypeFilter.image;
+    if (config.isDocumentFile(fileName)) return FileTypeFilter.document;
+    if (config.isArchiveFile(fileName)) return FileTypeFilter.archive;
 
     return FileTypeFilter.other;
   }

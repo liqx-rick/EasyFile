@@ -8,11 +8,10 @@ void main() {
       test('QuickAccessDetectorConfig has correct default values', () {
         expect(QuickAccessDetectorConfig.minFileCount, equals(5));
         expect(QuickAccessDetectorConfig.minFolderSizeMB, equals(5.0));
-        expect(QuickAccessDetectorConfig.maxDaysForRecent, equals(60));
         expect(QuickAccessDetectorConfig.minFileTypesDiversity, equals(2));
         expect(QuickAccessDetectorConfig.maxDepthForAnalysis, equals(5));
         expect(QuickAccessDetectorConfig.maxFilesToAnalyze, equals(500));
-        expect(QuickAccessDetectorConfig.maxFoldersToScan, equals(100));
+        expect(QuickAccessDetectorConfig.maxFoldersToScan, equals(0));
       });
 
       test('Blacklist contains expected entries', () {
@@ -116,13 +115,6 @@ void main() {
         expect(minSizeMB, lessThan(100.0));
       });
 
-      test('Recent modification threshold is reasonable', () {
-        final maxDays = QuickAccessDetectorConfig.maxDaysForRecent;
-        expect(maxDays, equals(60));
-        expect(maxDays, greaterThan(0));
-        expect(maxDays, lessThan(365));
-      });
-
       test('File diversity threshold is reasonable', () {
         final minDiversity = QuickAccessDetectorConfig.minFileTypesDiversity;
         expect(minDiversity, equals(2));
@@ -211,7 +203,7 @@ void main() {
       test('Max folders to scan limit is configured', () {
         expect(
           QuickAccessDetectorConfig.maxFoldersToScan,
-          equals(100),
+          equals(0),
         );
       });
 
@@ -224,8 +216,8 @@ void main() {
         expect(maxDepth, lessThan(20));
         expect(maxFiles, greaterThan(100));
         expect(maxFiles, lessThan(1000));
-        expect(maxFolders, greaterThan(10));
-        expect(maxFolders, lessThan(500));
+        // maxFoldersToScan = 0 表示无限制
+        expect(maxFolders, greaterThanOrEqualTo(0));
       });
     });
 
@@ -283,17 +275,14 @@ void main() {
       test('OR logic for folder conditions is sound', () {
         final minFileCount = QuickAccessDetectorConfig.minFileCount;
         final minSizeMB = QuickAccessDetectorConfig.minFolderSizeMB;
-        final maxDays = QuickAccessDetectorConfig.maxDaysForRecent;
         final minDiversity = QuickAccessDetectorConfig.minFileTypesDiversity;
 
         expect(minFileCount, greaterThan(0));
         expect(minSizeMB, greaterThan(0.0));
-        expect(maxDays, greaterThan(0));
         expect(minDiversity, greaterThan(0));
 
         expect(minFileCount, lessThan(1000));
         expect(minSizeMB, lessThan(1000.0));
-        expect(maxDays, lessThan(3650));
       });
 
       test('Blacklist prevents common system folders', () {

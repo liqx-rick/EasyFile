@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/services/file_type_analyzer.dart';
 
@@ -59,7 +58,6 @@ class FileViewModel extends ChangeNotifier {
   int _newFilesRetentionDays = 7; // 新文件保留天数设置（默认7天）
 
   // 应用级状态
-  List<FavoriteItem> _favorites = [];
   List<FavoriteFileItem> _favoriteFiles = []; // 收藏文件列表
   ThemeMode _themeMode = ThemeMode.system;
   TabView _currentTab = TabView.recent;
@@ -160,7 +158,6 @@ class FileViewModel extends ChangeNotifier {
   int get newFilesRetentionDays => _newFilesRetentionDays;
 
   // 应用级状态的 getters
-  List<FavoriteItem> get favorites => _favorites;
   List<FavoriteFileItem> get favoriteFiles => _favoriteFiles;
   ThemeMode get themeMode => _themeMode;
   TabView get currentTab => _currentTab;
@@ -434,48 +431,6 @@ class FileViewModel extends ChangeNotifier {
     logger.d('Setting search query: $query');
     _searchQuery = query;
     notifyListeners();
-  }
-
-  // 收藏夹相关方法
-  void setFavorites(List<FavoriteItem> favorites) {
-    logger.d('Setting favorites list: ${favorites.length} items');
-    _favorites = _sortedFavorites(favorites);
-    notifyListeners();
-  }
-
-  void addFavorite(FavoriteItem favorite) {
-    logger.d('Adding favorite: ${favorite.name}');
-    if (!_favorites.any((f) => f.path == favorite.path)) {
-      _favorites.add(favorite);
-      _favorites = _sortedFavorites(_favorites);
-      notifyListeners();
-    }
-  }
-
-  void removeFavorite(String id) {
-    logger.d('Removing favorite with id: $id');
-    _favorites.removeWhere((f) => f.id == id);
-    notifyListeners();
-  }
-
-  void updateFavorite(FavoriteItem updatedFavorite) {
-    logger.d('Updating favorite: ${updatedFavorite.name}');
-    final index = _favorites.indexWhere((f) => f.id == updatedFavorite.id);
-    if (index != -1) {
-      _favorites[index] = updatedFavorite;
-      _favorites = _sortedFavorites(_favorites);
-      notifyListeners();
-    }
-  }
-
-  // 统一的收藏排序：置顶优先，其次名称 A-Z
-  List<FavoriteItem> _sortedFavorites(List<FavoriteItem> list) {
-    final copy = [...list];
-    copy.sort((a, b) {
-      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-    return copy;
   }
 
   // 收藏文件相关方法

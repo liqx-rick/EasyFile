@@ -6,8 +6,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/utils/path_security.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/core/di/locator.dart';
 
 class LocalFileRepository implements FileRepository {
@@ -156,21 +158,42 @@ class LocalFileRepository implements FileRepository {
       allowed: true,
     );
 
-    // 使用回收站进行软删除
-    try {
-      logger.i('Moving file to trash: ${file.path}');
-      final trashManager = locator<AppTrashManager>();
-      final success = await trashManager.moveToTrash(file);
+    // 检查回收站功能是否启用
+    final trashSettings = locator<AppTrashSettings>();
+    final useTrash = trashSettings.isEnabled;
 
-      if (success) {
-        logger.i('File moved to trash successfully: ${file.path}');
-      } else {
-        logger.w('Failed to move file to trash: ${file.path}');
+    if (useTrash) {
+      // 使用回收站进行软删除
+      try {
+        logger.i('Moving file to trash: ${file.path}');
+        final trashManager = locator<AppTrashManager>();
+        final success = await trashManager.moveToTrash(file);
+
+        if (success) {
+          logger.i('File moved to trash successfully: ${file.path}');
+        } else {
+          logger.w('Failed to move file to trash: ${file.path}');
+        }
+        return success;
+      } catch (e) {
+        logger.e('Error moving file to trash ${file.path}: $e');
+        return false;
       }
-      return success;
-    } catch (e) {
-      logger.e('Error moving file to trash ${file.path}: $e');
-      return false;
+    } else {
+      // 回收站已禁用，直接永久删除
+      try {
+        logger.i('Permanently deleting file (trash disabled): ${file.path}');
+        if (file.isDirectory) {
+          await Directory(file.path).delete(recursive: true);
+        } else {
+          await File(file.path).delete();
+        }
+        logger.i('File deleted permanently: ${file.path}');
+        return true;
+      } catch (e) {
+        logger.e('Error deleting file ${file.path}: $e');
+        return false;
+      }
     }
   }
 
@@ -566,8 +589,7 @@ class LocalFileRepository implements FileRepository {
       final matchingEntities = allEntities.where((entity) {
         final fileName =
             entity.path.split(Platform.pathSeparator).last.toLowerCase();
-        final fileExtension =
-            fileName.contains('.') ? fileName.split('.').last : '';
+        final fileExtension = FileUtils.getExtension(fileName);
 
         // 搜索文件名或扩展名
         return fileName.contains(queryLower) ||

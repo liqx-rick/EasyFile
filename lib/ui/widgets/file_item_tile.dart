@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/utils/time_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
@@ -252,86 +253,60 @@ class _FileItemTileState extends State<FileItemTile> {
   }
 
   IconData _getFileIcon() {
-    final extension = widget.file.name.toLowerCase().split('.').last;
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-      case 'webp':
-        return Icons.image;
-      case 'txt':
-      case 'md':
-        return Icons.description;
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
+    final fileName = widget.file.name;
+    final config = AppConfig.instance.fileTypes;
+    
+    if (config.isImageFile(fileName)) {
+      return Icons.image;
+    } else if (config.isVideoFile(fileName)) {
+      return Icons.movie;
+    } else if (config.isAudioFile(fileName)) {
+      return Icons.audiotrack;
+    } else if (config.isPdfFile(fileName)) {
+      return Icons.picture_as_pdf;
+    } else if (config.isDocumentFile(fileName)) {
+      // 使用 FileUtils.getExtension() 支持双扩展名识别（如 document.docx.1）
+      final ext = FileUtils.getExtension(fileName);
+      // 根据具体文档类型返回不同图标
+      if (config.getWordExtensions().contains(ext)) {
         return Icons.article;
-      case 'xls':
-      case 'xlsx':
+      } else if (config.getExcelExtensions().contains(ext)) {
         return Icons.table_chart;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Icons.audiotrack;
-      case 'mp4':
-      case 'avi':
-      case 'mkv':
-        return Icons.movie;
-      case 'zip':
-      case 'rar':
-      case '7z':
-        return Icons.archive;
-      case 'dart':
-      case 'java':
-      case 'py':
-      case 'js':
-      case 'html':
-      case 'css':
-        return Icons.code;
-      default:
-        return Icons.insert_drive_file;
+      } else if (config.getTextExtensions().contains(ext)) {
+        return Icons.description;
+      }
+      return Icons.description;
+    } else if (config.isArchiveFile(fileName)) {
+      return Icons.archive;
+    } else if (config.isApkFile(fileName)) {
+      return Icons.android;
+    } else {
+      // 其他未支持的文件类型
+      return Icons.insert_drive_file;
     }
   }
 
   Color _getFileColor() {
-    final extension = widget.file.name.toLowerCase().split('.').last;
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-      case 'webp':
-        return Colors.green;
-      case 'txt':
-      case 'md':
-        return Colors.blue;
-      case 'pdf':
-        return Colors.red;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Colors.purple;
-      case 'mp4':
-      case 'avi':
-      case 'mkv':
-        return Colors.orange;
-      case 'zip':
-      case 'rar':
-      case '7z':
-        return Colors.brown;
-      case 'dart':
-      case 'java':
-      case 'py':
-      case 'js':
-      case 'html':
-      case 'css':
-        return Colors.teal;
-      default:
-        return Colors.grey;
+    final fileName = widget.file.name;
+    final config = AppConfig.instance.fileTypes;
+    
+    if (config.isImageFile(fileName)) {
+      return Colors.green;
+    } else if (config.isVideoFile(fileName)) {
+      return Colors.orange;
+    } else if (config.isAudioFile(fileName)) {
+      return Colors.purple;
+    } else if (config.isPdfFile(fileName)) {
+      return Colors.red;
+    } else if (config.isDocumentFile(fileName)) {
+      return Colors.blue;
+    } else if (config.isArchiveFile(fileName)) {
+      return Colors.brown;
+    } else if (config.isApkFile(fileName)) {
+      return Colors.green[700]!;
+    } else {
+      // 其他未支持的文件类型
+      return Colors.grey;
     }
   }
 

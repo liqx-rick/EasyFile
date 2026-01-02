@@ -102,10 +102,6 @@ class DataLoadService {
       await quickAccessPresenter.loadQuickAccessFolders();
       logger.i('[DataLoadService] Quick access folders loaded');
 
-      // 加载收藏夹
-      await filePresenter.initializeFavorites();
-      logger.i('[DataLoadService] Favorites loaded');
-
       // 加载收藏文件
       await filePresenter.initializeFavoriteFiles();
       logger.i('[DataLoadService] Favorite files loaded');

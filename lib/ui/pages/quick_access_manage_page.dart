@@ -6,8 +6,8 @@ import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 
 /// 快速访问管理页面
 ///
-/// 三层分类展示：系统目录、应用目录、用户自定义
-/// 支持应用子目录树状展开、扫描、别名编辑等功能
+/// 两层分类展示：常用目录区 + 其他目录区
+/// 支持常用子目录展开、扫描、别名编辑等功能
 class QuickAccessManagePage extends StatefulWidget {
   final QuickAccessPresenter presenter;
   final QuickAccessViewModel viewModel;

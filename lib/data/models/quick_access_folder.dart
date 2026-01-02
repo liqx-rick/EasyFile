@@ -1,5 +1,4 @@
 import 'package:easyfile/core/constants/system_folders_config.dart';
-import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/folder_stats.dart';
 
 /// 快速访问文件夹类型（v2.0 简化版）
@@ -183,23 +182,6 @@ class QuickAccessFolder {
       'iconName': iconName,
       'parentPath': parentPath,
     };
-  }
-
-  /// 从旧版 FavoriteItem 转换（用于数据迁移）
-  factory QuickAccessFolder.fromFavoriteItem(FavoriteItem favorite) {
-    return QuickAccessFolder(
-      id: favorite.id,
-      path: favorite.path,
-      originalName: favorite.name,
-      userAlias: favorite.name, // 保留用户原有的命名
-      type: QuickAccessFolderType.system, // 旧数据默认为系统目录
-      createdAt: favorite.createdAt,
-      lastAccessedAt: favorite.lastAccessedAt,
-      accessCount: 0,
-      isAddedToQuickAccess: true, // 旧数据默认已加入快速访问
-      isHidden: false,
-      iconName: favorite.iconName,
-    );
   }
 
   /// 复制并修改某些属性

@@ -1,4 +1,4 @@
-package com.guangqi.easyfile
+﻿package com.guangqi.easyfile
 
 import android.content.Context
 import android.provider.MediaStore
@@ -59,7 +59,7 @@ class NewFilesNativeScanner(private val context: Context) {
             val cutoffTime = startTime - days * 86400000L
             val results = mutableMapOf<String, Map<String, Any>>()
             
-            Log.i(TAG, "开始扫描最近 $days 天的文件...")
+            LogHelper.i(TAG, "开始扫描最近 $days 天的文件...")
             
             // 1. MediaStore查询（80%覆盖）
             try {
@@ -67,9 +67,9 @@ class NewFilesNativeScanner(private val context: Context) {
                 mediaStoreFiles.forEach { 
                     results[it["path"] as String] = it 
                 }
-                Log.i(TAG, "MediaStore找到: ${mediaStoreFiles.size} 个文件")
+                LogHelper.i(TAG, "MediaStore找到: ${mediaStoreFiles.size} 个文件")
             } catch (e: Exception) {
-                Log.e(TAG, "MediaStore扫描失败: ${e.message}", e)
+                LogHelper.e(TAG, "MediaStore扫描失败: ${e.message}", e)
             }
             
             // 2. 一级目录补充（20%覆盖）
@@ -78,9 +78,9 @@ class NewFilesNativeScanner(private val context: Context) {
                 supplementFiles.forEach { 
                     results[it["path"] as String] = it 
                 }
-                Log.i(TAG, "补充扫描找到: ${supplementFiles.size} 个文件")
+                LogHelper.i(TAG, "补充扫描找到: ${supplementFiles.size} 个文件")
             } catch (e: Exception) {
-                Log.e(TAG, "补充扫描失败: ${e.message}", e)
+                LogHelper.e(TAG, "补充扫描失败: ${e.message}", e)
             }
             
             val duration = System.currentTimeMillis() - startTime
@@ -88,7 +88,7 @@ class NewFilesNativeScanner(private val context: Context) {
                 .sortedByDescending { it["dateAdded"] as Long }
                 .toList()
             
-            Log.i(TAG, "扫描完成: ${sortedResults.size} 个文件，耗时 ${duration}ms")
+            LogHelper.i(TAG, "扫描完成: ${sortedResults.size} 个文件，耗时 ${duration}ms")
             sortedResults
         }
     
@@ -164,7 +164,7 @@ class NewFilesNativeScanner(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "MediaStore查询失败: ${e.message}", e)
+            LogHelper.e(TAG, "MediaStore查询失败: ${e.message}", e)
         }
         
         return files
@@ -181,7 +181,7 @@ class NewFilesNativeScanner(private val context: Context) {
         for (dirPath in SYSTEM_DIRECTORIES) {
             val dir = File(dirPath)
             if (!dir.exists() || !dir.isDirectory) {
-                Log.d(TAG, "目录不存在: $dirPath")
+                LogHelper.d(TAG, "目录不存在: $dirPath")
                 continue
             }
             
@@ -217,7 +217,7 @@ class NewFilesNativeScanner(private val context: Context) {
                     ))
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "扫描目录失败 $dirPath: ${e.message}", e)
+                LogHelper.e(TAG, "扫描目录失败 $dirPath: ${e.message}", e)
             }
         }
         

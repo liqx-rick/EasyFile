@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/config/feature_config.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
@@ -32,6 +33,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   int _minFileSize = FileDisplaySettingsService.defaultMinFileSize;
   int _recommendationThreshold = RecommendationSettings.defaultFileCountThreshold;
+  
+  late FeatureConfig _featureConfig;
+  bool _loadingFeatureConfig = true;
 
   @override
   void initState() {
@@ -45,6 +49,17 @@ class _SettingsPageState extends State<SettingsPage> {
     CacheManagerService().setDuplicateFileScanService(enhancedScanService);
 
     _loadSettings();
+    _loadFeatureConfig();
+  }
+  
+  /// 加载功能配置
+  Future<void> _loadFeatureConfig() async {
+    _featureConfig = await locator.getAsync<FeatureConfig>();
+    if (mounted) {
+      setState(() {
+        _loadingFeatureConfig = false;
+      });
+    }
   }
 
   /// 加载设置
@@ -80,16 +95,20 @@ class _SettingsPageState extends State<SettingsPage> {
           // 存储与缓存管理
           _buildSectionHeader('存储与缓存', Icons.storage),
           _buildCacheManagementTile(context),
-          const Divider(height: 1, indent: 56),
-          _buildTrashTile(context),
+          // 回收站设置（根据功能配置显示）
+          if (!_loadingFeatureConfig && _featureConfig.isTrashEnabled) ...[
+            const Divider(height: 1, indent: 56),
+            _buildTrashTile(context),
+          ],
 
           const Divider(height: 32),
 
-          // 功能设置
-          _buildSectionHeader('功能设置', Icons.tune),
-          _buildNewFilesPrivacyTile(context),
-
-          const Divider(height: 32),
+          // 功能设置（至少有一个功能启用时才显示）
+          if (!_loadingFeatureConfig && _featureConfig.isNewFilesEnabled) ...[ 
+            _buildSectionHeader('功能设置', Icons.tune),
+            _buildNewFilesPrivacyTile(context),
+            const Divider(height: 32),
+          ],
 
           // 开发者选项
           _buildSectionHeader('开发者选项', Icons.developer_mode),
@@ -504,18 +523,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 16),
                   Flexible(
                     child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: RecommendationSettings.availableThresholds.map((threshold) {
-                          return RadioListTile<int>(
-                            title: Text('$threshold 个文件'),
-                            value: threshold,
-                            groupValue: _recommendationThreshold,
-                            onChanged: (value) {
-                              Navigator.of(context).pop(value);
-                            },
-                          );
-                        }).toList(),
+                      child: RadioGroup<int>(
+                        groupValue: _recommendationThreshold,
+                        onChanged: (value) {
+                          Navigator.of(context).pop(value);
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: RecommendationSettings.availableThresholds.map((threshold) {
+                            return RadioListTile<int>(
+                              title: Text('$threshold 个文件'),
+                              value: threshold,
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),

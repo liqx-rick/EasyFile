@@ -4,6 +4,8 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/config/feature_config.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
@@ -66,12 +68,60 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   LargeFileScanConfig? _cachedLargeFileScanConfig;
   bool _loadingLargeFileConfig = true;
 
+  // 功能配置（缓存）
+  late FeatureConfig _featureConfig;
+  bool _loadingFeatureConfig = true;
+
+  // 文件扫描配置（缓存）
+  late FileScanConfig _fileScanConfig;
+  bool _loadingFileScanConfig = true;
+
   @override
   void initState() {
     super.initState();
+    _loadFeatureConfig();
+    _loadFileScanConfig();
     _loadStorageInfo();
     _loadCategorySizes();
     _loadLargeFileScanConfig();
+  }
+
+  /// 加载功能配置
+  Future<void> _loadFeatureConfig() async {
+    try {
+      _featureConfig = await locator.getAsync<FeatureConfig>();
+      if (mounted) {
+        setState(() {
+          _loadingFeatureConfig = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load FeatureConfig: $e');
+      if (mounted) {
+        setState(() {
+          _loadingFeatureConfig = false;
+        });
+      }
+    }
+  }
+
+  /// 加载文件扫描配置
+  Future<void> _loadFileScanConfig() async {
+    try {
+      _fileScanConfig = await locator.getAsync<FileScanConfig>();
+      if (mounted) {
+        setState(() {
+          _loadingFileScanConfig = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Failed to load FileScanConfig: $e');
+      if (mounted) {
+        setState(() {
+          _loadingFileScanConfig = false;
+        });
+      }
+    }
   }
 
   /// 加载大文件扫描配置
@@ -233,25 +283,37 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           _buildStorageOverviewSection(theme, colorScheme),
           const SizedBox(height: 24),
 
-          // 2. 垃圾清理功能区（新增）
-          _buildSectionTitle('垃圾清理', Icons.cleaning_services, colorScheme),
-          const SizedBox(height: 12),
-          _buildJunkAndTrashCard(theme, colorScheme),
-          const SizedBox(height: 24),
+          // 2. 垃圾清理功能区（根据功能配置显示）
+          if (!_loadingFeatureConfig && (_featureConfig.isJunkCleanupEnabled || _featureConfig.isTrashEnabled)) ...[
+            _buildSectionTitle('垃圾清理', Icons.cleaning_services, colorScheme),
+            const SizedBox(height: 12),
+            _buildJunkAndTrashCard(theme, colorScheme),
+            const SizedBox(height: 24),
+          ],
 
-          // 3. 系统应用功能区
-          _buildSectionTitle('系统应用', Icons.apps, colorScheme),
-          const SizedBox(height: 12),
-          _buildAppManagementCard(theme, colorScheme),
-          const SizedBox(height: 24),
+          // 3. 系统应用功能区（根据功能配置显示）
+          if (!_loadingFeatureConfig && _featureConfig.isAppManagementEnabled) ...[
+            _buildSectionTitle('系统应用', Icons.apps, colorScheme),
+            const SizedBox(height: 12),
+            _buildAppManagementCard(theme, colorScheme),
+            const SizedBox(height: 24),
+          ],
 
-          // 4. 文件清理功能区
-          _buildSectionTitle('文件清理', Icons.folder_outlined, colorScheme),
-          const SizedBox(height: 12),
-          _buildLargeFilesCard(theme, colorScheme),
-          const SizedBox(height: 12),
-          _buildDuplicateFilesCard(theme, colorScheme),
-          const SizedBox(height: 24),
+          // 4. 文件清理功能区（至少有一个功能启用时才显示）
+          if (!_loadingFeatureConfig && 
+              (_featureConfig.isLargeFilesEnabled || _featureConfig.isDuplicateFilesEnabled)) ...[
+            _buildSectionTitle('文件清理', Icons.folder_outlined, colorScheme),
+            const SizedBox(height: 12),
+            // 大文件查找（根据功能配置显示）
+            if (_featureConfig.isLargeFilesEnabled) ...[
+              _buildLargeFilesCard(theme, colorScheme),
+              const SizedBox(height: 12),
+            ],
+            // 重复文件查找（根据功能配置显示）
+            if (_featureConfig.isDuplicateFilesEnabled)
+              _buildDuplicateFilesCard(theme, colorScheme),
+            const SizedBox(height: 24),
+          ],
         ],
       ),
     );
@@ -1028,7 +1090,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   Widget _buildQuickScanEntry(ThemeData theme, ColorScheme colorScheme) {
     return InkWell(
       onTap: () {
-        // 快速扫描：使用固定的默认配置
+        // 快速扫描：使用从配置文件读取的默认配置
         final presenter = locator<FilePresenter>();
         final largeFileService = LargeFileService(presenter);
 
@@ -1036,7 +1098,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           MaterialPageRoute(
             builder: (context) => LargeFilesPage(
               largeFileService: largeFileService,
-              // 不传 initialConfig，让页面使用固定默认配置
+              initialConfig: LargeFileScanConfig.fromFileScanConfig(_fileScanConfig),
             ),
           ),
         );
@@ -1073,12 +1135,13 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                     ),
                   ),
                   const SizedBox(height: 2), // 减小间距：4 → 2
-                  Text(
-                    '全面扫描所有大于 50MB 的文件',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                  if (!_loadingFileScanConfig)
+                    Text(
+                      '全面扫描所有大于 ${_fileScanConfig.largeFileThreshold}MB 的文件',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -1092,14 +1155,21 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   Widget _buildCustomScanEntry(ThemeData theme, ColorScheme colorScheme) {
     // 判断是否有自定义配置
     final hasConfig = _cachedLargeFileScanConfig != null &&
-        !_cachedLargeFileScanConfig!.isEquivalent(const LargeFileScanConfig());
+        !_cachedLargeFileScanConfig!.isEquivalent(
+          _loadingFileScanConfig 
+            ? const LargeFileScanConfig() 
+            : LargeFileScanConfig.fromFileScanConfig(_fileScanConfig)
+        );
 
     return InkWell(
       onTap: () async {
         // 加载当前配置
         final cacheManager = LargeFileCacheManager();
         final cache = await cacheManager.loadCache();
-        final currentConfig = cache?.config ?? const LargeFileScanConfig();
+        final currentConfig = cache?.config ?? 
+          (_loadingFileScanConfig 
+            ? const LargeFileScanConfig() 
+            : LargeFileScanConfig.fromFileScanConfig(_fileScanConfig));
 
         // 显示配置对话框
         if (!mounted) return;
@@ -1160,7 +1230,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
               Text(
                 hasConfig
                     ? '当前配置：${_formatScanConfig(_cachedLargeFileScanConfig!)}'
-                    : '全部类型 · 大于 50MB', // 显示默认配置
+                    : (!_loadingFileScanConfig 
+                        ? '全部类型 · 大于 ${_fileScanConfig.largeFileThreshold}MB' 
+                        : '全部类型 · 大于 50MB'), // 显示默认配置
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: hasConfig
                       ? colorScheme.primary
@@ -1239,9 +1311,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         // 检查页面是否还存在
         if (!mounted) return;
 
+        // 使用FileScanConfig的配置（优先用户设置，否则使用全局配置）
         final config = DuplicateFileScanConfig(
           scanMode: DuplicateScanMode.full,
-          minSizeInKB: minSizeKB,
+          minSizeInKB: minSizeKB > 0 ? minSizeKB : null, // null时使用FileScanConfig默认值
         );
 
         final presenter = locator<FilePresenter>();
@@ -1400,15 +1473,11 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   }) {
     return InkWell(
       onTap: () async {
-        // 从设置中读取最小文件大小（字节），转换为KB
-        final displaySettings = FileDisplaySettingsService();
-        final minSizeBytes = await displaySettings.getMinFileSize();
-        final minSizeKB = (minSizeBytes / 1024).round();
-
+        // 使用FileScanConfig的配置（统一配置源）
         final config = DuplicateFileScanConfig(
           scanMode: DuplicateScanMode.category,
           selectedType: fileType,
-          minSizeInKB: minSizeKB,
+          // 使用FileScanConfig的默认值（通过null触发）
         );
 
         // 保存配置
@@ -1481,6 +1550,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
   /// 6. 垃圾文件清理和回收站管理合并卡片
   Widget _buildJunkAndTrashCard(ThemeData theme, ColorScheme colorScheme) {
+    final showJunk = _featureConfig.isJunkCleanupEnabled;
+    final showTrash = _featureConfig.isTrashEnabled;
+    
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -1491,21 +1563,22 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 垃圾文件清理入口
-            _buildJunkFilesEntry(theme, colorScheme),
+            // 垃圾文件清理入口（根据配置显示）
+            if (showJunk) _buildJunkFilesEntry(theme, colorScheme),
 
-            // 分隔线
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Divider(
-                thickness: 1,
-                height: 1,
-                color: Colors.grey[300],
+            // 分隔线（仅当两个功能都启用时显示）
+            if (showJunk && showTrash)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Divider(
+                  thickness: 1,
+                  height: 1,
+                  color: Colors.grey[300],
+                ),
               ),
-            ),
 
-            // 管理系统回收站入口
-            _buildTrashFilesEntry(theme, colorScheme),
+            // 管理系统回收站入口（根据配置显示）
+            if (showTrash) _buildTrashFilesEntry(theme, colorScheme),
           ],
         ),
       ),

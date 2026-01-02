@@ -92,7 +92,8 @@ class DocumentIconWidget extends StatelessWidget {
 
   /// 获取文档标签
   String _getDocumentLabel() {
-    final ext = fileName.toLowerCase().split('.').last;
+    // 使用 FileUtils.getExtension() 支持双扩展名识别（如 document.pdf.1）
+    final ext = FileUtils.getExtension(fileName);
     if (FileUtils.isPdfFile(fileName)) {
       return 'PDF';
     } else if (FileUtils.isWordFile(fileName)) {

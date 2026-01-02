@@ -1,6 +1,7 @@
 import 'dart:io';
 // import 'package:device_apps/device_apps.dart';  // 已替换为installed_apps
 // import 'package:installed_apps/installed_apps.dart';  // 暂时不使用（无法从文件解析APK）
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
@@ -148,7 +149,7 @@ class JunkFileService {
       final stat = await file.stat();
 
       // 1. 检查APK
-      if (config.scanApk && lowerName.endsWith('.apk')) {
+      if (config.scanApk && AppConfig.instance.fileTypes.isApkFile(fileName)) {
         logger.d('发现APK文件: $fileName');
 
         // 注意：由于installed_apps包不支持从文件解析包名，暂时无法判断是否已安装

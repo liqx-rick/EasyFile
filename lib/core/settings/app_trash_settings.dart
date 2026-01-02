@@ -1,147 +1,71 @@
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/config/file_scan_config.dart';
 
 /// EasyFile回收站配置管理
 ///
-/// 管理回收站相关的用户设置
+/// 管理回收站相关的用户设置（从FileScanConfig统一读取）
 class AppTrashSettings {
-  // SharedPreferences键名
-  static const String _keyEnabled = 'app_trash_enabled';
-  static const String _keyRetentionDays = 'app_trash_retention_days';
-  static const String _keyShowUndo = 'app_trash_show_undo';
-  static const String _keyUndoDuration = 'app_trash_undo_duration';
+  final FileScanConfig _config;
 
-  // 默认值
-  static const bool _defaultEnabled = true;
-  static const int _defaultRetentionDays = 7;
-  static const bool _defaultShowUndo = true;
-  static const int _defaultUndoDuration = 3;
+  AppTrashSettings(FileScanConfig config) : _config = config;
 
-  // 可选的保留天数
-  static const List<int> retentionOptions = [3, 7, 15, 30];
-
-  final SharedPreferences _prefs;
-
-  AppTrashSettings(this._prefs);
-
-  /// 初始化工厂方法
-  static Future<AppTrashSettings> create() async {
-    final prefs = await SharedPreferences.getInstance();
-    return AppTrashSettings(prefs);
-  }
-
-  // ==================== 读取设置 ====================
+  // ==================== 读取设置（从FileScanConfig） ====================
 
   /// 回收站功能是否启用
-  bool get isEnabled {
-    return _prefs.getBool(_keyEnabled) ?? _defaultEnabled;
-  }
+  bool get isEnabled => _config.trashEnabled;
 
   /// 文件保留天数（自动清理周期）
-  int get retentionDays {
-    final days = _prefs.getInt(_keyRetentionDays) ?? _defaultRetentionDays;
-    // 验证值是否合法
-    if (!retentionOptions.contains(days)) {
-      logger.w(
-          'Invalid retention days: $days, using default: $_defaultRetentionDays');
-      return _defaultRetentionDays;
-    }
-    return days;
-  }
+  int get retentionDays => _config.trashRetentionDays;
 
-  /// 是否显示撤销提示（SnackBar）
-  bool get showUndo {
-    return _prefs.getBool(_keyShowUndo) ?? _defaultShowUndo;
-  }
+  /// 可选的保留天数
+  List<int> get retentionOptions => _config.trashRetentionOptions;
 
-  /// 撤销窗口时长（秒）
-  int get undoDuration {
-    return _prefs.getInt(_keyUndoDuration) ?? _defaultUndoDuration;
-  }
-
-  // ==================== 保存设置 ====================
+  // ==================== 保存设置（委托给FileScanConfig） ====================
 
   /// 启用/禁用回收站功能
   Future<void> setEnabled(bool value) async {
-    try {
-      await _prefs.setBool(_keyEnabled, value);
-      logger.i('App trash enabled set to: $value');
-    } catch (e) {
-      logger.e('Failed to set enabled: $e');
-      rethrow;
-    }
+    await _config.setTrashEnabled(value);
   }
 
   /// 设置文件保留天数
   Future<void> setRetentionDays(int days) async {
-    if (!retentionOptions.contains(days)) {
-      throw ArgumentError(
-          'Invalid retention days: $days. Must be one of $retentionOptions');
-    }
-
-    try {
-      await _prefs.setInt(_keyRetentionDays, days);
-      logger.i('Retention days set to: $days');
-    } catch (e) {
-      logger.e('Failed to set retention days: $e');
-      rethrow;
-    }
-  }
-
-  /// 设置是否显示撤销提示
-  Future<void> setShowUndo(bool value) async {
-    try {
-      await _prefs.setBool(_keyShowUndo, value);
-      logger.i('Show undo set to: $value');
-    } catch (e) {
-      logger.e('Failed to set show undo: $e');
-      rethrow;
-    }
-  }
-
-  /// 设置撤销窗口时长
-  Future<void> setUndoDuration(int seconds) async {
-    if (seconds < 1 || seconds > 10) {
-      throw ArgumentError('Undo duration must be between 1 and 10 seconds');
-    }
-
-    try {
-      await _prefs.setInt(_keyUndoDuration, seconds);
-      logger.i('Undo duration set to: $seconds seconds');
-    } catch (e) {
-      logger.e('Failed to set undo duration: $e');
-      rethrow;
-    }
+    await _config.setTrashRetentionDays(days);
   }
 
   // ==================== 默认恢复目录配置 ====================
+
+  /// Android 存储基础路径
+  static const String _storageBase = '/storage/emulated/0';
+  
+  /// 恢复目录后缀
+  static const String _restoreSuffix = '/EasyFile_Restored';
 
   /// 获取默认恢复目录（根据文件类型）
   static String getDefaultRestorePath(String mimeType) {
     final mimeTypeLower = mimeType.toLowerCase();
 
     if (mimeTypeLower.startsWith('image/')) {
-      return '/storage/emulated/0/Pictures/EasyFile_Restored';
+      return '$_storageBase/Pictures$_restoreSuffix';
     } else if (mimeTypeLower.startsWith('video/')) {
-      return '/storage/emulated/0/Movies/EasyFile_Restored';
+      return '$_storageBase/Movies$_restoreSuffix';
     } else if (mimeTypeLower.startsWith('audio/')) {
-      return '/storage/emulated/0/Music/EasyFile_Restored';
+      return '$_storageBase/Music$_restoreSuffix';
     } else if (mimeTypeLower.contains('pdf') ||
         mimeTypeLower.contains('document') ||
         mimeTypeLower.contains('text/')) {
-      return '/storage/emulated/0/Documents/EasyFile_Restored';
+      return '$_storageBase/Documents$_restoreSuffix';
     } else {
-      return '/storage/emulated/0/Download/EasyFile_Restored';
+      return '$_storageBase/Download$_restoreSuffix';
     }
   }
 
   /// 默认恢复目录映射（用于UI显示）
-  static const Map<String, String> defaultRestorePaths = {
-    'image': '/storage/emulated/0/Pictures/EasyFile_Restored',
-    'video': '/storage/emulated/0/Movies/EasyFile_Restored',
-    'audio': '/storage/emulated/0/Music/EasyFile_Restored',
-    'document': '/storage/emulated/0/Documents/EasyFile_Restored',
-    'other': '/storage/emulated/0/Download/EasyFile_Restored',
+  static Map<String, String> get defaultRestorePaths => {
+    'image': '$_storageBase/Pictures$_restoreSuffix',
+    'video': '$_storageBase/Movies$_restoreSuffix',
+    'audio': '$_storageBase/Music$_restoreSuffix',
+    'document': '$_storageBase/Documents$_restoreSuffix',
+    'other': '$_storageBase/Download$_restoreSuffix',
   };
 
   // ==================== 辅助方法 ====================
@@ -157,64 +81,40 @@ class AppTrashSettings {
     return {
       'enabled': isEnabled,
       'retentionDays': retentionDays,
-      'showUndo': showUndo,
-      'undoDuration': undoDuration,
     };
   }
 
-  /// 重置所有设置为默认值
+  /// 重置所有设置为默认值（使用 FileScanConfig.reset 统一重置）
   Future<void> resetToDefaults() async {
-    try {
-      await _prefs.setBool(_keyEnabled, _defaultEnabled);
-      await _prefs.setInt(_keyRetentionDays, _defaultRetentionDays);
-      await _prefs.setBool(_keyShowUndo, _defaultShowUndo);
-      await _prefs.setInt(_keyUndoDuration, _defaultUndoDuration);
-      logger.i('App trash settings reset to defaults');
-    } catch (e) {
-      logger.e('Failed to reset settings: $e');
-      rethrow;
-    }
+    // 使用 FileScanConfig 的 reset 方法，自动应用所有默认值
+    await _config.reset();
+    logger.i('App trash settings reset to defaults');
   }
 
   /// 导出设置（用于备份）
   Map<String, dynamic> exportSettings() {
     return {
-      _keyEnabled: isEnabled,
-      _keyRetentionDays: retentionDays,
-      _keyShowUndo: showUndo,
-      _keyUndoDuration: undoDuration,
+      'enabled': isEnabled,
+      'retentionDays': retentionDays,
     };
   }
 
   /// 导入设置（用于恢复）
   Future<void> importSettings(Map<String, dynamic> settings) async {
-    try {
-      if (settings.containsKey(_keyEnabled)) {
-        await _prefs.setBool(_keyEnabled, settings[_keyEnabled] as bool);
-      }
-      if (settings.containsKey(_keyRetentionDays)) {
-        final days = settings[_keyRetentionDays] as int;
-        if (retentionOptions.contains(days)) {
-          await _prefs.setInt(_keyRetentionDays, days);
-        }
-      }
-      if (settings.containsKey(_keyShowUndo)) {
-        await _prefs.setBool(_keyShowUndo, settings[_keyShowUndo] as bool);
-      }
-      if (settings.containsKey(_keyUndoDuration)) {
-        await _prefs.setInt(
-            _keyUndoDuration, settings[_keyUndoDuration] as int);
-      }
-      logger.i('App trash settings imported successfully');
-    } catch (e) {
-      logger.e('Failed to import settings: $e');
-      rethrow;
+    if (settings.containsKey('enabled')) {
+      await setEnabled(settings['enabled'] as bool);
     }
+    if (settings.containsKey('retentionDays')) {
+      final days = settings['retentionDays'] as int;
+      if (retentionOptions.contains(days)) {
+        await setRetentionDays(days);
+      }
+    }
+    logger.i('App trash settings imported successfully');
   }
 
   @override
   String toString() {
-    return 'AppTrashSettings(enabled: $isEnabled, retentionDays: $retentionDays, '
-        'showUndo: $showUndo, undoDuration: ${undoDuration}s)';
+    return 'AppTrashSettings(enabled: $isEnabled, retentionDays: $retentionDays)';
   }
 }
