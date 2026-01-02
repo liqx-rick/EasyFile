@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/utils/path_security.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
@@ -588,8 +589,7 @@ class LocalFileRepository implements FileRepository {
       final matchingEntities = allEntities.where((entity) {
         final fileName =
             entity.path.split(Platform.pathSeparator).last.toLowerCase();
-        final fileExtension =
-            fileName.contains('.') ? fileName.split('.').last : '';
+        final fileExtension = FileUtils.getExtension(fileName);
 
         // 搜索文件名或扩展名
         return fileName.contains(queryLower) ||

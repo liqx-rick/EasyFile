@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_change_listener_service.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/data_sources/data_sources.dart';
+import 'package:easyfile/core/data_sources/file_list_data_source.dart';
+import 'package:easyfile/core/data_sources/data_source_factory.dart';
 import 'package:easyfile/core/data_sources/recommend_config_mapper.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -348,7 +349,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     // 具体类型Tab：检查是否有该类型的文件
     if (tab.fileTypes!.isNotEmpty) {
       return files.any((file) {
-        final ext = file.name.split('.').last.toLowerCase();
+        final ext = FileUtils.getExtension(file.name);
         return tab.fileTypes!.contains(ext);
       });
     }
@@ -362,7 +363,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     }
     
     return files.any((file) {
-      final ext = file.name.split('.').last.toLowerCase();
+      final ext = FileUtils.getExtension(file.name);
       return !knownTypes.contains(ext);
     });
   }
@@ -459,7 +460,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     // 具体类型Tab：按扩展名过滤
     if (currentTab.fileTypes!.isNotEmpty) {
       final filtered = files.where((file) {
-        final ext = file.name.split('.').last.toLowerCase();
+        final ext = FileUtils.getExtension(file.name);
         return currentTab.fileTypes!.contains(ext);
       }).toList();
       logger.d('Tab "${currentTab.title}": 过滤后 ${filtered.length} 个文件');
@@ -475,7 +476,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     }
     
     final filtered = files.where((file) {
-      final ext = file.name.split('.').last.toLowerCase();
+      final ext = FileUtils.getExtension(file.name);
       return !knownTypes.contains(ext);
     }).toList();
     logger.d('Tab "${currentTab.title}": 其他类型 ${filtered.length} 个文件（排除${knownTypes.length}种已知类型）');
@@ -759,7 +760,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         color: theme.scaffoldBackgroundColor,
         border: Border(
           bottom: BorderSide(color: theme.dividerColor, width: 1),
-          top: BorderSide(color: theme.dividerColor.withOpacity(0.5), width: 0.5),
+          top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5), width: 0.5),
         ),
       ),
       padding: EdgeInsets.only(
@@ -995,20 +996,54 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     final pageId = _getPageIdForCurrentTab();
     final isGroupEnabled = PageSettingsService().getGroupEnabled(pageId);
     
-    // 为图片/视频构建视图配置（简洁模式支持）
+    // 为所有文件构建视图配置（应用网格模式显示文件信息的设置）
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
     if (isGridView) {
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
+      
+      // 判断当前Tab是否为图片/视频Tab
+      bool isImageOrVideoTab = false;
+      if (widget.config.mode == RecommendMode.application && 
+          _tabController != null && 
+          _visibleTabs != null && 
+          _visibleTabs!.isNotEmpty) {
+        final currentTab = _visibleTabs![_tabController!.index];
+        // 检查Tab标题或fileTypes是否表明这是图片/视频Tab
+        isImageOrVideoTab = currentTab.title == '图片' || 
+                           currentTab.title == '视频';
+        logger.d('应用模式 - 当前Tab: ${currentTab.title}, 是否图片/视频Tab: $isImageOrVideoTab');
+      } else if (widget.config.mode == RecommendMode.content) {
+        // 时光记忆（照片）和生活剪影（视频）也是图片/视频类型
+        isImageOrVideoTab = widget.config.type == RecommendationType.memories ||
+                           widget.config.type == RecommendationType.videos;
+        logger.d('内容模式 - 类型: ${widget.config.type}, 是否图片/视频Tab: $isImageOrVideoTab');
+      }
+      
+      logger.d('网格显示配置 - showFileInfo: $showFileInfo, isImageOrVideoTab: $isImageOrVideoTab');
+      
       viewConfigBuilder = (file) {
-        final shouldUseCompactMode = !file.isDirectory &&
-            (file.category == FileCategory.image ||
-                file.category == FileCategory.video);
-        if (shouldUseCompactMode) {
-          final showFileInfo =
-              PageSettingsService().getGridShowFileInfo(pageId);
-          return UnifiedViewConfig.fromContext(context,
-              compactMode: !showFileInfo);
+        logger.d('viewConfigBuilder被调用 - 文件: ${file.name}, 类别: ${file.category}');
+        
+        // 对于图片/视频Tab，根据设置决定是否使用简洁模式
+        if (isImageOrVideoTab && !file.isDirectory) {
+          // 根据文件扩展名判断是否为图片/视频
+          final fileTypes = AppConfig.instance.fileTypes;
+          final isImage = fileTypes.isImageFile(file.name);
+          final isVideo = fileTypes.isVideoFile(file.name);
+          final isFileImageOrVideo = isImage || isVideo;
+          
+          if (isFileImageOrVideo) {
+            // 只有在设置为简洁模式（不显示文件信息）时才使用 compactMode
+            final useCompactMode = !showFileInfo;
+            logger.d('文件 ${file.name} - 是图片: $isImage, 是视频: $isVideo, 使用简洁模式: $useCompactMode');
+            return UnifiedViewConfig.fromContext(context,
+                compactMode: useCompactMode);
+          }
         }
-        return null;
+        
+        // 非图片/视频Tab，或非图片/视频文件，使用默认配置
+        return UnifiedViewConfig.fromContext(context,
+            compactMode: false);
       };
     }
     
@@ -1155,7 +1190,7 @@ class _ApplicationSummaryHeader extends StatelessWidget {
     
     return Container(
       padding: const EdgeInsets.all(16),
-      color: themeColor?.withOpacity(0.1) ?? Colors.grey[100],
+      color: themeColor?.withValues(alpha: 0.1) ?? Colors.grey[100],
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -1231,8 +1266,8 @@ class _EmotionHeader extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            config.themeColor?.withOpacity(0.3) ?? Colors.purple.withOpacity(0.3),
-            config.themeColor?.withOpacity(0.1) ?? Colors.purple.withOpacity(0.1),
+            config.themeColor?.withValues(alpha: 0.3) ?? Colors.purple.withValues(alpha: 0.3),
+            config.themeColor?.withValues(alpha: 0.1) ?? Colors.purple.withValues(alpha: 0.1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1296,7 +1331,7 @@ class _StorageSummaryHeader extends StatelessWidget {
     
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.orange.withOpacity(0.1),
+      color: Colors.orange.withValues(alpha: 0.1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

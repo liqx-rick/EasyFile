@@ -1,5 +1,4 @@
-/// 文件类型枚举
-enum FileType { image, video, audio, document, archive, other }
+import 'package:easyfile/data/models/file_category.dart';
 
 /// 文件夹统计信息
 ///
@@ -12,7 +11,7 @@ class FolderStats {
   final int totalFolders;
 
   /// 各文件类型的数量分布
-  final Map<FileType, int> fileTypeCounts;
+  final Map<FileCategory, int> fileTypeCounts;
 
   /// 总大小（MB）
   final double totalSizeMB;
@@ -29,32 +28,32 @@ class FolderStats {
   });
 
   /// 获取特定类型的文件数量
-  int getFileCount(FileType type) => fileTypeCounts[type] ?? 0;
+  int getFileCount(FileCategory type) => fileTypeCounts[type] ?? 0;
 
   /// 图片文件数
-  int get imageCount => getFileCount(FileType.image);
+  int get imageCount => getFileCount(FileCategory.image);
 
   /// 视频文件数
-  int get videoCount => getFileCount(FileType.video);
+  int get videoCount => getFileCount(FileCategory.video);
 
   /// 音频文件数
-  int get audioCount => getFileCount(FileType.audio);
+  int get audioCount => getFileCount(FileCategory.audio);
 
   /// 文档文件数
-  int get documentCount => getFileCount(FileType.document);
+  int get documentCount => getFileCount(FileCategory.document);
 
   /// 压缩包文件数
-  int get archiveCount => getFileCount(FileType.archive);
+  int get archiveCount => getFileCount(FileCategory.archive);
 
   /// 其他文件数
-  int get otherCount => getFileCount(FileType.other);
+  int get otherCount => getFileCount(FileCategory.other);
 
   /// 主要文件类型（数量最多的类型）
-  FileType? get primaryFileType {
+  FileCategory? get primaryFileType {
     if (fileTypeCounts.isEmpty) return null;
 
     var maxCount = 0;
-    FileType? primaryType;
+    FileCategory? primaryType;
 
     fileTypeCounts.forEach((type, count) {
       if (count > maxCount) {
@@ -90,13 +89,13 @@ class FolderStats {
   factory FolderStats.fromJson(Map<String, dynamic> json) {
     final typeCountsJson =
         json['fileTypeCounts'] as Map<String, dynamic>? ?? {};
-    final fileTypeCounts = <FileType, int>{};
+    final fileTypeCounts = <FileCategory, int>{};
 
     typeCountsJson.forEach((key, value) {
       try {
-        final type = FileType.values.firstWhere(
+        final type = FileCategory.values.firstWhere(
           (e) => e.toString() == key,
-          orElse: () => FileType.other,
+          orElse: () => FileCategory.other,
         );
         fileTypeCounts[type] = value as int;
       } catch (e) {

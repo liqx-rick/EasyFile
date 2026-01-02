@@ -3,6 +3,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
@@ -287,68 +288,17 @@ class DuplicateFileService {
     if (fileTypes.isEmpty) return true;
 
     final ext = path.extension(filePath).toLowerCase();
-
-    const videoExtensions = [
-      '.mp4',
-      '.avi',
-      '.mkv',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.webm',
-      '.m4v',
-      '.3gp'
-    ];
-    const audioExtensions = [
-      '.mp3',
-      '.m4a',
-      '.wav',
-      '.flac',
-      '.aac',
-      '.ogg',
-      '.wma',
-      '.opus',
-      '.amr'
-    ];
-    const imageExtensions = [
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.gif',
-      '.bmp',
-      '.webp',
-      '.heic',
-      '.heif',
-      '.svg'
-    ];
-    const documentExtensions = [
-      '.pdf',
-      '.doc',
-      '.docx',
-      '.xls',
-      '.xlsx',
-      '.ppt',
-      '.pptx',
-      '.txt',
-      '.html', // 网页文件
-      '.htm',
-      '.md', // Markdown
-      '.rtf', // 富文本
-      '.csv', // 数据表格
-      '.json', // 配置文件
-      '.xml', // 配置文件
-    ];
-    const archiveExtensions = [
-      '.zip',
-      '.rar',
-      '.7z',
-      '.tar',
-      '.gz',
-      '.bz2',
-      '.apk', // Android 安装包（实际是 zip 格式）
-      '.xz', // 现代压缩格式
-      '.zst', // Zstandard 压缩
-    ];
+    
+    // ✅ 使用 FileTypesConfig 统一管理扩展名
+    final config = AppConfig.instance.fileTypes;
+    
+    // 构建带点的扩展名列表（FileTypesConfig 存储的是不带点的格式）
+    final videoExtensions = config.videoExtensions.map((e) => '.$e').toSet();
+    final audioExtensions = config.audioExtensions.map((e) => '.$e').toSet();
+    final imageExtensions = config.imageExtensions.map((e) => '.$e').toSet();
+    final documentExtensions = config.documentExtensions.map((e) => '.$e').toSet();
+    final archiveExtensions = [...config.archiveExtensions, ...config.apkExtensions]
+        .map((e) => '.$e').toSet();
 
     for (final type in fileTypes) {
       switch (type) {

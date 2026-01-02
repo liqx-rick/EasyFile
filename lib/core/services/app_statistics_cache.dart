@@ -4,6 +4,16 @@ import 'package:easyfile/core/logger.dart';
 
 /// 应用统计数据模型
 class AppStatistics {
+  /// 缓存版本号（用于标识统计逻辑的变更）
+  /// 
+  /// 版本历史：
+  /// - v1 (2025-01-01): 初始版本，未应用 FileTypesConfig 过滤
+  /// - v2 (2026-01-01): 应用 FileTypesConfig 过滤，只统计支持的文件类型
+  static const int currentVersion = 2;
+  
+  /// 此缓存数据的版本号
+  final int version;
+  
   /// 文件数量
   final int fileCount;
   
@@ -19,6 +29,7 @@ class AppStatistics {
   final DateTime cachedAt;
 
   AppStatistics({
+    this.version = currentVersion,
     required this.fileCount,
     required this.totalSize,
     required this.weeklyGrowth,
@@ -28,6 +39,7 @@ class AppStatistics {
   /// 从JSON反序列化
   factory AppStatistics.fromJson(Map<String, dynamic> json) {
     return AppStatistics(
+      version: json['version'] as int? ?? 1, // 旧缓存默认为 v1
       fileCount: json['fileCount'] as int,
       totalSize: json['totalSize'] as int,
       weeklyGrowth: json['weeklyGrowth'] as int,
@@ -38,6 +50,7 @@ class AppStatistics {
   /// 序列化为JSON
   Map<String, dynamic> toJson() {
     return {
+      'version': version,
       'fileCount': fileCount,
       'totalSize': totalSize,
       'weeklyGrowth': weeklyGrowth,
@@ -46,7 +59,17 @@ class AppStatistics {
   }
 
   /// 检查缓存是否有效
+  /// 
+  /// 检查条件：
+  /// 1. 版本号必须与当前版本一致
+  /// 2. 缓存未过期
   bool isValid(Duration cacheDuration) {
+    // 版本不匹配，缓存失效
+    if (version != currentVersion) {
+      return false;
+    }
+    
+    // 检查时间是否过期
     final age = DateTime.now().difference(cachedAt);
     return age < cacheDuration;
   }
@@ -135,13 +158,17 @@ class AppStatisticsCache {
       final json = Map<String, dynamic>.from(jsonDecode(jsonStr) as Map);
       final stats = AppStatistics.fromJson(json);
 
-      // 检查是否过期
+      // 检查是否过期或版本不匹配
       if (!stats.isValid(cacheDuration)) {
-        logger.d('统计缓存已过期: $appKey (${DateTime.now().difference(stats.cachedAt).inHours}小时)');
+        if (stats.version != AppStatistics.currentVersion) {
+          logger.d('统计缓存版本不匹配: $appKey (缓存版本: v${stats.version}, 当前版本: v${AppStatistics.currentVersion})');
+        } else {
+          logger.d('统计缓存已过期: $appKey (${DateTime.now().difference(stats.cachedAt).inHours}小时)');
+        }
         return null;
       }
 
-      logger.d('统计缓存命中: $appKey (文件数: ${stats.fileCount}, 大小: ${_formatSize(stats.totalSize)}, ${DateTime.now().difference(stats.cachedAt).inMinutes}分钟前)');
+      logger.d('统计缓存命中: $appKey (v${stats.version}, 文件数: ${stats.fileCount}, 大小: ${_formatSize(stats.totalSize)}, ${DateTime.now().difference(stats.cachedAt).inMinutes}分钟前)');
       return stats;
     } catch (e) {
       logger.e('读取统计缓存失败: $appKey, 错误: $e');

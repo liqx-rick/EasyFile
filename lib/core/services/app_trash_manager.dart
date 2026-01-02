@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
@@ -663,29 +664,6 @@ class AppTrashManager {
 
   /// 根据文件名推断MIME类型
   String _inferMimeType(String fileName) {
-    final ext = path.extension(fileName).toLowerCase().replaceFirst('.', '');
-
-    // 图片
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic'].contains(ext)) {
-      return 'image/$ext';
-    }
-    // 视频
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', '3gp'].contains(ext)) {
-      return 'video/$ext';
-    }
-    // 音频
-    if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'].contains(ext)) {
-      return 'audio/$ext';
-    }
-    // 文档
-    if (['pdf', 'doc', 'docx', 'txt'].contains(ext)) {
-      return 'application/$ext';
-    }
-    // 压缩包
-    if (['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) {
-      return 'application/$ext';
-    }
-
-    return 'application/octet-stream';
+    return AppConfig.instance.fileTypes.getSimplifiedMimeType(fileName);
   }
 }

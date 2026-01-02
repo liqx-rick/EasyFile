@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/platform/mediastore_trash_channel.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
@@ -1299,46 +1300,8 @@ class TrashFileService {
 
   /// 根据MIME类型获取合适的文件扩展名
   String _getExtensionFromMimeType(String mimeType) {
-    final lower = mimeType.toLowerCase();
-
-    // 图片
-    if (lower.contains('jpeg') || lower.contains('jpg')) return '.jpg';
-    if (lower.contains('png')) return '.png';
-    if (lower.contains('gif')) return '.gif';
-    if (lower.contains('webp')) return '.webp';
-    if (lower.contains('bmp')) return '.bmp';
-    if (lower.contains('heic') || lower.contains('heif')) return '.heic';
-
-    // 视频
-    if (lower.contains('mp4')) return '.mp4';
-    if (lower.contains('avi')) return '.avi';
-    if (lower.contains('mov') || lower.contains('quicktime')) return '.mov';
-    if (lower.contains('mkv')) return '.mkv';
-    if (lower.contains('webm')) return '.webm';
-    if (lower.contains('3gp')) return '.3gp';
-
-    // 音频
-    if (lower.contains('mp3') || lower.contains('mpeg')) return '.mp3';
-    if (lower.contains('wav')) return '.wav';
-    if (lower.contains('flac')) return '.flac';
-    if (lower.contains('aac')) return '.aac';
-    if (lower.contains('ogg')) return '.ogg';
-    if (lower.contains('m4a')) return '.m4a';
-
-    // 文档
-    if (lower.contains('pdf')) return '.pdf';
-    if (lower.contains('word') || lower.contains('doc')) return '.docx';
-    if (lower.contains('excel') || lower.contains('xls')) return '.xlsx';
-    if (lower.contains('powerpoint') || lower.contains('ppt')) return '.pptx';
-    if (lower.contains('text')) return '.txt';
-
-    // 压缩
-    if (lower.contains('zip')) return '.zip';
-    if (lower.contains('rar')) return '.rar';
-    if (lower.contains('7z')) return '.7z';
-
-    // 默认
-    return '.file';
+    // ✅ 委托给 FileTypesConfig 统一管理
+    return AppConfig.instance.fileTypes.getExtensionFromMimeType(mimeType);
   }
 
   /// 解决文件名冲突（自动重命名）

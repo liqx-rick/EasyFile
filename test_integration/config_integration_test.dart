@@ -1,7 +1,10 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/config/app_scanner_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 void main() {
   group('Config Integration Tests', () {
@@ -209,7 +212,7 @@ void main() {
 
         // 最后一次更新应该生效（或者取决于实现）
         final finalState = AppConfig.instance.feature.isNewFilesEnabled;
-        expect(finalState is bool, true);
+        expect(finalState, isA<bool>());
       });
 
       test('should recover from reset', () async {
@@ -240,7 +243,7 @@ void main() {
 
         // 初始化应该在 500ms 内完成
         expect(stopwatch.elapsedMilliseconds, lessThan(500));
-        print('Config initialization took: ${stopwatch.elapsedMilliseconds}ms');
+        debugPrint('Config initialization took: ${stopwatch.elapsedMilliseconds}ms');
       });
 
       test('config reads should be fast', () async {
@@ -250,16 +253,16 @@ void main() {
 
         for (int i = 0; i < 1000; i++) {
           // 读取各种配置
-          final _ = AppConfig.instance.feature.isNewFilesEnabled;
-          final __ = AppConfig.instance.fileScan.largeFileThreshold;
-          final ___ = AppConfig.instance.fileTypes.imageExtensions;
+          AppConfig.instance.feature.isNewFilesEnabled;
+          AppConfig.instance.fileScan.largeFileThreshold;
+          AppConfig.instance.fileTypes.imageExtensions;
         }
 
         stopwatch.stop();
 
         // 1000次读取应该在 100ms 内完成
         expect(stopwatch.elapsedMilliseconds, lessThan(100));
-        print('1000 config reads took: ${stopwatch.elapsedMilliseconds}ms');
+        debugPrint('1000 config reads took: ${stopwatch.elapsedMilliseconds}ms');
       });
 
       test('batch updates should be efficient', () async {
@@ -280,7 +283,7 @@ void main() {
 
         // 批量更新应该比逐个更新快
         expect(stopwatch.elapsedMilliseconds, lessThan(200));
-        print('Batch update took: ${stopwatch.elapsedMilliseconds}ms');
+        debugPrint('Batch update took: ${stopwatch.elapsedMilliseconds}ms');
       });
     });
 

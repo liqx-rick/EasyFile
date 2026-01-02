@@ -8,10 +8,10 @@ import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/core/data_sources/data_source_helpers.dart';
 import 'package:easyfile/core/data_sources/media_store_data_source.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 
-/// 推荐服务（方案B - 完全重构版）
 ///
 /// 核心设计：
 /// - 薄封装层：不重复实现检测逻辑，完全复用 AppDetectionService 和 UnifiedAppScanner
@@ -26,10 +26,8 @@ import 'package:easyfile/core/services/app_statistics_cache.dart';
 ///   └── RecommendationConfig (UI配置：图标、颜色、标题)
 /// ```
 ///
-/// 性能对比：
-/// - 优化前：每次加载 16秒+（4个应用 × 4秒扫描）
-/// - 优化后：<10ms（全部命中缓存）
-/// - 提升：1600倍+
+/// 性能：
+/// - <10ms（全部命中缓存）
 ///
 /// 使用示例：
 /// ```dart
@@ -205,7 +203,14 @@ class RecommendationService {
       updateCache: true, // 更新文件数量缓存
     );
 
-    final fileCount = scanResult.totalCount;
+    // 应用 FileTypesConfig 过滤，确保只统计支持的文件类型
+    final originalCount = scanResult.allFiles.length;
+    final filteredFiles = DataSourceHelpers.filterBySupportedTypes(scanResult.allFiles);
+    final fileCount = filteredFiles.length;
+    
+    if (originalCount > fileCount) {
+      logger.d('  FileTypesConfig 过滤: $originalCount -> $fileCount (过滤 ${originalCount - fileCount} 个不支持的文件)');
+    }
 
     // 检查文件数量阈值
     if (fileCount < threshold) {
@@ -213,10 +218,10 @@ class RecommendationService {
       return null;
     }
 
-    // 5. 计算总大小
+    // 5. 计算总大小（基于过滤后的文件）
     int totalSize = 0;
     try {
-      totalSize = scanResult.allFiles.fold<int>(
+      totalSize = filteredFiles.fold<int>(
         0,
         (sum, file) => sum + file.size,
       );

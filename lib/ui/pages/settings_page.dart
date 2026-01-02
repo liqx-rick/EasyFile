@@ -523,18 +523,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 16),
                   Flexible(
                     child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: RecommendationSettings.availableThresholds.map((threshold) {
-                          return RadioListTile<int>(
-                            title: Text('$threshold 个文件'),
-                            value: threshold,
-                            groupValue: _recommendationThreshold,
-                            onChanged: (value) {
-                              Navigator.of(context).pop(value);
-                            },
-                          );
-                        }).toList(),
+                      child: RadioGroup<int>(
+                        groupValue: _recommendationThreshold,
+                        onChanged: (value) {
+                          Navigator.of(context).pop(value);
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: RecommendationSettings.availableThresholds.map((threshold) {
+                            return RadioListTile<int>(
+                              title: Text('$threshold 个文件'),
+                              value: threshold,
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),

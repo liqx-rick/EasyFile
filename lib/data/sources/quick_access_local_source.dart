@@ -129,21 +129,6 @@ class QuickAccessLocalSource {
     }
   }
 
-  /// 添加快速访问文件夹（旧版本，保持兼容性）
-  /// [unhideIfHidden] 如果为true，当文件夹已存在且被隐藏时，会取消隐藏；否则跳过
-  @Deprecated('Use addFolderWithResult instead')
-  Future<bool> addFolder(
-    QuickAccessFolder folder, {
-    bool unhideIfHidden = true,
-  }) async {
-    final result = await addFolderWithResult(
-      folder,
-      unhideIfHidden: unhideIfHidden,
-    );
-    return result == AddFolderResult.added ||
-        result == AddFolderResult.unhidden;
-  }
-
   /// 删除快速访问文件夹
   Future<bool> removeFolder(String id) async {
     try {
@@ -370,8 +355,6 @@ class QuickAccessLocalSource {
     }
   }
 
-  // ==================== 新增方法 ====================
-
   /// 加入快速访问（将扫描出的项标记为已加入）
   Future<bool> addToQuickAccess(String id) async {
     try {
@@ -531,27 +514,6 @@ class QuickAccessLocalSource {
       logger.e('Error batch hiding folders: $e\nStackTrace: $stackTrace');
       return count;
     }
-  }
-
-  /// 设置首页展示顺序
-  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
-  Future<bool> setHomeDisplayOrder(String id, int? order) async {
-    logger.w('setHomeDisplayOrder is deprecated and has no effect');
-    return true;
-  }
-
-  /// 批量更新首页展示顺序（用于拖拽排序）
-  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
-  Future<bool> updateHomeDisplayOrders(Map<String, int?> orderMap) async {
-    logger.w('updateHomeDisplayOrders is deprecated and has no effect');
-    return true;
-  }
-
-  /// 获取首页展示的文件夹（按顺序排序）
-  @Deprecated('homeDisplayOrder field has been removed from QuickAccessFolder')
-  Future<List<QuickAccessFolder>> getHomeFolders() async {
-    logger.w('getHomeFolders is deprecated, returning empty list');
-    return [];
   }
 
   /// 获取已加入快速访问的文件夹

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
@@ -81,34 +82,47 @@ enum DocumentFileType implements FileTypeFilter {
   @override
   bool matches(String filename) {
     if (this == DocumentFileType.all) return true;
-    final ext = filename.split('.').last.toUpperCase();
+
+    final config = AppConfig.instance.fileTypes;
+    // 使用 FileUtils.getExtension() 支持双扩展名识别（如 document.docx.1）
+    final ext = FileUtils.getExtension(filename).toUpperCase();
+
     switch (this) {
       case DocumentFileType.text:
-        return ['TXT', 'MD', 'LOG', 'RTF'].contains(ext);
+        // 使用 FileTypesConfig 的定义（包含 txt, md, log, rtf）
+        return config
+            .getTextExtensions()
+            .map((e) => e.toUpperCase())
+            .contains(ext);
       case DocumentFileType.word:
-        return ['DOC', 'DOCX'].contains(ext);
+        return config
+            .getWordExtensions()
+            .map((e) => e.toUpperCase())
+            .contains(ext);
       case DocumentFileType.excel:
-        return ['XLS', 'XLSX', 'CSV'].contains(ext);
+        return config
+            .getExcelExtensions()
+            .map((e) => e.toUpperCase())
+            .contains(ext);
       case DocumentFileType.ppt:
-        return ['PPT', 'PPTX'].contains(ext);
+        return config
+            .getPptExtensions()
+            .map((e) => e.toUpperCase())
+            .contains(ext);
       case DocumentFileType.pdf:
-        return ext == 'PDF';
+        return config.isPdfFile(filename);
       case DocumentFileType.other:
-        // 其他：不属于上述任何类型的文档
-        return ![
-          'TXT',
-          'MD',
-          'LOG',
-          'RTF',
-          'DOC',
-          'DOCX',
-          'XLS',
-          'XLSX',
-          'CSV',
-          'PPT',
-          'PPTX',
-          'PDF',
-        ].contains(ext);
+        // 其他：是文档但不属于上述任何类型
+        if (!config.isDocumentFile(filename)) return false;
+        // 排除已分类的文档类型
+        final allCategorized = [
+          ...config.getTextExtensions(),
+          ...config.getWordExtensions(),
+          ...config.getExcelExtensions(),
+          ...config.getPptExtensions(),
+          'pdf',
+        ].map((e) => e.toUpperCase()).toSet();
+        return !allCategorized.contains(ext);
       default:
         return false;
     }
@@ -122,7 +136,8 @@ enum DownloadFileType implements FileTypeFilter {
   archive('压缩包', 'ZIP, RAR, 7Z'),
   document('文档', 'PDF, DOC, XLS'),
   image('图片', 'JPG, PNG, GIF'),
-  media('视频', 'MP3, MP4, AVI'),
+  video('视频', 'MP4, AVI, MKV'),
+  audio('音频', 'MP3, WAV, FLAC'),
   other('其他', '');
 
   @override
@@ -143,8 +158,10 @@ enum DownloadFileType implements FileTypeFilter {
         return Icons.description;
       case DownloadFileType.image:
         return Icons.image;
-      case DownloadFileType.media:
-        return Icons.play_circle_outline;
+      case DownloadFileType.video:
+        return Icons.video_library;
+      case DownloadFileType.audio:
+        return Icons.audiotrack;
       case DownloadFileType.other:
         return Icons.insert_drive_file;
       default:
@@ -155,89 +172,29 @@ enum DownloadFileType implements FileTypeFilter {
   @override
   bool matches(String filename) {
     if (this == DownloadFileType.all) return true;
-    final ext = filename.split('.').last.toUpperCase();
+    final config = AppConfig.instance.fileTypes;
     switch (this) {
       case DownloadFileType.installer:
-        return ['APK', 'EXE', 'MSI', 'DMG', 'DEB', 'RPM'].contains(ext);
+        return config.isInstallerFile(filename);
       case DownloadFileType.archive:
-        return ['ZIP', 'RAR', '7Z', 'TAR', 'GZ', 'BZ2', 'XZ'].contains(ext);
+        return config.isArchiveFile(filename);
       case DownloadFileType.document:
-        return [
-          'PDF',
-          'DOC',
-          'DOCX',
-          'XLS',
-          'XLSX',
-          'PPT',
-          'PPTX',
-          'TXT',
-          'MD',
-        ].contains(ext);
+        return config.isDocumentFile(filename);
       case DownloadFileType.image:
-        return [
-          'JPG',
-          'JPEG',
-          'PNG',
-          'GIF',
-          'BMP',
-          'WEBP',
-          'SVG',
-        ].contains(ext);
-      case DownloadFileType.media:
-        return [
-          'MP3',
-          'MP4',
-          'AVI',
-          'MKV',
-          'MOV',
-          'WMV',
-          'FLV',
-          'WAV',
-          'FLAC',
-        ].contains(ext);
+        return config.isImageFile(filename);
+      case DownloadFileType.video:
+        return config.isVideoFile(filename);
+      case DownloadFileType.audio:
+        return config.isAudioFile(filename);
       case DownloadFileType.other:
-        // 其他：不属于上述任何类型
-        final allKnownExts = [
-          'APK',
-          'EXE',
-          'MSI',
-          'DMG',
-          'DEB',
-          'RPM',
-          'ZIP',
-          'RAR',
-          '7Z',
-          'TAR',
-          'GZ',
-          'BZ2',
-          'XZ',
-          'PDF',
-          'DOC',
-          'DOCX',
-          'XLS',
-          'XLSX',
-          'PPT',
-          'PPTX',
-          'TXT',
-          'MD',
-          'JPG',
-          'JPEG',
-          'PNG',
-          'GIF',
-          'BMP',
-          'WEBP',
-          'SVG',
-          'MP3',
-          'MP4',
-          'AVI',
-          'MKV',
-          'MOV',
-          'WMV',
-          'FLV',
-          'WAV',
-          'FLAC',
-        ];
-        return !allKnownExts.contains(ext);
+        // 其他：动态判断，不属于已知分类的都是其他类型
+        // 这样可以尊重用户意愿，支持任意文件类型
+        return !config.isInstallerFile(filename) &&
+            !config.isArchiveFile(filename) &&
+            !config.isDocumentFile(filename) &&
+            !config.isImageFile(filename) &&
+            !config.isVideoFile(filename) &&
+            !config.isAudioFile(filename);
       default:
         return false;
     }
@@ -496,10 +453,9 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         // 这里简单返回true，因为复制到下载目录的文件应该显示
         return true;
       case CategoryType.apk:
-        return file.name.toLowerCase().endsWith('.apk');
+        return AppConfig.instance.fileTypes.isApkFile(file.name);
       case CategoryType.archive:
-        final ext = file.name.toLowerCase().split('.').last;
-        return ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz', 'tbz2', 'txz'].contains(ext);
+        return FileUtils.isArchiveFile(file.name);
     }
   }
 
@@ -1079,9 +1035,8 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 ],
               ),
               // 批量操作底部工具栏
-              bottomNavigationBar: isEditMode
-                  ? _buildSelectionBottomBar()
-                  : null,
+              bottomNavigationBar:
+                  isEditMode ? _buildSelectionBottomBar() : null,
             ),
           );
         },
@@ -1153,7 +1108,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '支持的格式: ${categoryInfo.extensions.take(5).join(', ')}${categoryInfo.extensions.length > 5 ? ' 等' : ''}',
+                    '支持的格式: ${categoryInfo.getExtensions().take(5).join(', ')}${categoryInfo.getExtensions().length > 5 ? ' 等' : ''}',
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),

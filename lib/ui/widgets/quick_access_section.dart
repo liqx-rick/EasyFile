@@ -35,8 +35,11 @@ class QuickAccessSection extends StatefulWidget {
   /// 推荐服务（可选注入，如果不提供则使用默认实现）
   final RecommendationService? recommendationService;
 
-  /// 全局Key用于从外部触发刷新
-  static final GlobalKey<_QuickAccessSectionState> globalKey = GlobalKey<_QuickAccessSectionState>();
+  /// 全局Key用于从外部触发刷新（私有）
+  static final GlobalKey<_QuickAccessSectionState> _globalKey = GlobalKey<_QuickAccessSectionState>();
+  
+  /// 公共的 globalKey getter（返回非泛型类型以避免暴露私有状态类）
+  static GlobalKey<State<StatefulWidget>> get globalKey => _globalKey;
 
   /// 清除推荐卡片缓存（用于设置变更后强制重新加载）
   static void clearRecommendationCache() {
@@ -46,7 +49,7 @@ class QuickAccessSection extends StatefulWidget {
   /// 刷新推荐卡片（清除缓存并重新加载）
   static Future<void> refreshRecommendations() async {
     _QuickAccessSectionState.clearCache();
-    await globalKey.currentState?.refreshRecommendations();
+    await _globalKey.currentState?.refreshRecommendations();
   }
 
   const QuickAccessSection({

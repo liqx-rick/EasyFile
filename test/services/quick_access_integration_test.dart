@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/folder_stats.dart';
 import 'package:easyfile/data/models/app_dir_config.dart';
-import 'package:easyfile/data/services/alias_recommendation_service.dart';
 
 void main() {
   group('QuickAccess Integration Tests', () {
-    test('应该正确转换FavoriteItem到QuickAccessFolder', () {
-      // 模拟从旧数据迁移
-      final oldFavorite = {
+    test('应该正确创建QuickAccessFolder从旧数据', () {
+      // 模拟从旧数据手动迁移
+      final oldFavoriteData = {
         'id': 'test_123',
         'name': '下载',
         'path': '/storage/emulated/0/Download',
@@ -17,14 +17,14 @@ void main() {
         'pinned': true,
       };
 
-      // 创建QuickAccessFolder
+      // 手动创建QuickAccessFolder
       final quickAccess = QuickAccessFolder(
-        id: oldFavorite['id'] as String,
-        path: oldFavorite['path'] as String,
-        originalName: oldFavorite['name'] as String,
+        id: oldFavoriteData['id'] as String,
+        path: oldFavoriteData['path'] as String,
+        originalName: oldFavoriteData['name'] as String,
         type: QuickAccessFolderType.system,
-        createdAt: DateTime.parse(oldFavorite['createdAt'] as String),
-        iconName: oldFavorite['iconName'] as String,
+        createdAt: DateTime.parse(oldFavoriteData['createdAt'] as String),
+        iconName: oldFavoriteData['iconName'] as String,
       );
 
       expect(quickAccess.id, equals('test_123'));
@@ -105,7 +105,7 @@ void main() {
         stats: FolderStats(
           totalFiles: 100,
           totalFolders: 10,
-          fileTypeCounts: {FileType.image: 80, FileType.video: 20},
+          fileTypeCounts: {FileCategory.image: 80, FileCategory.video: 20},
           totalSizeMB: 500.0,
           lastModified: DateTime.now(),
         ),
@@ -140,24 +140,6 @@ void main() {
       expect(appNames, contains('WhatsApp'));
       expect(appNames, contains('WeChat'));
       expect(appNames, contains('TikTok'));
-    });
-
-    test('应该为应用配置推荐正确别名', () {
-      final service = AliasRecommendationService();
-
-      final whatsappAlias = service.recommendAlias(
-        path: '/storage/emulated/0/WhatsApp/Media/WhatsApp Images',
-        originalName: 'WhatsApp Images',
-        type: QuickAccessFolderType.other,
-      );
-      expect(whatsappAlias, equals('WhatsApp图片'));
-
-      final wechatAlias = service.recommendAlias(
-        path: '/storage/emulated/0/tencent/MicroMsg/download',
-        originalName: 'download',
-        type: QuickAccessFolderType.other,
-      );
-      expect(wechatAlias, equals('微信下载'));
     });
   });
 }

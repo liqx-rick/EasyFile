@@ -96,10 +96,6 @@ class AppInitializationService {
       await quickAccessPresenter.loadQuickAccessFolders();
       logger.i('[AppInitService] P0: Quick access folders loaded');
 
-      // 加载收藏夹
-      await filePresenter.initializeFavorites();
-      logger.i('[AppInitService] P0: Favorites loaded');
-
       // 加载收藏文件
       await filePresenter.initializeFavoriteFiles();
       logger.i('[AppInitService] P0: Favorite files loaded');

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/constants/system_folders_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
@@ -8,7 +9,6 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 class QuickAccessDetectorConfig {
   static const int minFileCount = 5;
   static const double minFolderSizeMB = 5.0;
-  static const int maxDaysForRecent = 60;
   static const int minFileTypesDiversity = 2;
   static const int maxDepthForAnalysis = 5;
   static const int maxFilesToAnalyze = 500;
@@ -77,71 +77,6 @@ class QuickAccessDetectorConfig {
     'Backup',
     'Backups',
   ];
-
-  /// 支持的文件类型扩展名（小写，无点）
-  /// TODO: 未来应迁移到统一的文件类型管理类/服务，实现全局扩展名配置
-  /// 当前作为接口预留点，便于后续重构和集中管理
-  static const supportedFileExtensions = {
-    // 图片类型
-    'jpg',
-    'jpeg',
-    'png',
-    'gif',
-    'bmp',
-    'webp',
-    'svg',
-    'ico',
-    'heic',
-    'heif',
-
-    // 视频类型
-    'mp4',
-    'avi',
-    'mkv',
-    'mov',
-    'wmv',
-    'flv',
-    'webm',
-    'mpeg',
-    'mpg',
-    '3gp',
-    'm4v',
-
-    // 音频类型
-    'mp3',
-    'wav',
-    'flac',
-    'aac',
-    'ogg',
-    'wma',
-    'm4a',
-    'ape',
-    'opus',
-
-    // 文档类型
-    'pdf',
-    'doc',
-    'docx',
-    'xls',
-    'xlsx',
-    'ppt',
-    'pptx',
-    'txt',
-    'odt',
-    'ods',
-    'odp',
-    'rtf',
-    'epub',
-
-    // 压缩包类型
-    'zip',
-    'rar',
-    '7z',
-    'tar',
-    'gz',
-    'bz2',
-    'xz',
-  };
 }
 
 /// 文件夹分析结果（内部使用）
@@ -164,32 +99,26 @@ class _FolderAnalysisResult {
 
   /// 检查是否包含重要文档（PDF/Office/大图片视频）
   bool get hasImportantDocuments {
-    if (fileExtensions.contains('pdf')) return true;
+    final config = AppConfig.instance.fileTypes;
+    final officeExts = config.officeDocumentExtensions;
+    
+    if (fileExtensions.any((ext) => officeExts.contains(ext))) {
+      return true;
+    }
 
-    const officeExts = {
-      'doc',
-      'docx',
-      'xls',
-      'xlsx',
-      'ppt',
-      'pptx',
-      'odt',
-      'ods',
-      'odp'
-    };
-    if (fileExtensions.any((ext) => officeExts.contains(ext))) return true;
-
-    if (largeMediaFiles.isNotEmpty) return true;
+    if (largeMediaFiles.isNotEmpty) {
+      return true;
+    }
 
     return false;
   }
 
   /// 检查文件夹是否包含至少一个支持的文件类型
-  /// 使用 QuickAccessDetectorConfig.supportedFileExtensions 进行判断
+  /// 使用 FileTypesConfig 统一配置进行判断
   bool _hasAnySupportedFileType() {
-    return fileExtensions.any(
-      (ext) => QuickAccessDetectorConfig.supportedFileExtensions.contains(ext),
-    );
+    final config = AppConfig.instance.fileTypes;
+    final supportedExts = config.getAllSupportedExtensions();
+    return fileExtensions.any((ext) => supportedExts.contains(ext));
   }
 
   /// 判断是否满足任意一个过滤条件
@@ -204,7 +133,6 @@ class _FolderAnalysisResult {
   bool meetsAnyCondition({
     required int minFileCount,
     required double minFolderSizeMB,
-    required int maxDaysForRecent,
     required int minFileTypesDiversity,
   }) {
     // 前置条件：必须包含至少一个支持的文件类型（过滤纯cache/log文件夹）
@@ -470,7 +398,6 @@ class QuickAccessFolderDetector {
             if (analysis.meetsAnyCondition(
               minFileCount: QuickAccessDetectorConfig.minFileCount,
               minFolderSizeMB: QuickAccessDetectorConfig.minFolderSizeMB,
-              maxDaysForRecent: QuickAccessDetectorConfig.maxDaysForRecent,
               minFileTypesDiversity:
                   QuickAccessDetectorConfig.minFileTypesDiversity,
             )) {
@@ -637,18 +564,13 @@ class QuickAccessFolderDetector {
             extensions.add(ext);
 
             // 检测大于1MB的图片或视频
+            // 使用统一配置文件的扩展名定义（2026-01-02修复：避免硬编码）
             if (fileSize > 1024 * 1024) {
               // 1MB
-              const imageExts = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'};
-              const videoExts = {
-                'mp4',
-                'avi',
-                'mov',
-                'mkv',
-                'flv',
-                'wmv',
-                '3gp'
-              };
+              final config = AppConfig.instance.fileTypes;
+              final imageExts = config.imageExtensions.toSet();
+              final videoExts = config.videoExtensions.toSet();
+              
               if (imageExts.contains(ext) || videoExts.contains(ext)) {
                 largeMediaFiles.add(parts.last);
               }

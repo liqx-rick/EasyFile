@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
@@ -689,37 +690,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       return 'application/vnd.android.package-archive';
     }
 
-    // 临时文件 - 根据扩展名判断
-    final ext = file.name.split('.').last.toLowerCase();
-
-    // 图片类型
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif']
-        .contains(ext)) {
-      return 'image/$ext';
-    }
-
-    // 视频类型
-    if (['mp4', 'avi', 'mov', 'mkv', '3gp', 'webm', 'flv', 'm4v']
-        .contains(ext)) {
-      return 'video/$ext';
-    }
-
-    // 音频类型
-    if (['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma'].contains(ext)) {
-      return 'audio/$ext';
-    }
-
-    // 文档类型
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].contains(ext)) {
-      return 'application/$ext';
-    }
-
-    // 文本类型
-    if (['txt', 'log', 'xml', 'json', 'yaml', 'yml'].contains(ext)) {
-      return 'text/plain';
-    }
-
-    // 默认类型
-    return 'application/octet-stream';
+    // 临时文件 - 使用配置判断
+    return AppConfig.instance.fileTypes.getSimplifiedMimeType(file.name);
   }
 }

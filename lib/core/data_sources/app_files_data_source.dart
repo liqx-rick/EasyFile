@@ -74,14 +74,23 @@ class AppFilesDataSource implements FileListDataSource {
     }
     
     var files = scanResult.allFiles;
+    final originalCount = files.length;
     
-    // 5. 文件类型过滤（Tab 功能）
-    if (fileTypes != null && fileTypes.isNotEmpty) {
-      files = DataSourceHelpers.filterByFileTypes(files, fileTypes: fileTypes);
-      logger.d('$name - 文件类型过滤: ${scanResult.allFiles.length} -> ${files.length}');
+    // 5. 基础文件类型过滤（使用 FileTypesConfig，确保只显示支持的文件类型）
+    files = DataSourceHelpers.filterBySupportedTypes(files);
+    final filteredBySupport = originalCount - files.length;
+    if (filteredBySupport > 0) {
+      logger.d('$name - FileTypesConfig 过滤: $originalCount -> ${files.length} (过滤 $filteredBySupport 个不支持的文件)');
     }
     
-    logger.i('$name.queryFiles - 完成: ${files.length} 个文件');
+    // 6. Tab 文件类型过滤（如果指定了具体的文件类型）
+    if (fileTypes != null && fileTypes.isNotEmpty) {
+      final beforeTabFilter = files.length;
+      files = DataSourceHelpers.filterByFileTypes(files, fileTypes: fileTypes);
+      logger.d('$name - Tab 类型过滤: $beforeTabFilter -> ${files.length}');
+    }
+    
+    logger.i('$name.queryFiles - 完成: ${files.length} 个文件 (原始: $originalCount)');
     return files;
   }
   

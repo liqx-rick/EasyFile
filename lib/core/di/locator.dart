@@ -21,7 +21,6 @@ import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/config/storage/config_storage.dart';
 import 'package:easyfile/core/config/storage/local_config_storage.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
-import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/local_file_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
@@ -30,8 +29,6 @@ import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
 import 'package:easyfile/data/services/folder_analyzer.dart';
-import 'package:easyfile/data/services/alias_recommendation_service.dart';
-import 'package:easyfile/data/services/data_migration_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -81,11 +78,6 @@ void setupLocator() {
   });
 
   // Data Sources
-  locator.registerLazySingleton<FavoritesLocalSource>(() {
-    logger.d('Creating FavoritesLocalSource');
-    return FavoritesLocalSource();
-  });
-
   locator.registerLazySingleton<FavoriteFilesLocalSource>(() {
     logger.d('Creating FavoriteFilesLocalSource');
     return FavoriteFilesLocalSource();
@@ -218,20 +210,6 @@ void setupLocator() {
     return FolderAnalyzer();
   });
 
-  locator.registerLazySingleton<AliasRecommendationService>(() {
-    logger.d('Creating AliasRecommendationService');
-    return AliasRecommendationService();
-  });
-
-  locator.registerLazySingleton<DataMigrationService>(() {
-    logger.d('Creating DataMigrationService');
-    return DataMigrationService(
-      favoritesSource: locator<FavoritesLocalSource>(),
-      quickAccessSource: locator<QuickAccessLocalSource>(),
-      folderAnalyzer: locator<FolderAnalyzer>(),
-    );
-  });
-
   // Repository
   locator.registerLazySingleton<FileRepository>(() {
     logger.d('Creating FileRepository (LocalFileRepository)');
@@ -264,7 +242,6 @@ void setupLocator() {
     logger.d('Creating FilePresenter (Singleton)');
     final repository = locator<FileRepository>();
     final viewModel = locator<FileViewModel>();
-    final favoritesSource = locator<FavoritesLocalSource>();
     final favoriteFilesSource = locator<FavoriteFilesLocalSource>();
     final recentFilesSource = locator<RecentFilesLocalSource>();
     final newFilesScanner = locator<NewFilesScanner>();
@@ -273,13 +250,12 @@ void setupLocator() {
     final trashDatabase = locator<AppTrashDatabase>();
 
     logger.d(
-      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoritesSource=$favoritesSource, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSettingsService=$themeSettingsService, trashDatabase=$trashDatabase',
+      'FilePresenter dependencies: repository=$repository, viewModel=$viewModel, favoriteFilesSource=$favoriteFilesSource, recentFilesSource=$recentFilesSource, themeSettingsService=$themeSettingsService, trashDatabase=$trashDatabase',
     );
 
     return FilePresenter(
       repository: repository,
       viewModel: viewModel,
-      favoritesSource: favoritesSource,
       favoriteFilesSource: favoriteFilesSource,
       recentFilesSource: recentFilesSource,
       newFilesScanner: newFilesScanner,

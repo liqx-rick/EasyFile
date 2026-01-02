@@ -1,3 +1,6 @@
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/utils/file_utils.dart';
+
 /// 回收站文件项
 class TrashFileItem {
   /// 文件名
@@ -49,7 +52,7 @@ class TrashFileItem {
 
   /// 根据文件名推断MIME类型
   static String _inferMimeType(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
+    final ext = FileUtils.getExtension(fileName);
 
     // 荣耀/华为相册回收站特殊扩展名 (.hndgp)
     // 需要根据文件内容判断真实类型，这里先标记为图片类型
@@ -57,27 +60,13 @@ class TrashFileItem {
       return 'image/unknown'; // 将在扫描时根据文件头更新
     }
 
-    // 图片
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif']
-        .contains(ext)) {
-      return 'image/$ext';
-    }
-    // 视频
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', '3gp', 'webm', 'm4v']
-        .contains(ext)) {
-      return 'video/$ext';
-    }
-    // 音频
-    if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].contains(ext)) {
-      return 'audio/$ext';
-    }
-    // 文档
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
-        .contains(ext)) {
-      return 'application/$ext';
-    }
-    // 压缩文件
-    if (['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) {
+    // 使用配置判断文件类型
+    final config = AppConfig.instance.fileTypes;
+    if (config.isImageExtension(ext)) return 'image/$ext';
+    if (config.isVideoExtension(ext)) return 'video/$ext';
+    if (config.isAudioExtension(ext)) return 'audio/$ext';
+    if (config.isDocumentExtension(ext)) return 'application/$ext';
+    if (config.isArchiveExtension(ext)) {
       return 'application/$ext';
     }
 

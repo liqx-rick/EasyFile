@@ -157,12 +157,13 @@ class UnifiedAppScanner {
     
     // 调试：检查PDF文件的路径格式
     if (appKey == 'wechat') {
+      final config = AppConfig.instance.fileTypes;
       // 查找PDF文件
       final mediaStorePdfs = mediaStoreResult.files
-          .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+          .where((f) => config.isPdfFile(f.path))
           .toList();
       final pathScanPdfs = pathScanResult.files
-          .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+          .where((f) => config.isPdfFile(f.path))
           .toList();
       
       if (mediaStorePdfs.isNotEmpty || pathScanPdfs.isNotEmpty) {

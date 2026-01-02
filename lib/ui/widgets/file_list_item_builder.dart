@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:easyfile/core/config/app_config.dart';
 
 /// 文件列表项构建器工具类
 ///
@@ -159,54 +160,48 @@ class FileListItemBuilder {
       );
     }
 
-    final ext =
-        fileName.isNotEmpty ? fileName.split('.').last.toLowerCase() : '';
+    final config = AppConfig.instance.fileTypes;
 
     IconData icon;
     Color bgColor;
     Color iconColor;
 
     // 音频文件
-    if (mimeType.startsWith('audio/')) {
+    if (mimeType.startsWith('audio/') || config.isAudioFile(fileName)) {
       icon = Icons.audiotrack;
       bgColor = Colors.pink[50]!;
       iconColor = Colors.pink[700]!;
     }
     // PDF文档
-    else if (mimeType.contains('pdf')) {
+    else if (mimeType.contains('pdf') || config.isPdfFile(fileName)) {
       icon = Icons.picture_as_pdf;
       bgColor = Colors.red[50]!;
       iconColor = Colors.red[700]!;
     }
     // Word文档
-    else if (mimeType.contains('word') || ext == 'doc' || ext == 'docx') {
+    else if (mimeType.contains('word') || config.isWordDocument(fileName)) {
       icon = Icons.description;
       bgColor = Colors.blue[50]!;
       iconColor = Colors.blue[700]!;
     }
-    // Excel表格和CSV（优先于文本文件判断）
+    // Excel表格和CSV
     else if (mimeType.contains('excel') ||
         mimeType.contains('spreadsheet') ||
         mimeType.contains('csv') ||
-        ext == 'xls' ||
-        ext == 'xlsx' ||
-        ext == 'csv') {
+        config.isExcelDocument(fileName)) {
       icon = Icons.table_chart;
       bgColor = Colors.green[50]!;
       iconColor = Colors.green[700]!;
     }
     // PPT演示
-    else if (mimeType.contains('powerpoint') || ext == 'ppt' || ext == 'pptx') {
+    else if (mimeType.contains('powerpoint') || config.isPowerPointDocument(fileName)) {
       icon = Icons.slideshow;
       bgColor = Colors.orange[50]!;
       iconColor = Colors.orange[700]!;
     }
-    // 文本文件（排除CSV，CSV已在上面处理）
+    // 文本文件
     else if ((mimeType.contains('text/') && !mimeType.contains('csv')) ||
-        ext == 'txt' ||
-        ext == 'log' ||
-        ext == 'md' ||
-        ext == 'rtf') {
+        config.isTextFile(fileName)) {
       icon = Icons.description;
       bgColor = Colors.grey[200]!;
       iconColor = Colors.grey[800]!;
@@ -216,52 +211,31 @@ class FileListItemBuilder {
         mimeType.contains('rar') ||
         mimeType.contains('7z') ||
         mimeType.contains('tar') ||
-        ext == 'zip' ||
-        ext == 'rar' ||
-        ext == '7z' ||
-        ext == 'tar' ||
-        ext == 'gz') {
+        config.isArchiveFile(fileName)) {
       icon = Icons.folder_zip;
       bgColor = Colors.amber[50]!;
       iconColor = Colors.amber[900]!;
     }
     // APK文件
-    else if (mimeType.contains('android.package') || ext == 'apk') {
+    else if (mimeType.contains('android.package') || config.isApkFile(fileName)) {
       icon = Icons.android;
       bgColor = Colors.green[50]!;
       iconColor = Colors.green[700]!;
     }
     // 代码文件
-    else if (ext == 'java' ||
-        ext == 'kt' ||
-        ext == 'dart' ||
-        ext == 'py' ||
-        ext == 'js' ||
-        ext == 'ts' ||
-        ext == 'html' ||
-        ext == 'css' ||
-        ext == 'cpp' ||
-        ext == 'c' ||
-        ext == 'h' ||
-        ext == 'swift') {
+    else if (config.isCodeFile(fileName)) {
       icon = Icons.code;
       bgColor = Colors.deepPurple[50]!;
       iconColor = Colors.deepPurple[700]!;
     }
-    // JSON/XML/配置文件
-    else if (ext == 'json' ||
-        ext == 'xml' ||
-        ext == 'yaml' ||
-        ext == 'yml' ||
-        ext == 'ini' ||
-        ext == 'conf' ||
-        ext == 'config') {
+    // 配置文件
+    else if (config.isConfigFile(fileName)) {
       icon = Icons.settings_applications;
       bgColor = Colors.teal[50]!;
       iconColor = Colors.teal[700]!;
     }
     // 数据库文件
-    else if (ext == 'db' || ext == 'sqlite' || ext == 'sql') {
+    else if (config.isDatabaseFile(fileName)) {
       icon = Icons.storage;
       bgColor = Colors.indigo[50]!;
       iconColor = Colors.indigo[700]!;

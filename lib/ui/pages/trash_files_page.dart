@@ -1,11 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
 import 'package:easyfile/data/models/trash_bin.dart';
+import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/widgets/video_player_widget.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -13,20 +16,10 @@ import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
 import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 
-/// 文件类型枚举
-enum FileType {
-  image, // 图片
-  video, // 视频
-  audio, // 音频
-  document, // 文档
-  archive, // 压缩包
-  other, // 其他
-}
-
 /// 文件类型分类统计
 class FileTypeCategory {
   final String name;
-  final FileType type;
+  final FileCategory type;
   final int count;
   final int size;
 
@@ -154,34 +147,24 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     int archiveSize = 0, archiveCount = 0;
     int otherSize = 0, otherCount = 0;
 
+    final config = AppConfig.instance.fileTypes;
+
     for (final file in _allFiles) {
       final mimeType = file.mimeType.toLowerCase();
-      final ext = file.name.split('.').last.toLowerCase();
 
-      if (mimeType.startsWith('image/')) {
+      if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         imageSize += file.size;
         imageCount++;
-      } else if (mimeType.startsWith('video/')) {
+      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
         videoSize += file.size;
         videoCount++;
-      } else if (mimeType.startsWith('audio/')) {
+      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
         audioSize += file.size;
         audioCount++;
-      } else if (mimeType.contains('pdf') ||
-          mimeType.contains('document') ||
-          mimeType.contains('word') ||
-          mimeType.contains('excel') ||
-          mimeType.contains('powerpoint') ||
-          mimeType.contains('text/') ||
-          ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].contains(ext)) {
+      } else if (config.isDocumentFile(file.name)) {
         documentSize += file.size;
         documentCount++;
-      } else if (mimeType.contains('zip') ||
-          mimeType.contains('rar') ||
-          mimeType.contains('7z') ||
-          mimeType.contains('tar') ||
-          mimeType.contains('gzip') ||
-          ['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) {
+      } else if (config.isArchiveFile(file.name)) {
         archiveSize += file.size;
         archiveCount++;
       } else {
@@ -194,7 +177,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (imageCount > 0) {
       categories.add(FileTypeCategory(
         name: '图片',
-        type: FileType.image,
+        type: FileCategory.image,
         count: imageCount,
         size: imageSize,
       ));
@@ -202,7 +185,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (videoCount > 0) {
       categories.add(FileTypeCategory(
         name: '视频',
-        type: FileType.video,
+        type: FileCategory.video,
         count: videoCount,
         size: videoSize,
       ));
@@ -210,7 +193,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (audioCount > 0) {
       categories.add(FileTypeCategory(
         name: '音频',
-        type: FileType.audio,
+        type: FileCategory.audio,
         count: audioCount,
         size: audioSize,
       ));
@@ -218,7 +201,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (documentCount > 0) {
       categories.add(FileTypeCategory(
         name: '文档',
-        type: FileType.document,
+        type: FileCategory.document,
         count: documentCount,
         size: documentSize,
       ));
@@ -226,7 +209,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (archiveCount > 0) {
       categories.add(FileTypeCategory(
         name: '压缩包',
-        type: FileType.archive,
+        type: FileCategory.archive,
         count: archiveCount,
         size: archiveSize,
       ));
@@ -234,7 +217,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     if (otherCount > 0) {
       categories.add(FileTypeCategory(
         name: '其他',
-        type: FileType.other,
+        type: FileCategory.other,
         count: otherCount,
         size: otherSize,
       ));
@@ -254,52 +237,32 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
     // 2. 根据分类过滤
     if (_currentCategory != 'all') {
+      final config = AppConfig.instance.fileTypes;
+
       files = files.where((f) {
         final mimeType = f.mimeType.toLowerCase();
-        final ext = f.name.split('.').last.toLowerCase();
 
         switch (_currentCategory) {
           case 'images':
-            return mimeType.startsWith('image/');
+            return mimeType.startsWith('image/') || config.isImageFile(f.name);
           case 'videos':
-            return mimeType.startsWith('video/');
+            return mimeType.startsWith('video/') || config.isVideoFile(f.name);
           case 'audios':
-            return mimeType.startsWith('audio/');
+            return mimeType.startsWith('audio/') || config.isAudioFile(f.name);
           case 'documents':
-            return mimeType.contains('pdf') ||
-                mimeType.contains('document') ||
-                mimeType.contains('word') ||
-                mimeType.contains('excel') ||
-                mimeType.contains('powerpoint') ||
-                mimeType.contains('text/') ||
-                ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
-                    .contains(ext);
+            return config.isDocumentFile(f.name);
           case 'archives':
-            return mimeType.contains('zip') ||
-                mimeType.contains('rar') ||
-                mimeType.contains('7z') ||
-                mimeType.contains('tar') ||
-                mimeType.contains('gzip') ||
-                ['zip', 'rar', '7z', 'tar', 'gz'].contains(ext);
+            return config.isArchiveFile(f.name);
           case 'others':
             // 其他：不属于以上任何类型
             return !mimeType.startsWith('image/') &&
                 !mimeType.startsWith('video/') &&
                 !mimeType.startsWith('audio/') &&
-                !mimeType.contains('pdf') &&
-                !mimeType.contains('document') &&
-                !mimeType.contains('word') &&
-                !mimeType.contains('excel') &&
-                !mimeType.contains('powerpoint') &&
-                !mimeType.contains('text/') &&
-                !['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
-                    .contains(ext) &&
-                !mimeType.contains('zip') &&
-                !mimeType.contains('rar') &&
-                !mimeType.contains('7z') &&
-                !mimeType.contains('tar') &&
-                !mimeType.contains('gzip') &&
-                !['zip', 'rar', '7z', 'tar', 'gz'].contains(ext);
+                !config.isImageFile(f.name) &&
+                !config.isVideoFile(f.name) &&
+                !config.isAudioFile(f.name) &&
+                !config.isDocumentFile(f.name) &&
+                !config.isArchiveFile(f.name);
           default:
             return true;
         }
@@ -1004,6 +967,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
   /// 统计各类文件数量（基于所有文件，不受当前分类筛选影响）
   Map<String, int> get _categoryStats {
+    final config = AppConfig.instance.fileTypes;
     int images = 0,
         videos = 0,
         audios = 0,
@@ -1013,28 +977,16 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
     for (var file in _allFiles) {
       final mimeType = file.mimeType.toLowerCase();
-      final ext = file.name.split('.').last.toLowerCase();
 
-      if (mimeType.startsWith('image/')) {
+      if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         images++;
-      } else if (mimeType.startsWith('video/')) {
+      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
         videos++;
-      } else if (mimeType.startsWith('audio/')) {
+      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
         audios++;
-      } else if (mimeType.contains('pdf') ||
-          mimeType.contains('document') ||
-          mimeType.contains('word') ||
-          mimeType.contains('excel') ||
-          mimeType.contains('powerpoint') ||
-          mimeType.contains('text/') ||
-          ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].contains(ext)) {
+      } else if (config.isDocumentFile(file.name)) {
         documents++;
-      } else if (mimeType.contains('zip') ||
-          mimeType.contains('rar') ||
-          mimeType.contains('7z') ||
-          mimeType.contains('tar') ||
-          mimeType.contains('gzip') ||
-          ['zip', 'rar', '7z', 'tar', 'gz'].contains(ext)) {
+      } else if (config.isArchiveFile(file.name)) {
         archives++;
       } else {
         others++;
@@ -1261,19 +1213,21 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   }
 
   /// 获取文件类型颜色
-  Color _getFileTypeColor(FileType type) {
+  Color _getFileTypeColor(FileCategory type) {
     switch (type) {
-      case FileType.image:
+      case FileCategory.image:
         return Colors.blue[400]!;
-      case FileType.video:
+      case FileCategory.video:
         return Colors.purple[400]!;
-      case FileType.audio:
+      case FileCategory.audio:
         return Colors.green[400]!;
-      case FileType.document:
+      case FileCategory.document:
         return Colors.red[400]!;
-      case FileType.archive:
+      case FileCategory.archive:
         return Colors.amber[700]!;
-      case FileType.other:
+      case FileCategory.other:
+        return Colors.grey[400]!;
+      default:
         return Colors.grey[400]!;
     }
   }
@@ -1334,8 +1288,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       return '文件夹';
     }
 
+    final config = AppConfig.instance.fileTypes;
     final mimeType = file.mimeType.toLowerCase();
-    final ext = file.name.split('.').last.toLowerCase();
+    final ext = FileUtils.getExtension(file.name);
     final verified = file.mimeTypeVerified; // 是否通过文件头验证（已有默认值false）
 
     // 图片类型
@@ -1404,36 +1359,29 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     }
 
     // 文档类型
-    if (mimeType.contains('pdf')) {
+    if (mimeType.contains('pdf') || config.isPdfFile(file.name)) {
       return verified ? 'PDF文档' : 'PDF文件';
-    } else if (mimeType.contains('word') || ext == 'doc' || ext == 'docx') {
-      return 'Word文档'; // 通常不验证文档
-    } else if (mimeType.contains('excel') || ext == 'xls' || ext == 'xlsx') {
+    } else if (mimeType.contains('word') || config.isWordDocument(file.name)) {
+      return 'Word文档';
+    } else if (mimeType.contains('excel') ||
+        config.isExcelDocument(file.name)) {
       return 'Excel表格';
     } else if (mimeType.contains('powerpoint') ||
-        ext == 'ppt' ||
-        ext == 'pptx') {
+        config.isPowerPointDocument(file.name)) {
       return 'PPT演示';
-    } else if (mimeType.contains('text/') || ext == 'txt') {
+    } else if (mimeType.contains('text/') || config.isTextFile(file.name)) {
       return '文本文件';
     }
 
     // 压缩文件
-    if (mimeType.contains('zip') || ext == 'zip') {
-      return verified ? 'ZIP压缩包' : 'ZIP文件';
-    } else if (mimeType.contains('rar') || ext == 'rar') {
-      return verified ? 'RAR压缩包' : 'RAR文件';
-    } else if (mimeType.contains('7z') || ext == '7z') {
-      return verified ? '7Z压缩包' : '7Z文件';
-    } else if (mimeType.contains('tar') || ext == 'tar') {
-      return verified ? 'TAR压缩包' : 'TAR文件';
-    } else if (mimeType.contains('gzip') || ext == 'gz') {
-      return verified ? 'GZ压缩包' : 'GZ文件';
+    if (config.isArchiveFile(file.name)) {
+      final ext = FileUtils.getExtension(file.name).toUpperCase();
+      return verified ? '$ext压缩包' : '$ext文件';
     }
 
     // APK文件
     if (mimeType.contains('application/vnd.android.package-archive') ||
-        ext == 'apk') {
+        AppConfig.instance.fileTypes.isApkFile(file.name)) {
       return verified ? 'Android应用' : 'APK文件';
     }
 

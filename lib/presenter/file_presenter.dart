@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/category_info.dart';
-import 'package:easyfile/data/models/favorite_item.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
@@ -14,7 +14,6 @@ import 'package:easyfile/data/models/recent_file_item.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
 import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/di/locator.dart';
-import 'package:easyfile/data/sources/favorites_local_source.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
@@ -33,7 +32,6 @@ class FilePresenter {
 
   final FileRepository repository;
   final FileViewModel viewModel;
-  final FavoritesLocalSource favoritesSource;
   final FavoriteFilesLocalSource favoriteFilesSource;
   final RecentFilesLocalSource recentFilesSource;
   final NewFilesScanner newFilesScanner;
@@ -44,7 +42,6 @@ class FilePresenter {
   FilePresenter({
     required this.repository,
     required this.viewModel,
-    required this.favoritesSource,
     required this.favoriteFilesSource,
     required this.recentFilesSource,
     required this.newFilesScanner,
@@ -246,15 +243,7 @@ class FilePresenter {
             viewModel.removeFileFromList(filePath);
 
             // 清理视频缩略图缓存
-            final fileName = fileItem.name.toLowerCase();
-            if (fileName.endsWith('.mp4') ||
-                fileName.endsWith('.avi') ||
-                fileName.endsWith('.mkv') ||
-                fileName.endsWith('.mov') ||
-                fileName.endsWith('.wmv') ||
-                fileName.endsWith('.flv') ||
-                fileName.endsWith('.webm') ||
-                fileName.endsWith('.m4v')) {
+            if (AppConfig.instance.fileTypes.isVideoFile(fileItem.name)) {
               try {
                 await cacheManager.deleteCached(filePath);
                 logger.d('Deleted video thumbnail cache for: $filePath');
@@ -591,213 +580,6 @@ class FilePresenter {
     }
   }
 
-  // 收藏夹相关方法
-
-  /// 初始化收藏夹数据
-  Future<void> initializeFavorites() async {
-    logger.i('FilePresenter.initializeFavorites called');
-    try {
-      final favorites = await favoritesSource.getFavorites();
-
-      // 如果是首次运行且没有收藏夹，则添加默认收藏夹
-      if (favorites.isEmpty) {
-        logger.i('No favorites found, initializing default favorites');
-        await _initializeDefaultFavorites();
-        // 重新加载收藏夹
-        final updatedFavorites = await favoritesSource.getFavorites();
-        viewModel.setFavorites(updatedFavorites);
-        logger.d('Loaded ${updatedFavorites.length} default favorites');
-      } else {
-        viewModel.setFavorites(favorites);
-        logger.d('Loaded ${favorites.length} existing favorites');
-      }
-    } catch (e) {
-      logger.e('Error loading favorites: $e');
-    }
-  }
-
-  /// 初始化默认收藏夹
-  Future<void> _initializeDefaultFavorites() async {
-    logger.i(
-      'Initializing default favorites for platform: ${Platform.operatingSystem}',
-    );
-
-    try {
-      List<Map<String, String>> defaultPaths = [];
-
-      if (Platform.isAndroid) {
-        defaultPaths = [
-          {
-            'name': 'DCIM',
-            'path': '$_androidStorageBase/DCIM',
-            'icon': 'pictures',
-          },
-          {
-            'name': 'Pictures',
-            'path': '$_androidStorageBase/Pictures',
-            'icon': 'pictures',
-          },
-          {
-            'name': 'Documents',
-            'path': '$_androidStorageBase/Documents',
-            'icon': 'documents',
-          },
-          {
-            'name': 'Music',
-            'path': '$_androidStorageBase/Music',
-            'icon': 'music',
-          },
-          {
-            'name': 'Movies',
-            'path': '$_androidStorageBase/Movies',
-            'icon': 'videos',
-          },
-        ];
-      } else if (Platform.isWindows) {
-        final userProfile = Platform.environment['USERPROFILE'];
-        if (userProfile != null) {
-          defaultPaths = [
-            {
-              'name': 'Downloads',
-              'path': '$userProfile\\Downloads',
-              'icon': 'download',
-            },
-            {
-              'name': 'Documents',
-              'path': '$userProfile\\Documents',
-              'icon': 'documents',
-            },
-            {
-              'name': 'Pictures',
-              'path': '$userProfile\\Pictures',
-              'icon': 'pictures',
-            },
-            {'name': 'Music', 'path': '$userProfile\\Music', 'icon': 'music'},
-            {
-              'name': 'Videos',
-              'path': '$userProfile\\Videos',
-              'icon': 'videos',
-            },
-          ];
-        }
-      } else {
-        // 对于其他平台（Linux、macOS等），添加通用默认路径
-        final home = Platform.environment['HOME'];
-        if (home != null) {
-          defaultPaths = [
-            {
-              'name': 'Documents',
-              'path': '$home/Documents',
-              'icon': 'documents',
-            },
-            {
-              'name': 'Downloads',
-              'path': '$home/Downloads',
-              'icon': 'download',
-            },
-            {'name': 'Pictures', 'path': '$home/Pictures', 'icon': 'pictures'},
-            {'name': 'Music', 'path': '$home/Music', 'icon': 'music'},
-            {'name': 'Videos', 'path': '$home/Videos', 'icon': 'videos'},
-          ];
-        }
-      }
-
-      int addedCount = 0;
-      for (final pathInfo in defaultPaths) {
-        final dir = Directory(pathInfo['path']!);
-        if (dir.existsSync()) {
-          final favorite = FavoriteItem(
-            id: '${DateTime.now().millisecondsSinceEpoch}_${pathInfo['name']}',
-            name: pathInfo['name']!,
-            path: pathInfo['path']!,
-            iconName: pathInfo['icon'],
-            createdAt: DateTime.now(),
-          );
-
-          final success = await favoritesSource.addFavorite(favorite);
-          if (success) {
-            addedCount++;
-            logger.d('Added default favorite: ${favorite.name}');
-          } else {
-            logger.w('Failed to add default favorite: ${favorite.name}');
-          }
-        } else {
-          logger.d('Skipping non-existent default path: ${pathInfo['path']}');
-        }
-      }
-
-      logger.i('Added $addedCount default favorites');
-    } catch (e) {
-      logger.e('Error initializing default favorites: $e');
-    }
-  }
-
-  /// 添加收藏夹
-  Future<bool> addFavorite(FavoriteItem favorite) async {
-    logger.i('FilePresenter.addFavorite called for: ${favorite.name}');
-    try {
-      final success = await favoritesSource.addFavorite(favorite);
-      if (success) {
-        viewModel.addFavorite(favorite);
-        logger.i('Favorite added successfully');
-      } else {
-        logger.w('Failed to add favorite');
-      }
-      return success;
-    } catch (e) {
-      logger.e('Error adding favorite: $e');
-      return false;
-    }
-  }
-
-  /// 删除收藏夹
-  Future<bool> removeFavorite(String id) async {
-    logger.i('FilePresenter.removeFavorite called for id: $id');
-    try {
-      final success = await favoritesSource.removeFavorite(id);
-      if (success) {
-        viewModel.removeFavorite(id);
-        logger.i('Favorite removed successfully');
-      } else {
-        logger.w('Failed to remove favorite');
-      }
-      return success;
-    } catch (e) {
-      logger.e('Error removing favorite: $e');
-      return false;
-    }
-  }
-
-  /// 更新收藏夹
-  Future<bool> updateFavorite(FavoriteItem updatedFavorite) async {
-    logger.i(
-      'FilePresenter.updateFavorite called for: ${updatedFavorite.name}',
-    );
-    try {
-      final success = await favoritesSource.updateFavorite(updatedFavorite);
-      if (success) {
-        viewModel.updateFavorite(updatedFavorite);
-        logger.i('Favorite updated successfully');
-      } else {
-        logger.w('Failed to update favorite');
-      }
-      return success;
-    } catch (e) {
-      logger.e('Error updating favorite: $e');
-      return false;
-    }
-  }
-
-  /// 更新收藏夹的最后访问时间
-  Future<void> updateFavoriteLastAccessed(String id) async {
-    logger.d('FilePresenter.updateFavoriteLastAccessed called for id: $id');
-    try {
-      await favoritesSource.updateLastAccessed(id);
-    } catch (e) {
-      logger.w('Error updating favorite last accessed time: $e');
-    }
-  }
-
   // 最近文件相关方法
 
   /// 加载最近访问的文件
@@ -807,10 +589,24 @@ class FilePresenter {
       // 先清理无效的文件
       await recentFilesSource.cleanupRecentFiles();
 
-      // 获取最近文件，并过滤掉文件夹
+      // 获取文件类型配置
+      final fileTypes = AppConfig.instance.fileTypes;
+
+      // 获取最近文件，并过滤掉文件夹和不支持的文件类型
       final recentFiles = await recentFilesSource.getRecentFiles();
       final fileItems = recentFiles
-          .where((rf) => !rf.isDirectory) // 只保留文件，不显示文件夹
+          .where((rf) {
+            // 过滤文件夹
+            if (rf.isDirectory) return false;
+            
+            // **类型过滤**：只显示支持的文件类型（过滤缓存中的旧数据）
+            return fileTypes.isImageFile(rf.name) ||
+                fileTypes.isVideoFile(rf.name) ||
+                fileTypes.isAudioFile(rf.name) ||
+                fileTypes.isDocumentFile(rf.name) ||
+                fileTypes.isArchiveFile(rf.name) ||
+                fileTypes.isApkFile(rf.name);
+          })
           .map((rf) => rf.toFileItem())
           .toList();
 
@@ -820,7 +616,7 @@ class FilePresenter {
       viewModel.setIsRecentFilesMode(true); // 设置为最近文件模式
 
       logger.d(
-        'Loaded ${fileItems.length} recent files (folders filtered out)',
+        'Loaded ${fileItems.length} recent files (folders and unsupported types filtered out)',
       );
     } catch (e) {
       logger.e('Error loading recent files: $e');
@@ -833,6 +629,21 @@ class FilePresenter {
     // 只记录文件，不记录文件夹
     if (file.isDirectory) {
       logger.d('Skipping folder from recent: ${file.name}');
+      return;
+    }
+
+    // **类型过滤**：只记录 FileTypesConfig 支持的文件类型
+    // 注意：直接传入文件名，让 FileTypesConfig 内部提取扩展名
+    final fileTypes = AppConfig.instance.fileTypes;
+    final isSupported = fileTypes.isImageFile(file.name) ||
+        fileTypes.isVideoFile(file.name) ||
+        fileTypes.isAudioFile(file.name) ||
+        fileTypes.isDocumentFile(file.name) ||
+        fileTypes.isArchiveFile(file.name) ||
+        fileTypes.isApkFile(file.name);
+    
+    if (!isSupported) {
+      logger.d('Skipping unsupported file type from recent: ${file.name}');
       return;
     }
 
@@ -1696,7 +1507,7 @@ class FilePresenter {
               final extension = path.extension(entity.path).toLowerCase();
               if (extension.isNotEmpty) {
                 final cleanExtension = extension.substring(1); // 移除点号
-                if (categoryInfo.extensions.contains(cleanExtension)) {
+                if (categoryInfo.getExtensions().contains(cleanExtension)) {
                   final fileItem = FileItem.fromEntity(entity);
                   files.add(fileItem);
                 }
@@ -1801,9 +1612,12 @@ class FilePresenter {
   /// **公共逻辑提取** - 被loadNewFiles和refreshNewFilesInBackground共用
   /// 
   /// **处理流程**:
-  /// 1. 应用displayCount限制（避免UI显示过多项）
+  /// 1. **过滤不支持的文件类型**（使用FileTypesConfig作为唯一权威）
   /// 2. 检查文件是否仍然存在（防止已删除文件）
   /// 3. 转换NewFileItem → FileItem（添加完整文件信息）
+  /// 4. 应用displayCount限制（确保显示足够数量的支持文件）
+  /// 
+  /// **重要**：先过滤类型，再应用数量限制，确保不支持的文件不占用显示配额
   /// 
   /// **参数**:
   /// - [newFileItems]: 扫描得到的新文件列表（已按时间倒序）
@@ -1812,23 +1626,47 @@ class FilePresenter {
     List<NewFileItem> newFileItems,
     int displayCount,
   ) async {
-    // 应用显示数量限制
-    final limitedItems = newFileItems.take(displayCount).toList();
-    logger.d('Processing ${limitedItems.length} items (limit: $displayCount)');
+    logger.d('Processing ${newFileItems.length} items, target display count: $displayCount');
 
-    // 转换为 FileItem
+    // 获取文件类型配置（唯一权威）
+    final fileTypes = AppConfig.instance.fileTypes;
+
+    // 先过滤类型并转换为FileItem，再应用数量限制
     final fileItems = <FileItem>[];
-    for (final newFileItem in limitedItems) {
+    int filteredCount = 0; // 统计被过滤的文件数量
+    
+    for (final newFileItem in newFileItems) {
+      // 如果已经收集到足够的文件，停止处理
+      if (fileItems.length >= displayCount) {
+        break;
+      }
+
       try {
         final file = File(newFileItem.path);
-        if (file.existsSync()) {
+        if (!file.existsSync()) continue;
+
+        // **关键过滤**: 只显示 FileTypesConfig 支持的文件类型
+        // 注意：直接传入文件名，让 FileTypesConfig 内部提取扩展名
+        final fileName = newFileItem.path.split('/').last;
+        final isSupported = fileTypes.isImageFile(fileName) ||
+            fileTypes.isVideoFile(fileName) ||
+            fileTypes.isAudioFile(fileName) ||
+            fileTypes.isDocumentFile(fileName) ||
+            fileTypes.isArchiveFile(fileName) ||
+            fileTypes.isApkFile(fileName);
+
+        if (isSupported) {
           fileItems.add(FileItem.fromEntity(file));
+        } else {
+          filteredCount++;
+          logger.d('Filtered unsupported file type: ${newFileItem.path}');
         }
       } catch (e) {
         logger.e('Error loading file ${newFileItem.path}: $e');
       }
     }
 
+    logger.d('Processing complete: ${fileItems.length} supported files displayed, $filteredCount unsupported files filtered');
     return fileItems;
   }
 

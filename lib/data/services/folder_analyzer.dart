@@ -1,11 +1,20 @@
 import 'dart:io';
 
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/data/models/folder_stats.dart';
+import 'package:easyfile/data/models/file_category.dart';
 
 /// 文件夹分析服务
 ///
 /// 提供文件夹统计分析功能
+/// 
+/// **注意**: 此服务已在 DI 容器中注册，但目前未在生产代码中使用
+/// （通过搜索 `locator<FolderAnalyzer>()` 未找到任何调用）
+/// 可能是为未来功能预留的工具类（如文件夹推荐、统计信息展示等）
+/// 
+/// @date 2026-01-02 - 添加未使用状态说明
 class FolderAnalyzer {
   /// 分析文件夹统计信息
   ///
@@ -28,7 +37,7 @@ class FolderAnalyzer {
       int totalFiles = 0;
       int totalFolders = 0;
       double totalSizeBytes = 0;
-      final fileTypeCounts = <FileType, int>{};
+      final fileTypeCounts = <FileCategory, int>{};
       DateTime? latestModified;
 
       await _scanDirectory(
@@ -134,142 +143,9 @@ class FolderAnalyzer {
   }
 
   /// 检测文件类型
-  FileType _detectFileType(String filePath) {
-    final extension = filePath.split('.').last.toLowerCase();
-
-    // 图片
-    if (_isImageExtension(extension)) {
-      return FileType.image;
-    }
-
-    // 视频
-    if (_isVideoExtension(extension)) {
-      return FileType.video;
-    }
-
-    // 音频
-    if (_isAudioExtension(extension)) {
-      return FileType.audio;
-    }
-
-    // 文档
-    if (_isDocumentExtension(extension)) {
-      return FileType.document;
-    }
-
-    // 压缩包
-    if (_isArchiveExtension(extension)) {
-      return FileType.archive;
-    }
-
-    return FileType.other;
-  }
-
-  /// 判断是否是图片扩展名
-  bool _isImageExtension(String ext) {
-    const imageExts = [
-      'jpg',
-      'jpeg',
-      'png',
-      'gif',
-      'bmp',
-      'webp',
-      'svg',
-      'ico',
-      'tiff',
-      'tif',
-      'heic',
-      'heif',
-      'raw',
-      'cr2',
-    ];
-    return imageExts.contains(ext);
-  }
-
-  /// 判断是否是视频扩展名
-  bool _isVideoExtension(String ext) {
-    const videoExts = [
-      'mp4',
-      'avi',
-      'mov',
-      'wmv',
-      'flv',
-      'mkv',
-      'webm',
-      'm4v',
-      'mpg',
-      'mpeg',
-      '3gp',
-      'ts',
-      'vob',
-      'ogv',
-    ];
-    return videoExts.contains(ext);
-  }
-
-  /// 判断是否是音频扩展名
-  bool _isAudioExtension(String ext) {
-    const audioExts = [
-      'mp3',
-      'wav',
-      'flac',
-      'aac',
-      'ogg',
-      'wma',
-      'm4a',
-      'opus',
-      'ape',
-      'alac',
-      'aiff',
-      'mid',
-      'midi',
-    ];
-    return audioExts.contains(ext);
-  }
-
-  /// 判断是否是文档扩展名
-  bool _isDocumentExtension(String ext) {
-    const docExts = [
-      'pdf',
-      'doc',
-      'docx',
-      'xls',
-      'xlsx',
-      'ppt',
-      'pptx',
-      'txt',
-      'rtf',
-      'odt',
-      'ods',
-      'odp',
-      'pages',
-      'numbers',
-      'keynote',
-      'csv',
-      'md',
-      'epub',
-      'mobi',
-    ];
-    return docExts.contains(ext);
-  }
-
-  /// 判断是否是压缩包扩展名
-  bool _isArchiveExtension(String ext) {
-    const archiveExts = [
-      'zip',
-      'rar',
-      '7z',
-      'tar',
-      'gz',
-      'bz2',
-      'xz',
-      'iso',
-      'dmg',
-      'apk',
-      'jar',
-      'war',
-    ];
-    return archiveExts.contains(ext);
+  FileCategory _detectFileType(String filePath) {
+    final extension = FileUtils.getExtension(filePath);
+    return AppConfig.instance.fileTypes.getCategoryByExtension(extension);
   }
 
   /// 判断是否是隐藏文件/文件夹

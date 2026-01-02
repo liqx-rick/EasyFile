@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -982,58 +982,46 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
   /// 获取文件图标（与分类页面保持一致）
   IconData _getFileIcon(FileItem file) {
-    final ext = path.extension(file.name).toLowerCase();
+    final config = AppConfig.instance.fileTypes;
 
     // 视频
-    if ([
-      '.mp4',
-      '.avi',
-      '.mkv',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.webm',
-      '.3gp',
-      '.m4v'
-    ].contains(ext)) {
+    if (config.isVideoFile(file.name)) {
       return Icons.videocam;
     }
     // 音频
-    else if (['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.opus']
-        .contains(ext)) {
+    else if (config.isAudioFile(file.name)) {
       return Icons.music_note;
     }
     // 图片
-    else if (['.jpg', '.png', '.gif', '.jpeg', '.bmp', '.webp', '.heic']
-        .contains(ext)) {
+    else if (config.isImageFile(file.name)) {
       return Icons.image;
     }
     // PDF
-    else if (ext == '.pdf') {
+    else if (config.isPdfFile(file.name)) {
       return Icons.picture_as_pdf;
     }
     // Word
-    else if (['.doc', '.docx'].contains(ext)) {
+    else if (config.isWordDocument(file.name)) {
       return Icons.article;
     }
     // Excel
-    else if (['.xls', '.xlsx', '.csv'].contains(ext)) {
+    else if (config.isExcelDocument(file.name)) {
       return Icons.table_chart;
     }
     // PPT
-    else if (['.ppt', '.pptx'].contains(ext)) {
+    else if (config.isPowerPointDocument(file.name)) {
       return Icons.slideshow;
     }
     // 文本
-    else if (['.txt', '.log', '.md', '.rtf'].contains(ext)) {
+    else if (config.isTextFile(file.name)) {
       return Icons.description;
     }
     // 压缩包
-    else if (['.zip', '.rar', '.7z', '.tar', '.gz'].contains(ext)) {
+    else if (config.isArchiveFile(file.name)) {
       return Icons.folder_zip;
     }
     // APK
-    else if (ext == '.apk') {
+    else if (config.isApkFile(file.name)) {
       return Icons.android;
     }
     // 其他

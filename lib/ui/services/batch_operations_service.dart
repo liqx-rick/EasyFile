@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
@@ -1232,10 +1233,9 @@ class BatchOperationsService {
       final messenger = ScaffoldMessenger.of(context);
 
       // 检查是否包含非图片文件
+      final config = AppConfig.instance.fileTypes;
       final hasNonImage = filePaths.any((path) {
-        final extension = path.split('.').last.toLowerCase();
-        return !['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif']
-            .contains(extension);
+        return !config.isImageFile(path);
       });
 
       // 如果选择了多个文件且包含非图片文件，显示提示
