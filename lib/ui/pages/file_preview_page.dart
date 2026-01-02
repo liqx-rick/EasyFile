@@ -891,15 +891,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         return;
       }
 
-      // 文档文件
-      if (FileUtils.isDocumentFile(widget.file.name)) {
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // 文本文件 - 支持多种编码格式
+      // 文本文件 - 支持多种编码格式（必须在 isDocumentFile 之前检测，因为 txt/md/log 属于文档类型）
       if (FileUtils.isTextFile(widget.file.name)) {
         final file = File(widget.file.path);
         final bytes = await file.readAsBytes();
@@ -1001,12 +993,22 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
           _fileContent = content;
           _isLoading = false;
         });
-      } else {
+        return;
+      }
+
+      // 文档文件（需要在文本文件之后，避免 txt/md/log 被误判为文档文件）
+      if (FileUtils.isDocumentFile(widget.file.name)) {
         setState(() {
-          _error = '不支持预览此文件类型';
           _isLoading = false;
         });
+        return;
       }
+
+      // 不支持的文件类型
+      setState(() {
+        _error = '不支持预览此文件类型';
+        _isLoading = false;
+      });
     } catch (e) {
       logger.e('Error loading file content: $e');
       setState(() {
@@ -1154,6 +1156,9 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       return _buildAudioPreview();
     } else if (FileUtils.isPdfFile(widget.file.name)) {
       return _buildPdfViewer();
+    } else if (FileUtils.isTextFile(widget.file.name)) {
+      // 文本文件（txt, md, log）显示内容，需要在 isDocumentFile 之前检测
+      return _buildTextPreview();
     } else if (FileUtils.isDocumentFile(widget.file.name)) {
       return _buildDocumentInfo();
     } else {
