@@ -9,6 +9,7 @@ import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/duplicate_file_smart_cache.dart';
+import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -267,6 +268,7 @@ class EnhancedDuplicateFileScanService {
           groupId: group.groupId,
           files: remainingFiles,
           fileSize: group.fileSize,
+          recommendationEngine: DuplicateFilesRecommendationEngine(),
         ));
       }
     }
@@ -555,6 +557,7 @@ class EnhancedDuplicateFileScanService {
                       '${fullHashGroup.first.size}_${DateTime.now().millisecondsSinceEpoch}',
                   files: fullHashGroup,
                   fileSize: fullHashGroup.first.size,
+                  recommendationEngine: DuplicateFilesRecommendationEngine(),
                 ));
               }
             }
@@ -657,6 +660,7 @@ class EnhancedDuplicateFileScanService {
           groupId: group.groupId,
           files: remainingFiles,
           fileSize: group.fileSize,
+          recommendationEngine: DuplicateFilesRecommendationEngine(),
         ));
       }
     }
@@ -698,6 +702,7 @@ class EnhancedDuplicateFileScanService {
             groupId: matchedCachedGroup.groupId,
             files: mergedFiles,
             fileSize: matchedCachedGroup.fileSize,
+            recommendationEngine: DuplicateFilesRecommendationEngine(),
           );
 
           // 替换缓存组

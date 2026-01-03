@@ -6,6 +6,7 @@ import 'feature_config.dart';
 import 'file_scan_config.dart';
 import 'file_types_config.dart';
 import 'app_scanner_config.dart';
+import 'duplicate_files_recommendation_config.dart';
 
 /// 应用配置统一入口
 /// 
@@ -63,6 +64,10 @@ class AppConfig {
   AppScannerConfig? _appScanner;
   AppScannerConfig get appScanner => _appScanner!;
 
+  /// 重复文件推荐配置（推荐算法的参数和权重）
+  DuplicateFilesRecommendationConfig? _duplicateFilesRec;
+  DuplicateFilesRecommendationConfig get duplicateFilesRec => _duplicateFilesRec!;
+
   // ==================== 存储实例 ====================
 
   ConfigStorage? _storage;
@@ -115,7 +120,8 @@ class AppConfig {
       _fileScan = FileScanConfig(_storage!);
       _fileTypes = FileTypesConfig(storage: _storage!);
       _appScanner = AppScannerConfig(_storage!);
-      logger.i('✓ FeatureConfig & FileScanConfig & FileTypesConfig & AppScannerConfig initialized');
+      _duplicateFilesRec = DuplicateFilesRecommendationConfig(_storage!);
+      logger.i('✓ FeatureConfig & FileScanConfig & FileTypesConfig & AppScannerConfig & DuplicateFilesRecommendationConfig initialized');
 
       logger.i('✅ AppConfig initialization complete');
       logger.i('build mode: {build.isProfile : ${build.isProfile}, build.isRelease: ${build.isRelease}}');

@@ -7,6 +7,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_cache_manager.dart';
+import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
@@ -753,6 +754,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             groupId: group.groupId,
             files: existingFiles,
             fileSize: group.fileSize,
+            recommendationEngine: DuplicateFilesRecommendationEngine(),
           ),
         );
       }
