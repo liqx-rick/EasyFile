@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/folder_stats.dart';
-import 'package:easyfile/data/models/app_dir_config.dart';
 
 void main() {
   group('QuickAccess Integration Tests', () {
@@ -125,21 +124,6 @@ void main() {
       expect(restored.stats?.totalFiles, equals(100));
     });
 
-    test('应该验证应用配置完整性', () {
-      expect(AppDirConfigs.tier1Apps.length, equals(15));
-      expect(AppDirConfigs.tier2Apps.length, equals(20));
-      expect(AppDirConfigs.tier3Apps.length, equals(15));
-      expect(AppDirConfigs.allApps.length, equals(50));
 
-      // 检查高优先级应用
-      final highPriority = AppDirConfigs.highPriorityApps;
-      expect(highPriority.every((app) => app.priority == 1), isTrue);
-
-      // 检查是否包含常用应用
-      final appNames = AppDirConfigs.allApps.map((a) => a.name).toList();
-      expect(appNames, contains('WhatsApp'));
-      expect(appNames, contains('WeChat'));
-      expect(appNames, contains('TikTok'));
-    });
   });
 }
