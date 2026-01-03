@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:easyfile/app.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
@@ -12,7 +11,6 @@ import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
-import 'package:easyfile/core/platform/native_log_config_channel.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 
 Future<void> main() async {
@@ -26,25 +24,14 @@ Future<void> main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20;
 
   // Initialize logger before other startup
-  // 根据构建模式设置日志级别
-  late final LogLevel logLevel;
-  if (kReleaseMode) {
-    logLevel = LogLevel.warn;   // Release: 生产环境，只显示警告和错误
-  } else if (kProfileMode) {
-    logLevel = LogLevel.info;   // Profile: Staging环境，显示信息、警告和错误
-  } else {
-    logLevel = LogLevel.debug;  // Debug: 开发环境，显示所有日志
-  }
-  await logger.init(minLevel: logLevel);
-  
-  // 🔄 同步日志级别到原生端（确保 Flutter 和原生日志使用统一策略）
-  await NativeLogConfigChannel.syncLogConfig(level: logLevel);
+  await logger.init();
 
   final processId = DateTime.now().millisecondsSinceEpoch;
   logger.i('NEW PROCESS: $processId');
 
-  // 初始化配置系统（在所有服务之前）
+  // 初始化 AppConfig（必须在其他服务之前）
   await AppConfig.instance.initialize();
+  logger.i('✓ AppConfig initialized');
 
   setupLocator();
 

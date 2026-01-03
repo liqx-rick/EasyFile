@@ -7,6 +7,7 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
+import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -457,6 +458,7 @@ class DuplicateFileService {
             groupId: entry.key,
             files: entry.value,
             fileSize: entry.value.first.size,
+            recommendationEngine: const DuplicateFilesRecommendationEngine(),
           );
           duplicateGroups.add(group);
         }

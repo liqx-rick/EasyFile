@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
+import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 
@@ -316,6 +317,7 @@ class DuplicateFileSmartCache {
               groupId: g.groupId,
               files: List.from(g.files),
               fileSize: g.fileSize,
+              recommendationEngine: DuplicateFilesRecommendationEngine(),
             ))
         .toList();
 
