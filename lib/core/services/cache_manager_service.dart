@@ -5,10 +5,6 @@ import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
-import 'package:easyfile/core/services/app_storage_cache_manager.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
-import 'package:easyfile/core/services/file_count_cache.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 
 /// 缓存管理服务

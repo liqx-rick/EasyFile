@@ -68,49 +68,63 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
             if (item.type == CacheType.thumbnail) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，视频和音频缩略图将在下次浏览时重新生成',
+                '⚠️ 清理后，缩略图将重新生成',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+            if (item.type == CacheType.log) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'ℹ️ 仅在遇到问题时保留，可安全清理',
+                style: TextStyle(fontSize: 12, color: Colors.blue),
               ),
             ],
             if (item.type == CacheType.categoryScan) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，下次打开分类页面（图片、视频等）时需要重新扫描',
+                '⚠️ 清理后，分类页面需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
             if (item.type == CacheType.searchHistory) ...[
               const SizedBox(height: 8),
               const Text(
-                'ℹ️ 将删除所有搜索历史记录，清理后可重新积累',
+                'ℹ️ 将删除所有搜索记录',
                 style: TextStyle(fontSize: 12, color: Colors.blue),
               ),
             ],
             if (item.type == CacheType.videoPlayback) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，所有视频将从头播放，需重新读取视频时长',
+                '⚠️ 清理后，视频将从头播放',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
             if (item.type == CacheType.largeFileScan) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，下次打开大文件查找时需要重新扫描',
+                '⚠️ 清理后，大文件查找需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
             if (item.type == CacheType.duplicateFileScan) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，所有重复文件扫描结果将被清除，下次需要重新扫描',
+                '⚠️ 清理后，重复文件查找需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+            if (item.type == CacheType.appManagement) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'ℹ️ 清理后不影响应用数据，重新加载即可恢复',
+                style: TextStyle(fontSize: 12, color: Colors.blue),
               ),
             ],
             if (item.type == CacheType.mediaStore) ...[
               const SizedBox(height: 8),
               const Text(
-                '⚠️ 清理后，媒体库相关功能需要重新扫描文件',
+                '⚠️ 清理后，媒体库功能需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
@@ -211,19 +225,30 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
               Text('确定要清理全部缓存吗？'),
               SizedBox(height: 8),
               Text(
-                '这将清理以下内容：',
+                '将清理以下缓存：',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
-              Text('• 视频和音频缩略图', style: TextStyle(fontSize: 13)),
-              Text('• 应用日志文件', style: TextStyle(fontSize: 13)),
-              Text('• 分类统计和文件列表', style: TextStyle(fontSize: 13)),
-              Text('• 搜索历史记录', style: TextStyle(fontSize: 13)),
-              Text('• 视频播放数据', style: TextStyle(fontSize: 13)),
-              Text('• 大文件扫描缓存', style: TextStyle(fontSize: 13)),
-              Text('• 重复文件扫描缓存', style: TextStyle(fontSize: 13)),
               SizedBox(height: 8),
               Text(
-                '⚠️ 缩略图和文件列表将重新生成，视频将从头播放',
+                '【内容缓存】',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              Text('• 缩略图、分类扫描、媒体库扫描', style: TextStyle(fontSize: 12)),
+              SizedBox(height: 6),
+              Text(
+                '【功能缓存】',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              Text('• 大文件查找、重复文件查找、应用管理', style: TextStyle(fontSize: 12)),
+              SizedBox(height: 6),
+              Text(
+                '【用户数据】',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              Text('• 搜索历史、视频播放记录、日志文件', style: TextStyle(fontSize: 12)),
+              SizedBox(height: 10),
+              Text(
+                '⚠️ 清理后不会删除您的文件，但部分功能需要重新扫描',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
