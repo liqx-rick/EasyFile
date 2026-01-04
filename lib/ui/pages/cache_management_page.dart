@@ -295,6 +295,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.folder_special;
       case CacheType.duplicateFileScan:
         return Icons.content_copy;
+      case CacheType.appManagement:
+        return Icons.apps;
     }
   }
 

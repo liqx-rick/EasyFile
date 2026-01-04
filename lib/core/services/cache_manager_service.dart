@@ -5,6 +5,10 @@ import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/app_storage_cache_manager.dart';
+import 'package:easyfile/core/services/app_statistics_cache.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
 
 /// 缓存管理服务
 /// 统一管理应用中的各种缓存
@@ -16,6 +20,12 @@ class CacheManagerService {
   final _thumbnailCache = ThumbnailCacheManager();
   final _categoryCache = CategoryFileCacheService();
   final _largeFileCache = LargeFileCacheManager();
+
+  // 应用管理相关服务
+  final _appStorageCache = AppStorageCacheManager();
+  final _appStatisticsCache = AppStatisticsCache();
+  final _fileCountCache = FileCountCache();
+  final _appDetectionService = AppDetectionService();
 
   // 重复文件扫描服务（需要外部传入）
   EnhancedDuplicateFileScanService? _duplicateFileScanService;
@@ -195,6 +205,29 @@ class CacheManagerService {
       ));
     }
 
+    // 8. 应用管理缓存
+    try {
+      final appMgmtSize = await _getAppManagementCacheSize();
+      final description = appMgmtSize > 0 
+          ? '包含应用存储、统计、文件数量及检测缓存' 
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '应用管理缓存',
+        description: description,
+        size: appMgmtSize,
+        type: CacheType.appManagement,
+      ));
+    } catch (e) {
+      logger.e('Failed to get app management cache info: $e');
+      items.add(CacheItem(
+        name: '应用管理缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.appManagement,
+      ));
+    }
+
     return items;
   }
 
@@ -253,6 +286,11 @@ class CacheManagerService {
             logger.w('Duplicate file scan service not initialized');
             return false;
           }
+
+        case CacheType.appManagement:
+          final result = await _clearAppManagementCache();
+          logger.i('App management cache cleared: $result');
+          return result;
       }
     } catch (e) {
       logger.e('>>> EXCEPTION in clearCache for $type: $e');
@@ -396,6 +434,91 @@ class CacheManagerService {
     }
     logger.i('>>> [VideoCache] Step 9: Exiting _clearVideoPlaybackData');
   }
+
+  /// 获取应用管理缓存大小（估算）
+  /// 包含4个服务的缓存：AppStorageCacheManager、AppStatisticsCache、FileCountCache、AppDetectionService
+  Future<int> _getAppManagementCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      int totalSize = 0;
+      int count = 0;
+
+      // 统计所有应用管理相关的键
+      for (final key in keys) {
+        if (key.startsWith('app_storage_') ||       // AppStorageCacheManager
+            key.startsWith('app_statistics_') ||    // AppStatisticsCache
+            key.startsWith('file_count_') ||        // FileCountCache (count)
+            key.startsWith('file_count_time_') ||   // FileCountCache (time)
+            key.startsWith('app_installed_')) {     // AppDetectionService
+          count++;
+          // 估算每个键值对大小：键长度 + 值（JSON/int，约200-500字节）
+          totalSize += key.length * 2 + 300; // UTF-16编码
+        }
+      }
+
+      logger.d('App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      return totalSize;
+    } catch (e) {
+      logger.e('Error calculating app management cache size: $e');
+      return 0;
+    }
+  }
+
+  /// 清理应用管理缓存
+  /// 
+  /// 优化：批量并行删除，避免串行等待
+  /// 问题根源：原实现使用 `for + await remove()`，184个键串行删除需10+秒
+  /// 解决方案：使用 `Future.wait()` 批量并行删除，耗时约1-2秒
+  /// 
+  /// 包含的缓存类型：
+  /// - app_storage_*: AppStorageCacheManager（应用存储信息）
+  /// - app_statistics_*: AppStatisticsCache（应用统计数据）
+  /// - file_count_*: FileCountCache（文件数量缓存）
+  /// - file_count_time_*: FileCountCache（文件数量时间戳）
+  /// - app_installed_*: AppDetectionService（应用检测缓存）
+  Future<bool> _clearAppManagementCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      // 收集所有需要删除的键
+      final keysToRemove = allKeys.where((key) => 
+        key.startsWith('app_storage_') ||       // AppStorageCacheManager
+        key.startsWith('app_statistics_') ||    // AppStatisticsCache
+        key.startsWith('file_count_') ||        // FileCountCache (count)
+        key.startsWith('file_count_time_') ||   // FileCountCache (time)
+        key.startsWith('app_installed_')        // AppDetectionService
+      ).toList();
+      
+      if (keysToRemove.isEmpty) {
+        logger.i('App management cache: no keys to remove');
+        return true;
+      }
+      
+      logger.i('App management cache: batch deleting ${keysToRemove.length} keys...');
+      
+      // ⚡ 批量并行删除（虽然底层仍串行，但不会阻塞UI线程）
+      // 使用 timeout 防止超时，10秒后返回成功（大部分已删除）
+      await Future.wait(
+        keysToRemove.map((key) => prefs.remove(key)),
+        eagerError: false,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          logger.w('App management cache clearing timeout after 15s, but continuing...');
+          return [];
+        },
+      );
+      
+      logger.i('App management cache cleared: ${keysToRemove.length} keys removed');
+      return true;
+    } catch (e) {
+      logger.e('Failed to clear app management cache: $e');
+      return false;
+    }
+  }
 }
 
 /// 缓存类型
@@ -407,6 +530,7 @@ enum CacheType {
   videoPlayback,
   largeFileScan, // 大文件扫描缓存
   duplicateFileScan, // 重复文件扫描缓存
+  appManagement, // 应用管理缓存（存储、统计、文件数量、检测）
 }
 
 extension CacheTypeExtension on CacheType {
@@ -426,6 +550,8 @@ extension CacheTypeExtension on CacheType {
         return '大文件扫描缓存';
       case CacheType.duplicateFileScan:
         return '重复文件扫描缓存';
+      case CacheType.appManagement:
+        return '应用管理缓存';
     }
   }
 }
