@@ -10,6 +10,10 @@ import 'package:easyfile/core/services/cache_manager_service.dart';
 /// - 分类扫描缓存
 /// - 搜索历史
 /// - 视频播放数据
+/// - 大文件扫描缓存
+/// - 重复文件扫描缓存
+/// - 应用管理缓存
+/// - 媒体库扫描缓存
 class CacheManagementPage extends StatefulWidget {
   final CacheManagerService cacheManager;
 

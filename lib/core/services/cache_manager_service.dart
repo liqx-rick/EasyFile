@@ -8,7 +8,17 @@ import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 
 /// 缓存管理服务
-/// 统一管理应用中的各种缓存
+/// 
+/// 统一管理应用中的各种缓存，支持以下类型：
+/// - 缩略图缓存（视频/音频）
+/// - 日志文件
+/// - 分类扫描缓存（图片/视频等分类统计）
+/// - 搜索历史记录
+/// - 视频播放数据（播放进度和时长）
+/// - 大文件扫描缓存
+/// - 重复文件扫描缓存
+/// - 应用管理缓存（应用存储/统计/文件数量/检测）
+/// - 媒体库扫描缓存（相机照片/视频/录音）
 class CacheManagerService {
   static final CacheManagerService _instance = CacheManagerService._internal();
   factory CacheManagerService() => _instance;
