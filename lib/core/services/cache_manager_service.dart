@@ -9,6 +9,7 @@ import 'package:easyfile/core/services/app_storage_cache_manager.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 
 /// 缓存管理服务
 /// 统一管理应用中的各种缓存
@@ -21,11 +22,8 @@ class CacheManagerService {
   final _categoryCache = CategoryFileCacheService();
   final _largeFileCache = LargeFileCacheManager();
 
-  // 应用管理相关服务
-  final _appStorageCache = AppStorageCacheManager();
-  final _appStatisticsCache = AppStatisticsCache();
-  final _fileCountCache = FileCountCache();
-  final _appDetectionService = AppDetectionService();
+  // MediaStore缓存服务
+  final _mediaStoreCache = MediaStoreCacheService();
 
   // 重复文件扫描服务（需要外部传入）
   EnhancedDuplicateFileScanService? _duplicateFileScanService;
@@ -228,6 +226,29 @@ class CacheManagerService {
       ));
     }
 
+    // 9. 媒体库扫描缓存
+    try {
+      final mediaStoreSize = await _getMediaStoreCacheSize();
+      final description = mediaStoreSize > 0
+          ? '包含照片、视频、录音的扫描索引'
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '媒体库扫描缓存',
+        description: description,
+        size: mediaStoreSize,
+        type: CacheType.mediaStore,
+      ));
+    } catch (e) {
+      logger.e('Failed to get MediaStore cache info: $e');
+      items.add(CacheItem(
+        name: '媒体库扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.mediaStore,
+      ));
+    }
+
     return items;
   }
 
@@ -290,6 +311,11 @@ class CacheManagerService {
         case CacheType.appManagement:
           final result = await _clearAppManagementCache();
           logger.i('App management cache cleared: $result');
+          return result;
+
+        case CacheType.mediaStore:
+          final result = await _clearMediaStoreCache();
+          logger.i('MediaStore cache cleared: $result');
           return result;
       }
     } catch (e) {
@@ -519,6 +545,51 @@ class CacheManagerService {
       return false;
     }
   }
+
+  /// 获取MediaStore缓存大小（估算）
+  /// 包含相机照片、相机视频、录音文件的扫描索引
+  Future<int> _getMediaStoreCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      int totalSize = 0;
+      int count = 0;
+
+      // 统计所有MediaStore相关的键
+      for (final key in keys) {
+        if (key.startsWith('mediastore_cache_') ||
+            key.startsWith('mediastore_cache_time_') ||
+            key.startsWith('mediastore_cache_count_')) {
+          count++;
+          // 估算每个键值对大小：键长度 + 值（JSON/int，约200-1000字节）
+          totalSize += key.length * 2 + 500; // UTF-16编码
+        }
+      }
+
+      logger.d('MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      return totalSize;
+    } catch (e) {
+      logger.e('Error calculating MediaStore cache size: $e');
+      return 0;
+    }
+  }
+
+  /// 清理MediaStore缓存
+  /// 
+  /// 清理所有媒体库扫描缓存（相机照片、相机视频、录音文件）
+  /// 使用MediaStoreCacheService的clearAllCache()方法
+  Future<bool> _clearMediaStoreCache() async {
+    try {
+      await _mediaStoreCache.initialize();
+      await _mediaStoreCache.clearAllCache();
+      logger.i('MediaStore cache cleared successfully');
+      return true;
+    } catch (e) {
+      logger.e('Failed to clear MediaStore cache: $e');
+      return false;
+    }
+  }
 }
 
 /// 缓存类型
@@ -531,6 +602,7 @@ enum CacheType {
   largeFileScan, // 大文件扫描缓存
   duplicateFileScan, // 重复文件扫描缓存
   appManagement, // 应用管理缓存（存储、统计、文件数量、检测）
+  mediaStore, // 媒体库扫描缓存（照片、视频、录音）
 }
 
 extension CacheTypeExtension on CacheType {
@@ -552,6 +624,8 @@ extension CacheTypeExtension on CacheType {
         return '重复文件扫描缓存';
       case CacheType.appManagement:
         return '应用管理缓存';
+      case CacheType.mediaStore:
+        return '媒体库扫描缓存';
     }
   }
 }

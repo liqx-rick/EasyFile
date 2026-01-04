@@ -107,6 +107,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
+            if (item.type == CacheType.mediaStore) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ 清理后，媒体库相关功能需要重新扫描文件',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -297,6 +304,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.content_copy;
       case CacheType.appManagement:
         return Icons.apps;
+      case CacheType.mediaStore:
+        return Icons.perm_media;
     }
   }
 
