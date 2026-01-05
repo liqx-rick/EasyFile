@@ -12,12 +12,12 @@ import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/data/models/category_info.dart';
-import 'package:easyfile/ui/pages/cache_management_page.dart';
 import 'package:easyfile/ui/pages/trash_config_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
+import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -423,13 +423,13 @@ class _SettingsPageState extends State<SettingsPage> {
       title: const Text('缓存清理'),
       subtitle: const Text('清理应用缩略图、扫描等产生的缓存'),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () {
+      onTap: () async {
+        logger.d('Opening quick cache clear dialog');
         final cacheManager = locator<CacheManagerService>();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => CacheManagementPage(
-              cacheManager: cacheManager,
-            ),
+        await showDialog(
+          context: context,
+          builder: (context) => QuickCacheClearDialog(
+            cacheManager: cacheManager,
           ),
         );
       },

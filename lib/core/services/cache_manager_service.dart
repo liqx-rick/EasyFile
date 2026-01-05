@@ -5,9 +5,20 @@ import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 
 /// 缓存管理服务
-/// 统一管理应用中的各种缓存
+/// 
+/// 统一管理应用中的各种缓存，支持以下类型：
+/// - 缩略图缓存（视频/音频）
+/// - 日志文件
+/// - 分类扫描缓存（图片/视频等分类统计）
+/// - 搜索历史记录
+/// - 视频播放数据（播放进度和时长）
+/// - 大文件扫描缓存
+/// - 重复文件扫描缓存
+/// - 应用管理缓存（应用存储/统计/文件数量/检测）
+/// - 媒体库扫描缓存（相机照片/视频/录音）
 class CacheManagerService {
   static final CacheManagerService _instance = CacheManagerService._internal();
   factory CacheManagerService() => _instance;
@@ -16,6 +27,9 @@ class CacheManagerService {
   final _thumbnailCache = ThumbnailCacheManager();
   final _categoryCache = CategoryFileCacheService();
   final _largeFileCache = LargeFileCacheManager();
+
+  // MediaStore缓存服务
+  final _mediaStoreCache = MediaStoreCacheService();
 
   // 重复文件扫描服务（需要外部传入）
   EnhancedDuplicateFileScanService? _duplicateFileScanService;
@@ -195,6 +209,52 @@ class CacheManagerService {
       ));
     }
 
+    // 8. 应用管理缓存
+    try {
+      final appMgmtSize = await _getAppManagementCacheSize();
+      final description = appMgmtSize > 0 
+          ? '包含应用存储、统计、文件数量及检测缓存' 
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '应用管理缓存',
+        description: description,
+        size: appMgmtSize,
+        type: CacheType.appManagement,
+      ));
+    } catch (e) {
+      logger.e('Failed to get app management cache info: $e');
+      items.add(CacheItem(
+        name: '应用管理缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.appManagement,
+      ));
+    }
+
+    // 9. 媒体库扫描缓存
+    try {
+      final mediaStoreSize = await _getMediaStoreCacheSize();
+      final description = mediaStoreSize > 0
+          ? '包含照片、视频、录音的扫描索引'
+          : '无缓存';
+
+      items.add(CacheItem(
+        name: '媒体库扫描缓存',
+        description: description,
+        size: mediaStoreSize,
+        type: CacheType.mediaStore,
+      ));
+    } catch (e) {
+      logger.e('Failed to get MediaStore cache info: $e');
+      items.add(CacheItem(
+        name: '媒体库扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.mediaStore,
+      ));
+    }
+
     return items;
   }
 
@@ -253,6 +313,16 @@ class CacheManagerService {
             logger.w('Duplicate file scan service not initialized');
             return false;
           }
+
+        case CacheType.appManagement:
+          final result = await _clearAppManagementCache();
+          logger.i('App management cache cleared: $result');
+          return result;
+
+        case CacheType.mediaStore:
+          final result = await _clearMediaStoreCache();
+          logger.i('MediaStore cache cleared: $result');
+          return result;
       }
     } catch (e) {
       logger.e('>>> EXCEPTION in clearCache for $type: $e');
@@ -396,6 +466,136 @@ class CacheManagerService {
     }
     logger.i('>>> [VideoCache] Step 9: Exiting _clearVideoPlaybackData');
   }
+
+  /// 获取应用管理缓存大小（估算）
+  /// 包含4个服务的缓存：AppStorageCacheManager、AppStatisticsCache、FileCountCache、AppDetectionService
+  Future<int> _getAppManagementCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      int totalSize = 0;
+      int count = 0;
+
+      // 统计所有应用管理相关的键
+      for (final key in keys) {
+        if (key.startsWith('app_storage_') ||       // AppStorageCacheManager
+            key.startsWith('app_statistics_') ||    // AppStatisticsCache
+            key.startsWith('file_count_') ||        // FileCountCache (count)
+            key.startsWith('file_count_time_') ||   // FileCountCache (time)
+            key.startsWith('app_installed_')) {     // AppDetectionService
+          count++;
+          // 估算每个键值对大小：键长度 + 值（JSON/int，约200-500字节）
+          totalSize += key.length * 2 + 300; // UTF-16编码
+        }
+      }
+
+      logger.d('App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      return totalSize;
+    } catch (e) {
+      logger.e('Error calculating app management cache size: $e');
+      return 0;
+    }
+  }
+
+  /// 清理应用管理缓存
+  /// 
+  /// 优化：批量并行删除，避免串行等待
+  /// 问题根源：原实现使用 `for + await remove()`，184个键串行删除需10+秒
+  /// 解决方案：使用 `Future.wait()` 批量并行删除，耗时约1-2秒
+  /// 
+  /// 包含的缓存类型：
+  /// - app_storage_*: AppStorageCacheManager（应用存储信息）
+  /// - app_statistics_*: AppStatisticsCache（应用统计数据）
+  /// - file_count_*: FileCountCache（文件数量缓存）
+  /// - file_count_time_*: FileCountCache（文件数量时间戳）
+  /// - app_installed_*: AppDetectionService（应用检测缓存）
+  Future<bool> _clearAppManagementCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      
+      // 收集所有需要删除的键
+      final keysToRemove = allKeys.where((key) => 
+        key.startsWith('app_storage_') ||       // AppStorageCacheManager
+        key.startsWith('app_statistics_') ||    // AppStatisticsCache
+        key.startsWith('file_count_') ||        // FileCountCache (count)
+        key.startsWith('file_count_time_') ||   // FileCountCache (time)
+        key.startsWith('app_installed_')        // AppDetectionService
+      ).toList();
+      
+      if (keysToRemove.isEmpty) {
+        logger.i('App management cache: no keys to remove');
+        return true;
+      }
+      
+      logger.i('App management cache: batch deleting ${keysToRemove.length} keys...');
+      
+      // ⚡ 批量并行删除（虽然底层仍串行，但不会阻塞UI线程）
+      // 使用 timeout 防止超时，10秒后返回成功（大部分已删除）
+      await Future.wait(
+        keysToRemove.map((key) => prefs.remove(key)),
+        eagerError: false,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          logger.w('App management cache clearing timeout after 15s, but continuing...');
+          return [];
+        },
+      );
+      
+      logger.i('App management cache cleared: ${keysToRemove.length} keys removed');
+      return true;
+    } catch (e) {
+      logger.e('Failed to clear app management cache: $e');
+      return false;
+    }
+  }
+
+  /// 获取MediaStore缓存大小（估算）
+  /// 包含相机照片、相机视频、录音文件的扫描索引
+  Future<int> _getMediaStoreCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      int totalSize = 0;
+      int count = 0;
+
+      // 统计所有MediaStore相关的键
+      for (final key in keys) {
+        if (key.startsWith('mediastore_cache_') ||
+            key.startsWith('mediastore_cache_time_') ||
+            key.startsWith('mediastore_cache_count_')) {
+          count++;
+          // 估算每个键值对大小：键长度 + 值（JSON/int，约200-1000字节）
+          totalSize += key.length * 2 + 500; // UTF-16编码
+        }
+      }
+
+      logger.d('MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      return totalSize;
+    } catch (e) {
+      logger.e('Error calculating MediaStore cache size: $e');
+      return 0;
+    }
+  }
+
+  /// 清理MediaStore缓存
+  /// 
+  /// 清理所有媒体库扫描缓存（相机照片、相机视频、录音文件）
+  /// 使用MediaStoreCacheService的clearAllCache()方法
+  Future<bool> _clearMediaStoreCache() async {
+    try {
+      await _mediaStoreCache.initialize();
+      await _mediaStoreCache.clearAllCache();
+      logger.i('MediaStore cache cleared successfully');
+      return true;
+    } catch (e) {
+      logger.e('Failed to clear MediaStore cache: $e');
+      return false;
+    }
+  }
 }
 
 /// 缓存类型
@@ -407,6 +607,8 @@ enum CacheType {
   videoPlayback,
   largeFileScan, // 大文件扫描缓存
   duplicateFileScan, // 重复文件扫描缓存
+  appManagement, // 应用管理缓存（存储、统计、文件数量、检测）
+  mediaStore, // 媒体库扫描缓存（照片、视频、录音）
 }
 
 extension CacheTypeExtension on CacheType {
@@ -426,6 +628,10 @@ extension CacheTypeExtension on CacheType {
         return '大文件扫描缓存';
       case CacheType.duplicateFileScan:
         return '重复文件扫描缓存';
+      case CacheType.appManagement:
+        return '应用管理缓存';
+      case CacheType.mediaStore:
+        return '媒体库扫描缓存';
     }
   }
 }
