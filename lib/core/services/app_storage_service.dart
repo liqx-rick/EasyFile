@@ -44,10 +44,16 @@ class AppStorageService {
         return null;
       }
 
-      // 调用原生API获取真实存储信息
+      // 调用原生API获取真实存储信息（添加10秒超时）
       final result = await _channel.invokeMethod<Map<Object?, Object?>>(
         'getAppStorageStats',
         {'packageName': packageName},
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          logger.w('Timeout getting storage stats for $packageName after 10s');
+          return null;
+        },
       );
 
       if (result != null) {

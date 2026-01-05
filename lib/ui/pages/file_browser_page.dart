@@ -884,9 +884,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       case 'app_management':
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => const AppManagementPage(
-              isFromStorageManagement: false,
-            ),
+            builder: (context) => const AppManagementPage(),
           ),
         );
         break;

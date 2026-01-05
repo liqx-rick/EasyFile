@@ -1,5 +1,6 @@
 import 'package:installed_apps/app_info.dart' as installed;
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:easyfile/data/models/app_usage_stats.dart';
 
 /// 应用信息模型
@@ -68,12 +69,22 @@ class EasyFileAppInfo {
 
   /// 从 JSON 创建
   factory EasyFileAppInfo.fromJson(Map<String, dynamic> json) {
+    // 从 base64 字符串转换图标
+    Uint8List? icon;
+    if (json['icon'] != null) {
+      try {
+        icon = base64Decode(json['icon'] as String);
+      } catch (e) {
+        // 解码失败，忽略
+      }
+    }
+    
     return EasyFileAppInfo(
       name: json['name'] as String,
       packageName: json['packageName'] as String,
       versionName: json['versionName'] as String,
       versionCode: json['versionCode'] as int,
-      icon: null, // 不序列化图标数据
+      icon: icon,
       installTime: json['installTime'] != null
           ? DateTime.parse(json['installTime'] as String)
           : null,
@@ -97,7 +108,7 @@ class EasyFileAppInfo {
       'packageName': packageName,
       'versionName': versionName,
       'versionCode': versionCode,
-      // icon不序列化，缓存中不需要
+      'icon': icon != null ? base64Encode(icon!) : null, // 将图标转为 base64 字符串
       'installTime': installTime?.toIso8601String(),
       'updateTime': updateTime?.toIso8601String(),
       'isSystemApp': isSystemApp,

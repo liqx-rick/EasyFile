@@ -98,23 +98,42 @@ class AppUsageStats {
   }
 
   /// 获取友好的最后使用时间描述
-  /// [deviceBaselineTime] 设备基准时间（用户最早安装应用的时间），用于友好显示系统应用
+  /// [deviceBaselineTime] 设备基准时间（用户最早安装应用的时间）
+  /// 
+  /// 逻辑：
+  /// - 优先使用baseline：早于baseline且超过1年显示"N+年前"
+  /// - 托底方案（baseline不存在或不生效）：过滤距今超过10年的异常时间
+  /// - 其他：显示实际时间
   String getLastUsedDescription({DateTime? deviceBaselineTime}) {
     final time = effectiveLastTime;
-    if (time == null) return '从未使用';
+    if (time == null) return '';  // 从未使用，返回空字符串
 
     final now = DateTime.now();
     final diff = now.difference(time);
 
-    // 如果提供了设备基准时间，且当前时间早于基准时间，使用友好显示
-    if (deviceBaselineTime != null && time.isBefore(deviceBaselineTime)) {
-      final baselineDiff = now.difference(deviceBaselineTime);
-      final years = (baselineDiff.inDays / 365).floor();
-      if (years >= 1) {
-        return '$years+年前';
+    // 优先：如果提供了设备基准时间，并且baseline合理（早于当前时间）
+    if (deviceBaselineTime != null && deviceBaselineTime.isBefore(now)) {
+      // 应用时间早于基准时间，使用友好显示
+      if (time.isBefore(deviceBaselineTime)) {
+        final baselineDiff = now.difference(deviceBaselineTime);
+        final years = (baselineDiff.inDays / 365).floor();
+        
+        // 只有超过1年才显示"N+年前"，否则回退到正常时间显示
+        if (years > 0) {
+          return '$years+年前';
+        }
+        // years == 0 时继续往下执行，使用正常时间显示逻辑
+      }
+      // 应用时间晚于或等于基准时间，显示实际时间（继续往下执行）
+    } else {
+      // 托底方案：没有baseline或baseline不合理时，过滤距今超过10年的异常时间
+      // 这些时间通常是系统应用的默认时间戳，不可靠
+      if (diff.inDays > 365 * 10) {
+        return '';  // 返回空字符串
       }
     }
 
+    // 正常时间显示逻辑
     if (diff.inMinutes < 1) return '刚刚';
     if (diff.inHours < 1) return '${diff.inMinutes}分钟前';
     if (diff.inDays < 1) return '${diff.inHours}小时前';

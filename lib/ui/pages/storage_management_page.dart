@@ -868,9 +868,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                           // 跳转到应用管理页面
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) => const AppManagementPage(
-                                isFromStorageManagement: true,
-                              ),
+                              builder: (context) => const AppManagementPage(),
                             ),
                           );
                         },
@@ -990,9 +988,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => const AppManagementPage(
-                isFromStorageManagement: true,
-              ),
+              builder: (context) => const AppManagementPage(),
             ),
           );
         },

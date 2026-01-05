@@ -483,10 +483,15 @@ class CacheManagerService {
             key.startsWith('app_statistics_') ||    // AppStatisticsCache
             key.startsWith('file_count_') ||        // FileCountCache (count)
             key.startsWith('file_count_time_') ||   // FileCountCache (time)
-            key.startsWith('app_installed_')) {     // AppDetectionService
+            key.startsWith('app_installed_') ||     // AppDetectionService
+            key.startsWith('app_list_cache_')) {    // AppListCacheManager（新增）
           count++;
           // 估算每个键值对大小：键长度 + 值（JSON/int，约200-500字节）
-          totalSize += key.length * 2 + 300; // UTF-16编码
+          // 应用列表缓存可能较大（含图标），估算为1-5MB
+          final estimatedSize = key.startsWith('app_list_cache_') && !key.contains('_time_') 
+              ? 2 * 1024 * 1024  // 应用列表缓存：约2MB
+              : 300;              // 其他缓存：约300字节
+          totalSize += key.length * 2 + estimatedSize; // UTF-16编码
         }
       }
 
@@ -510,6 +515,7 @@ class CacheManagerService {
   /// - file_count_*: FileCountCache（文件数量缓存）
   /// - file_count_time_*: FileCountCache（文件数量时间戳）
   /// - app_installed_*: AppDetectionService（应用检测缓存）
+  /// - app_list_cache_*: AppListCacheManager（应用列表缓存，含图标）
   Future<bool> _clearAppManagementCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -521,7 +527,8 @@ class CacheManagerService {
         key.startsWith('app_statistics_') ||    // AppStatisticsCache
         key.startsWith('file_count_') ||        // FileCountCache (count)
         key.startsWith('file_count_time_') ||   // FileCountCache (time)
-        key.startsWith('app_installed_')        // AppDetectionService
+        key.startsWith('app_installed_') ||     // AppDetectionService
+        key.startsWith('app_list_cache_')       // AppListCacheManager（新增）
       ).toList();
       
       if (keysToRemove.isEmpty) {
@@ -531,20 +538,40 @@ class CacheManagerService {
       
       logger.i('App management cache: batch deleting ${keysToRemove.length} keys...');
       
-      // ⚡ 批量并行删除（虽然底层仍串行，但不会阻塞UI线程）
-      // 使用 timeout 防止超时，10秒后返回成功（大部分已删除）
-      await Future.wait(
-        keysToRemove.map((key) => prefs.remove(key)),
-        eagerError: false,
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          logger.w('App management cache clearing timeout after 15s, but continuing...');
-          return [];
-        },
-      );
+      // ⚡ 优化：使用clear()然后重建非应用管理的键（如果需要保留其他缓存）
+      // 或者直接逐个删除但使用更高效的方式
+      // 方案：收集所有要保留的键值对，clear()后重建
       
-      logger.i('App management cache cleared: ${keysToRemove.length} keys removed');
+      // 收集要保留的键值对
+      final keysToKeep = allKeys.where((key) => !keysToRemove.contains(key)).toList();
+      final preservedData = <String, dynamic>{};
+      for (final key in keysToKeep) {
+        final value = prefs.get(key);
+        if (value != null) {
+          preservedData[key] = value;
+        }
+      }
+      
+      // 清空所有数据
+      await prefs.clear();
+      
+      // 重建保留的数据
+      for (final entry in preservedData.entries) {
+        final value = entry.value;
+        if (value is bool) {
+          await prefs.setBool(entry.key, value);
+        } else if (value is int) {
+          await prefs.setInt(entry.key, value);
+        } else if (value is double) {
+          await prefs.setDouble(entry.key, value);
+        } else if (value is String) {
+          await prefs.setString(entry.key, value);
+        } else if (value is List<String>) {
+          await prefs.setStringList(entry.key, value);
+        }
+      }
+      
+      logger.i('App management cache cleared: ${keysToRemove.length} keys removed (${keysToKeep.length} keys preserved)');
       return true;
     } catch (e) {
       logger.e('Failed to clear app management cache: $e');
