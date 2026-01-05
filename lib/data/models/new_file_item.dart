@@ -1,20 +1,19 @@
 import 'dart:io';
 
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/file_source.dart';
 
 /// 新文件数据模型（轻量级索引）
 class NewFileItem {
   final String path;
   final DateTime created; // 文件创建/修改时间
   final DateTime discovered; // 发现时间（首次扫描到）
-  final FileSource source; // 自动识别的来源
+  final String displayName; // 文件来源显示名称（如"微信"、"下载"）
 
   const NewFileItem({
     required this.path,
     required this.created,
     required this.discovered,
-    required this.source,
+    required this.displayName,
   });
 
   /// 从 JSON 创建
@@ -23,7 +22,7 @@ class NewFileItem {
       path: json['path'] as String,
       created: DateTime.parse(json['created'] as String),
       discovered: DateTime.parse(json['discovered'] as String),
-      source: FileSource.values[json['source'] as int],
+      displayName: json['displayName'] as String? ?? json['source'] as String, // 兼容旧数据
     );
   }
 
@@ -33,7 +32,7 @@ class NewFileItem {
       'path': path,
       'created': created.toIso8601String(),
       'discovered': discovered.toIso8601String(),
-      'source': source.index,
+      'displayName': displayName,
     };
   }
 

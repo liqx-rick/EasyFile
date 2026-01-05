@@ -1583,8 +1583,14 @@ class FilePresenter {
 
       logger.i('Loaded ${fileItems.length} new files');
 
-      // 更新视图模型（传递retentionDays设置）
-      viewModel.setNewFiles(fileItems, retentionDays: retentionDays);
+      // 构建source映射：path -> displayName
+      final sourceMap = <String, String>{};
+      for (final item in filteredItems) {
+        sourceMap[item.path] = item.displayName;
+      }
+
+      // 更新视图模型（传递retentionDays设置和source映射）
+      viewModel.setNewFiles(fileItems, retentionDays: retentionDays, sourceMap: sourceMap);
 
       // 后台异步保存到本地缓存（不阻塞UI显示）
       if (newFileItems.isNotEmpty) {
@@ -1694,8 +1700,14 @@ class FilePresenter {
         // 处理文件项（应用限制并转换为FileItem）
         final fileItems = await _processNewFileItems(newFileItems, displayCount);
 
+        // 构建source映射：path -> displayName
+        final sourceMap = <String, String>{};
+        for (final item in newFileItems) {
+          sourceMap[item.path] = item.displayName;
+        }
+
         // 静默更新UI（不显示loading状态）
-        viewModel.setNewFiles(fileItems, retentionDays: retentionDays);
+        viewModel.setNewFiles(fileItems, retentionDays: retentionDays, sourceMap: sourceMap);
 
         // 保存缓存
         if (newFileItems.isNotEmpty) {
