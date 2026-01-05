@@ -49,7 +49,7 @@ class NewFilesNativeChannel {
             (map['dateAdded'] as int) * 1000,
           ),
           discovered: DateTime.now(),
-          source: FileSourceDetector.detectSource(map['path'] as String),
+          displayName: FileSourceDetector.detectSource(map['path'] as String),
         );
       }).toList();
       
