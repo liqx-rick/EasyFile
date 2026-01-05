@@ -2777,6 +2777,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         accessTime: vm.currentTab == TabView.recent ? item.accessedAt : null,
         showCreationTime: vm.currentTab == TabView.newFiles,
         creationTime: vm.currentTab == TabView.newFiles ? item.modified : null,
+        showSource: vm.currentTab == TabView.newFiles,
+        sourceText: vm.currentTab == TabView.newFiles ? vm.getNewFileSource(item.path) : null,
         isFavorite: vm.isFavoriteFile(item.path),
         isSelected: isSelected,
         showCheckbox: isEditMode,

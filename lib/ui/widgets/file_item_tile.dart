@@ -27,6 +27,8 @@ class FileItemTile extends StatefulWidget {
   final DateTime? accessTime;
   final bool showCreationTime; // 是否显示创建时间
   final DateTime? creationTime; // 创建时间
+  final bool showSource; // 是否显示文件来源
+  final String? sourceText; // 文件来源文本
   final bool isSelected; // 是否处于选中状态
   final bool showCheckbox; // 是否显示复选框
   // 可配置项（保持向后兼容的默认值）
@@ -49,6 +51,8 @@ class FileItemTile extends StatefulWidget {
     this.accessTime,
     this.showCreationTime = false,
     this.creationTime,
+    this.showSource = false,
+    this.sourceText,
     this.isSelected = false,
     this.showCheckbox = false,
     this.leadingSize = 40,
@@ -325,6 +329,8 @@ class _FileItemTileState extends State<FileItemTile> {
         TimeFormatter.formatRelativeTime(widget.accessTime!),
       if (widget.showCreationTime && widget.creationTime != null)
         TimeFormatter.formatRelativeTime(widget.creationTime!),
+      if (widget.showSource && widget.sourceText != null)
+        widget.sourceText!,
     ];
 
     return parts.join(' · ');

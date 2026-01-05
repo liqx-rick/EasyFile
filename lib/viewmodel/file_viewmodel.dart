@@ -50,11 +50,7 @@ class FileViewModel extends ChangeNotifier {
 
   // 新文件Tab相关状态
   List<FileItem> _newFiles = []; // 新添加的文件列表
-  /// 文件来源筛选（预留功能 - 当前UI未实现）
-  /// 
-  /// ⚠️ 注意：此字段目前永远为null，相关过滤逻辑不会生效。
-  /// 如需启用此功能，需在UI层添加来源筛选按钮。
-  String? _selectedSource;
+  Map<String, String> _newFilesSourceMap = {}; // path -> displayName 映射
   int _newFilesRetentionDays = 7; // 新文件保留天数设置（默认7天）
 
   // 应用级状态
@@ -154,8 +150,10 @@ class FileViewModel extends ChangeNotifier {
 
   // 新文件Tab的 getters
   List<FileItem> get newFiles => _newFiles;
-  String? get selectedSource => _selectedSource;
   int get newFilesRetentionDays => _newFilesRetentionDays;
+  
+  /// 根据文件路径获取来源显示名称
+  String? getNewFileSource(String path) => _newFilesSourceMap[path];
 
   // 应用级状态的 getters
   List<FavoriteFileItem> get favoriteFiles => _favoriteFiles;
@@ -392,12 +390,16 @@ class FileViewModel extends ChangeNotifier {
   }
 
   /// 设置新文件列表
-  void setNewFiles(List<FileItem> files, {int? retentionDays}) {
+  void setNewFiles(List<FileItem> files, {int? retentionDays, Map<String, String>? sourceMap}) {
     logger.d('Setting new files list: ${files.length} items');
     _newFiles = files;
     if (retentionDays != null && retentionDays != _newFilesRetentionDays) {
       _newFilesRetentionDays = retentionDays;
       logger.d('Updated retention days: $_newFilesRetentionDays');
+    }
+    if (sourceMap != null) {
+      _newFilesSourceMap = sourceMap;
+      logger.d('Updated source map: ${sourceMap.length} entries');
     }
     notifyListeners();
   }

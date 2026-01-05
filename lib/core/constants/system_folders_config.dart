@@ -53,6 +53,56 @@ class SystemFoldersConfig {
     '/storage/emulated/0/Sounds/': '声音',
   };
 
+  /// 扩展系统目录的显示名称（中文）
+  /// 
+  /// 用于 UI 展示和文件来源识别，对应 extendedSystemPaths 中的路径
+  static const Map<String, String> extendedSystemNames = {
+    '/storage/emulated/0/Downloads/': '下载',
+    '/storage/emulated/0/Alarms/': '闹钟',
+    '/storage/emulated/0/Notifications/': '通知',
+    '/storage/emulated/0/Ringtones/': '铃声',
+    '/storage/emulated/0/Podcasts/': '播客',
+    '/storage/emulated/0/Android/': 'Android',
+  };
+
+  /// 常见二级目录的显示名称映射（大小写不敏感）
+  /// 
+  /// 用于识别系统目录下的应用/功能子目录
+  /// 映射key为小写，查找时需先转换为小写
+  static const Map<String, String> subdirectoryNames = {
+    // 社交应用
+    'weixin': '微信',
+    'wechat': '微信',
+    'qq': 'QQ',
+    'telegram': 'Telegram',
+    'dingtalk': '钉钉',
+    'wxwork': '企业微信',
+    'wework': '企业微信',
+    
+    // 浏览器/网盘
+    'baidunetdisk': '百度网盘',
+    'quark': '夸克',
+    'ucdownloads': 'UC浏览器',
+    'uc': 'UC浏览器',
+    
+    // 系统功能
+    'bluetooth': '蓝牙',
+    'screenshots': '截屏',
+    'camera': '相机',
+    'recordings': '录音',
+    'sounds': '声音',
+    
+    // 其他常见
+    'edit': '编辑',
+    'sent': '发送',
+    'received': '接收',
+    'backup': '备份',
+    'cache': '缓存',
+  };
+
+  /// 未知来源的显示名称
+  static const String unknownSource = '未知';
+
   // ==================== 工具方法 ====================
   
   /// 获取所有系统目录（核心 + 扩展）
@@ -151,5 +201,37 @@ class SystemFoldersConfig {
     } catch (e) {
       return null;
     }
+  }
+
+  /// 获取扩展系统目录的显示名称
+  /// 
+  /// **参数**：
+  /// - [path]: 扩展系统目录路径
+  /// 
+  /// **返回**：该路径对应的中文名称，如果不在列表中返回 '系统'
+  static String getExtendedSystemName(String path) {
+    return extendedSystemNames[path] ?? '系统';
+  }
+
+  /// 获取二级目录的显示名称（大小写不敏感）
+  /// 
+  /// **参数**：
+  /// - [dirName]: 目录名称
+  /// 
+  /// **返回**：映射的中文名称，如果未找到映射则返回原始名称
+  /// 
+  /// **说明**：
+  /// - 自动转换为小写进行匹配
+  /// - 未匹配时保留原始大小写，提供友好的兜底显示
+  /// 
+  /// **示例**：
+  /// ```dart
+  /// getSubdirectoryName('WeiXin')  // '微信'
+  /// getSubdirectoryName('weixin')  // '微信'
+  /// getSubdirectoryName('MyFolder') // 'MyFolder'
+  /// ```
+  static String getSubdirectoryName(String dirName) {
+    final lower = dirName.toLowerCase();
+    return subdirectoryNames[lower] ?? dirName;
   }
 }
