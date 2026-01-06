@@ -51,8 +51,7 @@ class AppTrashManager {
       // 恢复未完成的移动任务
       await _recoverPendingMoves();
 
-      // 执行一次启动时清理
-      await cleanExpiredFiles();
+      // 注意：过期文件清理由 startAutoCleanup() 统一触发，避免重复执行
 
       logger.i('AppTrashManager initialized');
     } catch (e) {
