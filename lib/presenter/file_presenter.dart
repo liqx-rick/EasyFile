@@ -87,25 +87,10 @@ class FilePresenter {
     final visibleFiles =
         files.where((file) => !deletedPaths.contains(file.path)).toList();
 
-    // 检测是否是受系统保护的目录（Android/data等）
-    final isProtectedDir = path.contains('/Android/data') ||
-        path.contains('/Android/obb') ||
-        path.contains('/Android/media');
-
-    logger.d(
-        'isProtectedDir: $isProtectedDir, files.isEmpty: ${visibleFiles.isEmpty}');
-
-    // 先设置错误消息（如果有）
-    if (visibleFiles.isEmpty && isProtectedDir) {
-      logger.w('Setting error for protected system directory: $path');
-      viewModel.setError('此目录受 Android 系统保护，无法访问');
-      logger.w('Error set, errorMessage: ${viewModel.errorMessage}');
-    }
-
-    // 然后设置文件列表（使用过滤后的列表）
+    // 设置文件列表（使用过滤后的列表）
     viewModel.setFiles(visibleFiles);
 
-    // 最后设置加载状态
+    // 设置加载状态
     viewModel.setLoading(false);
 
     logger.d(
