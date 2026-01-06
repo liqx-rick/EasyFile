@@ -642,7 +642,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   /// 获取文件类型
   FileTypeFilter _getFileType(String fileName) {
     final config = AppConfig.instance.fileTypes;
-    
+
     if (config.isVideoFile(fileName)) return FileTypeFilter.video;
     if (config.isAudioFile(fileName)) return FileTypeFilter.audio;
     if (config.isImageFile(fileName)) return FileTypeFilter.image;
@@ -697,14 +697,28 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     if (confirmed != true) return;
 
-    // 执行删除
+    // 执行删除 - 使用FilePresenter确保经过回收站
     int deletedCount = 0;
+    final presenter = locator<FilePresenter>();
+
     for (final filePath in _selectedFilePaths) {
       try {
         final file = File(filePath);
         if (await file.exists()) {
-          await file.delete();
-          deletedCount++;
+          // 创建FileItem用于删除
+          final fileItem = FileItem(
+            name: file.path.split(Platform.pathSeparator).last,
+            path: filePath,
+            size: await file.length(),
+            modified: await file.lastModified(),
+            isDirectory: false,
+          );
+
+          // 使用FilePresenter删除，会自动检查回收站设置
+          final success = await presenter.deleteFile(fileItem);
+          if (success) {
+            deletedCount++;
+          }
         }
       } catch (e) {
         logger.e('Failed to delete file $filePath: $e');
@@ -1351,7 +1365,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color:
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: colorScheme.outline.withValues(alpha: 0.2),
@@ -1451,7 +1466,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color:
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -1677,8 +1693,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color:
-                          colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      color: colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
