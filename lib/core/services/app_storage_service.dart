@@ -14,22 +14,6 @@ class AppStorageService {
   static const MethodChannel _channel =
       MethodChannel('com.easyfile/storage_stats');
 
-  /// 获取应用的首次安装时间
-  ///
-  /// 返回毫秒时间戳
-  Future<int?> getFirstInstallTime(String packageName) async {
-    try {
-      final result = await _channel.invokeMethod<int>(
-        'getFirstInstallTime',
-        {'packageName': packageName},
-      );
-      return result;
-    } catch (e) {
-      logger.e('Error getting first install time for $packageName: $e');
-      return null;
-    }
-  }
-
   /// 查询应用存储信息
   ///
   /// 使用Android的StorageStatsManager API获取真实数据
@@ -79,34 +63,5 @@ class AppStorageService {
     }
   }
 
-  /// 批量查询应用存储信息
-  ///
-  /// 分批查询以避免阻塞UI
-  Future<Map<String, AppStorageInfo>> batchGetStorageInfo(
-    List<String> packageNames, {
-    Function(int current, int total)? onProgress,
-  }) async {
-    final results = <String, AppStorageInfo>{};
-    final batchSize = 10;
 
-    for (var i = 0; i < packageNames.length; i += batchSize) {
-      final batch = packageNames.skip(i).take(batchSize);
-
-      for (final packageName in batch) {
-        final info = await getAppStorageInfo(packageName);
-        if (info != null) {
-          results[packageName] = info;
-        }
-
-        // 更新进度
-        onProgress?.call(
-            i + batch.toList().indexOf(packageName) + 1, packageNames.length);
-      }
-
-      // 让出CPU时间
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
-
-    return results;
-  }
 }

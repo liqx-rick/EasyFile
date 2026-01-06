@@ -49,22 +49,7 @@ class AppStorageCacheManager {
     }
   }
 
-  /// 批量保存缓存
-  /// 只在该文件中定义，没有任何调用
-  Future<void> batchCache(Map<String, AppStorageInfo> storageInfos) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
 
-      for (final entry in storageInfos.entries) {
-        final key = _keyPrefix + entry.key;
-        await prefs.setString(key, jsonEncode(entry.value.toJson()));
-      }
-
-      logger.d('Batch cached ${storageInfos.length} storage infos');
-    } catch (e) {
-      logger.e('Error batch caching storage infos: $e');
-    }
-  }
 
   /// 清除指定应用的缓存
   Future<void> clearCache(String packageName) async {
@@ -94,15 +79,5 @@ class AppStorageCacheManager {
     }
   }
 
-  /// 获取缓存的应用数量
-  /// 只在该文件中定义，没有任何调用
-  Future<int> getCachedCount() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getKeys().where((key) => key.startsWith(_keyPrefix)).length;
-    } catch (e) {
-      logger.e('Error getting cached count: $e');
-      return 0;
-    }
-  }
+
 }
