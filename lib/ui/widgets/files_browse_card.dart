@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../ui/pages/storage_page.dart';
+import '../../ui/pages/file_browser_root_page.dart';
 import '../../presenter/file_presenter.dart';
 import '../../viewmodel/file_viewmodel.dart';
 
@@ -55,7 +55,7 @@ class FilesBrowseCard extends StatelessWidget {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => StoragePage(
+            builder: (context) => FileBrowserRootPage(
               presenter: presenter,
               viewModel: viewModel,
             ),

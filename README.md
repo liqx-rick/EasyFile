@@ -93,7 +93,7 @@ lib/
     ├── pages/              # 页面
     │   ├── file_browser_page.dart
     │   ├── category_file_page.dart
-    │   ├── storage_page.dart
+    │   ├── file_browser_root_page.dart
     │   └── file_preview_page.dart
     └── widgets/            # 组件
         ├── file_collection_view.dart   # 统一文件列表/网格组件

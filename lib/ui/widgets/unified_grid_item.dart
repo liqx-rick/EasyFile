@@ -10,7 +10,7 @@ import 'package:easyfile/utils/time_formatter.dart';
 
 /// 统一的网格项组件
 ///
-/// 为三个页面（file_browser_page, category_file_page, storage_page）
+/// 为三个页面（file_browser_page, category_file_page, file_browser_root_page）
 /// 提供一致的网格视图实现。
 ///
 /// 特性：
