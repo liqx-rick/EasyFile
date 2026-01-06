@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// 统一视图配置类
 ///
 /// 为网格视图和列表视图提供统一的配置参数，确保三个页面
-/// (file_browser_page, category_file_page, storage_page) 的视觉一致性。
+/// (file_browser_page, category_file_page, file_browser_root_page) 的视觉一致性。
 ///
 /// 使用响应式设计，根据屏幕宽度动态调整缩略图大小。
 ///

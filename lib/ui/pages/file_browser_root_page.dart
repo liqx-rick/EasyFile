@@ -30,21 +30,21 @@ import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
 import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 
-class StoragePage extends StatefulWidget {
+class FileBrowserRootPage extends StatefulWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
 
-  const StoragePage({
+  const FileBrowserRootPage({
     super.key,
     required this.presenter,
     required this.viewModel,
   });
 
   @override
-  State<StoragePage> createState() => _StoragePageState();
+  State<FileBrowserRootPage> createState() => _FileBrowserRootPageState();
 }
 
-class _StoragePageState extends State<StoragePage>
+class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     with EditModeMixin, CreateFolderMixin, PopScopeHandlerMixin {
   String _searchQuery = '';
   bool _isSearchMode = false;
