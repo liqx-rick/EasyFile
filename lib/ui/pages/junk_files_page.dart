@@ -83,6 +83,14 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   /// - 不在用户忽略期内（7天）
   /// - 不在清理抑制期内（7天）
   Future<bool> _shouldShowSystemTrashPrompt() async {
+    // 检查上次扫描时间（36小时缓存策略）
+    if (!await SystemTrashPreferences.isLastScanOlderThan(
+      const Duration(hours: 36),
+    )) {
+      logger.d('距离上次扫描未超过36小时，跳过本次扫描');
+      return false;
+    }
+
     // 检查用户忽略期（7天）
     if (await SystemTrashPreferences.isInUserDismissedPeriod()) {
       return false;
@@ -124,11 +132,11 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
 
       final sizeMB = stats['sizeMB'] as int;
 
-      // 3. 检查是否满足显示阈值（>=100MB）
-      if (sizeMB >= 100) {
-        // 更新扫描时间（仅在首次显示时更新）
-        await SystemTrashPreferences.setLastScanTimeNow();
+      // 3. 记录扫描时间（无论是否显示提示，实现36小时缓存策略）
+      await SystemTrashPreferences.setLastScanTimeNow();
 
+      // 4. 检查是否满足显示阈值（>=100MB）
+      if (sizeMB >= 100) {
         if (mounted) {
           setState(() {
             _systemTrashStats = stats;
@@ -137,7 +145,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           logger.i('显示系统回收站提示卡片（${sizeMB}MB）');
         }
       } else {
-        logger.d('系统回收站旧文件少于100MB（${sizeMB}MB），不显示提示');
+        logger.d('系统回收站旧文件少于100MB（${sizeMB}MB），不显示提示（已记录扫描时间）');
       }
     } catch (e) {
       logger.e('加载系统回收站统计数据失败: $e');
@@ -559,11 +567,36 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   /// 扫描中视图
   Widget _buildScanningView() {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              '正在扫描设备中的垃圾文件',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '包括安装包、临时文件、空文件夹，以及系统回收站内长期未清理的文件等',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '这可能需要几分钟，请耐心等待',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[500],
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
             const CircularProgressIndicator(),
             const SizedBox(height: 24),
             Text(
@@ -867,7 +900,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                         },
                         child: Padding(
                           padding:
-                              const EdgeInsets.only(bottom: 12), // 为下方按钮留出空间
+                              const EdgeInsets.only(bottom: 18), // 为下方按钮留出空间
                           child: Text(
                             '检测到系统回收站中存在长期未清理的文件',
                             style: TextStyle(
