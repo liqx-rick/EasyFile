@@ -161,7 +161,6 @@ void main() {
         expect(config.scanApk, true);
         expect(config.scanTempFiles, true);
         expect(config.scanEmptyFolders, true);
-        expect(config.onlyInstalledApk, false); // 修复后的默认值
         expect(config.minTempFileDays, 7);
 
         // 验证默认排除路径（防止扫描系统目录）
@@ -190,7 +189,6 @@ void main() {
           'scanApk': false,
           'scanTempFiles': true,
           'scanEmptyFolders': false,
-          'onlyInstalledApk': true,
           'minTempFileDays': 14,
           'excludePaths': ['test'],
         };
@@ -198,7 +196,6 @@ void main() {
         expect(config.scanApk, false);
         expect(config.scanTempFiles, true);
         expect(config.scanEmptyFolders, false);
-        expect(config.onlyInstalledApk, true);
         expect(config.minTempFileDays, 14);
         expect(config.excludePaths, ['test']);
       });
@@ -208,11 +205,9 @@ void main() {
           scanApk: true,
           scanTempFiles: false,
           scanEmptyFolders: true,
-          onlyInstalledApk: false,
           minTempFileDays: 10,
         );
-        expect(
-            config.description, 'APK:true(仅已装:false)|临时:false(10天+)|空文件夹:true');
+        expect(config.description, 'APK:true|临时:false(10天+)|空文件夹:true');
       });
 
       test('should create copy with modified values', () {

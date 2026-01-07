@@ -6,6 +6,8 @@ import 'package:easyfile/core/services/search_history_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
+import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/junk_file_cache_manager.dart';
 
 /// 缓存管理服务
 /// 
@@ -19,6 +21,7 @@ import 'package:easyfile/core/services/mediastore_cache_service.dart';
 /// - 重复文件扫描缓存
 /// - 应用管理缓存（应用存储/统计/文件数量/检测）
 /// - 媒体库扫描缓存（相机照片/视频/录音）
+/// - 垃圾文件扫描缓存（垃圾文件清理+系统回收站扫描）
 class CacheManagerService {
   static final CacheManagerService _instance = CacheManagerService._internal();
   factory CacheManagerService() => _instance;
@@ -30,13 +33,24 @@ class CacheManagerService {
 
   // MediaStore缓存服务
   final _mediaStoreCache = MediaStoreCacheService();
+  
+  // 垃圾文件缓存管理器
+  final _junkFileCache = JunkFileCacheManager();
 
   // 重复文件扫描服务（需要外部传入）
   EnhancedDuplicateFileScanService? _duplicateFileScanService;
+  
+  // 系统回收站扫描服务（需要外部传入）
+  TrashFileService? _trashFileService;
 
   /// 设置重复文件扫描服务
   void setDuplicateFileScanService(EnhancedDuplicateFileScanService service) {
     _duplicateFileScanService = service;
+  }
+  
+  /// 设置系统回收站服务
+  void setTrashFileService(TrashFileService service) {
+    _trashFileService = service;
   }
 
   /// 获取所有缓存信息
@@ -255,6 +269,84 @@ class CacheManagerService {
       ));
     }
 
+    // 10. 垃圾文件扫描缓存（包含垃圾文件清理+系统回收站扫描）
+    try {
+      // 获取垃圾文件缓存信息
+      final junkCacheInfo = await _junkFileCache.getCacheInfo();
+      final junkExists = junkCacheInfo['exists'] as bool;
+      final junkFileCount = junkCacheInfo['fileCount'] as int? ?? 0;
+      final junkTimestamp = junkCacheInfo['timestamp'] as DateTime?;
+      
+      // 获取回收站缓存信息
+      int trashFileCount = 0;
+      DateTime? trashTimestamp;
+      if (_trashFileService != null) {
+        final trashCacheInfo = _trashFileService!.getCacheInfo();
+        final hasTrashCache = trashCacheInfo['hasCache'] as bool? ?? false;
+        if (hasTrashCache) {
+          trashFileCount = trashCacheInfo['fileCount'] as int? ?? 0;
+          trashTimestamp = trashCacheInfo['cacheTime'] as DateTime?;
+        }
+      }
+      
+      // 计算总缓存大小（估算）
+      final junkCacheSize = junkFileCount * 150; // 垃圾文件元数据约150字节
+      final trashCacheSize = trashFileCount * 200; // 回收站文件元数据约200字节
+      final totalSize = junkCacheSize + trashCacheSize;
+      
+      // 构建描述信息
+      final parts = <String>[];
+      if (junkExists && junkFileCount > 0) {
+        parts.add('垃圾文件 $junkFileCount 个');
+      }
+      if (trashFileCount > 0) {
+        parts.add('回收站 $trashFileCount 个');
+      }
+      
+      String description;
+      if (parts.isEmpty) {
+        description = '无缓存';
+      } else {
+        // 使用最新的时间戳
+        DateTime? latestTime;
+        if (junkTimestamp != null && trashTimestamp != null) {
+          latestTime = junkTimestamp.isAfter(trashTimestamp) ? junkTimestamp : trashTimestamp;
+        } else {
+          latestTime = junkTimestamp ?? trashTimestamp;
+        }
+        
+        String timeAgo = '';
+        if (latestTime != null) {
+          final duration = DateTime.now().difference(latestTime);
+          if (duration.inMinutes < 60) {
+            timeAgo = '${duration.inMinutes}分钟前';
+          } else if (duration.inHours < 24) {
+            timeAgo = '${duration.inHours}小时前';
+          } else {
+            timeAgo = '${duration.inDays}天前';
+          }
+          timeAgo = '，$timeAgo 扫描';
+        }
+        
+        description = '${parts.join('、')}$timeAgo';
+      }
+      
+      items.add(CacheItem(
+        name: '垃圾文件扫描缓存',
+        description: description,
+        size: totalSize,
+        type: CacheType.junkScan,
+      ));
+    } catch (e) {
+      logger.e('Failed to get junk scan cache info: $e');
+      items.add(CacheItem(
+        name: '垃圾文件扫描缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.junkScan,
+      ));
+    }
+
     return items;
   }
 
@@ -323,6 +415,20 @@ class CacheManagerService {
           final result = await _clearMediaStoreCache();
           logger.i('MediaStore cache cleared: $result');
           return result;
+
+        case CacheType.junkScan:
+          // 清理垃圾文件缓存
+          await _junkFileCache.clearCache();
+          logger.i('Junk file cache cleared');
+          
+          // 清理回收站缓存
+          if (_trashFileService != null) {
+            await _trashFileService!.clearCache(keepSuppressionPeriods: false);
+            logger.i('Trash scan cache cleared');
+          } else {
+            logger.w('Trash file service not initialized');
+          }
+          return true;
       }
     } catch (e) {
       logger.e('>>> EXCEPTION in clearCache for $type: $e');
@@ -636,6 +742,7 @@ enum CacheType {
   duplicateFileScan, // 重复文件扫描缓存
   appManagement, // 应用管理缓存（存储、统计、文件数量、检测）
   mediaStore, // 媒体库扫描缓存（照片、视频、录音）
+  junkScan, // 垃圾文件扫描缓存（垃圾文件清理+系统回收站扫描）
 }
 
 extension CacheTypeExtension on CacheType {
@@ -659,6 +766,8 @@ extension CacheTypeExtension on CacheType {
         return '应用管理缓存';
       case CacheType.mediaStore:
         return '媒体库扫描缓存';
+      case CacheType.junkScan:
+        return '垃圾文件扫描缓存';
     }
   }
 }

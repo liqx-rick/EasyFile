@@ -3,8 +3,11 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
+import 'package:easyfile/core/preferences/system_trash_preferences.dart';
 import 'package:easyfile/core/services/junk_file_service.dart';
+import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/data/models/junk_file_item.dart';
+import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/widgets/sliver_category_filter_delegate.dart';
 import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
@@ -34,10 +37,17 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   // 选中的文件
   final Set<String> _selectedPaths = {};
 
+  // 系统回收站相关
+  Map<String, dynamic>? _systemTrashStats;
+  bool _showSystemTrashPrompt = false;
+  bool _expandSystemTrashDetails = false; // 折叠/展开状态
+
   @override
   void initState() {
     super.initState();
     _initializeService();
+    // 独立检查系统回收站（不依赖垃圾文件扫描）
+    _checkSystemTrashOnInit();
   }
 
   /// 异步初始化服务
@@ -52,6 +62,85 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       if (mounted) {
         _showError('服务初始化失败: $e');
       }
+    }
+  }
+
+  /// 页面初始化时独立检查系统回收站（不依赖垃圾文件扫描）
+  Future<void> _checkSystemTrashOnInit() async {
+    // 延迟500毫秒，避免与垃圾文件扫描初始化冲突
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    // 统一的加载/扫描方法
+    await _loadOrScanSystemTrash();
+  }
+
+  /// 检查是否应该显示系统回收站提示
+  ///
+  /// 检查条件：
+  /// - 扫描缓存未超过36小时
+  /// - 不在用户忽略期内（7天）
+  /// - 不在清理抑制期内（7天）
+  Future<bool> _shouldShowSystemTrashPrompt() async {
+    // 检查用户忽略期（7天）
+    if (await SystemTrashPreferences.isInUserDismissedPeriod()) {
+      return false;
+    }
+
+    // 检查清理抑制期（7天）
+    if (await SystemTrashPreferences.isInCleanedSuppressionPeriod()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// 加载或扫描系统回收站统计数据
+  ///
+  /// 流程：
+  /// 1. 检查是否应该显示提示（抑制期检查）
+  /// 2. 如果不应该显示，直接返回
+  /// 3. 尝试加载统计数据（优先使用缓存）
+  /// 4. 如果数据>=100MB，显示提示卡片并更新扫描时间
+  Future<void> _loadOrScanSystemTrash() async {
+    if (!mounted) return;
+
+    try {
+      // 1. 检查是否应该显示提示
+      if (!await _shouldShowSystemTrashPrompt()) {
+        logger.d('系统回收站提示：不满足显示条件（在抑制期内）');
+        return;
+      }
+
+      // 2. 加载统计数据（优先使用缓存）
+      final service = await locator.getAsync<TrashFileService>();
+      await service.initialize();
+
+      final stats = await service.getOldFilesStatistics(
+        months: 3,
+        forceRefresh: false,
+      );
+
+      final sizeMB = stats['sizeMB'] as int;
+
+      // 3. 检查是否满足显示阈值（>=100MB）
+      if (sizeMB >= 100) {
+        // 更新扫描时间（仅在首次显示时更新）
+        await SystemTrashPreferences.setLastScanTimeNow();
+
+        if (mounted) {
+          setState(() {
+            _systemTrashStats = stats;
+            _showSystemTrashPrompt = true;
+          });
+          logger.i('显示系统回收站提示卡片（${sizeMB}MB）');
+        }
+      } else {
+        logger.d('系统回收站旧文件少于100MB（${sizeMB}MB），不显示提示');
+      }
+    } catch (e) {
+      logger.e('加载系统回收站统计数据失败: $e');
     }
   }
 
@@ -92,6 +181,9 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           _applyFilter();
           _isScanning = false;
         });
+
+        // 注意：系统回收站扫描现在在 initState 时独立触发
+        // 不再依赖垃圾文件扫描完成
       }
     } catch (e) {
       logger.e('扫描垃圾文件失败: $e');
@@ -251,7 +343,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
               ? _buildEmptyView()
               : CustomScrollView(
                   slivers: [
-                    // 统计卡片
+                    // 统计卡片（包含系统回收站提示）
                     SliverToBoxAdapter(
                       child: _buildSummaryCard(),
                     ),
@@ -331,11 +423,12 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          children: [
-            Row(
+      child: Column(
+        children: [
+          // 上部：垃圾文件统计信息
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem(
@@ -371,8 +464,12 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                 ],
               ],
             ),
-          ],
-        ),
+          ),
+
+          // 下部：系统回收站提示（如果有）
+          if (_showSystemTrashPrompt && _systemTrashStats != null)
+            _buildSystemTrashSection(),
+        ],
       ),
     );
   }
@@ -443,7 +540,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              label: Text('${entry.value} ($count)'),
+              label: Text(isSelected ? '${entry.value} ($count)' : entry.value),
               selected: isSelected,
               onSelected: (_) {
                 setState(() {
@@ -692,5 +789,208 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
 
     // 临时文件 - 使用配置判断
     return AppConfig.instance.fileTypes.getSimplifiedMimeType(file.name);
+  }
+
+  /// 系统回收站提示卡片（折叠版）
+  /// 系统回收站提示区域（在统计卡片内）
+  Widget _buildSystemTrashSection() {
+    final count = _systemTrashStats!['count'] as int;
+    final sizeMB = _systemTrashStats!['sizeMB'] as int;
+    final oldestFileDate = _systemTrashStats!['oldestFileDate'] as DateTime?;
+
+    // 格式化最久时间显示
+    String oldestTimeDisplay = '未知';
+    if (oldestFileDate != null) {
+      final duration = DateTime.now().difference(oldestFileDate);
+      final days = duration.inDays;
+
+      if (days >= 365) {
+        final years = days ~/ 365;
+        final months = (days % 365) ~/ 30;
+        oldestTimeDisplay = months > 0 ? '$years年$months个月前' : '$years年前';
+      } else if (days >= 30) {
+        final months = days ~/ 30;
+        oldestTimeDisplay = '$months个月前';
+      } else {
+        oldestTimeDisplay = '$days天前';
+      }
+
+      // 添加实际日期
+      final dateStr =
+          '${oldestFileDate.year}年${oldestFileDate.month}月${oldestFileDate.day}日';
+      oldestTimeDisplay = '$oldestTimeDisplay ($dateStr)';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          // 主标题区域（可折叠）
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 折叠图标
+                InkWell(
+                  onTap: () {
+                    setState(() =>
+                        _expandSystemTrashDetails = !_expandSystemTrashDetails);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(
+                      _expandSystemTrashDetails
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      color: Colors.blue.shade700,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // 文案和按钮（Stack布局）
+                Expanded(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // 文案（可点击展开）
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _expandSystemTrashDetails =
+                              !_expandSystemTrashDetails);
+                        },
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: 12), // 为下方按钮留出空间
+                          child: Text(
+                            '检测到系统回收站中存在长期未清理的文件',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.red.shade900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 按钮（定位在折叠图标下方，靠右显示）
+                      Positioned(
+                        right: 0,
+                        top: 28, // 折叠图标下方位置
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TrashFilesPage(),
+                              ),
+                            );
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.cleaning_services,
+                                  color: Color.fromARGB(255, 140, 141, 141),
+                                  size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '前往清理',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      const Color.fromARGB(255, 140, 141, 141),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 详细信息（折叠内容）
+          if (_expandSystemTrashDetails) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Text(
+                    '这些文件可能来自旧设备迁移或历史删除操作\n'
+                    '当前可能不会自动清理，仍占用存储空间',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildStatRow('📊 文件数', '$count 个'),
+                  const SizedBox(height: 6),
+                  _buildStatRow('💾 占用空间', '$sizeMB MB'),
+                  const SizedBox(height: 6),
+                  _buildStatRow('⏰ 最久时间', oldestTimeDisplay),
+                  const SizedBox(height: 8),
+                  // 一周内不再提示（移到折叠内容末尾）
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () async {
+                        await SystemTrashPreferences.setUserDismissedPeriod(
+                          const Duration(days: 7),
+                        );
+
+                        setState(() => _showSystemTrashPrompt = false);
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已设置一周内不再提示')),
+                          );
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                      ),
+                      child: Text(
+                        '一周内不再提示',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Text(value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+      ],
+    );
   }
 }

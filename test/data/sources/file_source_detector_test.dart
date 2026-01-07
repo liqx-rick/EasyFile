@@ -1,3 +1,4 @@
+import 'package:easyfile/core/logger.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/sources/file_source_detector.dart';
 import 'package:easyfile/core/constants/system_folders_config.dart';
@@ -348,7 +349,7 @@ void main() {
         }
         stopwatch.stop();
 
-        print('识别5000次耗时: ${stopwatch.elapsedMilliseconds}ms');
+        logger.i('识别5000次耗时: ${stopwatch.elapsedMilliseconds}ms');
         expect(stopwatch.elapsedMilliseconds, lessThan(500)); // 应该小于500ms
       });
     });

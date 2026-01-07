@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/preferences/system_trash_preferences.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
 import 'package:easyfile/data/models/trash_bin.dart';
@@ -59,6 +60,10 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   // 当前选中的分类
   String _currentCategory = 'all'; // all, images, videos, others
 
+  // 时间过滤器：默认只显示3个月以上的文件
+  bool _showOldFilesOnly = true;
+  static const int _oldFilesMonths = 3;
+
   @override
   void initState() {
     super.initState();
@@ -95,7 +100,8 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   }
 
   /// 开始扫描
-  Future<void> _startScan() async {
+  /// [forceRefresh] 是否强制刷新（忽略缓存）
+  Future<void> _startScan({bool forceRefresh = false}) async {
     setState(() {
       _isScanning = true;
       _trashBins = [];
@@ -106,6 +112,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
     try {
       final result = await _service!.scanTrashBinsWithFiles(
+        forceRefresh: forceRefresh,
         onProgress: (current, total, path) {
           // 扫描进度回调，仅用于记录，UI不显示
         },
@@ -135,6 +142,23 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     }
   }
 
+  /// 获取用于统计的文件列表（根据时间过滤状态）
+  List<TrashFileItem> _getFilesForStats() {
+    if (!_showOldFilesOnly) {
+      return _allFiles;
+    }
+
+    // 只统计3个月以上的文件
+    final cutoffDate = DateTime.now().subtract(
+      Duration(days: _oldFilesMonths * 30),
+    );
+
+    return _allFiles.where((f) {
+      final fileDate = f.trashedTime ?? f.modified;
+      return fileDate.isBefore(cutoffDate);
+    }).toList();
+  }
+
   /// 按文件类型聚合
   List<FileTypeCategory> _aggregateByFileType() {
     final categories = <FileTypeCategory>[];
@@ -149,16 +173,21 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
     final config = AppConfig.instance.fileTypes;
 
-    for (final file in _allFiles) {
+    // 获取要统计的文件列表（根据过滤状态）
+    final filesToAggregate = _getFilesForStats();
+
+    for (final file in filesToAggregate) {
       final mimeType = file.mimeType.toLowerCase();
 
       if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         imageSize += file.size;
         imageCount++;
-      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
+      } else if (mimeType.startsWith('video/') ||
+          config.isVideoFile(file.name)) {
         videoSize += file.size;
         videoCount++;
-      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
+      } else if (mimeType.startsWith('audio/') ||
+          config.isAudioFile(file.name)) {
         audioSize += file.size;
         audioCount++;
       } else if (config.isDocumentFile(file.name)) {
@@ -269,7 +298,18 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       }).toList();
     }
 
-    // 3. 按删除时间倒序排序（最新删除的在前）
+    // 3. 根据时间过滤 - 默认只显示3个月以上的文件
+    if (_showOldFilesOnly) {
+      final cutoffDate = DateTime.now().subtract(
+        Duration(days: _oldFilesMonths * 30),
+      );
+      files = files.where((f) {
+        final fileDate = f.trashedTime ?? f.modified;
+        return fileDate.isBefore(cutoffDate);
+      }).toList();
+    }
+
+    // 4. 按删除时间倒序排序（最新删除的在前）
     files.sort((a, b) {
       final aTime = a.trashedTime ?? a.modified;
       final bTime = b.trashedTime ?? b.modified;
@@ -283,15 +323,17 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   Future<void> _emptyAllTrash() async {
     if (_trashBins.isEmpty) return;
 
-    final totalSize = _allFiles.fold<int>(0, (sum, f) => sum + f.size);
-    final totalCount = _allFiles.length;
+    // 使用过滤后的文件列表（根据时间过滤状态）
+    final filesToDelete = _getFilesForStats();
+    final totalSize = filesToDelete.fold<int>(0, (sum, f) => sum + f.size);
+    final totalCount = filesToDelete.length;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('确认清空'),
         content: Text(
-          '确定要清空所有回收站吗？\n\n'
+          '确认要清空所有系统回收站吗？\n\n'
           '$totalCount 个文件，${FileSizeFormatter.formatBytes(totalSize)}\n\n'
           '⚠️ 这些文件将永久删除，无法恢复！',
         ),
@@ -329,7 +371,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     try {
       final result = await _service!.deleteTrashBinFiles(
         trashBinIds: _trashBins.map((b) => b.id).toList(),
-        allFiles: _allFiles,
+        allFiles: filesToDelete,
       );
 
       if (!mounted) return;
@@ -352,6 +394,19 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
           ],
         ),
       );
+
+      // 清除缓存并设置抑制期
+      // 注：清空操作无论是清空3个月前还是全部，都总是设置抑制期
+      if (result['success'] > 0) {
+        await SystemTrashPreferences.setCleanedSuppressionPeriod(
+          const Duration(days: 7),
+        );
+
+        // 清除缓存（保留抑制期设置）
+        await _service!.clearCache(keepSuppressionPeriods: true);
+
+        logger.i('清空回收站后已清除缓存并设置抑制期');
+      }
 
       _startScan();
     } catch (e) {
@@ -393,6 +448,48 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       Navigator.of(context).pop(); // 关闭加载对话框
 
       _showResultDialog(result);
+
+      // 清除缓存并智能判断是否设置抑制期
+      // 逻辑：只有当删除后剩余的3个月前文件很少时，才设置7天抑制期
+      // 阈值：<10个文件且<100MB（表示清理得较彻底）
+      // 此设计避免了“只删部分文件就隐藏剩余文件”的问题
+      if (result['success'] > 0) {
+        // 计算剩余的3个月前的文件
+        final cutoffDate = DateTime.now().subtract(
+          const Duration(days: 3 * 30),
+        );
+
+        final remainingOldFiles =
+            _allFiles.where((f) => !_selectedPaths.contains(f.path)).where((f) {
+          final fileDate = f.trashedTime ?? f.modified;
+          return fileDate.isBefore(cutoffDate);
+        }).toList();
+
+        final remainingOldSize = remainingOldFiles.fold<int>(
+          0,
+          (sum, f) => sum + f.size,
+        );
+        final remainingOldSizeMB = remainingOldSize / (1024 * 1024);
+
+        // 智能判断：只有当剩余的3个月前文件很少时才设置抑制期
+        if (remainingOldFiles.length < 10 && remainingOldSizeMB < 100) {
+          await SystemTrashPreferences.setCleanedSuppressionPeriod(
+            const Duration(days: 7),
+          );
+          logger.i(
+            '清理较彻底（剩余3个月前文件：${remainingOldFiles.length}个/'
+            '${remainingOldSizeMB.toStringAsFixed(1)}MB），已设置抑制期',
+          );
+        } else {
+          logger.i(
+            '清理不完整（剩余3个月前文件：${remainingOldFiles.length}个/'
+            '${remainingOldSizeMB.toStringAsFixed(1)}MB），不设置抑制期',
+          );
+        }
+
+        // 清除缓存（保留抑制期设置）
+        await _service!.clearCache(keepSuppressionPeriods: true);
+      }
 
       // 刷新列表
       setState(() {
@@ -498,12 +595,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.folder,
-                              size: 20, color: Colors.blue),
-                          const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'EasyFile/Restored/',
+                              '根目录：/EasyFile/Restored/',
                               style: TextStyle(
                                 color: Colors.blue,
                                 fontWeight: FontWeight.w500,
@@ -529,11 +623,16 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                           ),
                         )),
                     const SizedBox(height: 16),
-                    Text(
-                      '请移步至快捷访问菜单的 "已恢复" 入口查看。',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(text: '请移步至快捷访问菜单的 '),
+                          const TextSpan(
+                            text: '"已恢复文件"',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const TextSpan(text: ' 查看。'),
+                        ],
                       ),
                     ),
                     if (failed > 0) ...[
@@ -674,298 +773,311 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('回收站清理'),
-        actions: [
-          // 刷新按钮（扫描时隐藏）
-          if (!_isScanning)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: '刷新',
-              onPressed: _startScan,
-            ),
-          // 全选/取消全选
-          if (!_isScanning && _filteredFiles.isNotEmpty)
-            SelectAllButton(
-              selectedCount: _filteredFiles
-                  .where((f) => _selectedPaths.contains(f.path))
-                  .length,
-              totalCount: _filteredFiles.length,
-              onPressed: () {
-                setState(() {
-                  final filteredPaths =
-                      _filteredFiles.map((f) => f.path).toSet();
-                  if (_selectedPaths.containsAll(filteredPaths)) {
-                    // 取消选择当前过滤的文件
-                    _selectedPaths.removeAll(filteredPaths);
-                  } else {
-                    // 选择当前过滤的文件
-                    _selectedPaths.addAll(filteredPaths);
-                  }
-                });
-              },
-            ),
-        ],
-      ),
-      body: _isScanning
-          ? _buildScanningView()
-          : _allFiles.isEmpty
-              ? _buildEmptyView()
-              : CustomScrollView(
-                  slivers: [
-                    // 统计卡片
-                    SliverToBoxAdapter(
-                      child: _buildSummaryCard(),
-                    ),
-
-                    // 分类筛选 - 置顶显示
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _CategoryFilterDelegate(
-                        child: _buildCategoryFilter(),
+    return PopScope(
+      canPop: _selectedPaths.isEmpty,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _selectedPaths.isNotEmpty) {
+          setState(() {
+            _selectedPaths.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('系统回收站清理'),
+          actions: [
+            // 刷新按钮（扫描时隐藏）
+            if (!_isScanning)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: '强制刷新',
+                onPressed: () => _startScan(forceRefresh: true),
+              ),
+            // 全选/取消全选
+            if (!_isScanning && _filteredFiles.isNotEmpty)
+              SelectAllButton(
+                selectedCount: _filteredFiles
+                    .where((f) => _selectedPaths.contains(f.path))
+                    .length,
+                totalCount: _filteredFiles.length,
+                onPressed: () {
+                  setState(() {
+                    final filteredPaths =
+                        _filteredFiles.map((f) => f.path).toSet();
+                    if (_selectedPaths.containsAll(filteredPaths)) {
+                      // 取消选择当前过滤的文件
+                      _selectedPaths.removeAll(filteredPaths);
+                    } else {
+                      // 选择当前过滤的文件
+                      _selectedPaths.addAll(filteredPaths);
+                    }
+                  });
+                },
+              ),
+          ],
+        ),
+        body: _isScanning
+            ? _buildScanningView()
+            : _allFiles.isEmpty
+                ? _buildEmptyView()
+                : CustomScrollView(
+                    slivers: [
+                      // 统计卡片
+                      SliverToBoxAdapter(
+                        child: _buildSummaryCard(),
                       ),
-                    ),
 
-                    // 提示信息（如果需要）
-                    if (_getDisplayedFiles().isEmpty)
-                      SliverFillRemaining(
-                        child: _buildEmptyCategoryView(),
-                      )
-                    else
-                      // 文件列表
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final files = _getDisplayedFiles();
-                            final file = files[index];
-                            final isSelected =
-                                _selectedPaths.contains(file.path);
+                      // 分类筛选 - 置顶显示
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _CategoryFilterDelegate(
+                          child: _buildCategoryFilter(),
+                        ),
+                      ),
 
-                            return InkWell(
-                              onLongPress: () {
-                                FileDetailsHelper
-                                    .showTrashFileDetailsBottomSheet(
-                                  context,
-                                  file,
-                                  trashBinName: _getTrashBinName(file),
-                                  fileTypeLabel: _getFileTypeLabel(file),
-                                );
-                              },
-                              onTap: () {
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedPaths.remove(file.path);
-                                  } else {
-                                    _selectedPaths.add(file.path);
-                                  }
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 左侧图标或缩略图
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                          right: 12, top: 4),
-                                      child: FileListItemBuilder
-                                          .buildFileThumbnail(
-                                        filePath: file.path,
-                                        mimeType: file.mimeType,
-                                        fileName: file.name,
-                                        onTap: () => _previewFile(file),
-                                        size: 48.0,
+                      // 提示信息（如果需要）
+                      if (_getDisplayedFiles().isEmpty)
+                        SliverFillRemaining(
+                          child: _buildEmptyCategoryView(),
+                        )
+                      else
+                        // 文件列表
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final files = _getDisplayedFiles();
+                              final file = files[index];
+                              final isSelected =
+                                  _selectedPaths.contains(file.path);
+
+                              return InkWell(
+                                onLongPress: () {
+                                  FileDetailsHelper
+                                      .showTrashFileDetailsBottomSheet(
+                                    context,
+                                    file,
+                                    trashBinName: _getTrashBinName(file),
+                                    fileTypeLabel: _getFileTypeLabel(file),
+                                  );
+                                },
+                                onTap: () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedPaths.remove(file.path);
+                                    } else {
+                                      _selectedPaths.add(file.path);
+                                    }
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // 左侧图标或缩略图
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            right: 12, top: 4),
+                                        child: FileListItemBuilder
+                                            .buildFileThumbnail(
+                                          filePath: file.path,
+                                          mimeType: file.mimeType,
+                                          fileName: file.name,
+                                          onTap: () => _previewFile(file),
+                                          size: 48.0,
+                                        ),
                                       ),
-                                    ),
-                                    // 中间内容区域
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // 第一行：文件名 + 勾选框
-                                          Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  FileListItemBuilder
-                                                      .truncateFileName(
-                                                          file.name,
-                                                          maxLength: 35),
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w500,
+                                      // 中间内容区域
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // 第一行：文件名 + 勾选框
+                                            Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    FileListItemBuilder
+                                                        .truncateFileName(
+                                                            file.name,
+                                                            maxLength: 35),
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
                                                 ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              // 勾选框
-                                              SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child: Checkbox(
-                                                  value: isSelected,
-                                                  onChanged: (checked) {
-                                                    setState(() {
-                                                      if (checked == true) {
-                                                        _selectedPaths
-                                                            .add(file.path);
-                                                      } else {
-                                                        _selectedPaths
-                                                            .remove(file.path);
-                                                      }
-                                                    });
-                                                  },
-                                                  materialTapTargetSize:
-                                                      MaterialTapTargetSize
-                                                          .shrinkWrap,
-                                                  visualDensity:
-                                                      VisualDensity.compact,
+                                                const SizedBox(width: 8),
+                                                // 勾选框
+                                                SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: Checkbox(
+                                                    value: isSelected,
+                                                    onChanged: (checked) {
+                                                      setState(() {
+                                                        if (checked == true) {
+                                                          _selectedPaths
+                                                              .add(file.path);
+                                                        } else {
+                                                          _selectedPaths.remove(
+                                                              file.path);
+                                                        }
+                                                      });
+                                                    },
+                                                    materialTapTargetSize:
+                                                        MaterialTapTargetSize
+                                                            .shrinkWrap,
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          // 第二行：类型和大小
-                                          Text(
-                                            '${_getFileTypeLabel(file)} · ${FileSizeFormatter.formatBytes(file.size)}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF757575),
+                                              ],
                                             ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          // 第三行：回收站位置 · 删除时间 · 详情
-                                          GestureDetector(
-                                            onTapUp: (details) {
-                                              final trashBinName =
-                                                  _getTrashBinName(file);
-                                              final textPainter = TextPainter(
-                                                text: TextSpan(
-                                                  text:
-                                                      '$trashBinName · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Color(0xFF757575),
-                                                  ),
-                                                ),
-                                                textDirection:
-                                                    TextDirection.ltr,
-                                              );
-                                              textPainter.layout();
-                                              final offset = textPainter.width;
-
-                                              if (details.localPosition.dx >=
-                                                  offset) {
-                                                FileDetailsHelper
-                                                    .showTrashFileDetailsBottomSheet(
-                                                  context,
-                                                  file,
-                                                  trashBinName:
-                                                      _getTrashBinName(file),
-                                                  fileTypeLabel:
-                                                      _getFileTypeLabel(file),
-                                                );
-                                              }
-                                            },
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Color(0xFF757575),
-                                                  fontFamily: 'Roboto',
-                                                ),
-                                                children: [
-                                                  TextSpan(
+                                            const SizedBox(height: 4),
+                                            // 第二行：类型和大小
+                                            Text(
+                                              '${_getFileTypeLabel(file)} · ${FileSizeFormatter.formatBytes(file.size)}',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF757575),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            // 第三行：回收站位置 · 删除时间 · 详情
+                                            GestureDetector(
+                                              onTapUp: (details) {
+                                                final trashBinName =
+                                                    _getTrashBinName(file);
+                                                final textPainter = TextPainter(
+                                                  text: TextSpan(
                                                     text:
-                                                        '${_getTrashBinName(file)} · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
-                                                  ),
-                                                  const TextSpan(
-                                                    text: '详情',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.blue,
+                                                        '$trashBinName · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Color(0xFF757575),
                                                     ),
                                                   ),
-                                                ],
+                                                  textDirection:
+                                                      TextDirection.ltr,
+                                                );
+                                                textPainter.layout();
+                                                final offset =
+                                                    textPainter.width;
+
+                                                if (details.localPosition.dx >=
+                                                    offset) {
+                                                  FileDetailsHelper
+                                                      .showTrashFileDetailsBottomSheet(
+                                                    context,
+                                                    file,
+                                                    trashBinName:
+                                                        _getTrashBinName(file),
+                                                    fileTypeLabel:
+                                                        _getFileTypeLabel(file),
+                                                  );
+                                                }
+                                              },
+                                              child: RichText(
+                                                text: TextSpan(
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Color(0xFF757575),
+                                                    fontFamily: 'Roboto',
+                                                  ),
+                                                  children: [
+                                                    TextSpan(
+                                                      text:
+                                                          '${_getTrashBinName(file)} · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
+                                                    ),
+                                                    const TextSpan(
+                                                      text: '详情',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: Colors.blue,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          childCount: _getDisplayedFiles().length,
+                              );
+                            },
+                            childCount: _getDisplayedFiles().length,
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-      // 底部操作工具栏（恢复和删除）
-      bottomNavigationBar: _selectedPaths.isEmpty
-          ? null
-          : Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
+                    ],
                   ),
-                ],
-              ),
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _restoreSelected,
-                        icon: const Icon(Icons.restore_from_trash),
-                        label: Text('恢复 (${_selectedPaths.length})'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.green,
-                          side: const BorderSide(color: Colors.green),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _deleteSelected,
-                        icon: const Icon(Icons.delete_forever),
-                        label: Text('删除 (${_selectedPaths.length})'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
+        // 底部操作工具栏（恢复和删除）
+        bottomNavigationBar: _selectedPaths.isEmpty
+            ? null
+            : Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
                     ),
                   ],
                 ),
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _restoreSelected,
+                          icon: const Icon(Icons.restore_from_trash),
+                          label: Text('恢复 (${_selectedPaths.length})'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _deleteSelected,
+                          icon: const Icon(Icons.delete_forever),
+                          label: Text('删除 (${_selectedPaths.length})'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+      ),
     );
   }
 
   /// 获取过滤后的文件列表（使用_getDisplayedFiles替代）
   List<TrashFileItem> get _filteredFiles => _getDisplayedFiles();
 
-  /// 统计各类文件数量（基于所有文件，不受当前分类筛选影响）
+  /// 统计各类文件数量（根据时间过滤状态）
   Map<String, int> get _categoryStats {
     final config = AppConfig.instance.fileTypes;
     int images = 0,
@@ -975,14 +1087,19 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
         archives = 0,
         others = 0;
 
-    for (var file in _allFiles) {
+    // 获取用于统计的文件列表
+    final filesToStats = _getFilesForStats();
+
+    for (var file in filesToStats) {
       final mimeType = file.mimeType.toLowerCase();
 
       if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         images++;
-      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
+      } else if (mimeType.startsWith('video/') ||
+          config.isVideoFile(file.name)) {
         videos++;
-      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
+      } else if (mimeType.startsWith('audio/') ||
+          config.isAudioFile(file.name)) {
         audios++;
       } else if (config.isDocumentFile(file.name)) {
         documents++;
@@ -994,7 +1111,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     }
 
     return {
-      'all': _allFiles.length,
+      'all': filesToStats.length,
       'images': images,
       'videos': videos,
       'audios': audios,
@@ -1027,8 +1144,10 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
   /// 统计卡片（带饼图）
   Widget _buildSummaryCard() {
-    final totalSize = _allFiles.fold<int>(0, (sum, f) => sum + f.size);
-    final totalCount = _allFiles.length;
+    // 获取用于统计的文件列表
+    final filesToStats = _getFilesForStats();
+    final totalSize = filesToStats.fold<int>(0, (sum, f) => sum + f.size);
+    final totalCount = filesToStats.length;
     final categories = _aggregateByFileType();
 
     // 计算饼图/空状态图标的大小（横屏时限制最大高度）
@@ -1045,74 +1164,128 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
+        child: Column(
           children: [
-            // 左侧：饼图
-            Expanded(
-              flex: 5,
-              child: totalCount > 0
-                  ? _buildPieChart(categories)
-                  : Center(
-                      child: Icon(
-                        Icons.pie_chart_outline,
-                        size: iconSize * 0.6, // 空状态图标稍小一点，占饼图容器的60%
-                        color: Colors.grey[300],
+            Row(
+              children: [
+                // 左侧：饼图
+                Expanded(
+                  flex: 5,
+                  child: totalCount > 0
+                      ? _buildPieChart(categories)
+                      : Center(
+                          child: Icon(
+                            Icons.pie_chart_outline,
+                            size: iconSize * 0.6, // 空状态图标稍小一点，占饼图容器的60%
+                            color: Colors.grey[300],
+                          ),
+                        ),
+                ),
+                // 中间分割线
+                Container(
+                  width: 1,
+                  height: 140,
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  color: Colors.grey[300],
+                ),
+                // 右侧：总览信息
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '共发现 $totalCount 个文件',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        FileSizeFormatter.formatBytes(totalSize),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: totalCount > 0 ? _emptyAllTrash : null,
+                        icon: const Icon(Icons.delete_sweep, size: 20),
+                        label: const Text('一键清空'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          minimumSize: const Size(double.infinity, 44),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '不可恢复，请谨慎操作',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // 过滤状态提示
+            if (_showOldFilesOnly && _allFiles.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '当前仅显示$_oldFilesMonths个月以上的文件',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[900],
+                        ),
                       ),
                     ),
-            ),
-            // 中间分割线
-            Container(
-              width: 1,
-              height: 140,
-              margin: const EdgeInsets.symmetric(horizontal: 12),
-              color: Colors.grey[300],
-            ),
-            // 右侧：总览信息
-            Expanded(
-              flex: 5,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '共发现 $totalCount 个文件',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _showOldFilesOnly = false);
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        '显示全部',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    FileSizeFormatter.formatBytes(totalSize),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: totalCount > 0 ? _emptyAllTrash : null,
-                    icon: const Icon(Icons.delete_sweep, size: 20),
-                    label: const Text('一键清空'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      minimumSize: const Size(double.infinity, 44),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '不可恢复，请谨慎操作',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -1373,8 +1546,19 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       return '文本文件';
     }
 
-    // 压缩文件
-    if (config.isArchiveFile(file.name)) {
+    // 压缩文件（优先根据MIME类型判断，支持无扩展名文件）
+    if (mimeType.contains('zip') || mimeType.contains('application/zip')) {
+      return verified ? 'ZIP压缩包' : 'ZIP文件';
+    } else if (mimeType.contains('rar') || mimeType.contains('x-rar')) {
+      return verified ? 'RAR压缩包' : 'RAR文件';
+    } else if (mimeType.contains('7z') || mimeType.contains('x-7z')) {
+      return verified ? '7Z压缩包' : '7Z文件';
+    } else if (mimeType.contains('tar')) {
+      return verified ? 'TAR压缩包' : 'TAR文件';
+    } else if (mimeType.contains('gzip') || mimeType.contains('gz')) {
+      return verified ? 'GZ压缩包' : 'GZ文件';
+    } else if (config.isArchiveFile(file.name)) {
+      // 回退到文件名判断（有扩展名的情况）
       final ext = FileUtils.getExtension(file.name).toUpperCase();
       return verified ? '$ext压缩包' : '$ext文件';
     }
@@ -1676,7 +1860,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
     return FilterChip(
       selected: isSelected,
-      label: Text('$label ($count)'),
+      label: Text(isSelected ? '$label ($count)' : label),
       onSelected: (selected) {
         setState(() {
           _currentCategory = category;
@@ -1689,329 +1873,6 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       ),
       showCheckmark: false,
     );
-  }
-}
-
-/// 文件类型检测器页面
-class _FileTypeDetectorPage extends StatefulWidget {
-  final TrashFileService service;
-
-  const _FileTypeDetectorPage({required this.service});
-
-  @override
-  State<_FileTypeDetectorPage> createState() => _FileTypeDetectorPageState();
-}
-
-class _FileTypeDetectorPageState extends State<_FileTypeDetectorPage> {
-  final _pathController = TextEditingController(
-    text: '/storage/emulated/0/.RecycleBinHW/f20040d3a88f40d16eb35276395c19c2',
-  );
-  bool _isDetecting = false;
-  Map<String, dynamic>? _result;
-
-  @override
-  void dispose() {
-    _pathController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _detectFile() async {
-    final path = _pathController.text.trim();
-    if (path.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入文件路径')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isDetecting = true;
-      _result = null;
-    });
-
-    try {
-      final result = await widget.service.detectFileType(path);
-      if (mounted) {
-        setState(() {
-          _result = result;
-          _isDetecting = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isDetecting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('检测失败: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('文件类型检测器'),
-      ),
-      body: Column(
-        children: [
-          // 输入区域
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Theme.of(context).colorScheme.surface,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '文件路径',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _pathController,
-                  decoration: InputDecoration(
-                    hintText: '输入文件绝对路径',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    prefixIcon: const Icon(Icons.insert_drive_file),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () => _pathController.clear(),
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                  ),
-                  maxLines: 3,
-                  minLines: 1,
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: _isDetecting ? null : _detectFile,
-                  icon: _isDetecting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.search),
-                  label: Text(_isDetecting ? '检测中...' : '开始检测'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 结果区域
-          Expanded(
-            child: _buildResultArea(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultArea() {
-    if (_result == null) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              '输入文件路径后点击"开始检测"',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_result!['error'] != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                '错误: ${_result!['error']}',
-                style: const TextStyle(color: Colors.red, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 文件类型卡片
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Icon(
-                    _getFileIcon(_result!['mimeType']),
-                    size: 64,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _result!['description'] ?? '未知类型',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _result!['mimeType'] ?? 'unknown',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 文件信息
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '文件信息',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow('路径', _result!['path'], isPath: true),
-                  const Divider(),
-                  _buildInfoRow('大小', _result!['sizeFormatted']),
-                  const Divider(),
-                  _buildInfoRow('修改时间', _result!['modified']),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 文件头信息
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '文件头 (十六进制)',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: SelectableText(
-                      _result!['hexHeader'] ?? '',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String? value, {bool isPath = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 4),
-          SelectableText(
-            value ?? 'N/A',
-            style: TextStyle(
-              fontSize: 14,
-              fontFamily: isPath ? 'monospace' : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getFileIcon(String? mimeType) {
-    if (mimeType == null) return Icons.help_outline;
-
-    if (mimeType.startsWith('image/')) {
-      return Icons.image;
-    } else if (mimeType.startsWith('video/')) {
-      return Icons.videocam;
-    } else if (mimeType.startsWith('audio/')) {
-      return Icons.audiotrack;
-    } else if (mimeType.contains('pdf')) {
-      return Icons.picture_as_pdf;
-    } else if (mimeType.contains('zip') || mimeType.contains('rar')) {
-      return Icons.folder_zip;
-    } else if (mimeType.contains('text')) {
-      return Icons.description;
-    } else if (mimeType.contains('android.package')) {
-      return Icons.android;
-    } else {
-      return Icons.insert_drive_file;
-    }
   }
 }
 

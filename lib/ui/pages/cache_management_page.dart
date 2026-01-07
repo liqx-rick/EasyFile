@@ -132,6 +132,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
+            if (item.type == CacheType.junkScan) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ 清理后，垃圾清理和回收站提示需要重新扫描',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -335,6 +342,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.apps;
       case CacheType.mediaStore:
         return Icons.perm_media;
+      case CacheType.junkScan:
+        return Icons.cleaning_services;
     }
   }
 

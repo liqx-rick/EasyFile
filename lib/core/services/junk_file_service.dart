@@ -1,6 +1,4 @@
 import 'dart:io';
-// import 'package:device_apps/device_apps.dart';  // 已替换为installed_apps
-// import 'package:installed_apps/installed_apps.dart';  // 暂时不使用（无法从文件解析APK）
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';

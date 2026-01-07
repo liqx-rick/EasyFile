@@ -9,6 +9,7 @@ import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/recommendation_settings.dart';
+import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/data/models/category_info.dart';
@@ -47,9 +48,22 @@ class _SettingsPageState extends State<SettingsPage> {
     final enhancedScanService =
         EnhancedDuplicateFileScanService(duplicateFileService);
     CacheManagerService().setDuplicateFileScanService(enhancedScanService);
+    
+    // 初始化系统回收站服务：注入依赖到CacheManagerService
+    _initTrashFileService();
 
     _loadSettings();
     _loadFeatureConfig();
+  }
+  
+  /// 初始化系统回收站服务
+  Future<void> _initTrashFileService() async {
+    try {
+      final trashFileService = await locator.getAsync<TrashFileService>();
+      CacheManagerService().setTrashFileService(trashFileService);
+    } catch (e) {
+      logger.e('Failed to initialize TrashFileService for cache management: $e');
+    }
   }
   
   /// 加载功能配置

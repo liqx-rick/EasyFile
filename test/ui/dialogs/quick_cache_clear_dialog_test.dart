@@ -56,6 +56,9 @@ class MockCacheManagerService implements CacheManagerService {
   void setDuplicateFileScanService(dynamic service) {}
 
   @override
+  void setTrashFileService(dynamic service) {}
+
+  @override
   String formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';

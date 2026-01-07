@@ -110,6 +110,10 @@ class TrashFileItem {
   }
 
   /// 获取回收站目录名称
+  ///
+  /// 注意：此方法已废弃，优先使用 [TrashBin.name] 通过 [trashBinId] 查询回收站名称
+  /// 此getter仅作为兜底机制，当trashBinId查找失败时使用
+  @Deprecated('优先使用 TrashBin.name，此方法仅用于兜底')
   String get trashDirectoryName {
     final normalizedPath = path.replaceAll('\\', '/');
     if (normalizedPath.contains('/.Trash/')) {

@@ -22,7 +22,6 @@ import 'package:easyfile/ui/pages/category_file_page.dart'
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
-import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 
 import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
@@ -284,7 +283,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           const SizedBox(height: 24),
 
           // 2. 垃圾清理功能区（根据功能配置显示）
-          if (!_loadingFeatureConfig && (_featureConfig.isJunkCleanupEnabled || _featureConfig.isTrashEnabled)) ...[
+          if (!_loadingFeatureConfig && _featureConfig.isJunkCleanupEnabled) ...[
             _buildSectionTitle('垃圾清理', Icons.cleaning_services, colorScheme),
             const SizedBox(height: 12),
             _buildJunkAndTrashCard(theme, colorScheme),
@@ -1544,10 +1543,14 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     );
   }
 
-  /// 6. 垃圾文件清理和回收站管理合并卡片
+  /// 6. 垃圾文件清理卡片（移除回收站入口）
   Widget _buildJunkAndTrashCard(ThemeData theme, ColorScheme colorScheme) {
     final showJunk = _featureConfig.isJunkCleanupEnabled;
-    final showTrash = _featureConfig.isTrashEnabled;
+    
+    // 只显示垃圾清理，不再显示回收站入口
+    if (!showJunk) {
+      return const SizedBox.shrink();
+    }
     
     return Card(
       elevation: 1,
@@ -1556,27 +1559,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 垃圾文件清理入口（根据配置显示）
-            if (showJunk) _buildJunkFilesEntry(theme, colorScheme),
-
-            // 分隔线（仅当两个功能都启用时显示）
-            if (showJunk && showTrash)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Divider(
-                  thickness: 1,
-                  height: 1,
-                  color: Colors.grey[300],
-                ),
-              ),
-
-            // 管理系统回收站入口（根据配置显示）
-            if (showTrash) _buildTrashFilesEntry(theme, colorScheme),
-          ],
-        ),
+        child: _buildJunkFilesEntry(theme, colorScheme),
       ),
     );
   }
@@ -1626,64 +1609,6 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   const SizedBox(height: 2),
                   Text(
                     '清理APK安装包、临时文件、空文件夹',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 管理系统回收站入口
-  Widget _buildTrashFilesEntry(ThemeData theme, ColorScheme colorScheme) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const TrashFilesPage(),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            // 图标
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.delete_outline,
-                color: colorScheme.onPrimaryContainer,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // 文字内容
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '管理系统回收站',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '浏览和恢复回收站文件，或彻底清空释放空间',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

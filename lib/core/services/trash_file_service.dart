@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/platform/mediastore_trash_channel.dart';
+import 'package:easyfile/core/services/trash_file_cache_manager.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
 import 'package:easyfile/data/models/trash_bin.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -24,6 +25,7 @@ class TrashScanResult {
 /// 回收站文件扫描服务
 class TrashFileService {
   final FilePresenter _filePresenter;
+  final TrashFileCacheManager _cacheManager = TrashFileCacheManager();
   bool _useMediaStore = false;
 
   TrashFileService({
@@ -36,341 +38,35 @@ class TrashFileService {
     logger.i('回收站服务初始化: useMediaStore=$_useMediaStore');
   }
 
-  /// 测试方法：检测指定文件的类型
-  Future<Map<String, dynamic>> detectFileType(String filePath) async {
-    try {
-      final file = File(filePath);
-
-      if (!await file.exists()) {
-        return {
-          'error': '文件不存在',
-          'path': filePath,
-        };
-      }
-
-      final stat = await file.stat();
-      final bytes = await file.openRead(0, 32).first;
-
-      String mimeType = 'unknown';
-      String description = '未知类型';
-
-      // JPEG: FF D8 FF
-      if (bytes.length >= 3 &&
-          bytes[0] == 0xFF &&
-          bytes[1] == 0xD8 &&
-          bytes[2] == 0xFF) {
-        mimeType = 'image/jpeg';
-        description = 'JPEG图片';
-      }
-      // PNG: 89 50 4E 47
-      else if (bytes.length >= 4 &&
-          bytes[0] == 0x89 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x4E &&
-          bytes[3] == 0x47) {
-        mimeType = 'image/png';
-        description = 'PNG图片';
-      }
-      // WebP: 52 49 46 46 ... 57 45 42 50
-      else if (bytes.length >= 12 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x46 &&
-          bytes[8] == 0x57 &&
-          bytes[9] == 0x45 &&
-          bytes[10] == 0x42 &&
-          bytes[11] == 0x50) {
-        mimeType = 'image/webp';
-        description = 'WebP图片';
-      }
-      // MP4: 00 00 00 XX 66 74 79 70 (ftyp at offset 4)
-      else if (bytes.length >= 12 &&
-          bytes[4] == 0x66 &&
-          bytes[5] == 0x74 &&
-          bytes[6] == 0x79 &&
-          bytes[7] == 0x70) {
-        mimeType = 'video/mp4';
-        description = 'MP4视频';
-      }
-      // GIF: 47 49 46 38
-      else if (bytes.length >= 4 &&
-          bytes[0] == 0x47 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x38) {
-        mimeType = 'image/gif';
-        description = 'GIF图片';
-      }
-      // PDF: 25 50 44 46
-      else if (bytes.length >= 4 &&
-          bytes[0] == 0x25 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x44 &&
-          bytes[3] == 0x46) {
-        mimeType = 'application/pdf';
-        description = 'PDF文档';
-      }
-      // ZIP/APK: 50 4B 03 04 or 50 4B
-      else if (bytes.length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B) {
-        if (bytes.length >= 4 && bytes[2] == 0x03 && bytes[3] == 0x04) {
-          mimeType = 'application/zip';
-          description = 'ZIP压缩包或APK';
-        } else {
-          mimeType = 'application/zip';
-          description = 'ZIP格式文件';
-        }
-      }
-      // RAR: 52 61 72 21
-      else if (bytes.length >= 4 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x61 &&
-          bytes[2] == 0x72 &&
-          bytes[3] == 0x21) {
-        mimeType = 'application/x-rar';
-        description = 'RAR压缩包';
-      }
-
-      // 构建文件头十六进制字符串
-      final hexHeader = bytes
-          .take(32)
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join(' ');
-
-      return {
-        'path': filePath,
-        'size': stat.size,
-        'sizeFormatted': FileSizeFormatter.formatBytes(stat.size),
-        'modified': stat.modified.toString(),
-        'mimeType': mimeType,
-        'description': description,
-        'hexHeader': hexHeader,
-        'firstBytes': bytes.take(16).toList(),
-      };
-    } catch (e) {
-      return {
-        'error': e.toString(),
-        'path': filePath,
-      };
-    }
+  /// 清除缓存（文件删除后调用）
+  ///
+  /// [keepSuppressionPeriods] 是否保留抑制期设置（清理后不想立即重新扫描时使用）
+  Future<void> clearCache({bool keepSuppressionPeriods = false}) async {
+    await _cacheManager.clearCache(
+        keepSuppressionPeriods: keepSuppressionPeriods);
   }
 
-  /// 测试方法：搜索所有可能的回收站路径
-  Future<List<String>> searchRecyclePaths() async {
-    final foundPaths = <String>[];
-    final keywords = [
-      'recycle',
-      'Recycle',
-      'RECYCLE',
-      'trash',
-      'Trash',
-      'TRASH',
-      'delete',
-      'Delete',
-      'DELETE',
-      'deleted',
-      'Deleted',
-      'DELETED',
-      '回收',
-      '已删除',
-      '最近删除',
-      '.Trash',
-      '.trash',
-      'bin',
-      'Bin',
-      'BIN',
-    ];
-
-    logger.i('========== 开始搜索回收站路径 ==========');
-
-    // 1. 搜索根目录
-    final storageRoot = '/storage/emulated/0';
-    final rootDir = Directory(storageRoot);
-
-    if (rootDir.existsSync()) {
-      logger.i('扫描根目录: $storageRoot');
-      try {
-        final entities = rootDir.listSync(recursive: false, followLinks: false);
-        for (final entity in entities) {
-          final name = entity.path.split('/').last;
-          for (final keyword in keywords) {
-            if (name.toLowerCase().contains(keyword.toLowerCase())) {
-              foundPaths.add(entity.path);
-              logger.i('✓ 根目录发现: ${entity.path}');
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        logger.e('扫描根目录失败: $e');
-      }
-    }
-
-    // 2. 搜索DCIM（相册）目录及其子目录
-    final dcimPaths = [
-      '$storageRoot/DCIM',
-      '$storageRoot/Pictures',
-      '$storageRoot/Android/data',
-      '$storageRoot/Android/media',
-    ];
-
-    for (final basePath in dcimPaths) {
-      final dir = Directory(basePath);
-      if (!dir.existsSync()) continue;
-
-      logger.i('搜索相册相关目录: $basePath');
-      try {
-        final entities = dir.listSync(recursive: true, followLinks: false);
-        for (final entity in entities) {
-          if (entity is! Directory) continue;
-
-          final name = entity.path.split('/').last;
-          for (final keyword in keywords) {
-            if (name.toLowerCase().contains(keyword.toLowerCase())) {
-              foundPaths.add(entity.path);
-              logger.i('✓ 相册目录发现: ${entity.path}');
-
-              // 如果找到，列出里面的文件
-              try {
-                final files = Directory(entity.path).listSync(recursive: false);
-                logger.i('  → 包含 ${files.length} 个项目');
-                if (files.isNotEmpty) {
-                  for (var i = 0; i < files.length.clamp(0, 5); i++) {
-                    final file = files[i];
-                    final name = file.path.split('/').last;
-                    if (file is File) {
-                      final size = file.lengthSync();
-                      logger.i(
-                          '    - $name (${FileSizeFormatter.formatBytes(size)})');
-                    } else {
-                      logger.i('    - $name (目录)');
-                    }
-                  }
-                  if (files.length > 5) {
-                    logger.i('    ... 还有 ${files.length - 5} 个文件');
-                  }
-                }
-              } catch (e) {
-                logger.w('  → 无法读取目录内容: $e');
-              }
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        logger.e('搜索 $basePath 失败: $e');
-      }
-    }
-
-    // 3. 特别检查相册回收站目录的详细内容
-    final galleryRecyclePath = '$storageRoot/Pictures/.Gallery2/recycle/bins';
-    final galleryDir = Directory(galleryRecyclePath);
-    if (galleryDir.existsSync()) {
-      logger.i('========== 详细检查相册回收站 ==========');
-      logger.i('路径: $galleryRecyclePath');
-      try {
-        final items = galleryDir.listSync(recursive: false);
-        logger.i('发现 ${items.length} 个项目:');
-        for (final item in items) {
-          final name = item.path.split('/').last;
-          if (item is Directory) {
-            logger.i('\n📁 目录: $name');
-            try {
-              final subItems = Directory(item.path).listSync(recursive: false);
-              logger.i('  包含 ${subItems.length} 个文件:');
-              for (final subItem in subItems) {
-                if (subItem is File) {
-                  final fileName = subItem.path.split('/').last;
-                  final size = subItem.lengthSync();
-                  final lastModified = subItem.lastModifiedSync();
-                  logger.i('  📄 $fileName');
-                  logger.i('     大小: ${FileSizeFormatter.formatBytes(size)}');
-                  logger.i('     修改时间: $lastModified');
-                  logger.i('     完整路径: ${subItem.path}');
-
-                  // 尝试读取文件头判断类型
-                  try {
-                    final bytes = subItem.readAsBytesSync().take(16).toList();
-                    final hex = bytes
-                        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-                        .join(' ');
-                    logger.i('     文件头: $hex');
-                  } catch (e) {
-                    logger.w('     无法读取文件头: $e');
-                  }
-                }
-              }
-            } catch (e) {
-              logger.e('  无法读取子目录: $e');
-            }
-          } else if (item is File) {
-            final size = item.lengthSync();
-            logger.i('\n📄 文件: $name (${FileSizeFormatter.formatBytes(size)})');
-          }
-        }
-      } catch (e) {
-        logger.e('检查失败: $e');
-      }
-      logger.i('==========================================');
-    }
-
-    // 3. 搜索应用数据目录
-    final appDataPaths = [
-      '$storageRoot/Android/data/com.android.gallery3d',
-      '$storageRoot/Android/data/com.google.android.apps.photos',
-      '$storageRoot/Android/data/com.miui.gallery',
-      '$storageRoot/Android/data/com.oppo.gallery3d',
-      '$storageRoot/Android/data/com.vivo.gallery',
-      '$storageRoot/Android/data/com.huawei.gallery',
-      '$storageRoot/Android/data/com.hihonor.gallery',
-    ];
-
-    for (final appPath in appDataPaths) {
-      final dir = Directory(appPath);
-      if (!dir.existsSync()) continue;
-
-      logger.i('搜索相册应用数据: $appPath');
-      try {
-        final entities = dir.listSync(recursive: true, followLinks: false);
-        for (final entity in entities) {
-          if (entity is! Directory) continue;
-
-          final name = entity.path.split('/').last;
-          for (final keyword in keywords) {
-            if (name.toLowerCase().contains(keyword.toLowerCase())) {
-              foundPaths.add(entity.path);
-              logger.i('✓ 应用数据发现: ${entity.path}');
-
-              // 列出文件
-              try {
-                final files = Directory(entity.path).listSync(recursive: false);
-                logger.i('  → 包含 ${files.length} 个项目');
-              } catch (e) {
-                logger.w('  → 无法读取目录内容: $e');
-              }
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        logger.e('搜索 $appPath 失败: $e');
-      }
-    }
-
-    logger.i('========================================');
-    logger.i('总共发现 ${foundPaths.length} 个可疑路径');
-    logger.i('========================================');
-
-    return foundPaths;
+  /// 获取缓存信息（调试用）
+  Map<String, dynamic> getCacheInfo() {
+    return _cacheManager.getCacheInfo();
   }
 
-  /// 扫描回收站并返回分组结果（新版API）
+  /// 扫描回收站并返回分组结果（新版API，带缓存）
   ///
   /// 返回TrashScanResult，包含回收站列表和文件列表
   /// [onProgress] 进度回调 (当前进度, 总数, 当前路径)
+  /// [forceRefresh] 强制刷新，忽略缓存
   Future<TrashScanResult> scanTrashBinsWithFiles({
     void Function(int current, int total, String path)? onProgress,
+    bool forceRefresh = false,
   }) async {
+    // 如果缓存有效且不强制刷新，直接返回缓存
+    if (!forceRefresh && _cacheManager.isCacheValid()) {
+      final cached = _cacheManager.getCachedResult()!;
+      logger.i('使用系统回收站缓存数据（${cached.allFiles.length}个文件）');
+      return cached;
+    }
+
     logger.i('========== 开始扫描回收站（多回收站模式） ==========');
 
     final Map<String, List<TrashFileItem>> trashBinFiles = {};
@@ -583,16 +279,23 @@ class TrashFileService {
         '总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
     logger.i('========================================');
 
-    return TrashScanResult(
+    final result = TrashScanResult(
       trashBins: trashBins,
       allFiles: allFiles,
     );
+
+    // 缓存结果
+    _cacheManager.saveCache(result);
+
+    return result;
   }
 
-  /// 扫描回收站文件
+  /// 扫描回收站文件（内部方法）
+  ///
+  /// 注意：此方法为内部实现，UI层应使用 [scanTrashBinsWithFiles] 获取带缓存的结果
   ///
   /// [onProgress] 进度回调 (当前进度, 总数, 当前路径)
-  Future<List<TrashFileItem>> scanTrashFiles({
+  Future<List<TrashFileItem>> _scanTrashFiles({
     void Function(int current, int total, String path)? onProgress,
   }) async {
     logger.i('开始扫描回收站文件');
@@ -1113,7 +816,7 @@ class TrashFileService {
 
     // 文件系统清空
     logger.i('使用文件系统清空回收站');
-    final allTrashFiles = await scanTrashFiles();
+    final allTrashFiles = await _scanTrashFiles();
 
     if (allTrashFiles.isEmpty) {
       logger.i('回收站为空，无需清空');
@@ -1280,11 +983,19 @@ class TrashFileService {
       return true;
     }
 
-    // 文件名（去除扩展名）如果超过40个字符且主要是大写字母，可能是编码的
+    // 文件名（去除扩展名）
     final nameWithoutExt = fileName.contains('.')
         ? fileName.substring(0, fileName.lastIndexOf('.'))
         : fileName;
 
+    // 2. 十六进制哈希命名（MD5=32位, SHA1=40位, 华为回收站常见）
+    // 例如: 3e7264548eaf463bbe6e01d6bb1b161e, f20040d3a88f40d16eb35276395c19c2
+    if ((nameWithoutExt.length == 32 || nameWithoutExt.length == 40) &&
+        RegExp(r'^[a-f0-9]+$').hasMatch(nameWithoutExt)) {
+      return true; // 判定为哈希命名
+    }
+
+    // 3. 文件名超过40个字符且主要是大写字母，可能是编码的
     if (nameWithoutExt.length > 40) {
       final upperCount = nameWithoutExt
           .split('')
@@ -1346,5 +1057,62 @@ class TrashFileService {
         throw Exception('无法找到可用的文件名（尝试了100次）');
       }
     }
+  }
+
+  /// 获取旧文件统计（复用缓存）
+  ///
+  /// 统计指定月份前的文件
+  /// [months] 月份数，默认3个月
+  /// [forceRefresh] 强制刷新，忽略缓存
+  Future<Map<String, dynamic>> getOldFilesStatistics({
+    int months = 3,
+    bool forceRefresh = false,
+  }) async {
+    logger.i('开始统计$months个月前的系统回收站文件');
+
+    // 先尝试从缓存获取扫描结果
+    TrashScanResult result;
+
+    if (!forceRefresh && _cacheManager.isCacheValid()) {
+      result = _cacheManager.getCachedResult()!;
+      logger.i('使用缓存数据统计旧文件（避免重复扫描）');
+    } else {
+      logger.i('缓存无效，执行完整扫描');
+      result = await scanTrashBinsWithFiles(forceRefresh: forceRefresh);
+    }
+
+    final cutoffDate = DateTime.now().subtract(Duration(days: months * 30));
+
+    final oldFiles = result.allFiles.where((file) {
+      final fileDate = file.trashedTime ?? file.modified;
+      return fileDate.isBefore(cutoffDate);
+    }).toList();
+
+    final totalSize = oldFiles.fold<int>(0, (sum, f) => sum + f.size);
+
+    // 查找最旧的文件日期
+    DateTime? oldestFileDate;
+    if (oldFiles.isNotEmpty) {
+      oldestFileDate = oldFiles.first.trashedTime ?? oldFiles.first.modified;
+      for (final file in oldFiles) {
+        final fileDate = file.trashedTime ?? file.modified;
+        if (fileDate.isBefore(oldestFileDate!)) {
+          oldestFileDate = fileDate;
+        }
+      }
+    }
+
+    logger.i(
+        '统计完成: ${oldFiles.length}个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+
+    return {
+      'count': oldFiles.length,
+      'size': totalSize,
+      'sizeMB': (totalSize / (1024 * 1024)).round(),
+      'cutoffDate': cutoffDate,
+      'oldestFileDate': oldestFileDate, // 最旧文件的实际日期
+      'files': oldFiles,
+      'scanResult': result, // 返回完整扫描结果，供页面使用
+    };
   }
 }
