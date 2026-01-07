@@ -52,7 +52,6 @@ void main() {
       
       // T=1小时: 再次进入
       // 模拟1小时后
-      final oneHourLater = DateTime.now().add(const Duration(hours: 1));
       // 由于没有记录lastScanTime，36小时检查会返回true
       expect(
         await SystemTrashPreferences.isLastScanOlderThan(
