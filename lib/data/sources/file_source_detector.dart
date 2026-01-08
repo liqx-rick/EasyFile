@@ -67,18 +67,24 @@ class FileSourceDetector {
     // ========== 层级4：其他常见来源 ==========
 
     // 4.1 路径特征匹配（深层应用目录）
-    if (lowerPath.contains('/bluetooth'))
+    if (lowerPath.contains('/bluetooth')) {
       return SystemFoldersConfig.subdirectoryNames['bluetooth']!;
-    if (lowerPath.contains('/tencent/micromsg'))
+    }
+    if (lowerPath.contains('/tencent/micromsg')) {
       return SystemFoldersConfig.subdirectoryNames['wechat']!;
-    if (lowerPath.contains('/tencent/qq'))
+    }
+    if (lowerPath.contains('/tencent/qq')) {
       return SystemFoldersConfig.subdirectoryNames['qq']!;
-    if (lowerPath.contains('/baidunetdisk'))
+    }
+    if (lowerPath.contains('/baidunetdisk')) {
       return SystemFoldersConfig.subdirectoryNames['baidunetdisk']!;
-    if (lowerPath.contains('/quark'))
+    }
+    if (lowerPath.contains('/quark')) {
       return SystemFoldersConfig.subdirectoryNames['quark']!;
-    if (lowerPath.contains('/dingtalk'))
+    }
+    if (lowerPath.contains('/dingtalk')) {
       return SystemFoldersConfig.subdirectoryNames['dingtalk']!;
+    }
     if (lowerPath.contains('/wxwork') || lowerPath.contains('/wework')) {
       return SystemFoldersConfig.subdirectoryNames['wework']!;
     }

@@ -201,7 +201,7 @@ class AppScannerConfig {
       packageNames: ['com.tencent.mobileqq'],
       appLabelPatterns: ['QQ', 'qq'],
       folderKeywords: ['QQ', 'tencent'],
-      priority: 1,
+      priority: 2,
       enabled: true,
     ),
     'telegram': const AppConfigData(
@@ -221,7 +221,7 @@ class AppScannerConfig {
       packageNames: ['cn.wps.moffice_eng', 'cn.wps.moffice'],
       appLabelPatterns: ['WPS', 'wps'],
       folderKeywords: ['WPS', 'kingsoft'],
-      priority: 2,
+      priority: 1,
       enabled: true,
     ),
     'dingtalk': const AppConfigData(

@@ -24,9 +24,8 @@ class _TrashConfigPageState extends State<TrashConfigPage> {
   }
 
   Future<void> _initSettings() async {
-    // 等待 AppTrashSettings 完全初始化
-    await locator.isReady<AppTrashSettings>();
-    _settings = await locator.getAsync<AppTrashSettings>();
+    // 直接获取 AppTrashSettings（同步注册）
+    _settings = locator<AppTrashSettings>();
     _loadSettings();
   }
 

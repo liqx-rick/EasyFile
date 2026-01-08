@@ -47,7 +47,8 @@ Future<void> main() async {
   logger.i('🎨 Theme initialized: ${themeService.themeMode}');
 
   // 启动回收站自动清理
-  final trashManager = await locator.getAsync<AppTrashManager>();
+  final trashManager = locator<AppTrashManager>();
+  await trashManager.initialize();
   await trashManager.startAutoCleanup();
 
   // 初始化缩略图缓存
