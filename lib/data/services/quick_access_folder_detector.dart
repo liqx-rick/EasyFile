@@ -101,7 +101,7 @@ class _FolderAnalysisResult {
   bool get hasImportantDocuments {
     final config = AppConfig.instance.fileTypes;
     final officeExts = config.officeDocumentExtensions;
-    
+
     if (fileExtensions.any((ext) => officeExts.contains(ext))) {
       return true;
     }
@@ -122,9 +122,9 @@ class _FolderAnalysisResult {
   }
 
   /// 判断是否满足任意一个过滤条件
-  /// 
+  ///
   /// 前置条件：必须包含至少一个支持的文件类型
-  /// 
+  ///
   /// 优先级条件（满足任一即可）：
   /// 1. 重要文档：PDF/Office/大媒体文件(>1MB)
   /// 2. 文件数达标：≥5个文件
@@ -570,7 +570,7 @@ class QuickAccessFolderDetector {
               final config = AppConfig.instance.fileTypes;
               final imageExts = config.imageExtensions.toSet();
               final videoExts = config.videoExtensions.toSet();
-              
+
               if (imageExts.contains(ext) || videoExts.contains(ext)) {
                 largeMediaFiles.add(parts.last);
               }

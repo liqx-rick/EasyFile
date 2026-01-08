@@ -151,7 +151,7 @@ class FileViewModel extends ChangeNotifier {
   // 新文件Tab的 getters
   List<FileItem> get newFiles => _newFiles;
   int get newFilesRetentionDays => _newFilesRetentionDays;
-  
+
   /// 根据文件路径获取来源显示名称
   String? getNewFileSource(String path) => _newFilesSourceMap[path];
 
@@ -390,7 +390,8 @@ class FileViewModel extends ChangeNotifier {
   }
 
   /// 设置新文件列表
-  void setNewFiles(List<FileItem> files, {int? retentionDays, Map<String, String>? sourceMap}) {
+  void setNewFiles(List<FileItem> files,
+      {int? retentionDays, Map<String, String>? sourceMap}) {
     logger.d('Setting new files list: ${files.length} items');
     _newFiles = files;
     if (retentionDays != null && retentionDays != _newFilesRetentionDays) {

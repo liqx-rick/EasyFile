@@ -7,6 +7,8 @@ import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/storage/mock_config_storage.dart';
 
 /// 测试用的应用统计缓存（不执行实际缓存）
 class MockAppStatisticsCache extends AppStatisticsCache {
@@ -41,14 +43,14 @@ class MockAppDetectionService extends AppDetectionService {
     if (config.packageNames.isNotEmpty) {
       final packageName = config.packageNames.first;
       final isInstalled = _installedApps[packageName] ?? false;
-      
+
       return AppDetectionResult(
         isInstalled: isInstalled,
         packageName: isInstalled ? packageName : null,
         detectionMethod: 'mock',
       );
     }
-    
+
     return AppDetectionResult(isInstalled: false);
   }
 }
@@ -76,7 +78,7 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
     bool updateCache = true,
   }) async {
     final fileCount = _fileCounts[appKey] ?? 0;
-    
+
     return AppScanResult(
       appName: appKey,
       packageName: 'com.test.$appKey',
@@ -92,6 +94,11 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
 }
 
 void main() {
+  setUpAll(() async {
+    // 初始化AppConfig用于测试
+    await AppConfig.instance.initialize(storage: MockConfigStorage());
+  });
+
   group('RecommendationService 过滤逻辑测试', () {
     test('所有应用未安装 - 应返回4个托底卡片', () async {
       final detectionService = MockAppDetectionService(
@@ -102,7 +109,7 @@ void main() {
           'cn.wps.moffice_eng': false,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(detectionService);
       final statisticsCache = MockAppStatisticsCache();
       final service = RecommendationService(
@@ -126,7 +133,7 @@ void main() {
           'com.tencent.mm': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -153,7 +160,7 @@ void main() {
           'com.tencent.mm': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -181,7 +188,7 @@ void main() {
           'com.tencent.mobileqq': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -214,7 +221,7 @@ void main() {
           'cn.wps.moffice_eng': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -263,7 +270,7 @@ void main() {
         statisticsCache: statisticsCache,
         configs: customConfigs,
       );
-      
+
       final cards = await service.getRecommendations();
 
       expect(cards.length, 1);
@@ -280,7 +287,7 @@ void main() {
         statisticsCache: statisticsCache,
         configs: [],
       );
-      
+
       final cards = await service.getRecommendations();
 
       expect(cards.isEmpty, true);
@@ -294,7 +301,7 @@ void main() {
           'com.tencent.mm': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -320,7 +327,7 @@ void main() {
           'com.tencent.mm': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
@@ -369,7 +376,7 @@ void main() {
           'com.tencent.mm': true,
         },
       );
-      
+
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {

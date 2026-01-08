@@ -1,7 +1,7 @@
 import 'config_storage.dart';
 
 /// Mock 配置存储（用于单元测试）
-/// 
+///
 /// 完全内存实现，不依赖 SharedPreferences。
 class MockConfigStorage implements ConfigStorage {
   final Map<String, dynamic> _data = {};
@@ -19,8 +19,7 @@ class MockConfigStorage implements ConfigStorage {
   String? getString(String key) => _data[key] as String?;
 
   @override
-  List<String>? getStringList(String key) => 
-      _data[key] as List<String>?;
+  List<String>? getStringList(String key) => _data[key] as List<String>?;
 
   @override
   Future<bool> setInt(String key, int value) async {
@@ -77,7 +76,7 @@ class MockConfigStorage implements ConfigStorage {
 
   /// 测试辅助：直接读取内存数据
   dynamic getRaw(String key) => _data[key];
-  
+
   /// 测试辅助：获取所有数据
   Map<String, dynamic> getAll() => Map.from(_data);
 }

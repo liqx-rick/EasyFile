@@ -1,8 +1,8 @@
 /// 大文件扫描配置
 class LargeFileScanConfig {
   /// 最小文件大小（MB）
-  /// 
-  /// 默认值100MB，与 FileScanConfig.largeFileThreshold 保持一致
+  ///
+  /// 默认值50MB，与 FileScanConfig.largeFileThreshold 保持一致
   final int minSizeInMB;
 
   /// 文件类型过滤
@@ -14,8 +14,11 @@ class LargeFileScanConfig {
   /// 最大结果数
   final int maxResults;
 
+  /// 是否为快速扫描（用于UI显示）
+  final bool isQuickScan;
+
   const LargeFileScanConfig({
-    this.minSizeInMB = 100,
+    this.minSizeInMB = 50,
     this.fileTypes = const {
       FileTypeFilter.video,
       FileTypeFilter.audio,
@@ -26,6 +29,7 @@ class LargeFileScanConfig {
     },
     this.scanScope = ScanScope.allStorage,
     this.maxResults = 100,
+    this.isQuickScan = false,
   });
 
   /// 复制并修改配置
@@ -34,18 +38,21 @@ class LargeFileScanConfig {
     Set<FileTypeFilter>? fileTypes,
     ScanScope? scanScope,
     int? maxResults,
+    bool? isQuickScan,
   }) {
     return LargeFileScanConfig(
       minSizeInMB: minSizeInMB ?? this.minSizeInMB,
       fileTypes: fileTypes ?? this.fileTypes,
       scanScope: scanScope ?? this.scanScope,
       maxResults: maxResults ?? this.maxResults,
+      isQuickScan: isQuickScan ?? this.isQuickScan,
     );
   }
 
   /// 从 FileScanConfig 创建默认配置
-  /// 
+  ///
   /// 使用全局配置的阈值和最大结果数，文件类型和扫描范围使用默认值
+  /// 标记为快速扫描，用于UI显示
   factory LargeFileScanConfig.fromFileScanConfig(
     dynamic fileScanConfig, {
     Set<FileTypeFilter>? fileTypes,
@@ -54,15 +61,17 @@ class LargeFileScanConfig {
     return LargeFileScanConfig(
       minSizeInMB: fileScanConfig.largeFileThreshold as int,
       maxResults: fileScanConfig.largeFileMaxResults as int,
-      fileTypes: fileTypes ?? const {
-        FileTypeFilter.video,
-        FileTypeFilter.audio,
-        FileTypeFilter.image,
-        FileTypeFilter.document,
-        FileTypeFilter.archive,
-        FileTypeFilter.other,
-      },
+      fileTypes: fileTypes ??
+          const {
+            FileTypeFilter.video,
+            FileTypeFilter.audio,
+            FileTypeFilter.image,
+            FileTypeFilter.document,
+            FileTypeFilter.archive,
+            FileTypeFilter.other,
+          },
       scanScope: scanScope ?? ScanScope.allStorage,
+      isQuickScan: true, // 标记为快速扫描
     );
   }
 
@@ -82,6 +91,7 @@ class LargeFileScanConfig {
       'fileTypes': fileTypes.map((e) => e.name).toList(),
       'scanScope': scanScope.name,
       'maxResults': maxResults,
+      'isQuickScan': isQuickScan,
     };
   }
 
@@ -106,6 +116,7 @@ class LargeFileScanConfig {
         orElse: () => ScanScope.allStorage,
       ),
       maxResults: json['maxResults'] as int? ?? 100,
+      isQuickScan: json['isQuickScan'] as bool? ?? false,
     );
   }
 

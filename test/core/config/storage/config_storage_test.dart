@@ -65,8 +65,6 @@ void main() {
         expect(keys, containsAll(['test1', 'test2', 'test3']));
       });
 
-
-
       test('should clear all', () async {
         await storage.setString('key1', 'value1');
         await storage.setInt('key2', 42);
@@ -205,7 +203,8 @@ void main() {
   });
 
   group('Storage Comparison', () {
-    test('LocalConfigStorage and MockConfigStorage should behave same', () async {
+    test('LocalConfigStorage and MockConfigStorage should behave same',
+        () async {
       SharedPreferences.setMockInitialValues({});
       final local = await LocalConfigStorage.create();
       final mock = MockConfigStorage();

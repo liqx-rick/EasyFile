@@ -12,8 +12,6 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
 import 'package:easyfile/data/models/recent_file_item.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
-import 'package:easyfile/core/config/file_scan_config.dart';
-import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/data/sources/favorite_files_local_source.dart';
 import 'package:easyfile/data/sources/recent_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
@@ -583,7 +581,7 @@ class FilePresenter {
           .where((rf) {
             // 过滤文件夹
             if (rf.isDirectory) return false;
-            
+
             // **类型过滤**：只显示支持的文件类型（过滤缓存中的旧数据）
             return fileTypes.isImageFile(rf.name) ||
                 fileTypes.isVideoFile(rf.name) ||
@@ -626,7 +624,7 @@ class FilePresenter {
         fileTypes.isDocumentFile(file.name) ||
         fileTypes.isArchiveFile(file.name) ||
         fileTypes.isApkFile(file.name);
-    
+
     if (!isSupported) {
       logger.d('Skipping unsupported file type from recent: ${file.name}');
       return;
@@ -697,10 +695,10 @@ class FilePresenter {
   /// 加载收藏文件列表（供Tab切换时调用）
   Future<void> loadFavoriteFiles() async {
     logger.i('FilePresenter.loadFavoriteFiles called');
-    
+
     // ✅ 取消后台扫描以释放I/O资源
     newFilesScanner.cancelCurrentScan();
-    
+
     try {
       viewModel.setLoading(true);
 
@@ -713,14 +711,15 @@ class FilePresenter {
       final fileItemFutures = favoriteFiles.map((favoriteFile) async {
         try {
           final file = File(favoriteFile.filePath);
-          
+
           // ✅ 使用异步API
           final exists = await file.exists();
           if (!exists) {
-            logger.w('Favorite file no longer exists: ${favoriteFile.filePath}');
+            logger
+                .w('Favorite file no longer exists: ${favoriteFile.filePath}');
             return null;
           }
-          
+
           final stat = await file.stat();
           return FileItem(
             name: path.basename(favoriteFile.filePath),
@@ -731,18 +730,17 @@ class FilePresenter {
             addedTime: favoriteFile.addedTime,
           );
         } catch (e) {
-          logger.w('Error processing favorite file ${favoriteFile.filePath}: $e');
+          logger
+              .w('Error processing favorite file ${favoriteFile.filePath}: $e');
           return null;
         }
       }).toList();
 
       // 等待所有异步操作完成
       final fileItems = await Future.wait(fileItemFutures);
-      
+
       // 过滤掉null值（不存在的文件）
-      final validFileItems = fileItems
-          .whereType<FileItem>()
-          .toList();
+      final validFileItems = fileItems.whereType<FileItem>().toList();
 
       viewModel.setFiles(validFileItems);
       viewModel.setLoading(false);
@@ -932,14 +930,14 @@ class FilePresenter {
   /// 刷新当前目录
   Future<void> refreshCurrent() async {
     logger.i('FilePresenter.refreshCurrent called');
-    
+
     // 新文件Tab：MediaStore自动监听，下拉刷新无需执行任何操作
     // （收藏和最近Tab由于内容通常不满屏，实际上也无法触发下拉刷新）
     if (viewModel.currentTab == TabView.newFiles) {
       logger.d('New files tab: MediaStore auto-refresh handles file changes');
       return;
     }
-    
+
     // 根据当前Tab类型刷新相应内容
     if (viewModel.currentTab == TabView.favorite) {
       logger.d('Refreshing favorite files');
@@ -956,9 +954,9 @@ class FilePresenter {
   // 分类相关方法
 
   /// 按文件类型扫描文件
-  /// 
+  ///
   /// 优先使用 MediaStore 扫描（快速），下载文件夹使用文件系统扫描（全面）
-  /// 
+  ///
   /// [categoryType] 文件分类类型
   /// [useMediaStore] 是否使用 MediaStore，默认 true（智能选择）
   ///   - true: 图片/音乐/视频/文档使用 MediaStore，下载使用文件系统
@@ -967,14 +965,15 @@ class FilePresenter {
     CategoryType categoryType, {
     bool useMediaStore = true,
   }) async {
-    logger.i('FilePresenter.scanFilesByCategory called for: $categoryType (useMediaStore: $useMediaStore)');
+    logger.i(
+        'FilePresenter.scanFilesByCategory called for: $categoryType (useMediaStore: $useMediaStore)');
 
     try {
       // 图片、音频、视频、文档使用 MediaStore 扫描（快速）
       if (useMediaStore && categoryType != CategoryType.downloads) {
         return await _scanByCategoryWithMediaStore(categoryType);
       }
-      
+
       // 下载文件夹或强制文件系统扫描
       return await _scanByCategoryWithFileSystem(categoryType);
     } catch (e) {
@@ -984,13 +983,15 @@ class FilePresenter {
   }
 
   /// 使用 MediaStore 扫描分类文件（快速）
-  Future<List<FileItem>> _scanByCategoryWithMediaStore(CategoryType categoryType) async {
+  Future<List<FileItem>> _scanByCategoryWithMediaStore(
+      CategoryType categoryType) async {
     logger.i('Using MediaStore for category: $categoryType');
-    
+
     final scanType = _categoryTypeToMediaScanType(categoryType);
     final files = await MediaStoreScannerChannel.scan(scanType);
-    
-    logger.i('MediaStore found ${files.length} files for category: $categoryType');
+
+    logger.i(
+        'MediaStore found ${files.length} files for category: $categoryType');
     return files;
   }
 
@@ -1015,7 +1016,8 @@ class FilePresenter {
   }
 
   /// 使用文件系统扫描分类文件（全面）
-  Future<List<FileItem>> _scanByCategoryWithFileSystem(CategoryType categoryType) async {
+  Future<List<FileItem>> _scanByCategoryWithFileSystem(
+      CategoryType categoryType) async {
     logger.i('Using file system scan for category: $categoryType');
 
     try {
@@ -1179,7 +1181,7 @@ class FilePresenter {
   ];
 
   /// 检查是否为16进制临时文件夹
-  /// 
+  ///
   /// 这类文件夹通常由浏览器下载缓存、下载管理器、应用市场等创建
   /// 例如: 4753E391CCF6FA2, 1060A0DAF0CAB42
   static bool _isHexTempFolder(String folderName) {
@@ -1188,7 +1190,7 @@ class FilePresenter {
     if (folderName.length < 10 || folderName.length > 32) {
       return false;
     }
-    
+
     // 必须全部是16进制字符（0-9, A-F）
     final hexPattern = RegExp(r'^[0-9A-F]+$');
     return hexPattern.hasMatch(folderName);
@@ -1538,10 +1540,11 @@ class FilePresenter {
 
     try {
       // 从FileScanConfig读取最新配置
-      final fileScanConfig = await locator.getAsync<FileScanConfig>();
+      final fileScanConfig = AppConfig.instance.fileScan;
       final retentionDays = fileScanConfig.newFilesRetentionDays;
       final displayCount = fileScanConfig.newFilesDisplayCount;
-      logger.d('FileScanConfig: retentionDays=$retentionDays, displayCount=$displayCount');
+      logger.d(
+          'FileScanConfig: retentionDays=$retentionDays, displayCount=$displayCount');
 
       // 先从本地缓存加载
       final cachedItems = await newFilesLocalSource.loadCachedIndex();
@@ -1575,7 +1578,8 @@ class FilePresenter {
       }
 
       // 更新视图模型（传递retentionDays设置和source映射）
-      viewModel.setNewFiles(fileItems, retentionDays: retentionDays, sourceMap: sourceMap);
+      viewModel.setNewFiles(fileItems,
+          retentionDays: retentionDays, sourceMap: sourceMap);
 
       // 后台异步保存到本地缓存（不阻塞UI显示）
       if (newFileItems.isNotEmpty) {
@@ -1599,17 +1603,17 @@ class FilePresenter {
   }
 
   /// 处理新文件项：应用限制并转换为FileItem
-  /// 
+  ///
   /// **公共逻辑提取** - 被loadNewFiles和refreshNewFilesInBackground共用
-  /// 
+  ///
   /// **处理流程**:
   /// 1. **过滤不支持的文件类型**（使用FileTypesConfig作为唯一权威）
   /// 2. 检查文件是否仍然存在（防止已删除文件）
   /// 3. 转换NewFileItem → FileItem（添加完整文件信息）
   /// 4. 应用displayCount限制（确保显示足够数量的支持文件）
-  /// 
+  ///
   /// **重要**：先过滤类型，再应用数量限制，确保不支持的文件不占用显示配额
-  /// 
+  ///
   /// **参数**:
   /// - [newFileItems]: 扫描得到的新文件列表（已按时间倒序）
   /// - [displayCount]: 显示数量限制
@@ -1617,7 +1621,8 @@ class FilePresenter {
     List<NewFileItem> newFileItems,
     int displayCount,
   ) async {
-    logger.d('Processing ${newFileItems.length} items, target display count: $displayCount');
+    logger.d(
+        'Processing ${newFileItems.length} items, target display count: $displayCount');
 
     // 获取文件类型配置（唯一权威）
     final fileTypes = AppConfig.instance.fileTypes;
@@ -1625,7 +1630,7 @@ class FilePresenter {
     // 先过滤类型并转换为FileItem，再应用数量限制
     final fileItems = <FileItem>[];
     int filteredCount = 0; // 统计被过滤的文件数量
-    
+
     for (final newFileItem in newFileItems) {
       // 如果已经收集到足够的文件，停止处理
       if (fileItems.length >= displayCount) {
@@ -1657,7 +1662,8 @@ class FilePresenter {
       }
     }
 
-    logger.d('Processing complete: ${fileItems.length} supported files displayed, $filteredCount unsupported files filtered');
+    logger.d(
+        'Processing complete: ${fileItems.length} supported files displayed, $filteredCount unsupported files filtered');
     return fileItems;
   }
 
@@ -1671,7 +1677,7 @@ class FilePresenter {
     Future(() async {
       try {
         // 从FileScanConfig读取最新配置
-        final fileScanConfig = await locator.getAsync<FileScanConfig>();
+        final fileScanConfig = AppConfig.instance.fileScan;
         final retentionDays = fileScanConfig.newFilesRetentionDays;
         final displayCount = fileScanConfig.newFilesDisplayCount;
 
@@ -1683,7 +1689,8 @@ class FilePresenter {
         logger.d('Background scan complete: ${newFileItems.length} items');
 
         // 处理文件项（应用限制并转换为FileItem）
-        final fileItems = await _processNewFileItems(newFileItems, displayCount);
+        final fileItems =
+            await _processNewFileItems(newFileItems, displayCount);
 
         // 构建source映射：path -> displayName
         final sourceMap = <String, String>{};
@@ -1692,7 +1699,8 @@ class FilePresenter {
         }
 
         // 静默更新UI（不显示loading状态）
-        viewModel.setNewFiles(fileItems, retentionDays: retentionDays, sourceMap: sourceMap);
+        viewModel.setNewFiles(fileItems,
+            retentionDays: retentionDays, sourceMap: sourceMap);
 
         // 保存缓存
         if (newFileItems.isNotEmpty) {
@@ -1705,6 +1713,4 @@ class FilePresenter {
       }
     });
   }
-
-
 }

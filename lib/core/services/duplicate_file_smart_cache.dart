@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easyfile/core/logger.dart';
@@ -152,7 +153,9 @@ class DuplicateFileScanCache {
 /// - 🎯 精准控制：确保检测准确性，避免漏检
 class DuplicateFileSmartCache {
   static const String _cacheKeyPrefix = 'duplicate_scan_cache_';
-  static const int _maxCacheSize = 50 * 1024 * 1024; // 50MB
+
+  /// 获取最大缓存大小（从 AppConfig 获取）
+  int get _maxCacheSize => AppConfig.instance.fileScan.smartCacheMaxSizeBytes;
 
   /// 保存缓存到本地
   Future<void> saveCache(DuplicateFileScanCache cache) async {

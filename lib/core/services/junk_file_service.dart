@@ -192,20 +192,21 @@ class JunkFileService {
   /// 根据路径类型动态调整扫描深度
   int _getMaxDepth(String path) {
     final lowerPath = path.toLowerCase();
+    final config = AppConfig.instance.fileScan;
 
     // 应用数据目录浅扫（避免扫描大量应用子目录）
     if (lowerPath.contains('android/data') ||
         lowerPath.contains('android/obb')) {
-      return 3;
+      return config.junkScanDepthAppData;
     }
 
     // 相册目录中等深度
     if (lowerPath.contains('dcim') || lowerPath.contains('pictures')) {
-      return 5;
+      return config.junkScanDepthMedia;
     }
 
     // 其他目录正常深度
-    return 10;
+    return config.junkScanDepthDefault;
   }
 
   /// 判断是否为临时文件

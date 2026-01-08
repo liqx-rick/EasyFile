@@ -4,12 +4,12 @@ import 'package:easyfile/data/models/file_item.dart';
 /// 重复文件组
 ///
 /// 表示一组内容完全相同的文件。
-/// 
+///
 /// 职责：
 /// - 存储重复文件组的基本信息
 /// - 通过推荐引擎计算文件排序
 /// - 提供推荐保留/删除的文件列表
-/// 
+///
 /// 注意：该类是纯数据模型，所有推荐算法逻辑已外包到 DuplicateFilesRecommendationEngine
 class DuplicateFileGroup {
   /// 该组的唯一标识（使用完整哈希）
@@ -33,8 +33,6 @@ class DuplicateFileGroup {
   })  : _recommendationEngine = recommendationEngine,
         files = recommendationEngine.sortFilesByRecommendation(files),
         assert(files.length >= 2, 'Duplicate group must have at least 2 files');
-
-
 
   /// 重复文件数量
   int get count => files.length;

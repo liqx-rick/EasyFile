@@ -259,7 +259,7 @@ class _FileItemTileState extends State<FileItemTile> {
   IconData _getFileIcon() {
     final fileName = widget.file.name;
     final config = AppConfig.instance.fileTypes;
-    
+
     if (config.isImageFile(fileName)) {
       return Icons.image;
     } else if (config.isVideoFile(fileName)) {
@@ -293,7 +293,7 @@ class _FileItemTileState extends State<FileItemTile> {
   Color _getFileColor() {
     final fileName = widget.file.name;
     final config = AppConfig.instance.fileTypes;
-    
+
     if (config.isImageFile(fileName)) {
       return Colors.green;
     } else if (config.isVideoFile(fileName)) {
@@ -329,8 +329,7 @@ class _FileItemTileState extends State<FileItemTile> {
         TimeFormatter.formatRelativeTime(widget.accessTime!),
       if (widget.showCreationTime && widget.creationTime != null)
         TimeFormatter.formatRelativeTime(widget.creationTime!),
-      if (widget.showSource && widget.sourceText != null)
-        widget.sourceText!,
+      if (widget.showSource && widget.sourceText != null) widget.sourceText!,
     ];
 
     return parts.join(' · ');

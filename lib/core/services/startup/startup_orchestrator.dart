@@ -4,7 +4,7 @@ import 'app_initialization_service.dart';
 import 'data_load_service.dart';
 
 /// 启动编排器
-/// 
+///
 /// 检测启动场景，并路由到相应的初始化流程
 /// 场景分为：freshInstall（首次安装）、reinstall（重新安装）、normalOpen（正常打开）
 class StartupOrchestrator {
@@ -21,11 +21,11 @@ class StartupOrchestrator {
         _firstInstallService = firstInstallService;
 
   /// 编排启动流程
-  /// 
+  ///
   /// 根据当前应用状态，判断需要执行的初始化场景
   Future<void> orchestrate() async {
     logger.i('[Orchestrator] Starting orchestration...');
-    
+
     final scene = await _detectStartupScene();
     logger.i('[Orchestrator] Detected startup scene: $scene');
 
@@ -50,20 +50,20 @@ class StartupOrchestrator {
   }
 
   /// 检测启动场景
-  /// 
+  ///
   /// 返回值说明：
   /// - freshInstall：无初始化标记，第一次安装
   /// - reinstall：有初始化标记，但无缓存或缓存过期，重新开始
   /// - normalOpen：有初始化标记，缓存有效，正常打开
   Future<StartupScene> _detectStartupScene() async {
     final isInitialized = await _firstInstallService.isInitialized();
-    
+
     if (!isInitialized) {
       return StartupScene.freshInstall;
     }
 
     final isCacheValid = await _dataLoadService.isCacheValid();
-    
+
     if (!isCacheValid) {
       return StartupScene.reinstall;
     }

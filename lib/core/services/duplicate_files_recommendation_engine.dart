@@ -1,21 +1,20 @@
 import 'package:path/path.dart' as path;
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/config/duplicate_files_recommendation_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 
 /// 重复文件推荐算法引擎
-/// 
+///
 /// 职责：
 /// 1. 根据推荐配置计算文件的保留分数
 /// 2. 对重复文件进行智能排序
 /// 3. 提供推荐信息和调试信息
-/// 
+///
 /// 算法原理：
 /// - 多维度评分系统（目录类型、关键词、大小、时间等）
 /// - 按总分从高到低排序
 /// - 分数最高的文件推荐保留
-/// 
+///
 /// 注意：配置通过 AppConfig.instance.duplicateFilesRec 自动获取，
 /// 遵循统一的配置管理模式
 class DuplicateFilesRecommendationEngine {
@@ -25,10 +24,10 @@ class DuplicateFilesRecommendationEngine {
   dynamic get _config => AppConfig.instance.duplicateFilesRec;
 
   /// 对文件列表进行排序（推荐保留的排在第一位）
-  /// 
+  ///
   /// 参数：
   /// - files: 重复文件列表（至少2个）
-  /// 
+  ///
   /// 返回：
   /// - 已排序的文件列表（推荐保留的在第一位）
   List<FileItem> sortFilesByRecommendation(List<FileItem> files) {
@@ -52,7 +51,7 @@ class DuplicateFilesRecommendationEngine {
   }
 
   /// 计算文件的推荐保留分数（分数越高越推荐保留）
-  /// 
+  ///
   /// 评分维度（优先级从高到低）：
   /// 1. 目录类型评分：
   ///    - 系统原生功能目录（DCIM/Sounds等）：+1500
@@ -84,7 +83,7 @@ class DuplicateFilesRecommendationEngine {
       if (userDirScore > 0) {
         score += userDirScore;
         scoreDetails.add('用户目录+$userDirScore');
-      } else if (lowerPath.startsWith(DuplicateFilesRecommendationConfig.downloadDirectory)) {
+      } else if (lowerPath.startsWith(_config.downloadDirectory)) {
         score += _config.downloadDirectoryScore as int;
         scoreDetails.add('下载目录+${_config.downloadDirectoryScore}');
       }
@@ -141,15 +140,15 @@ class DuplicateFilesRecommendationEngine {
     }
 
     // 6. 修改时间（相对分数）
-    final latestTime = allFiles
-        .map((f) => f.modified)
-        .reduce((a, b) => a.isAfter(b) ? a : b);
+    final latestTime =
+        allFiles.map((f) => f.modified).reduce((a, b) => a.isAfter(b) ? a : b);
     final timeScore = _getTimeScore(file.modified, latestTime);
     score += timeScore;
     scoreDetails.add('时间+$timeScore');
 
     if (debug) {
-      logger.i('Score for ${file.name}: $score\n  ${scoreDetails.join('\n  ')}');
+      logger
+          .i('Score for ${file.name}: $score\n  ${scoreDetails.join('\n  ')}');
     }
 
     return score;
@@ -158,7 +157,8 @@ class DuplicateFilesRecommendationEngine {
   // ==================== 检测方法 ====================
 
   bool _isInSystemNativeDirectory(String lowerPath) {
-    return DuplicateFilesRecommendationConfig.systemNativeDirectories
+    return _config
+        .getSystemNativeDirectories()
         .any((dir) => lowerPath.startsWith(dir));
   }
 
@@ -287,13 +287,15 @@ class DuplicateFilesRecommendationEngine {
   bool _isPathTooDeep(String filePath) {
     final parts = filePath.split('/');
     // Android内部存储基准是 /storage/emulated/0/（3层）
-    // 如果总深度 > 9 层（基准3层 + 用户6层），认为太深
-    return parts.length > 9;
+    // 使用配置的阈值，默认9层
+    final threshold = (_config.pathDepthThreshold as int) + 3; // 加上基准3层
+    return parts.length > threshold;
   }
 
   int _getSizeScore(int fileSize, int maxSize) {
-    // 大小差异小于1KB，认为相同，返回中性分
-    if ((maxSize - fileSize).abs() < 1024) {
+    // 使用配置的大小相似度阈值，默认1KB
+    final threshold = _config.sizeSimilarityThreshold as int;
+    if ((maxSize - fileSize).abs() < threshold) {
       return 50;
     }
 
@@ -305,14 +307,16 @@ class DuplicateFilesRecommendationEngine {
   int _getTimeScore(DateTime fileTime, DateTime latestTime) {
     final diffSeconds = latestTime.difference(fileTime).inSeconds.abs();
 
-    // 时间差小于1小时，认为相同，返回中性分
-    if (diffSeconds < 3600) {
+    // 使用配置的时间相似度阈值，默认1小时
+    final timeSimilarityThreshold = _config.timeSimilarityThreshold as int;
+    if (diffSeconds < timeSimilarityThreshold) {
       return 50;
     }
 
-    // 最新的文件得100分，时间每相差1天扣5分，最低0分
+    // 使用配置的时间衰减因子，默认5分/天
+    final decayPerDay = _config.timeDecayScorePerDay as int;
     final diffDays = diffSeconds ~/ 86400;
-    final score = 100 - (diffDays * 5);
+    final score = 100 - (diffDays * decayPerDay);
     return score.clamp(0, 100);
   }
 }

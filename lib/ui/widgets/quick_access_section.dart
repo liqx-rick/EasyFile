@@ -36,8 +36,9 @@ class QuickAccessSection extends StatefulWidget {
   final RecommendationService? recommendationService;
 
   /// 全局Key用于从外部触发刷新（私有）
-  static final GlobalKey<_QuickAccessSectionState> _globalKey = GlobalKey<_QuickAccessSectionState>();
-  
+  static final GlobalKey<_QuickAccessSectionState> _globalKey =
+      GlobalKey<_QuickAccessSectionState>();
+
   /// 公共的 globalKey getter（返回非泛型类型以避免暴露私有状态类）
   static GlobalKey<State<StatefulWidget>> get globalKey => _globalKey;
 
@@ -80,7 +81,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   late RecommendationService _recommendationService;
   List<RecommendationCard> _recommendationCards = [];
   late bool _loadingRecommendations;
-  
+
   // 文件监听服务
   FileChangeListenerService? _fileChangeListener;
 
@@ -88,35 +89,35 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   static List<RecommendationCard>? _cachedCards;
   static DateTime? _cacheTime;
   static const _cacheValidDuration = Duration(minutes: 5); // 5分钟缓存，平衡性能与数据新鲜度
-  
+
   // 持久化缓存key
   static const String _cacheKey = 'recommendation_cards_cache';
   static const String _cacheTimeKey = 'recommendation_cards_cache_time';
-  
+
   // 构造时检查缓存（静态 + 持久化）
   _QuickAccessSectionState() {
     // 1. 先检查静态缓存（最快）
-    final hasValidStaticCache = _cachedCards != null && 
-                                _cacheTime != null && 
-                                DateTime.now().difference(_cacheTime!) < _cacheValidDuration;
-    
+    final hasValidStaticCache = _cachedCards != null &&
+        _cacheTime != null &&
+        DateTime.now().difference(_cacheTime!) < _cacheValidDuration;
+
     if (hasValidStaticCache) {
       _recommendationCards = _cachedCards!;
       _loadingRecommendations = false;
       logger.d('🎯 构造时命中静态缓存 (${_cachedCards!.length}个卡片)');
       return;
     }
-    
+
     // 2. 静态缓存无效，尝试同步读取持久化缓存
     _loadingRecommendations = _tryLoadPersistentCacheSync();
-    
+
     if (!_loadingRecommendations) {
       logger.d('💾 构造时命中持久化缓存 (${_recommendationCards.length}个卡片)');
     } else {
       logger.d('⏳ 无有效缓存，将显示loading');
     }
   }
-  
+
   /// 尝试同步读取持久化缓存（非阻塞）
   /// 返回: true=需要loading, false=已加载缓存
   bool _tryLoadPersistentCacheSync() {
@@ -129,22 +130,24 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       return true;
     }
   }
-  
+
   /// 异步加载持久化缓存
   Future<void> _loadPersistentCacheAsync() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheJson = prefs.getString(_cacheKey);
       final cacheTimeMs = prefs.getInt(_cacheTimeKey);
-      
+
       if (cacheJson != null && cacheTimeMs != null) {
         final cacheTime = DateTime.fromMillisecondsSinceEpoch(cacheTimeMs);
         final cacheAge = DateTime.now().difference(cacheTime);
-        
+
         if (cacheAge < _cacheValidDuration) {
           final List<dynamic> jsonList = jsonDecode(cacheJson);
-          final cards = jsonList.map((json) => RecommendationCard.fromJson(json)).toList();
-          
+          final cards = jsonList
+              .map((json) => RecommendationCard.fromJson(json))
+              .toList();
+
           if (mounted) {
             setState(() {
               _recommendationCards = cards;
@@ -163,17 +166,17 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       logger.e('加载持久化缓存失败: $e');
     }
   }
-  
+
   /// 保存到持久化缓存
   Future<void> _savePersistentCache(List<RecommendationCard> cards) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = cards.map((card) => card.toJson()).toList();
       final jsonString = jsonEncode(jsonList);
-      
+
       await prefs.setString(_cacheKey, jsonString);
       await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
-      
+
       logger.d('💾 保存持久化缓存成功 (${cards.length}个卡片)');
     } catch (e) {
       logger.e('保存持久化缓存失败: $e');
@@ -187,7 +190,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     _cachedCards = null;
     _cacheTime = null;
     logger.w('🔥 推荐卡片缓存已清除 (之前有缓存: $hadCache, $cardsCount个卡片)');
-    
+
     // 同时清除持久化缓存
     SharedPreferences.getInstance().then((prefs) {
       prefs.remove(_cacheKey);
@@ -204,7 +207,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     _initServices();
     _initAnimation();
     _loadStorageInfo();
-    _loadRecommendations();  // 后台异步加载/刷新
+    _loadRecommendations(); // 后台异步加载/刷新
     _initFileChangeListener(); // 初始化文件监听
     // 延迟加载避免在build期间触发setState
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -238,13 +241,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       statisticsCache: statisticsCache,
     );
   }
-  
+
   /// 初始化文件变化监听
   Future<void> _initFileChangeListener() async {
     try {
       // 使用推荐服务中的statisticsCache
       final statisticsCache = _recommendationService.statisticsCache;
-      
+
       _fileChangeListener = FileChangeListenerService(
         statisticsCache: statisticsCache,
         onCacheCleared: () {
@@ -259,7 +262,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         },
       );
       await _fileChangeListener!.startListening();
-      
+
       logger.i('✓ 首页快速访问: 文件监听已启动');
     } catch (e) {
       logger.e('启动文件监听失败: $e');
@@ -308,7 +311,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         _loadingRecommendations = true;
       });
     }
-    
+
     try {
       // 调用 refreshRecommendations 强制重新扫描
       final cards = await _recommendationService.refreshRecommendations();
@@ -340,16 +343,17 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final hasCache = _cachedCards != null && _cacheTime != null;
     final cacheAge = hasCache ? now.difference(_cacheTime!) : null;
     final cacheValid = hasCache && cacheAge! < _cacheValidDuration;
-    
-    logger.d('📊 后台检查缓存: 有缓存=$hasCache, 缓存年龄=${cacheAge?.inSeconds}秒, 有效=$cacheValid');
-    
+
+    logger.d(
+        '📊 后台检查缓存: 有缓存=$hasCache, 缓存年龄=${cacheAge?.inSeconds}秒, 有效=$cacheValid');
+
     if (cacheValid) {
       // 缓存有效，如果UI已使用缓存则无需操作
       if (_recommendationCards.isNotEmpty) {
         logger.d('✅ 缓存有效且UI已渲染，跳过加载');
         return;
       }
-      
+
       // UI未更新（理论上不会发生，因为initState已同步设置）
       if (mounted) {
         setState(() {
@@ -365,7 +369,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     // 🎯 关键：如果已有旧缓存数据在显示，不显示loading
     final hasOldCache = _cachedCards != null && _recommendationCards.isNotEmpty;
     logger.d('🔄 后台加载推荐卡片... (静默刷新: $hasOldCache)');
-    
+
     try {
       final cards = await _recommendationService.getRecommendations();
       if (mounted) {
@@ -445,8 +449,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     // 计算卡片尺寸 - 等比例
     // 使用 availableWidth（容器可用宽度）而不是屏幕宽度
     // 这样在横屏模式下会基于左侧栏宽度计算，确保卡片尺寸合适
-    final cardWidth =
-        (availableWidth - spacing * 4) / 3; // 4条间距（开头+中间2个+结尾）
+    final cardWidth = (availableWidth - spacing * 4) / 3; // 4条间距（开头+中间2个+结尾）
     final cardHeight = widget.categoryCardSize;
 
     return Padding(
@@ -773,21 +776,21 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
 
   void _navigateToRecommendation(RecommendationCard card) async {
     logger.d('导航到推荐详情: ${card.title}');
-    
+
     // 根据推荐卡片生成页面配置
     final config = RecommendPageConfigFactory.fromRecommendationCard(card);
-    
+
     // 创建必要的服务依赖
     final detectionService = AppDetectionService();
     final scanner = UnifiedAppScanner(detectionService);
-    
+
     // 创建数据源工厂（注入依赖）
     final dataSourceFactory = DataSourceFactory(
       scanner: scanner,
       detectionService: detectionService,
       presenter: widget.filePresenter,
     );
-    
+
     // 跳转到统一的推荐聚合页面，等待返回结果
     final result = await Navigator.push<bool>(
       context,
@@ -800,7 +803,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
         ),
       ),
     );
-    
+
     // 如果返回值为true，表示数据可能已更新，刷新推荐卡片
     if (result == true && mounted) {
       logger.i('📱 详情页返回，检测到数据可能已更新，刷新推荐卡片');

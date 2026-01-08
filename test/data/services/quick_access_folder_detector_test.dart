@@ -267,7 +267,8 @@ void main() {
       test('Config is accessible from detector', () {
         expect(QuickAccessDetectorConfig.minFileCount, isNotNull);
         expect(QuickAccessDetectorConfig.folderNameBlacklist, isNotNull);
-        expect(QuickAccessDetectorConfig.folderNameBlacklist.isNotEmpty, isTrue);
+        expect(
+            QuickAccessDetectorConfig.folderNameBlacklist.isNotEmpty, isTrue);
       });
     });
 
@@ -289,13 +290,18 @@ void main() {
         final blacklist = QuickAccessDetectorConfig.folderNameBlacklist;
 
         final commonSystemFolders = [
-          'cache', '.cache',
-          'temp', 'tmp',
-          '.git', '.gradle',
+          'cache',
+          '.cache',
+          'temp',
+          'tmp',
+          '.git',
+          '.gradle',
           'node_modules',
-          'build', 'dist',
+          'build',
+          'dist',
           '__pycache__',
-          'log', 'logs',
+          'log',
+          'logs',
         ];
 
         for (final folder in commonSystemFolders) {

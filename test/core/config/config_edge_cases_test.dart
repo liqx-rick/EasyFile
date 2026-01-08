@@ -38,7 +38,8 @@ void main() {
         // 有效值应该能设置
         for (final days in validDays) {
           expect(
-            () async => await AppConfig.instance.fileScan.setTrashRetentionDays(days),
+            () async =>
+                await AppConfig.instance.fileScan.setTrashRetentionDays(days),
             returnsNormally,
           );
         }
@@ -47,7 +48,8 @@ void main() {
         final invalidDays = [0, 1, 5, 10, 100, -1];
         for (final days in invalidDays) {
           expect(
-            () async => await AppConfig.instance.fileScan.setTrashRetentionDays(days),
+            () async =>
+                await AppConfig.instance.fileScan.setTrashRetentionDays(days),
             throwsArgumentError,
           );
         }
@@ -82,7 +84,8 @@ void main() {
 
     group('AppScannerConfig 边界值', () {
       test('should handle invalid app key', () async {
-        final config = await AppConfig.instance.appScanner.getAppConfig('non_existent');
+        final config =
+            await AppConfig.instance.appScanner.getAppConfig('non_existent');
         expect(config, isNull);
       });
 
@@ -101,7 +104,8 @@ void main() {
 
         // 应该抛出异常
         expect(
-          () async => await AppConfig.instance.appScanner.addCustomApp(customApp),
+          () async =>
+              await AppConfig.instance.appScanner.addCustomApp(customApp),
           throwsArgumentError,
         );
       });
@@ -109,11 +113,17 @@ void main() {
       test('should handle extreme priority values', () async {
         // 优先级 1（最高）
         await AppConfig.instance.appScanner.setAppPriority('wechat', 1);
-        expect((await AppConfig.instance.appScanner.getAppConfig('wechat'))!.priority, 1);
+        expect(
+            (await AppConfig.instance.appScanner.getAppConfig('wechat'))!
+                .priority,
+            1);
 
         // 优先级 99（最低）
         await AppConfig.instance.appScanner.setAppPriority('wechat', 99);
-        expect((await AppConfig.instance.appScanner.getAppConfig('wechat'))!.priority, 99);
+        expect(
+            (await AppConfig.instance.appScanner.getAppConfig('wechat'))!
+                .priority,
+            99);
 
         // 超出范围的优先级（根据实现可能接受或拒绝）
         await AppConfig.instance.appScanner.setAppPriority('wechat', 0);
@@ -142,7 +152,8 @@ void main() {
 
         await AppConfig.instance.appScanner.addCustomApp(minimalApp);
 
-        final retrieved = await AppConfig.instance.appScanner.getAppConfig('minimal');
+        final retrieved =
+            await AppConfig.instance.appScanner.getAppConfig('minimal');
         expect(retrieved, isNotNull);
         expect(retrieved!.appKey, 'minimal');
       });
@@ -152,7 +163,8 @@ void main() {
       test('should handle rapid toggle', () async {
         // 快速切换开关
         for (int i = 0; i < 20; i++) {
-          await AppConfig.instance.feature.setFeature('new_files', enabled: i % 2 == 0);
+          await AppConfig.instance.feature
+              .setFeature('new_files', enabled: i % 2 == 0);
         }
 
         // 最终状态应该一致
@@ -204,21 +216,24 @@ void main() {
       test('should handle unknown extensions', () {
         final unknownExts = ['xyz', 'abc', '123', ''];
         for (final ext in unknownExts) {
-          final category = AppConfig.instance.fileTypes.getCategoryByExtension(ext);
+          final category =
+              AppConfig.instance.fileTypes.getCategoryByExtension(ext);
           expect(category.name, 'other');
         }
       });
 
       test('should handle very long extension', () {
         final longExt = 'x' * 1000;
-        final category = AppConfig.instance.fileTypes.getCategoryByExtension(longExt);
+        final category =
+            AppConfig.instance.fileTypes.getCategoryByExtension(longExt);
         expect(category.name, 'other');
       });
 
       test('should handle special characters in extension', () {
         final specialExts = ['!@#', '***', '...', '---'];
         for (final ext in specialExts) {
-          final category = AppConfig.instance.fileTypes.getCategoryByExtension(ext);
+          final category =
+              AppConfig.instance.fileTypes.getCategoryByExtension(ext);
           expect(category.name, 'other');
         }
       });
@@ -273,7 +288,8 @@ void main() {
     group('配置一致性', () {
       test('should maintain consistency after multiple operations', () async {
         // 执行多个操作
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
         await AppConfig.instance.appScanner.setAppEnabled('qq', false);
 
@@ -288,14 +304,18 @@ void main() {
       test('should not affect other configs when modifying one', () async {
         // 记录初始状态
         final initialThreshold = AppConfig.instance.fileScan.largeFileThreshold;
-        final initialLargeFilesEnabled = AppConfig.instance.feature.isLargeFilesEnabled;
+        final initialLargeFilesEnabled =
+            AppConfig.instance.feature.isLargeFilesEnabled;
 
         // 只修改一个配置
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
 
         // 其他配置应该不受影响
-        expect(AppConfig.instance.fileScan.largeFileThreshold, initialThreshold);
-        expect(AppConfig.instance.feature.isLargeFilesEnabled, initialLargeFilesEnabled);
+        expect(
+            AppConfig.instance.fileScan.largeFileThreshold, initialThreshold);
+        expect(AppConfig.instance.feature.isLargeFilesEnabled,
+            initialLargeFilesEnabled);
       });
     });
   });

@@ -107,28 +107,29 @@ void main() {
   });
 
   group('默认推荐配置列表测试', () {
-    test('配置列表包含8个卡片', () {
-      expect(defaultRecommendationConfigs.length, 8);
+    test('配置列表包含9个卡片', () {
+      expect(defaultRecommendationConfigs.length, 9);
     });
 
     test('配置列表按优先级排序', () {
       expect(defaultRecommendationConfigs[0].type, RecommendationType.wechat);
       expect(defaultRecommendationConfigs[1].type, RecommendationType.qq);
-      expect(defaultRecommendationConfigs[2].type, RecommendationType.telegram);
-      expect(defaultRecommendationConfigs[3].type, RecommendationType.wps);
-      expect(defaultRecommendationConfigs[4].type, RecommendationType.memories);
-      expect(defaultRecommendationConfigs[5].type, RecommendationType.videos);
+      expect(defaultRecommendationConfigs[2].type, RecommendationType.wps);
+      expect(defaultRecommendationConfigs[3].type, RecommendationType.telegram);
+      expect(defaultRecommendationConfigs[4].type, RecommendationType.dingtalk);
+      expect(defaultRecommendationConfigs[5].type, RecommendationType.memories);
+      expect(defaultRecommendationConfigs[6].type, RecommendationType.videos);
       expect(
-          defaultRecommendationConfigs[6].type, RecommendationType.recordings);
+          defaultRecommendationConfigs[7].type, RecommendationType.recordings);
       expect(
-          defaultRecommendationConfigs[7].type, RecommendationType.largeFiles);
+          defaultRecommendationConfigs[8].type, RecommendationType.largeFiles);
     });
 
     test('应用类配置都需要文件数量检测', () {
       final appConfigs =
           defaultRecommendationConfigs.where((c) => c.isAppCard).toList();
 
-      expect(appConfigs.length, 4); // 微信、QQ、Telegram、WPS
+      expect(appConfigs.length, 5); // 微信、QQ、WPS、Telegram、钉钉
       expect(appConfigs.every((c) => c.appKey != null), true);
       expect(appConfigs.every((c) => c.minFileCount > 0), true);
     });
@@ -167,8 +168,8 @@ void main() {
   });
 
   group('RecommendationType 枚举测试', () {
-    test('枚举包含7个类型', () {
-      expect(RecommendationType.values.length, 7);
+    test('枚举包含9个类型', () {
+      expect(RecommendationType.values.length, 9);
     });
 
     test('枚举值正确', () {

@@ -194,7 +194,8 @@ class FileListItemBuilder {
       iconColor = Colors.green[700]!;
     }
     // PPT演示
-    else if (mimeType.contains('powerpoint') || config.isPowerPointDocument(fileName)) {
+    else if (mimeType.contains('powerpoint') ||
+        config.isPowerPointDocument(fileName)) {
       icon = Icons.slideshow;
       bgColor = Colors.orange[50]!;
       iconColor = Colors.orange[700]!;
@@ -217,7 +218,8 @@ class FileListItemBuilder {
       iconColor = Colors.amber[900]!;
     }
     // APK文件
-    else if (mimeType.contains('android.package') || config.isApkFile(fileName)) {
+    else if (mimeType.contains('android.package') ||
+        config.isApkFile(fileName)) {
       icon = Icons.android;
       bgColor = Colors.green[50]!;
       iconColor = Colors.green[700]!;

@@ -9,29 +9,29 @@ import 'app_scanner_config.dart';
 import 'duplicate_files_recommendation_config.dart';
 
 /// 应用配置统一入口
-/// 
+///
 /// 单例模式，业务代码通过 AppConfig.instance 访问所有配置。
-/// 
+///
 /// 设计原则：
 /// 1. 不会被产品反复改的，不进
 /// 2. 用户不可感知差异的，不进
 /// 3. 必须和代码强一致的，不进
-/// 
+///
 /// 强烈值得进Config：
 /// 1. 功能是否存在（Feature Toggle）
 /// 2. 策略阈值
 /// 3. 推荐/排序/优先级规则
 /// 4. 风险开关（止血用）
 /// 5. 实验性体验参数
-/// 
+///
 /// 使用示例：
 /// ```dart
 /// // 功能开关
 /// if (AppConfig.instance.feature.isNewFilesEnabled) { ... }
-/// 
+///
 /// // 策略阈值
 /// final threshold = AppConfig.instance.fileScan.largeFileThreshold;
-/// 
+///
 /// // 环境判断
 /// if (AppConfig.instance.build.isDebug) { ... }
 /// ```
@@ -66,7 +66,8 @@ class AppConfig {
 
   /// 重复文件推荐配置（推荐算法的参数和权重）
   DuplicateFilesRecommendationConfig? _duplicateFilesRec;
-  DuplicateFilesRecommendationConfig get duplicateFilesRec => _duplicateFilesRec!;
+  DuplicateFilesRecommendationConfig get duplicateFilesRec =>
+      _duplicateFilesRec!;
 
   // ==================== 存储实例 ====================
 
@@ -83,18 +84,18 @@ class AppConfig {
   // ==================== 初始化 ====================
 
   /// 初始化配置系统
-  /// 
+  ///
   /// 需要在 main() 中尽早调用。
-  /// 
+  ///
   /// 参数：
   /// - storage: 自定义存储实现。如果为 null，使用 LocalConfigStorage
-  /// 
+  ///
   /// 示例：
   /// ```dart
   /// void main() async {
   ///   // 生产环境：使用默认存储
   ///   await AppConfig.instance.initialize();
-  ///   
+  ///
   ///   // 测试环境：使用 Mock 存储
   ///   final mockStorage = MockConfigStorage();
   ///   await AppConfig.instance.initialize(storage: mockStorage);
@@ -121,10 +122,12 @@ class AppConfig {
       _fileTypes = FileTypesConfig(storage: _storage!);
       _appScanner = AppScannerConfig(_storage!);
       _duplicateFilesRec = DuplicateFilesRecommendationConfig(_storage!);
-      logger.i('✓ FeatureConfig & FileScanConfig & FileTypesConfig & AppScannerConfig & DuplicateFilesRecommendationConfig initialized');
+      logger.i(
+          '✓ FeatureConfig & FileScanConfig & FileTypesConfig & AppScannerConfig & DuplicateFilesRecommendationConfig initialized');
 
       logger.i('✅ AppConfig initialization complete');
-      logger.i('build mode: {build.isProfile : ${build.isProfile}, build.isRelease: ${build.isRelease}}');
+      logger.i(
+          'build mode: {build.isProfile : ${build.isProfile}, build.isRelease: ${build.isRelease}}');
 
       // 3. 在 Debug 模式下打印配置状态
       if (build.isDebug) {
@@ -139,7 +142,7 @@ class AppConfig {
   // ==================== 重置方法（测试用） ====================
 
   /// 重置所有配置为默认值
-  /// 
+  ///
   /// 仅用于单元测试。
   Future<void> resetToDefaults() async {
     await feature.reset();
@@ -160,7 +163,8 @@ class AppConfig {
     logger.i('╠════════════════════════════════════════╣');
     logger.i('║ Environment: ${build.environment.name.padRight(26)}║');
     logger.i('║ Storage: ${_storage.runtimeType.toString().padRight(30)}║');
-    logger.i('║ Features Enabled: ${_countEnabledFeatures().toString().padRight(21)}║');
+    logger.i(
+        '║ Features Enabled: ${_countEnabledFeatures().toString().padRight(21)}║');
     logger.i('║ Debug Mode Enabled: ${build.isDebug.toString().padRight(19)}║');
     logger.i('╚════════════════════════════════════════╝');
   }

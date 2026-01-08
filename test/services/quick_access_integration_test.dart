@@ -123,7 +123,5 @@ void main() {
       expect(restored.accessCount, equals(original.accessCount));
       expect(restored.stats?.totalFiles, equals(100));
     });
-
-
   });
 }

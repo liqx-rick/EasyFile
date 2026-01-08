@@ -49,8 +49,6 @@ class AppStorageCacheManager {
     }
   }
 
-
-
   /// 清除指定应用的缓存
   Future<void> clearCache(String packageName) async {
     try {
@@ -78,6 +76,4 @@ class AppStorageCacheManager {
       logger.e('Error clearing all cache: $e');
     }
   }
-
-
 }

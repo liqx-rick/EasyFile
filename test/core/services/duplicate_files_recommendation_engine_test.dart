@@ -92,7 +92,7 @@ void main() {
 
     test('sortFilesByRecommendation 返回排序后的列表', () {
       const engine = DuplicateFilesRecommendationEngine();
-      
+
       final file1 = FileItem(
         name: 'test1.jpg',
         path: '/storage/emulated/0/download/test1.jpg',
@@ -100,7 +100,7 @@ void main() {
         modified: DateTime(2024, 1, 1),
         isDirectory: false,
       );
-      
+
       final file2 = FileItem(
         name: 'test2.jpg',
         path: '/storage/emulated/0/dcim/test2.jpg',
@@ -110,7 +110,7 @@ void main() {
       );
 
       final sorted = engine.sortFilesByRecommendation([file1, file2]);
-      
+
       expect(sorted.length, equals(2));
       expect(sorted[0].path, contains('dcim')); // DCIM 应该排在前面
     });
@@ -274,7 +274,8 @@ void main() {
     test('UUID格式文件识别并扣分', () {
       final uuidFile = FileItem(
         name: '550e8400-e29b-41d4-a716-446655440000.jpg',
-        path: '/storage/emulated/0/download/550e8400-e29b-41d4-a716-446655440000.jpg',
+        path:
+            '/storage/emulated/0/download/550e8400-e29b-41d4-a716-446655440000.jpg',
         size: 1024,
         modified: DateTime(2024, 1, 1),
         isDirectory: false,

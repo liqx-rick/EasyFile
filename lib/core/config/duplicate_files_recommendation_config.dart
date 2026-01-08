@@ -3,11 +3,11 @@ import 'package:easyfile/core/logger.dart';
 import 'storage/config_storage.dart';
 
 /// 重复文件推荐算法配置
-/// 
+///
 /// 符合"强烈值得进Config"原则：
 /// - 原则3: 推荐/排序/优先级规则
 /// - 原则4: 风险开关（可禁用某些规则）
-/// 
+///
 /// 职责：
 /// 1. 管理推荐算法的配置参数（关键词、目录特征等）
 /// 2. 支持远程配置下发和热更新
@@ -21,7 +21,7 @@ class DuplicateFilesRecommendationConfig {
   // ==================== 系统原生目录（常量，不可修改） ====================
 
   /// 系统原生功能目录（优先级最高的子集）
-  /// 
+  ///
   /// 这些是Android系统标准目录，由系统定义，不可修改：
   /// - /storage/emulated/0/DCIM - 相机照片
   /// - /storage/emulated/0/Sounds - 系统录音
@@ -30,7 +30,7 @@ class DuplicateFilesRecommendationConfig {
   /// - /storage/emulated/0/Movies - 视频库
   /// - /storage/emulated/0/Pictures - 图片库
   /// - /storage/emulated/0/Documents - 文档库
-  /// 
+  ///
   /// 这些目录中的文件推荐保留（+1500分），即使存在重复。
   static const List<String> systemNativeDirectories = [
     '/storage/emulated/0/dcim',
@@ -42,15 +42,18 @@ class DuplicateFilesRecommendationConfig {
     '/storage/emulated/0/documents',
   ];
 
+  /// 获取系统原生目录列表（实例方法，便于通过配置实例访问）
+  List<String> getSystemNativeDirectories() => systemNativeDirectories;
+
   /// Download目录（临时下载目录，优先级低于用户自建目录）
   static const String downloadDirectory = '/storage/emulated/0/download/';
 
   // ==================== 可配置的应用特征 ====================
 
   /// 应用数据目录特征（可配置，支持远程下发）
-  /// 
+  ///
   /// 包含应用包名和缓存目录标识。用户可通过管理员后台更新。
-  /// 
+  ///
   /// 默认值包含主流应用，新应用流行后可动态更新。
   List<String> get appDataPatterns {
     final stored = _getStringList('app_data_patterns');
@@ -93,7 +96,7 @@ class DuplicateFilesRecommendationConfig {
   ];
 
   /// 应用子目录模式（可配置）
-  /// 
+  ///
   /// 应用会在用户可见目录下创建子目录，这些子目录的优先级应低于用户自建目录。
   /// 当新应用流行时，可动态更新此列表。
   List<String> get appSubdirectoryPatterns {
@@ -336,6 +339,80 @@ class DuplicateFilesRecommendationConfig {
   /// 路径过深扣分
   int get pathTooDeepPenalty => 150;
 
+  // ==================== 算法参数配置 ====================
+
+  /// 时间评分衰减因子（每天扣除的分数）
+  ///
+  /// 默认值：5分/天
+  /// - 意味着20天后时间因素完全不起作用（100分扣完）
+  /// - 产品可根据用户反馈调整衰减速度
+  /// - 较大值：更重视时间新鲜度
+  /// - 较小值：降低时间因素的权重
+  int get timeDecayScorePerDay =>
+      _getInt('time_decay_per_day', defaultValue: 5);
+
+  /// 大小相似度阈值（字节）
+  ///
+  /// 默认值：1024字节（1KB）
+  /// - 小于此差异认为文件大小相同，不参与评分
+  /// - 避免微小差异影响推荐结果
+  int get sizeSimilarityThreshold =>
+      _getInt('size_similarity_bytes', defaultValue: 1024);
+
+  /// 时间相似度阈值（秒）
+  ///
+  /// 默认值：3600秒（1小时）
+  /// - 小于此差异认为修改时间相同，不参与评分
+  /// - 避免短时间内的多次修改影响推荐
+  int get timeSimilarityThreshold =>
+      _getInt('time_similarity_seconds', defaultValue: 3600);
+
+  /// 路径深度阈值（层数）
+  ///
+  /// 默认值：9层
+  /// - 超过此深度认为路径过深，扣除 pathTooDeepPenalty 分数
+  /// - 深层目录通常是系统或应用自动生成的
+  int get pathDepthThreshold =>
+      _getInt('path_depth_threshold', defaultValue: 9);
+
+  // ==================== 算法参数更新接口 ====================
+
+  /// 更新时间衰减因子
+  Future<void> setTimeDecayScorePerDay(int score) async {
+    if (score < 1 || score > 20) {
+      throw ArgumentError('Time decay score must be between 1 and 20');
+    }
+    await _setInt('time_decay_per_day', score);
+    logger.i('Updated time decay score to $score per day');
+  }
+
+  /// 更新大小相似度阈值
+  Future<void> setSizeSimilarityThreshold(int bytes) async {
+    if (bytes < 0) {
+      throw ArgumentError('Size similarity threshold must be non-negative');
+    }
+    await _setInt('size_similarity_bytes', bytes);
+    logger.i('Updated size similarity threshold to $bytes bytes');
+  }
+
+  /// 更新时间相似度阈值
+  Future<void> setTimeSimilarityThreshold(int seconds) async {
+    if (seconds < 0) {
+      throw ArgumentError('Time similarity threshold must be non-negative');
+    }
+    await _setInt('time_similarity_seconds', seconds);
+    logger.i('Updated time similarity threshold to $seconds seconds');
+  }
+
+  /// 更新路径深度阈值
+  Future<void> setPathDepthThreshold(int depth) async {
+    if (depth < 1) {
+      throw ArgumentError('Path depth threshold must be at least 1');
+    }
+    await _setInt('path_depth_threshold', depth);
+    logger.i('Updated path depth threshold to $depth layers');
+  }
+
   // ==================== 更新接口 ====================
 
   /// 更新应用数据目录特征（支持远程配置下发）
@@ -364,10 +441,8 @@ class DuplicateFilesRecommendationConfig {
 
   /// 重置为默认值
   Future<void> reset() async {
-    final keys = _storage
-        .getKeys()
-        .where((key) => key.startsWith(_keyPrefix))
-        .toList();
+    final keys =
+        _storage.getKeys().where((key) => key.startsWith(_keyPrefix)).toList();
 
     for (final key in keys) {
       await _storage.remove(key);
@@ -376,6 +451,14 @@ class DuplicateFilesRecommendationConfig {
   }
 
   // ==================== 内部实现 ====================
+
+  int _getInt(String key, {required int defaultValue}) {
+    return _storage.getInt('$_keyPrefix$key') ?? defaultValue;
+  }
+
+  Future<void> _setInt(String key, int value) async {
+    await _storage.setInt('$_keyPrefix$key', value);
+  }
 
   List<String> _getStringList(String key) {
     final json = _storage.getString('$_keyPrefix$key');

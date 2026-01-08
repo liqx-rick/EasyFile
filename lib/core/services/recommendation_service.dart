@@ -4,7 +4,6 @@ import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
@@ -62,7 +61,7 @@ class RecommendationService {
 
   /// 统计数据缓存服务（必需）
   final AppStatisticsCache _statisticsCache;
-  
+
   /// 获取统计缓存服务（用于外部监听和清理）
   AppStatisticsCache get statisticsCache => _statisticsCache;
 
@@ -79,7 +78,7 @@ class RecommendationService {
   /// 获取推荐卡片列表（已过滤+排序，最多4个）
   ///
   /// 流程：
-  /// 1. 加载文件数量阈值设置
+  /// 1. 从AppConfig加载文件数量阈值
   /// 2. 遍历配置列表（按优先级）
   /// 3. 应用类：检测安装 + 文件数量（全部使用缓存）
   /// 4. 系统类：直接显示（托底卡片）
@@ -90,13 +89,14 @@ class RecommendationService {
   /// 性能：
   /// - 首次加载（无缓存）：~50ms（应用检测 4×10ms + 初始化）
   /// - 后续加载（有缓存）：<10ms（全部命中缓存）
-  Future<List<RecommendationCard>> getRecommendations({bool forceRefresh = false}) async {
+  Future<List<RecommendationCard>> getRecommendations(
+      {bool forceRefresh = false}) async {
     final stopwatch = Stopwatch()..start();
     final displayCards = <RecommendationCard>[];
 
-    // 加载文件数量阈值设置
-    final settings = await RecommendationSettings.load();
-    final threshold = settings.fileCountThreshold;
+    // 从AppConfig加载文件数量阈值
+    final threshold =
+        AppConfig.instance.fileScan.recommendationFileCountThreshold;
 
     logger.i('========== 开始生成推荐卡片 ==========');
     logger.d('配置数量: ${configs.length}');
@@ -145,7 +145,8 @@ class RecommendationService {
   /// 4. 如果缓存未命中，执行完整扫描并缓存结果
   ///
   /// 返回：符合条件的卡片，否则返回 null
-  Future<RecommendationCard?> _checkAppCard(RecommendationConfig config, int threshold) async {
+  Future<RecommendationCard?> _checkAppCard(
+      RecommendationConfig config, int threshold) async {
     final appKey = config.appKey;
     if (appKey == null) {
       logger.w('  应用Key为空，跳过');
@@ -170,8 +171,9 @@ class RecommendationService {
 
     // 3. 尝试使用统计数据缓存（包含文件数量、总大小、本周新增）
     final cachedStats = await _statisticsCache.get(appKey);
-    
-    if (cachedStats != null && cachedStats.isValid(AppStatisticsCache.cacheDuration)) {
+
+    if (cachedStats != null &&
+        cachedStats.isValid(AppStatisticsCache.cacheDuration)) {
       // 缓存命中：检查文件数量阈值
       if (cachedStats.fileCount < threshold) {
         logger.d('  文件数不足: ${cachedStats.fileCount} < $threshold（阈值）');
@@ -181,10 +183,12 @@ class RecommendationService {
       // 获取应用图标
       Uint8List? appIcon;
       if (detectionResult.packageName != null) {
-        appIcon = await _detectionService.getAppIcon(detectionResult.packageName!);
+        appIcon =
+            await _detectionService.getAppIcon(detectionResult.packageName!);
       }
 
-      logger.d('  ✅ 统计缓存命中 (文件数: ${cachedStats.fileCount}, 大小: ${_formatSize(cachedStats.totalSize)}, 本周新增: ${cachedStats.weeklyGrowth})');
+      logger.d(
+          '  ✅ 统计缓存命中 (文件数: ${cachedStats.fileCount}, 大小: ${_formatSize(cachedStats.totalSize)}, 本周新增: ${cachedStats.weeklyGrowth})');
 
       return RecommendationCard.fromConfig(
         config,
@@ -197,7 +201,7 @@ class RecommendationService {
 
     // 4. 缓存未命中：执行完整扫描
     logger.d('  统计缓存未命中，执行完整扫描...');
-    
+
     final scanResult = await _scanner.scanApp(
       appKey: appKey,
       updateCache: true, // 更新文件数量缓存
@@ -205,11 +209,13 @@ class RecommendationService {
 
     // 应用 FileTypesConfig 过滤，确保只统计支持的文件类型
     final originalCount = scanResult.allFiles.length;
-    final filteredFiles = DataSourceHelpers.filterBySupportedTypes(scanResult.allFiles);
+    final filteredFiles =
+        DataSourceHelpers.filterBySupportedTypes(scanResult.allFiles);
     final fileCount = filteredFiles.length;
-    
+
     if (originalCount > fileCount) {
-      logger.d('  FileTypesConfig 过滤: $originalCount -> $fileCount (过滤 ${originalCount - fileCount} 个不支持的文件)');
+      logger.d(
+          '  FileTypesConfig 过滤: $originalCount -> $fileCount (过滤 ${originalCount - fileCount} 个不支持的文件)');
     }
 
     // 检查文件数量阈值
@@ -257,7 +263,8 @@ class RecommendationService {
     // 8. 获取应用图标
     Uint8List? appIcon;
     if (detectionResult.packageName != null) {
-      appIcon = await _detectionService.getAppIcon(detectionResult.packageName!);
+      appIcon =
+          await _detectionService.getAppIcon(detectionResult.packageName!);
     }
 
     logger.d('  ✅ 扫描完成并缓存统计数据');
@@ -275,20 +282,20 @@ class RecommendationService {
   ///
   /// 系统类卡片不需要应用检测，直接返回
   /// 实现真实的文件统计和大小计算（使用缓存服务）
-  /// 
+  ///
   /// [forceRefresh] 是否强制刷新（清除缓存后重新扫描）
-  Future<RecommendationCard> _checkSystemCard(
-      RecommendationConfig config, {bool forceRefresh = false}) async {
+  Future<RecommendationCard> _checkSystemCard(RecommendationConfig config,
+      {bool forceRefresh = false}) async {
     logger.i('检查系统卡片: ${config.type} (forceRefresh=$forceRefresh)');
-    
+
     int fileCount = 0;
     int totalSize = 0;
-    
+
     try {
       // 使用缓存服务获取数据（自动处理缓存逻辑）
       final cacheService = MediaStoreCacheService();
       List<FileItem> files = [];
-      
+
       switch (config.type) {
         case RecommendationType.memories:
           // 时光记忆：使用缓存服务获取系统相机照片
@@ -296,38 +303,42 @@ class RecommendationService {
             type: MediaStoreType.cameraPhotos,
             forceRefresh: forceRefresh,
           );
-          logger.d('时光记忆: ${files.length}张照片 (${_formatBytes(_calculateTotalSize(files))})');
+          logger.d(
+              '时光记忆: ${files.length}张照片 (${_formatBytes(_calculateTotalSize(files))})');
           break;
-          
+
         case RecommendationType.videos:
           // 生活剪影：使用缓存服务获取系统相机视频
           files = await cacheService.getCachedOrScan(
             type: MediaStoreType.cameraVideos,
             forceRefresh: forceRefresh,
           );
-          logger.d('生活剪影: ${files.length}个视频 (${_formatBytes(_calculateTotalSize(files))})');
+          logger.d(
+              '生活剪影: ${files.length}个视频 (${_formatBytes(_calculateTotalSize(files))})');
           break;
-          
+
         case RecommendationType.recordings:
           // 声音记录：使用缓存服务获取录音文件
           files = await cacheService.getCachedOrScan(
             type: MediaStoreType.recordings,
             forceRefresh: forceRefresh,
           );
-          logger.d('声音记录: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
+          logger.d(
+              '声音记录: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
           break;
-          
+
         case RecommendationType.largeFiles:
           // 大文件：扫描大文件（>100MB）- 暂不使用缓存
           final largeFiles = await _scanLargeFiles();
           files = largeFiles;
-          logger.d('大文件: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
+          logger.d(
+              '大文件: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
           break;
-          
+
         default:
           break;
       }
-      
+
       fileCount = files.length;
       totalSize = _calculateTotalSize(files);
     } catch (e) {
@@ -346,48 +357,49 @@ class RecommendationService {
   Future<List<FileItem>> _scanLargeFiles() async {
     final List<FileItem> largeFiles = [];
     const int sizeThreshold = 100 * 1024 * 1024; // 100MB
-    
+
     try {
       // 扫描所有媒体类型
       final allMedia = <FileItem>[];
-      
+
       // 图片
       final images = await MediaStoreScannerChannel.scanImages();
       allMedia.addAll(images);
-      
+
       // 视频
       final videos = await MediaStoreScannerChannel.scanVideos();
       allMedia.addAll(videos);
-      
+
       // 音频
       final audio = await MediaStoreScannerChannel.scanAudio();
       allMedia.addAll(audio);
-      
+
       // 文档
       final documents = await MediaStoreScannerChannel.scanDocuments();
       allMedia.addAll(documents);
-      
+
       // 过滤大文件
       largeFiles.addAll(allMedia.where((file) => file.size > sizeThreshold));
-      
+
       logger.d('大文件扫描完成: 总媒体${allMedia.length}个, 大文件${largeFiles.length}个');
     } catch (e) {
       logger.e('大文件扫描失败: $e');
     }
-    
+
     return largeFiles;
   }
-  
+
   /// 计算文件总大小
   int _calculateTotalSize(List<FileItem> files) {
     return files.fold<int>(0, (sum, file) => sum + file.size);
   }
-  
+
   /// 格式化字节数
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '${bytes}B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
   }
 
@@ -402,11 +414,11 @@ class RecommendationService {
 
     // 清除应用文件数量缓存
     await _scanner.clearFileCountCache();
-    
+
     // 清除统计数据缓存
     await _statisticsCache.clearAll();
     logger.i('✓ 统计数据缓存已清除');
-    
+
     // 清除 MediaStore 缓存
     final mediastoreCacheService = MediaStoreCacheService();
     await mediastoreCacheService.clearAllCache();
@@ -419,7 +431,7 @@ class RecommendationService {
   /// 获取缓存统计信息（调试用）
   Map<String, dynamic> getCacheStats() {
     final mediastoreCacheService = MediaStoreCacheService();
-    
+
     return {
       'detectionService': _detectionService.getCacheStats(),
       'statisticsCache': _statisticsCache.getCacheStats(),

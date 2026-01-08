@@ -2,19 +2,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 文件数量缓存服务
-/// 
+///
 /// 针对文件扫描结果进行长期缓存，减少重复扫描
-/// 
+///
 /// 缓存策略：
 /// - 有效期：6小时（应用文件变化频率较低）
 /// - 存储方式：SharedPreferences 持久化
 /// - 自动失效：超过有效期后自动重新扫描
 /// - 手动刷新：用户下拉刷新时清除缓存
-/// 
+///
 /// 使用场景：
 /// - 首页推荐卡片（显示应用文件数量）
 /// - 应用管理列表（快速显示文件统计）
-/// 
+///
 /// 性能对比：
 /// - 原方案：每次加载都扫描，耗时3-5秒
 /// - 优化方案：读取缓存，耗时<5ms（提升600-1000倍）
@@ -58,7 +58,7 @@ class FileCountCache {
   // ========================================
 
   /// 获取缓存的文件数量
-  /// 
+  ///
   /// [appKey] 应用Key，如 'wechat'、'qq'
   /// 返回缓存的文件数量，如果缓存不存在或已过期则返回 null
   Future<int?> getFileCount(String appKey) async {
@@ -80,18 +80,20 @@ class FileCountCache {
 
     final cacheAge = DateTime.now().millisecondsSinceEpoch - cachedTime;
     if (cacheAge > _cacheDuration.inMilliseconds) {
-      logger.d('缓存已过期: $appKey (${Duration(milliseconds: cacheAge).inHours}小时)');
+      logger
+          .d('缓存已过期: $appKey (${Duration(milliseconds: cacheAge).inHours}小时)');
       return null;
     }
 
     // 返回缓存值
     final count = _prefs!.getInt(countKey);
-    logger.d('使用缓存: $appKey = $count 个文件 (${Duration(milliseconds: cacheAge).inMinutes}分钟前)');
+    logger.d(
+        '使用缓存: $appKey = $count 个文件 (${Duration(milliseconds: cacheAge).inMinutes}分钟前)');
     return count;
   }
 
   /// 设置文件数量缓存
-  /// 
+  ///
   /// [appKey] 应用Key
   /// [count] 文件数量
   Future<void> setFileCount(String appKey, int count) async {
@@ -108,7 +110,7 @@ class FileCountCache {
   }
 
   /// 清除特定应用的缓存
-  /// 
+  ///
   /// [appKey] 应用Key
   Future<void> clearFileCount(String appKey) async {
     if (!_initialized) await initialize();
@@ -142,7 +144,7 @@ class FileCountCache {
   }
 
   /// 批量获取文件数量
-  /// 
+  ///
   /// [appKeys] 应用Key列表
   /// 返回映射表（appKey -> 文件数量），未缓存或已过期的不包含在结果中
   Future<Map<String, int>> getFileCountBatch(List<String> appKeys) async {
@@ -198,7 +200,7 @@ class FileCountCache {
   }
 
   /// 检查缓存是否有效
-  /// 
+  ///
   /// [appKey] 应用Key
   Future<bool> isCacheValid(String appKey) async {
     final count = await getFileCount(appKey);

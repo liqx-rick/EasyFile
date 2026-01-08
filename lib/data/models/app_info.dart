@@ -78,7 +78,7 @@ class EasyFileAppInfo {
         // 解码失败，忽略
       }
     }
-    
+
     return EasyFileAppInfo(
       name: json['name'] as String,
       packageName: json['packageName'] as String,

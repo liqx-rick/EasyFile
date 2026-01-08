@@ -45,10 +45,11 @@ class AppManagementService {
   /// 保存基准时间到缓存
   Future<void> _saveBaselineTimeToCache() async {
     if (_deviceBaselineTime == null) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('device_baseline_time', _deviceBaselineTime!.millisecondsSinceEpoch);
+      await prefs.setInt(
+          'device_baseline_time', _deviceBaselineTime!.millisecondsSinceEpoch);
       logger.i('Saved baseline time to cache: $_deviceBaselineTime');
     } catch (e) {
       logger.e('Failed to save baseline time to cache: $e');
@@ -59,7 +60,7 @@ class AppManagementService {
   DateTime? get deviceBaselineTime => _deviceBaselineTime;
 
   /// 确保设备基准时间已加载
-  /// 
+  ///
   /// 用于从缓存加载应用时，确保 baseline 已从 SharedPreferences 加载
   Future<void> loadDeviceBaselineTime() async {
     if (_deviceBaselineTime == null) {
@@ -68,42 +69,44 @@ class AppManagementService {
   }
 
   /// 验证并更新设备基准时间
-  /// 
+  ///
   /// 从缓存加载用户应用时调用，确保baseline准确
   /// 只针对用户安装的应用列表（不包括系统应用）
   Future<void> validateAndUpdateBaseline(List<EasyFileAppInfo> apps) async {
     // 确保已加载缓存的baseline
     await loadDeviceBaselineTime();
-    
+
     // 计算当前应用列表的最早时间
     DateTime? calculatedEarliest;
     final now = DateTime.now();
-    
+
     for (final app in apps) {
       final appTime = app.usageStats?.effectiveLastTime;
       if (appTime != null) {
         // 使用相同的过滤逻辑：距今0-15年内
         final yearsDiff = now.difference(appTime).inDays / 365;
         if (yearsDiff >= 0 && yearsDiff <= 15 && appTime.isBefore(now)) {
-          if (calculatedEarliest == null || appTime.isBefore(calculatedEarliest)) {
+          if (calculatedEarliest == null ||
+              appTime.isBefore(calculatedEarliest)) {
             calculatedEarliest = appTime;
           }
         }
       }
     }
-    
+
     // 如果计算出的最早时间存在
     if (calculatedEarliest != null) {
       // 比较：如果与缓存的baseline不同（差异超过1天），则更新
-      if (_deviceBaselineTime == null || 
-          (_deviceBaselineTime!.difference(calculatedEarliest).inDays.abs() > 1)) {
-        
+      if (_deviceBaselineTime == null ||
+          (_deviceBaselineTime!.difference(calculatedEarliest).inDays.abs() >
+              1)) {
         final oldBaseline = _deviceBaselineTime;
         _deviceBaselineTime = calculatedEarliest;
         await _saveBaselineTimeToCache();
-        
+
         logger.i('📌 Baseline更新: $oldBaseline -> $calculatedEarliest');
-        logger.i('   差异: ${oldBaseline != null ? oldBaseline.difference(calculatedEarliest).inDays.abs() : "N/A"}天');
+        logger.i(
+            '   差异: ${oldBaseline != null ? oldBaseline.difference(calculatedEarliest).inDays.abs() : "N/A"}天');
       } else {
         logger.i('✓ Baseline验证通过: $_deviceBaselineTime (无需更新)');
       }
@@ -139,7 +142,7 @@ class AppManagementService {
   ///
   /// [includeSystemApps] 是否包含系统应用
   /// [withIcons] 是否加载图标（缓存已包含图标）
-  /// 
+  ///
   /// 返回: (apps, isFromCache)
   Future<(List<EasyFileAppInfo>, bool)> quickLoadApps({
     bool includeSystemApps = false,
@@ -152,7 +155,8 @@ class AppManagementService {
       );
 
       if (cachedApps != null && cachedApps.isNotEmpty) {
-        logger.i('Quick loaded ${cachedApps.length} apps from cache (with icons)');
+        logger.i(
+            'Quick loaded ${cachedApps.length} apps from cache (with icons)');
         return (cachedApps, true);
       }
 
@@ -376,7 +380,6 @@ class AppManagementService {
     return sorted;
   }
 
-
   /// 筛选大于指定大小的应用
   List<EasyFileAppInfo> filterByMinSize(
       List<EasyFileAppInfo> apps, int minSizeInBytes) {
@@ -427,25 +430,25 @@ class AppManagementService {
 
       if (newApps.isNotEmpty) {
         logger.i('Found ${newApps.length} newly installed apps');
-        
+
         // 重新获取新应用的完整信息（包含图标）
         final newAppsWithIcons = await getInstalledApps(
           includeSystemApps: includeSystemApps,
           withIcons: true,
         );
-        
+
         // 只保留新安装的应用
         final newPackages = newApps.map((app) => app.packageName).toSet();
         newApps = newAppsWithIcons
             .where((app) => newPackages.contains(app.packageName))
             .toList();
-        
+
         // 为新安装的应用加载存储信息
         newApps = await loadAppsWithStorage(
           newApps,
           includeSystemApps: includeSystemApps,
         );
-        
+
         logger.i('Loaded data and icons for ${newApps.length} new apps');
       }
 
@@ -478,7 +481,8 @@ class AppManagementService {
       // 10. quickRefresh 不重新计算 baseline（baseline 只在首次加载用户应用时计算）
       // _calculateDeviceBaselineTime(allApps);
 
-      logger.i('Quick refresh complete: ${allApps.length} apps (${stillInstalled.length} existing + ${newApps.length} new)');
+      logger.i(
+          'Quick refresh complete: ${allApps.length} apps (${stillInstalled.length} existing + ${newApps.length} new)');
       return allApps;
     } catch (e) {
       logger.e('Error in quick refresh: $e');
@@ -511,7 +515,7 @@ class AppManagementService {
   }
 
   /// 计算设备基准时间：用户安装应用的最早时间
-  /// 
+  ///
   /// 使用 effectiveLastTime（lastTimeUsed ?? lastUpdateTime），与UI显示保持一致
   /// 用于推断用户开始使用设备的时间，作为应用显示的基准
   /// 只在加载用户应用（不包括系统应用）时计算
@@ -525,13 +529,13 @@ class AppManagementService {
     // 遍历所有应用
     for (final app in apps) {
       totalApps++;
-      
+
       // 使用 effectiveLastTime（优先 lastTimeUsed，否则 lastUpdateTime）
       final appTime = app.usageStats?.effectiveLastTime;
-      
+
       if (appTime != null) {
         appsWithTime++;
-        
+
         // 过滤明显异常的时间（距今超过15年或晚于当前时间）
         final yearsDiff = now.difference(appTime).inDays / 365;
         if (yearsDiff >= 0 && yearsDiff <= 15 && appTime.isBefore(now)) {
@@ -549,11 +553,13 @@ class AppManagementService {
     if (_deviceBaselineTime != null) {
       final years = (now.difference(_deviceBaselineTime!).inDays / 365).floor();
       final months = (now.difference(_deviceBaselineTime!).inDays / 30).floor();
-      
-      logger.i('Device baseline time: $_deviceBaselineTime (约${years > 0 ? "$years年" : "$months个月"}前)');
-      logger.i('统计：共$totalApps个应用，其中$appsWithTime个有时间记录，过滤$filteredAbnormalTimes个异常时间');
+
+      logger.i(
+          'Device baseline time: $_deviceBaselineTime (约${years > 0 ? "$years年" : "$months个月"}前)');
+      logger.i(
+          '统计：共$totalApps个应用，其中$appsWithTime个有时间记录，过滤$filteredAbnormalTimes个异常时间');
       logger.i('早于此时间的应用将显示为"${years > 0 ? "$years+" : ""}年前"');
-      
+
       // 保存到缓存
       await _saveBaselineTimeToCache();
     } else {

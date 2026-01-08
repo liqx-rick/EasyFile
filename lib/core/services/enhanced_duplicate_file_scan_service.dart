@@ -666,7 +666,7 @@ class EnhancedDuplicateFileScanService {
     }
 
     // 2. 处理新组：检查是否与缓存组有重叠
-    // 
+    //
     // 重叠检测算法：
     // - 两个组只要有一个文件路径相同，就认为是同一组
     // - 例如：用户复制了重复文件到新位置，新旧文件应该在同一组
@@ -977,17 +977,20 @@ class EnhancedDuplicateFileScanService {
     if (fileTypes.isEmpty) return true;
 
     final ext = path.extension(filePath).toLowerCase();
-    
+
     // ✅ 使用 FileTypesConfig 统一管理扩展名
     final config = AppConfig.instance.fileTypes;
-    
+
     // 构建带点的扩展名列表（FileTypesConfig 存储的是不带点的格式）
     final videoExtensions = config.videoExtensions.map((e) => '.$e').toSet();
     final audioExtensions = config.audioExtensions.map((e) => '.$e').toSet();
     final imageExtensions = config.imageExtensions.map((e) => '.$e').toSet();
-    final documentExtensions = config.documentExtensions.map((e) => '.$e').toSet();
-    final archiveExtensions = [...config.archiveExtensions, ...config.apkExtensions]
-        .map((e) => '.$e').toSet();
+    final documentExtensions =
+        config.documentExtensions.map((e) => '.$e').toSet();
+    final archiveExtensions = [
+      ...config.archiveExtensions,
+      ...config.apkExtensions
+    ].map((e) => '.$e').toSet();
 
     for (final type in fileTypes) {
       switch (type) {

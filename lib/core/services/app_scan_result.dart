@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:easyfile/data/models/file_item.dart';
 
 /// 应用扫描结果
-/// 
+///
 /// 封装应用检测和文件扫描的完整结果
 class AppScanResult {
   /// 应用名称（中文）
@@ -24,7 +24,7 @@ class AppScanResult {
   final List<FileItem> pathScanFiles;
 
   /// 差异文件列表（路径扫描 - MediaStore）
-  /// 
+  ///
   /// 这些文件只能通过路径扫描找到，MediaStore 未索引
   final List<FileItem> differenceFiles;
 
@@ -70,7 +70,7 @@ class AppScanResult {
   int get differenceCount => differenceFiles.length;
 
   /// MediaStore 覆盖率（百分比）
-  /// 
+  ///
   /// 计算 MediaStore 找到的文件占路径扫描文件的比例
   double get coverageRate {
     if (pathScanCount == 0) return 0.0;
@@ -165,7 +165,7 @@ class AppScanResult {
 }
 
 /// 应用检测结果
-/// 
+///
 /// 只包含应用安装检测信息，不包含文件扫描结果
 class AppDetectionResult {
   /// 是否已安装

@@ -32,18 +32,18 @@ class LocalConfigStorage implements ConfigStorage {
   Future<bool> setInt(String key, int value) => _prefs.setInt(key, value);
 
   @override
-  Future<bool> setDouble(String key, double value) => 
+  Future<bool> setDouble(String key, double value) =>
       _prefs.setDouble(key, value);
 
   @override
   Future<bool> setBool(String key, bool value) => _prefs.setBool(key, value);
 
   @override
-  Future<bool> setString(String key, String value) => 
+  Future<bool> setString(String key, String value) =>
       _prefs.setString(key, value);
 
   @override
-  Future<bool> setStringList(String key, List<String> value) => 
+  Future<bool> setStringList(String key, List<String> value) =>
       _prefs.setStringList(key, value);
 
   @override

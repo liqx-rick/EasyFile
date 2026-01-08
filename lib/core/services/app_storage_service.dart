@@ -62,6 +62,4 @@ class AppStorageService {
       return null;
     }
   }
-
-
 }

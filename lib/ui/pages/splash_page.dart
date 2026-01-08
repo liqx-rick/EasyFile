@@ -158,7 +158,8 @@ class _SplashPageState extends State<SplashPage>
           '一个简洁高效的文件管理器',
           style: TextStyle(
             fontSize: 16,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             letterSpacing: 0.5,
           ),
         ),

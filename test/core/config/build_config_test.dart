@@ -66,7 +66,8 @@ void main() {
 
       test('package name should follow convention', () {
         // 包名应该是小写，使用点分隔
-        expect(config.packageName, matches(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'));
+        expect(config.packageName,
+            matches(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'));
       });
     });
 

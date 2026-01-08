@@ -56,7 +56,8 @@ class SingleFileOperationsService {
     }
   }
 
-  void _showSnackBar(String message, {Duration? duration, ScaffoldMessengerState? messenger}) {
+  void _showSnackBar(String message,
+      {Duration? duration, ScaffoldMessengerState? messenger}) {
     if (!_isMounted) return;
     final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
@@ -67,7 +68,8 @@ class SingleFileOperationsService {
     );
   }
 
-  void _showErrorSnackBar(String message, [Color? backgroundColor, ScaffoldMessengerState? messenger]) {
+  void _showErrorSnackBar(String message,
+      [Color? backgroundColor, ScaffoldMessengerState? messenger]) {
     if (!_isMounted) return;
     final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
@@ -97,7 +99,8 @@ class SingleFileOperationsService {
       final operationSucceeded = (newFavoriteState != wasOriginallyFavorite);
 
       if (operationSucceeded) {
-        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏', messenger: messenger);
+        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏',
+            messenger: messenger);
         // 收藏操作通过 viewModel.addFavoriteFile/removeFavoriteFile 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
       } else {
@@ -254,12 +257,12 @@ class SingleFileOperationsService {
           _showSnackBar('重命名成功', messenger: messenger);
           // 重命名成功后通过 viewModel.updateFileInList 自动触发 notifyListeners()
           // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
-          
+
           // 延迟释放 TextEditingController，等待对话框动画完成（对话框关闭动画约200-300ms）
           Future.delayed(const Duration(milliseconds: 350), () {
             controller.dispose();
           });
-          
+
           return true; // 返回 true 表示操作成功
         } else {
           _showErrorSnackBar('重命名失败', null, messenger);
@@ -466,7 +469,8 @@ class SingleFileOperationsService {
 
     // 检查是否移动到相同目录
     if (currentPath == destinationPath) {
-      _showSnackBar('无法移动：目标位置与源位置相同', duration: const Duration(seconds: 2), messenger: messenger);
+      _showSnackBar('无法移动：目标位置与源位置相同',
+          duration: const Duration(seconds: 2), messenger: messenger);
       return false;
     }
 
@@ -758,7 +762,8 @@ class SingleFileOperationsService {
 
       // 限制内容长度，避免生成过大的 PDF
       if (content.length > _maxPrintTextLength) {
-        content = '${content.substring(0, _maxPrintTextLength)}\n\n... (内容过长，已截断) ...';
+        content =
+            '${content.substring(0, _maxPrintTextLength)}\n\n... (内容过长，已截断) ...';
       }
 
       await Printing.layoutPdf(

@@ -28,8 +28,9 @@ void main() {
 
       test('should set feature flag', () async {
         // 设置功能开关
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
-        
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
+
         // 验证已生效
         expect(AppConfig.instance.feature.isNewFilesEnabled, false);
       });
@@ -49,7 +50,8 @@ void main() {
 
       test('should reset to defaults', () async {
         // 修改配置
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         expect(AppConfig.instance.feature.isNewFilesEnabled, false);
 
         // 重置
@@ -85,7 +87,8 @@ void main() {
 
         // 非法值应该抛出异常
         expect(
-          () async => await AppConfig.instance.fileScan.setTrashRetentionDays(100),
+          () async =>
+              await AppConfig.instance.fileScan.setTrashRetentionDays(100),
           throwsArgumentError,
         );
       });
@@ -125,12 +128,12 @@ void main() {
         expect(imageExts, contains('jpg'));
         expect(imageExts, contains('png'));
         expect(imageExts, contains('webp'));
-        
+
         // 验证视频扩展名
         final videoExts = AppConfig.instance.fileTypes.videoExtensions;
         expect(videoExts, contains('mp4'));
         expect(videoExts, contains('avi'));
-        
+
         // 验证音频扩展名
         final audioExts = AppConfig.instance.fileTypes.audioExtensions;
         expect(audioExts, contains('mp3'));
@@ -147,37 +150,37 @@ void main() {
           AppConfig.instance.fileTypes.getCategoryByExtension('PNG'),
           FileCategory.image,
         );
-        
+
         // 视频类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('mp4'),
           FileCategory.video,
         );
-        
+
         // 音频类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('mp3'),
           FileCategory.audio,
         );
-        
+
         // 文档类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('pdf'),
           FileCategory.document,
         );
-        
+
         // 压缩包类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('zip'),
           FileCategory.archive,
         );
-        
+
         // APK 类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('apk'),
           FileCategory.apk,
         );
-        
+
         // 未知类型
         expect(
           AppConfig.instance.fileTypes.getCategoryByExtension('unknown'),
@@ -188,24 +191,25 @@ void main() {
       test('should support premium file types', () {
         // 默认情况下，会员扩展名列表为空
         expect(AppConfig.instance.fileTypes.premiumImageExtensions, isEmpty);
-        
+
         // 模拟远程配置开启会员格式
         mockStorage.setString('premium_image_extensions', 'psd,ai,sketch');
-        
+
         // 重新初始化配置
         final fileTypes = AppConfig.instance.fileTypes;
         expect(fileTypes.premiumImageExtensions, ['psd', 'ai', 'sketch']);
       });
 
       test('should get all supported extensions', () {
-        final allExts = AppConfig.instance.fileTypes.getAllSupportedExtensions();
-        
+        final allExts =
+            AppConfig.instance.fileTypes.getAllSupportedExtensions();
+
         // 应包含基础类型
         expect(allExts, contains('jpg'));
         expect(allExts, contains('mp4'));
         expect(allExts, contains('mp3'));
         expect(allExts, contains('pdf'));
-        
+
         // 不包含会员格式（默认）
         expect(allExts, isNot(contains('psd')));
       });
@@ -214,10 +218,10 @@ void main() {
         // 默认基础格式不需要会员
         expect(AppConfig.instance.fileTypes.requiresPremium('jpg'), false);
         expect(AppConfig.instance.fileTypes.requiresPremium('mp4'), false);
-        
+
         // 模拟配置会员格式
         mockStorage.setString('premium_image_extensions', 'psd,ai');
-        
+
         // 会员格式需要权限
         expect(AppConfig.instance.fileTypes.requiresPremium('psd'), true);
         expect(AppConfig.instance.fileTypes.requiresPremium('ai'), true);
@@ -231,8 +235,10 @@ void main() {
         });
 
         // 验证已更新
-        expect(mockStorage.getString('image_extensions'), 'jpg,png,avif,jpeg-xl');
-        expect(mockStorage.getString('premium_image_extensions'), 'psd,ai,sketch');
+        expect(
+            mockStorage.getString('image_extensions'), 'jpg,png,avif,jpeg-xl');
+        expect(
+            mockStorage.getString('premium_image_extensions'), 'psd,ai,sketch');
       });
     });
   });

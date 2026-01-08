@@ -55,7 +55,7 @@ class EasyFileApp extends StatelessWidget {
       child: Consumer2<FileViewModel, ThemeSettingsService>(
         builder: (context, fileViewModel, themeService, _) {
           final themeMode = themeService.themeMode;
-          
+
           return MaterialApp(
             title: 'EasyFile',
             debugShowCheckedModeBanner: false,

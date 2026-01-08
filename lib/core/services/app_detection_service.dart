@@ -8,18 +8,18 @@ import 'package:easyfile/core/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 应用检测服务（优化版 - 持久化缓存）
-/// 
+///
 /// 核心优化：
 /// - 不查询所有应用列表（避免性能开销）
 /// - 只检测指定应用是否安装（精准高效）
 /// - 按需获取应用图标（懒加载）
 /// - 持久化缓存（SharedPreferences）+ 事件驱动刷新
-/// 
+///
 /// 性能对比：
 /// - 原方案：查询100+应用，耗时500-1000ms
 /// - 优化方案（首次）：查询1个应用，耗时5-10ms（提升100倍）
 /// - 优化方案（缓存）：读取本地缓存，耗时<2ms（提升250-500倍）
-/// 
+///
 /// 缓存策略：
 /// - 内存缓存：即时访问，超快速度
 /// - 持久化缓存：跨会话保留，应用重启后无需重新检测
@@ -53,9 +53,9 @@ class AppDetectionService {
   // ========================================
 
   /// 初始化服务（必须在使用前调用）
-  /// 
+  ///
   /// 加载持久化缓存，提升首次访问速度
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// final service = AppDetectionService();
@@ -87,8 +87,9 @@ class AppDetectionService {
       _initialized = true;
       stopwatch.stop();
 
-      logger.i('✓ 服务初始化完成: 加载 $loadedCount 个缓存 (${stopwatch.elapsedMilliseconds}ms)');
-      
+      logger.i(
+          '✓ 服务初始化完成: 加载 $loadedCount 个缓存 (${stopwatch.elapsedMilliseconds}ms)');
+
       // 启动事件监听
       _startEventListener();
     } catch (e) {
@@ -132,16 +133,16 @@ class AppDetectionService {
   }
 
   /// 检测应用是否安装
-  /// 
+  ///
   /// 支持两种检测方式：
   /// 1. 配置包名列表（优先，性能最优）
   /// 2. 应用名称模糊匹配（备选，暂不实现，需要查询所有应用，性能低）
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// final config = AppScannerConfigs.getConfig('wechat');
   /// final result = await detectionService.detectApp(config!);
-  /// 
+  ///
   /// if (result.isInstalled) {
   ///   print('微信已安装: ${result.packageName}');
   /// }
@@ -179,12 +180,12 @@ class AppDetectionService {
   }
 
   /// 检测单个应用是否安装（带缓存）
-  /// 
+  ///
   /// 性能优化：
   /// - 优先使用内存缓存（<1ms）
   /// - 其次使用持久化缓存（<2ms）
   /// - 最后查询系统（5-10ms）
-  /// 
+  ///
   /// [packageName] 应用包名，如 'com.tencent.mm'
   Future<bool> _isAppInstalled(String packageName) async {
     // 确保已初始化
@@ -214,7 +215,8 @@ class AppDetectionService {
     final isInstalled = await AppFileScannerChannel.isAppInstalled(packageName);
     stopwatch.stop();
 
-    logger.d('系统检测 $packageName: $isInstalled (${stopwatch.elapsedMilliseconds}ms)');
+    logger.d(
+        '系统检测 $packageName: $isInstalled (${stopwatch.elapsedMilliseconds}ms)');
 
     // 更新缓存（内存 + 持久化）
     await _updateCache(packageName, isInstalled);
@@ -235,9 +237,9 @@ class AppDetectionService {
   }
 
   /// 获取应用图标（懒加载，带缓存）
-  /// 
+  ///
   /// 只在需要显示应用图标时调用，避免不必要的性能开销
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// final result = await detectApp(config);
@@ -249,7 +251,7 @@ class AppDetectionService {
   ///   }
   /// }
   /// ```
-  /// 
+  ///
   /// [packageName] 应用包名
   /// 返回图标的字节数据（Uint8List），如果应用未安装或获取失败则返回 null
   Future<Uint8List?> getAppIcon(String packageName) async {
@@ -265,7 +267,8 @@ class AppDetectionService {
     final icon = await AppFileScannerChannel.getAppIcon(packageName);
     stopwatch.stop();
 
-    logger.d('图标获取完成: ${icon != null ? '成功' : '失败'} (${stopwatch.elapsedMilliseconds}ms)');
+    logger.d(
+        '图标获取完成: ${icon != null ? '成功' : '失败'} (${stopwatch.elapsedMilliseconds}ms)');
 
     // 更新内存缓存（图标不需要持久化，每次重启重新获取即可）
     _iconCache[packageName] = icon;
@@ -278,7 +281,7 @@ class AppDetectionService {
   // ========================================
 
   /// 清除所有缓存
-  /// 
+  ///
   /// 在以下场景调用：
   /// - 用户手动刷新
   /// - 检测到缓存数据不准确
@@ -291,7 +294,10 @@ class AppDetectionService {
 
     // 清除持久化缓存
     if (_prefs != null) {
-      final keys = _prefs!.getKeys().where((k) => k.startsWith(_cacheKeyPrefix)).toList();
+      final keys = _prefs!
+          .getKeys()
+          .where((k) => k.startsWith(_cacheKeyPrefix))
+          .toList();
       for (final key in keys) {
         await _prefs!.remove(key);
       }
@@ -299,7 +305,7 @@ class AppDetectionService {
   }
 
   /// 清除特定应用的缓存
-  /// 
+  ///
   /// [packageName] 应用包名
   Future<void> clearAppCache(String packageName) async {
     logger.d('清除应用缓存: $packageName');
@@ -316,9 +322,9 @@ class AppDetectionService {
   }
 
   /// 刷新特定应用的缓存（强制重新检测）
-  /// 
+  ///
   /// 用于处理系统广播事件（应用安装/卸载）
-  /// 
+  ///
   /// [packageName] 应用包名
   Future<void> refreshAppCache(String packageName) async {
     logger.i('刷新应用缓存: $packageName');
@@ -328,7 +334,8 @@ class AppDetectionService {
     final isInstalled = await AppFileScannerChannel.isAppInstalled(packageName);
     stopwatch.stop();
 
-    logger.d('刷新完成: $packageName = $isInstalled (${stopwatch.elapsedMilliseconds}ms)');
+    logger.d(
+        '刷新完成: $packageName = $isInstalled (${stopwatch.elapsedMilliseconds}ms)');
 
     // 更新缓存
     await _updateCache(packageName, isInstalled);
@@ -338,9 +345,9 @@ class AppDetectionService {
   }
 
   /// 处理应用安装事件
-  /// 
+  ///
   /// 由系统广播接收器调用
-  /// 
+  ///
   /// [packageName] 新安装的应用包名
   Future<void> onAppInstalled(String packageName) async {
     logger.i('应用安装事件: $packageName');
@@ -349,9 +356,9 @@ class AppDetectionService {
   }
 
   /// 处理应用卸载事件
-  /// 
+  ///
   /// 由系统广播接收器调用
-  /// 
+  ///
   /// [packageName] 被卸载的应用包名
   Future<void> onAppUninstalled(String packageName) async {
     logger.i('应用卸载事件: $packageName');
@@ -360,9 +367,9 @@ class AppDetectionService {
   }
 
   /// 预热缓存（可选）
-  /// 
+  ///
   /// 在应用启动时调用，提前检测常用应用
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// await detectionService.warmUpCache([
@@ -398,7 +405,7 @@ class AppDetectionService {
   // ========================================
 
   /// 批量检测多个应用
-  /// 
+  ///
   /// [appKeys] 应用Key列表，如 ['wechat', 'qq', 'telegram']
   /// 返回检测结果映射表（appKey -> AppDetectionResult）
   Future<Map<String, AppDetectionResult>> detectMultipleApps(
@@ -425,7 +432,11 @@ class AppDetectionService {
       'initialized': _initialized,
       'memoryCacheSize': _installCache.length,
       'iconCacheSize': _iconCache.length,
-      'persistentCacheSize': _prefs?.getKeys().where((k) => k.startsWith(_cacheKeyPrefix)).length ?? 0,
+      'persistentCacheSize': _prefs
+              ?.getKeys()
+              .where((k) => k.startsWith(_cacheKeyPrefix))
+              .length ??
+          0,
     };
   }
 }

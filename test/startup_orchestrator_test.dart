@@ -5,6 +5,8 @@ import 'package:easyfile/core/services/startup/cache_service.dart';
 import 'package:get_it/get_it.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Startup Services Injection Tests', () {
     setUpAll(() async {
       setupLocator();

@@ -33,13 +33,14 @@ class ThemeLocalSource {
 
       final jsonString = await file.readAsString();
       logger.d('📖 Read theme file content: $jsonString');
-      
+
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
 
       final themeString = json['themeMode'] as String? ?? 'system';
       final themeMode = _stringToThemeMode(themeString);
 
-      logger.i('✅ Loaded theme mode from JSON: $themeMode (string: $themeString)');
+      logger.i(
+          '✅ Loaded theme mode from JSON: $themeMode (string: $themeString)');
       return themeMode;
     } catch (e, stackTrace) {
       logger.e('❌ Error loading theme mode: $e\nStackTrace: $stackTrace');
@@ -64,11 +65,11 @@ class ThemeLocalSource {
       await file.writeAsString(jsonEncode(json));
 
       logger.i('✅ Saved theme mode to JSON file: $themeMode at $filePath');
-      
+
       // 验证文件是否真的被写入
       final savedContent = await file.readAsString();
       logger.d('✅ Verified JSON file content: $savedContent');
-      
+
       return true;
     } catch (e, stackTrace) {
       logger.e('❌ Error saving theme mode: $e\nStackTrace: $stackTrace');

@@ -103,9 +103,9 @@ class FileTypesConfig {
         'xlsx',
         'ppt',
         'pptx',
-        'odt',  // OpenDocument Text
-        'ods',  // OpenDocument Spreadsheet
-        'odp',  // OpenDocument Presentation
+        'odt', // OpenDocument Text
+        'ods', // OpenDocument Spreadsheet
+        'odp', // OpenDocument Presentation
       ]);
 
   /// 压缩包文件扩展名

@@ -3,7 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'storage/config_storage.dart';
 
 /// 应用配置数据模型
-/// 
+///
 /// 描述需要被文件管理器扫描的应用的配置信息
 class AppConfigData {
   /// 应用Key（英文标识，用于索引）
@@ -16,31 +16,31 @@ class AppConfigData {
   final String? description;
 
   /// 预配置包名列表（优先级1 - 最快最准确）
-  /// 
+  ///
   /// 多个包名支持应用的不同版本
   /// 例如：['com.tencent.mm'] - 微信
   final List<String> packageNames;
 
   /// 应用名称模糊匹配列表（优先级2 - 备选方案）
-  /// 
+  ///
   /// 当包名未知或可能变更时使用
   /// 例如：['微信', 'WeChat', 'weixin']
   final List<String> appLabelPatterns;
 
   /// 文件夹关键字列表（用于动态查找应用目录）
-  /// 
+  ///
   /// 在公共目录下搜索匹配的子文件夹
   /// 例如：['WeiXin', 'weixin', 'Weixin']
   final List<String> folderKeywords;
 
   /// 附加扫描路径列表
-  /// 
+  ///
   /// 在基础路径之外的额外扫描路径
   /// 例如：['/storage/emulated/0/Android/data/com.tencent.mm/']
   final List<String> additionalPaths;
 
   /// 文件名模式列表（用于文件名匹配）
-  /// 
+  ///
   /// 支持 SQL LIKE 语法，% 表示通配符
   /// 例如：['wx_camera_%', 'mmexport%'] - 微信相机和导出的图片
   final List<String> filePatterns;
@@ -161,11 +161,11 @@ class AppConfigData {
 }
 
 /// 应用扫描配置类
-/// 
+///
 /// 符合"强烈值得进Config"原则：
 /// - 原则3: 推荐/排序/优先级规则
 /// - 原则4: 风险开关（可禁用某个应用）
-/// 
+///
 /// 职责：
 /// 1. 管理需要被文件管理器扫描的应用配置
 /// 2. 支持运行时动态启用/禁用应用
@@ -180,7 +180,7 @@ class AppScannerConfig {
   // ==================== 默认应用配置 ====================
 
   /// 预定义应用配置（代码中定义的默认值）
-  /// 
+  ///
   /// 这些是精心挑选的应用，其文件适合被文件管理器管理
   static final Map<String, AppConfigData> _defaultApps = {
     'wechat': const AppConfigData(
@@ -239,9 +239,9 @@ class AppScannerConfig {
   // ==================== 读取配置 ====================
 
   /// 获取应用配置
-  /// 
+  ///
   /// 优先从存储读取，不存在则返回默认值
-  /// 
+  ///
   /// [appKey] 应用标识，如 'wechat'
   /// 返回对应的配置，如果不存在则返回 null
   Future<AppConfigData?> getAppConfig(String appKey) async {
@@ -268,7 +268,7 @@ class AppScannerConfig {
   bool isSupported(String appKey) => _defaultApps.containsKey(appKey);
 
   /// 获取所有启用的应用配置
-  /// 
+  ///
   /// 返回按优先级排序的启用应用列表
   Future<List<AppConfigData>> getEnabledApps() async {
     final apps = <AppConfigData>[];
@@ -316,7 +316,7 @@ class AppScannerConfig {
   // ==================== 修改配置 ====================
 
   /// 设置应用启用状态
-  /// 
+  ///
   /// [appKey] 应用标识
   /// [enabled] 是否启用
   Future<void> setAppEnabled(String appKey, bool enabled) async {
@@ -337,7 +337,7 @@ class AppScannerConfig {
   }
 
   /// 设置应用优先级
-  /// 
+  ///
   /// [appKey] 应用标识
   /// [priority] 优先级（1=最高）
   Future<void> setAppPriority(String appKey, int priority) async {
@@ -358,7 +358,7 @@ class AppScannerConfig {
   }
 
   /// 更新应用配置
-  /// 
+  ///
   /// [config] 新的应用配置
   Future<void> updateAppConfig(AppConfigData config) async {
     try {
@@ -374,9 +374,9 @@ class AppScannerConfig {
   }
 
   /// 添加自定义应用配置（运行时）
-  /// 
+  ///
   /// 允许用户或远程配置添加新的应用
-  /// 
+  ///
   /// [config] 应用配置
   Future<void> addCustomApp(AppConfigData config) async {
     try {
@@ -398,9 +398,9 @@ class AppScannerConfig {
   }
 
   /// 移除自定义应用配置
-  /// 
+  ///
   /// 只能移除自定义添加的应用，预定义应用只能禁用不能移除
-  /// 
+  ///
   /// [appKey] 应用标识
   Future<void> removeCustomApp(String appKey) async {
     try {
@@ -417,7 +417,7 @@ class AppScannerConfig {
   }
 
   /// 重置应用配置为默认值
-  /// 
+  ///
   /// [appKey] 应用标识
   Future<void> resetAppConfig(String appKey) async {
     try {
@@ -445,7 +445,7 @@ class AppScannerConfig {
   // ==================== 批量操作 ====================
 
   /// 从远程配置合并应用配置
-  /// 
+  ///
   /// [remoteConfigs] 远程配置的 Map（appKey -> JSON）
   Future<void> mergeRemoteConfigs(Map<String, dynamic> remoteConfigs) async {
     try {

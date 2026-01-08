@@ -8,10 +8,10 @@ class QuickAccessViewModel extends ChangeNotifier {
   bool _isLoading = false;
   bool _isScanning = false;
   String? _errorMessage;
-  
+
   // v2.0: 系统目录展开状态管理（key: 系统目录根路径，value: 是否展开）
   final Map<String, bool> _expandedSystemFolders = {};
-  
+
   // 新增文件夹ID集合（会话级，关闭应用后自动清除）
   final Set<String> _newFolderIds = {};
 
@@ -26,7 +26,7 @@ class QuickAccessViewModel extends ChangeNotifier {
     final filtered = _folders
         .where((f) => f.type == QuickAccessFolderType.system && !f.isHidden)
         .toList();
-    
+
     // 按系统目录的预定义顺序排序（仅根目录）
     final rootFolders = filtered.where((f) => !f.isSystemSubfolder).toList();
     rootFolders.sort((a, b) {
@@ -34,7 +34,7 @@ class QuickAccessViewModel extends ChangeNotifier {
       final bIndex = SystemFoldersConfig.systemPaths.indexOf(b.path);
       return aIndex.compareTo(bIndex);
     });
-    
+
     return rootFolders;
   }
 
@@ -54,10 +54,10 @@ class QuickAccessViewModel extends ChangeNotifier {
         // 额外过滤：排除系统文件夹（处理历史数据库中错误分类的记录）
         .where((f) => !SystemFoldersConfig.isSystemFolder(f.path))
         .toList();
-    
+
     // 按显示名称排序
     filtered.sort((a, b) => a.displayName.compareTo(b.displayName));
-    
+
     return filtered;
   }
 
@@ -151,22 +151,22 @@ class QuickAccessViewModel extends ChangeNotifier {
 
   /// 获取系统目录的子文件夹（从文件系统读取）
   /// 获取某个路径的所有子文件夹（从数据库）
-  /// 
+  ///
   /// 返回所有 parentPath 匹配的文件夹记录，按名称排序
   /// 这些都是已加入快速访问的子文件夹
   List<QuickAccessFolder> getSubfoldersFromDatabase(String parentPath) {
     final subfolders = _folders
         .where((f) => f.parentPath == parentPath && !f.isHidden)
         .toList();
-    
+
     // 按显示名称排序
     subfolders.sort((a, b) => a.displayName.compareTo(b.displayName));
-    
+
     return subfolders;
   }
 
   /// 检查某个路径是否有子文件夹
-  /// 
+  ///
   /// 返回 true 如果存在至少一个 parentPath 匹配且未隐藏的子文件夹
   /// 用于决定是否显示展开图标
   bool hasSubfolders(String parentPath) {

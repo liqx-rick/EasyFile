@@ -10,7 +10,7 @@ import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
 
 /// 缓存管理服务
-/// 
+///
 /// 统一管理应用中的各种缓存，支持以下类型：
 /// - 缩略图缓存（视频/音频）
 /// - 日志文件
@@ -33,13 +33,13 @@ class CacheManagerService {
 
   // MediaStore缓存服务
   final _mediaStoreCache = MediaStoreCacheService();
-  
+
   // 垃圾文件缓存管理器
   final _junkFileCache = JunkFileCacheManager();
 
   // 重复文件扫描服务（需要外部传入）
   EnhancedDuplicateFileScanService? _duplicateFileScanService;
-  
+
   // 系统回收站扫描服务（需要外部传入）
   TrashFileService? _trashFileService;
 
@@ -47,7 +47,7 @@ class CacheManagerService {
   void setDuplicateFileScanService(EnhancedDuplicateFileScanService service) {
     _duplicateFileScanService = service;
   }
-  
+
   /// 设置系统回收站服务
   void setTrashFileService(TrashFileService service) {
     _trashFileService = service;
@@ -226,9 +226,7 @@ class CacheManagerService {
     // 8. 应用管理缓存
     try {
       final appMgmtSize = await _getAppManagementCacheSize();
-      final description = appMgmtSize > 0 
-          ? '包含应用存储、统计、文件数量及检测缓存' 
-          : '无缓存';
+      final description = appMgmtSize > 0 ? '包含应用存储、统计、文件数量及检测缓存' : '无缓存';
 
       items.add(CacheItem(
         name: '应用管理缓存',
@@ -249,9 +247,7 @@ class CacheManagerService {
     // 9. 媒体库扫描缓存
     try {
       final mediaStoreSize = await _getMediaStoreCacheSize();
-      final description = mediaStoreSize > 0
-          ? '包含照片、视频、录音的扫描索引'
-          : '无缓存';
+      final description = mediaStoreSize > 0 ? '包含照片、视频、录音的扫描索引' : '无缓存';
 
       items.add(CacheItem(
         name: '媒体库扫描缓存',
@@ -276,7 +272,7 @@ class CacheManagerService {
       final junkExists = junkCacheInfo['exists'] as bool;
       final junkFileCount = junkCacheInfo['fileCount'] as int? ?? 0;
       final junkTimestamp = junkCacheInfo['timestamp'] as DateTime?;
-      
+
       // 获取回收站缓存信息
       int trashFileCount = 0;
       DateTime? trashTimestamp;
@@ -288,12 +284,12 @@ class CacheManagerService {
           trashTimestamp = trashCacheInfo['cacheTime'] as DateTime?;
         }
       }
-      
+
       // 计算总缓存大小（估算）
       final junkCacheSize = junkFileCount * 150; // 垃圾文件元数据约150字节
       final trashCacheSize = trashFileCount * 200; // 回收站文件元数据约200字节
       final totalSize = junkCacheSize + trashCacheSize;
-      
+
       // 构建描述信息
       final parts = <String>[];
       if (junkExists && junkFileCount > 0) {
@@ -302,7 +298,7 @@ class CacheManagerService {
       if (trashFileCount > 0) {
         parts.add('回收站 $trashFileCount 个');
       }
-      
+
       String description;
       if (parts.isEmpty) {
         description = '无缓存';
@@ -310,11 +306,13 @@ class CacheManagerService {
         // 使用最新的时间戳
         DateTime? latestTime;
         if (junkTimestamp != null && trashTimestamp != null) {
-          latestTime = junkTimestamp.isAfter(trashTimestamp) ? junkTimestamp : trashTimestamp;
+          latestTime = junkTimestamp.isAfter(trashTimestamp)
+              ? junkTimestamp
+              : trashTimestamp;
         } else {
           latestTime = junkTimestamp ?? trashTimestamp;
         }
-        
+
         String timeAgo = '';
         if (latestTime != null) {
           final duration = DateTime.now().difference(latestTime);
@@ -327,10 +325,10 @@ class CacheManagerService {
           }
           timeAgo = '，$timeAgo 扫描';
         }
-        
+
         description = '${parts.join('、')}$timeAgo';
       }
-      
+
       items.add(CacheItem(
         name: '垃圾文件扫描缓存',
         description: description,
@@ -420,7 +418,7 @@ class CacheManagerService {
           // 清理垃圾文件缓存
           await _junkFileCache.clearCache();
           logger.i('Junk file cache cleared');
-          
+
           // 清理回收站缓存
           if (_trashFileService != null) {
             await _trashFileService!.clearCache(keepSuppressionPeriods: false);
@@ -585,23 +583,26 @@ class CacheManagerService {
 
       // 统计所有应用管理相关的键
       for (final key in keys) {
-        if (key.startsWith('app_storage_') ||       // AppStorageCacheManager
-            key.startsWith('app_statistics_') ||    // AppStatisticsCache
-            key.startsWith('file_count_') ||        // FileCountCache (count)
-            key.startsWith('file_count_time_') ||   // FileCountCache (time)
-            key.startsWith('app_installed_') ||     // AppDetectionService
-            key.startsWith('app_list_cache_')) {    // AppListCacheManager（新增）
+        if (key.startsWith('app_storage_') || // AppStorageCacheManager
+            key.startsWith('app_statistics_') || // AppStatisticsCache
+            key.startsWith('file_count_') || // FileCountCache (count)
+            key.startsWith('file_count_time_') || // FileCountCache (time)
+            key.startsWith('app_installed_') || // AppDetectionService
+            key.startsWith('app_list_cache_')) {
+          // AppListCacheManager（新增）
           count++;
           // 估算每个键值对大小：键长度 + 值（JSON/int，约200-500字节）
           // 应用列表缓存可能较大（含图标），估算为1-5MB
-          final estimatedSize = key.startsWith('app_list_cache_') && !key.contains('_time_') 
-              ? 2 * 1024 * 1024  // 应用列表缓存：约2MB
-              : 300;              // 其他缓存：约300字节
+          final estimatedSize =
+              key.startsWith('app_list_cache_') && !key.contains('_time_')
+                  ? 2 * 1024 * 1024 // 应用列表缓存：约2MB
+                  : 300; // 其他缓存：约300字节
           totalSize += key.length * 2 + estimatedSize; // UTF-16编码
         }
       }
 
-      logger.d('App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      logger.d(
+          'App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
       return totalSize;
     } catch (e) {
       logger.e('Error calculating app management cache size: $e');
@@ -610,11 +611,11 @@ class CacheManagerService {
   }
 
   /// 清理应用管理缓存
-  /// 
+  ///
   /// 优化：批量并行删除，避免串行等待
   /// 问题根源：原实现使用 `for + await remove()`，184个键串行删除需10+秒
   /// 解决方案：使用 `Future.wait()` 批量并行删除，耗时约1-2秒
-  /// 
+  ///
   /// 包含的缓存类型：
   /// - app_storage_*: AppStorageCacheManager（应用存储信息）
   /// - app_statistics_*: AppStatisticsCache（应用统计数据）
@@ -626,30 +627,34 @@ class CacheManagerService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final allKeys = prefs.getKeys();
-      
+
       // 收集所有需要删除的键
-      final keysToRemove = allKeys.where((key) => 
-        key.startsWith('app_storage_') ||       // AppStorageCacheManager
-        key.startsWith('app_statistics_') ||    // AppStatisticsCache
-        key.startsWith('file_count_') ||        // FileCountCache (count)
-        key.startsWith('file_count_time_') ||   // FileCountCache (time)
-        key.startsWith('app_installed_') ||     // AppDetectionService
-        key.startsWith('app_list_cache_')       // AppListCacheManager（新增）
-      ).toList();
-      
+      final keysToRemove = allKeys
+          .where((key) =>
+                  key.startsWith('app_storage_') || // AppStorageCacheManager
+                  key.startsWith('app_statistics_') || // AppStatisticsCache
+                  key.startsWith('file_count_') || // FileCountCache (count)
+                  key.startsWith('file_count_time_') || // FileCountCache (time)
+                  key.startsWith('app_installed_') || // AppDetectionService
+                  key.startsWith('app_list_cache_') // AppListCacheManager（新增）
+              )
+          .toList();
+
       if (keysToRemove.isEmpty) {
         logger.i('App management cache: no keys to remove');
         return true;
       }
-      
-      logger.i('App management cache: batch deleting ${keysToRemove.length} keys...');
-      
+
+      logger.i(
+          'App management cache: batch deleting ${keysToRemove.length} keys...');
+
       // ⚡ 优化：使用clear()然后重建非应用管理的键（如果需要保留其他缓存）
       // 或者直接逐个删除但使用更高效的方式
       // 方案：收集所有要保留的键值对，clear()后重建
-      
+
       // 收集要保留的键值对
-      final keysToKeep = allKeys.where((key) => !keysToRemove.contains(key)).toList();
+      final keysToKeep =
+          allKeys.where((key) => !keysToRemove.contains(key)).toList();
       final preservedData = <String, dynamic>{};
       for (final key in keysToKeep) {
         final value = prefs.get(key);
@@ -657,10 +662,10 @@ class CacheManagerService {
           preservedData[key] = value;
         }
       }
-      
+
       // 清空所有数据
       await prefs.clear();
-      
+
       // 重建保留的数据
       for (final entry in preservedData.entries) {
         final value = entry.value;
@@ -676,8 +681,9 @@ class CacheManagerService {
           await prefs.setStringList(entry.key, value);
         }
       }
-      
-      logger.i('App management cache cleared: ${keysToRemove.length} keys removed (${keysToKeep.length} keys preserved)');
+
+      logger.i(
+          'App management cache cleared: ${keysToRemove.length} keys removed (${keysToKeep.length} keys preserved)');
       return true;
     } catch (e) {
       logger.e('Failed to clear app management cache: $e');
@@ -706,7 +712,8 @@ class CacheManagerService {
         }
       }
 
-      logger.d('MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      logger.d(
+          'MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
       return totalSize;
     } catch (e) {
       logger.e('Error calculating MediaStore cache size: $e');
@@ -715,7 +722,7 @@ class CacheManagerService {
   }
 
   /// 清理MediaStore缓存
-  /// 
+  ///
   /// 清理所有媒体库扫描缓存（相机照片、相机视频、录音文件）
   /// 使用MediaStoreCacheService的clearAllCache()方法
   Future<bool> _clearMediaStoreCache() async {

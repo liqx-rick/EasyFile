@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
@@ -103,13 +102,11 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     locator<FileViewModel>().addListener(_onViewModelChanged);
 
     // 从配置文件读取缓存有效期并初始化缓存管理器
-    locator.getAsync<FileScanConfig>().then((config) {
-      _cacheManager = LargeFileCacheManager(
-        cacheExpiryDays: config.largeFileCacheExpiry,
-      );
-      // 自动加载缓存并开始扫描
-      _initializeAndScan();
-    });
+    _cacheManager = LargeFileCacheManager(
+      cacheExpiryDays: AppConfig.instance.fileScan.largeFileCacheExpiry,
+    );
+    // 自动加载缓存并开始扫描
+    _initializeAndScan();
   }
 
   /// 初始化并开始扫描
@@ -315,7 +312,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         fileTypes: _config.fileTypes,
       )
           .timeout(
-        Duration(seconds: locator<FileScanConfig>().largeFileScanTimeout),
+        Duration(seconds: AppConfig.instance.fileScan.largeFileScanTimeout),
         onTimeout: () {
           logger.w('Large file scan timeout');
           return [];
@@ -383,7 +380,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         fileTypes: _config.fileTypes,
       )
           .timeout(
-        Duration(seconds: locator<FileScanConfig>().largeFileScanTimeout),
+        Duration(seconds: AppConfig.instance.fileScan.largeFileScanTimeout),
         onTimeout: () {
           logger.w('Differential scan timeout');
           return [];
@@ -539,9 +536,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           ],
         ),
         // 批量操作底部工具栏
-        bottomNavigationBar: isEditMode
-            ? _buildSelectionBottomBar()
-            : null,
+        bottomNavigationBar: isEditMode ? _buildSelectionBottomBar() : null,
       ),
     );
   }
@@ -832,10 +827,8 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
   /// 构建扫描类型次标题
   String _buildScanTypeSubtitle() {
-    // 判断是快速扫描还是自定义扫描
-    final isQuickScan = widget.initialConfig == null;
-
-    if (isQuickScan) {
+    // 使用isQuickScan属性判断是否为快速扫描
+    if (_config.isQuickScan) {
       return '快速扫描';
     } else {
       // 自定义扫描：显示配置信息

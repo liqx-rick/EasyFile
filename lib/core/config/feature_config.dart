@@ -2,7 +2,7 @@ import 'package:easyfile/core/logger.dart';
 import 'storage/config_storage.dart';
 
 /// 功能开关配置
-/// 
+///
 /// 符合"强烈值得进Config"原则 1：功能是否存在（Feature Toggle）
 /// 用于灰度发布、AB Test、风险控制。
 class FeatureConfig {
@@ -20,14 +20,14 @@ class FeatureConfig {
   bool get isLargeFilesEnabled => _getBool('large_files', defaultValue: true);
 
   /// 重复文件扫描功能
-  bool get isDuplicateFilesEnabled => 
+  bool get isDuplicateFilesEnabled =>
       _getBool('duplicate_files', defaultValue: true);
 
   /// 垃圾文件清理功能
   bool get isJunkCleanupEnabled => _getBool('junk_cleanup', defaultValue: true);
 
   /// 应用管理功能
-  bool get isAppManagementEnabled => 
+  bool get isAppManagementEnabled =>
       _getBool('app_management', defaultValue: true);
 
   /// 回收站功能
@@ -86,10 +86,11 @@ class FeatureConfig {
   /// 重置所有功能开关为默认值
   Future<void> reset() async {
     try {
-      final keys = _storage.getKeys()
+      final keys = _storage
+          .getKeys()
           .where((key) => key.startsWith(_keyPrefix))
           .toList();
-      
+
       for (final key in keys) {
         await _storage.remove(key);
       }

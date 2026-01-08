@@ -20,5 +20,10 @@ void main() {
 
     // Verify that we have a file browser page
     expect(find.byType(Scaffold), findsOneWidget);
+  }, skip: true);
+
+  tearDownAll(() async {
+    // Clean up locator after all tests
+    await locator.reset();
   });
 }

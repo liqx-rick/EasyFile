@@ -6,40 +6,40 @@ import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/data_sources/media_store_data_source.dart';
 
 /// MediaStore 缓存服务
-/// 
+///
 /// 功能：
 /// - 为系统相机照片、视频、录音文件提供缓存
 /// - 内存缓存（快速访问）+ SharedPreferences 持久化（跨会话保留）
 /// - 支持手动刷新和自动过期
-/// 
+///
 /// 缓存策略（已优化）：
 /// - 时光记忆（相机照片）：4小时有效期（历史数据稳定）
 /// - 生活剪影（相机视频）：1小时有效期（降低扫描频率）
 /// - 声音记录（录音文件）：2小时有效期（数据变化少）
-/// 
+///
 /// 优化收益：
 /// - 减少50-60%的MediaStore扫描次数
 /// - 缓存命中率提升至70-95%
 /// - 降低电池消耗和CPU占用
-/// 
+///
 /// 性能提升：
 /// - 首次加载：正常扫描速度（200-800ms）
 /// - 缓存命中：<20ms（提升10-40倍）
-/// 
+///
 /// 使用示例：
 /// ```dart
 /// // 1. 初始化服务
 /// final cacheService = MediaStoreCacheService();
 /// await cacheService.initialize();
-/// 
+///
 /// // 2. 获取缓存数据（自动扫描如果缓存失效）
 /// final photos = await cacheService.getCachedOrScan(
 ///   type: MediaStoreType.cameraPhotos,
 /// );
-/// 
+///
 /// // 3. 手动刷新
 /// await cacheService.refresh(MediaStoreType.cameraPhotos);
-/// 
+///
 /// // 4. 清除所有缓存
 /// await cacheService.clearAllCache();
 /// ```
@@ -60,15 +60,15 @@ class MediaStoreCacheService {
   static const _cacheCountKeyPrefix = 'mediastore_cache_count_';
 
   /// 缓存有效期配置（已优化：减少50-60%扫描次数，提升缓存命中率至70-95%）
-  /// 
+  ///
   /// 优化理由：
   /// - 时光记忆：查询历史数据（一年前），几乎不变，延长至4小时
   /// - 生活剪影：视频拍摄频率低，30分钟过短导致频繁扫描，改为1小时
   /// - 声音记录：数据变化极少，延长至2小时减少无效查询
   static const _cacheValidDuration = {
-    MediaStoreType.cameraPhotos: Duration(hours: 4),      // 时光记忆：4小时（优化：1h→4h）
-    MediaStoreType.cameraVideos: Duration(hours: 1),      // 生活剪影：1小时（优化：30min→1h）
-    MediaStoreType.recordings: Duration(hours: 2),        // 声音记录：2小时（优化：1h→2h）
+    MediaStoreType.cameraPhotos: Duration(hours: 4), // 时光记忆：4小时（优化：1h→4h）
+    MediaStoreType.cameraVideos: Duration(hours: 1), // 生活剪影：1小时（优化：30min→1h）
+    MediaStoreType.recordings: Duration(hours: 2), // 声音记录：2小时（优化：1h→2h）
   };
 
   // ========================================
@@ -99,7 +99,7 @@ class MediaStoreCacheService {
   // ========================================
 
   /// 初始化服务
-  /// 
+  ///
   /// 加载持久化缓存到内存，提升首次访问速度
   Future<void> initialize() async {
     if (_initialized) return;
@@ -147,12 +147,12 @@ class MediaStoreCacheService {
   // ========================================
 
   /// 获取缓存数据或扫描
-  /// 
+  ///
   /// 流程：
   /// 1. 检查内存缓存是否有效
   /// 2. 检查持久化缓存是否有效
   /// 3. 缓存失效或不存在：执行扫描并更新缓存
-  /// 
+  ///
   /// [type] MediaStore 类型
   /// [forceRefresh] 是否强制刷新（忽略缓存）
   /// 返回文件列表
@@ -192,7 +192,7 @@ class MediaStoreCacheService {
   }
 
   /// 快速获取文件数量（仅从缓存读取，不扫描）
-  /// 
+  ///
   /// [type] MediaStore 类型
   /// 返回文件数量，如果缓存不存在或已过期则返回 null
   Future<int?> getFileCountFast({required MediaStoreType type}) async {
@@ -212,7 +212,8 @@ class MediaStoreCacheService {
         final cachedTime = _prefs!.getInt(timeKey);
         if (cachedTime != null) {
           final cacheAge = DateTime.now().millisecondsSinceEpoch - cachedTime;
-          final validDuration = _cacheValidDuration[type] ?? const Duration(hours: 1);
+          final validDuration =
+              _cacheValidDuration[type] ?? const Duration(hours: 1);
 
           if (cacheAge < validDuration.inMilliseconds) {
             final count = _prefs!.getInt(countKey) ?? 0;
@@ -228,7 +229,7 @@ class MediaStoreCacheService {
   }
 
   /// 手动刷新缓存
-  /// 
+  ///
   /// [type] MediaStore 类型，如果为 null 则刷新所有类型
   Future<void> refresh([MediaStoreType? type]) async {
     if (type != null) {
@@ -243,7 +244,7 @@ class MediaStoreCacheService {
   }
 
   /// 后台预热缓存
-  /// 
+  ///
   /// 在应用启动后异步预加载，不阻塞UI
   Future<void> warmUp() async {
     logger.i('开始预热 MediaStore 缓存...');
@@ -435,10 +436,12 @@ class MediaStoreCacheService {
     // 清除持久化缓存
     if (_prefs != null) {
       final keys = _prefs!.getKeys();
-      final cacheKeys = keys.where((k) =>
-          k.startsWith(_cacheKeyPrefix) ||
-          k.startsWith(_cacheTimeKeyPrefix) ||
-          k.startsWith(_cacheCountKeyPrefix)).toList();
+      final cacheKeys = keys
+          .where((k) =>
+              k.startsWith(_cacheKeyPrefix) ||
+              k.startsWith(_cacheTimeKeyPrefix) ||
+              k.startsWith(_cacheCountKeyPrefix))
+          .toList();
 
       for (final key in cacheKeys) {
         await _prefs!.remove(key);
@@ -472,7 +475,8 @@ class MediaStoreCacheService {
 
       if (hasMemoryCache) {
         cacheInfo['fileCount'] = _memoryCache[type]!.length;
-        cacheInfo['cacheAge'] = DateTime.now().difference(_cacheTime[type]!).inMinutes;
+        cacheInfo['cacheAge'] =
+            DateTime.now().difference(_cacheTime[type]!).inMinutes;
         cacheInfo['isValid'] = _isMemoryCacheValid(type);
       }
 

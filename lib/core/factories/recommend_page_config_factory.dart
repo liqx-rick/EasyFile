@@ -4,28 +4,28 @@ import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 
 /// 推荐页面配置工厂
-/// 
+///
 /// 职责：根据 RecommendationCard 生成对应的 RecommendPageConfig
 class RecommendPageConfigFactory {
   /// 根据推荐卡片创建页面配置
   static RecommendPageConfig fromRecommendationCard(RecommendationCard card) {
     switch (card.type) {
       // ========== 应用类卡片 ==========
-      
+
       case RecommendationType.wechat:
       case RecommendationType.qq:
       case RecommendationType.telegram:
       case RecommendationType.dingtalk:
         return _createStandardApplicationConfig(card);
-      
+
       case RecommendationType.wps:
         return _createApplicationConfig(
           card: card,
           tabs: _createWpsApplicationTabs(),
         );
-      
+
       // ========== 内容类卡片（系统托底） ==========
-      
+
       case RecommendationType.memories:
         return RecommendPageConfig(
           type: card.type,
@@ -36,7 +36,7 @@ class RecommendPageConfigFactory {
           listStyle: FileListStyle.grid, // 照片用网格
           themeColor: card.color,
         );
-      
+
       case RecommendationType.videos:
         return RecommendPageConfig(
           type: card.type,
@@ -47,7 +47,7 @@ class RecommendPageConfigFactory {
           listStyle: FileListStyle.grid, // 视频用网格
           themeColor: card.color,
         );
-      
+
       case RecommendationType.recordings:
         return RecommendPageConfig(
           type: card.type,
@@ -58,9 +58,9 @@ class RecommendPageConfigFactory {
           listStyle: FileListStyle.list, // 录音用列表
           themeColor: card.color,
         );
-      
+
       // ========== 清理类卡片 ==========
-      
+
       case RecommendationType.largeFiles:
         return RecommendPageConfig(
           type: card.type,

@@ -88,7 +88,7 @@ class RecommendationCard {
   final int? totalSize;
 
   /// 本周新增文件数量
-  /// 
+  ///
   /// 注意：当前 UI 未使用此字段，保留供将来可能的趋势展示功能使用。
   /// 数据来源：MediaStore.DATE_MODIFIED 索引查询（最近7天）
   final int? weeklyGrowth;
@@ -146,7 +146,7 @@ class RecommendationCard {
     final type = RecommendationType.values.firstWhere(
       (e) => e.toString() == json['type'],
     );
-    
+
     // 从预定义配置中查找对应的icon和color（编译时常量）
     final config = defaultRecommendationConfigs.firstWhere(
       (c) => c.type == type,
@@ -157,7 +157,7 @@ class RecommendationCard {
         color: Colors.grey,
       ),
     );
-    
+
     return RecommendationCard(
       type: type,
       title: json['title'] as String,
@@ -165,7 +165,7 @@ class RecommendationCard {
       color: config.color, // 使用config中的const Color
       fileCount: json['fileCount'] as int,
       appKey: json['appKey'] as String?,
-      appIcon: json['appIcon'] != null 
+      appIcon: json['appIcon'] != null
           ? Uint8List.fromList(List<int>.from(json['appIcon']))
           : null,
       totalSize: json['totalSize'] as int?,

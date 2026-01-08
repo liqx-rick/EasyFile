@@ -129,7 +129,8 @@ void main() {
       expect(find.text('清理完成'), findsNothing);
     });
 
-    testWidgets('Scenario 2: Partial success (7/9)', (WidgetTester tester) async {
+    testWidgets('Scenario 2: Partial success (7/9)',
+        (WidgetTester tester) async {
       mockCacheManager.clearResult = ClearAllResult(
         successCount: 7,
         failCount: 2,
@@ -147,7 +148,8 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
-    testWidgets('Scenario 3: Complete failure (0/9)', (WidgetTester tester) async {
+    testWidgets('Scenario 3: Complete failure (0/9)',
+        (WidgetTester tester) async {
       mockCacheManager.clearResult = ClearAllResult(
         successCount: 0,
         failCount: 9,
@@ -175,7 +177,7 @@ void main() {
       await pumpDialog(tester);
       await tester.pumpAndSettle();
       await tapClearButton(tester);
-      
+
       // 跳过超时测试，因为flutter test无法很好处理31秒延迟
       // 这个场景在实际代码中有timeout处理，只是测试框架限制
       await tester.pump(const Duration(seconds: 1));
@@ -198,7 +200,8 @@ void main() {
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
 
-    testWidgets('Buttons disabled during clearing', (WidgetTester tester) async {
+    testWidgets('Buttons disabled during clearing',
+        (WidgetTester tester) async {
       mockCacheManager.clearDelay = const Duration(milliseconds: 500);
 
       await pumpDialog(tester);

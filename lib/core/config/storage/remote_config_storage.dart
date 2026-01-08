@@ -1,12 +1,12 @@
 import 'config_storage.dart';
 
 /// 远程配置存储实现（预留，可接入 Firebase Remote Config 或自建服务）
-/// 
+///
 /// 这个类展示了如何实现远程配置：
 /// 1. 从远程服务器获取配置
 /// 2. 本地缓存作为 fallback
 /// 3. 支持优先级覆盖（远程 > 本地）
-/// 
+///
 /// 使用示例：
 /// ```dart
 /// final remoteStorage = await RemoteConfigStorage.create(
@@ -19,7 +19,7 @@ class RemoteConfigStorage implements ConfigStorage {
   final String remoteUrl;
   final ConfigStorage localFallback;
   final Map<String, dynamic> _remoteCache = {};
-  
+
   bool _initialized = false;
 
   RemoteConfigStorage({
@@ -50,7 +50,7 @@ class RemoteConfigStorage implements ConfigStorage {
       //   _remoteCache.addAll(data);
       //   _initialized = true;
       // }
-      
+
       // 临时示例：模拟远程配置
       _remoteCache.addAll({
         'feature_new_files': true,

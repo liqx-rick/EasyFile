@@ -6,20 +6,21 @@ import 'package:easyfile/data/models/file_item.dart';
 class AppFileScannerChannel {
   static const _channel = MethodChannel('easyfile/app_file_scanner');
   static const _eventChannel = EventChannel('easyfile/app_events');
-  static const _fileChangeEventChannel = EventChannel('easyfile/file_change_events');
-  
+  static const _fileChangeEventChannel =
+      EventChannel('easyfile/file_change_events');
+
   /// 应用事件流（安装/卸载）
   static Stream<Map<String, dynamic>>? _appEventStream;
-  
+
   /// 文件变化事件流（MediaStore监听）
   static Stream<Map<String, dynamic>>? _fileChangeEventStream;
 
   /// 监听应用安装/卸载事件
-  /// 
+  ///
   /// 返回事件流，每个事件包含：
   /// - event: 'installed' | 'uninstalled'
   /// - packageName: 应用包名
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// AppFileScannerChannel.watchAppEvents().listen((event) {
@@ -36,12 +37,12 @@ class AppFileScannerChannel {
   }
 
   /// 监听文件变化事件（MediaStore监听）
-  /// 
+  ///
   /// 返回事件流，每个事件包含：
   /// - event: 'file_changed'
   /// - uri: MediaStore URI
   /// - timestamp: 变化时间戳
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// AppFileScannerChannel.watchFileChangeEvents().listen((event) {
@@ -74,10 +75,10 @@ class AppFileScannerChannel {
       logger.i('扫描完成: ${result.length} 个文件, 耗时: ${duration.inMilliseconds}ms');
 
       final files = <FileItem>[];
-      
+
       for (final item in result) {
         final map = Map<String, dynamic>.from(item as Map);
-        
+
         files.add(FileItem(
           name: map['name'] as String,
           path: map['path'] as String,
@@ -88,7 +89,7 @@ class AppFileScannerChannel {
           isDirectory: false,
         ));
       }
-      
+
       return files;
     } catch (e) {
       logger.e('扫描失败: $e');
@@ -99,7 +100,8 @@ class AppFileScannerChannel {
   /// 检查是否支持 OWNER_PACKAGE_NAME（Android 11+）
   static Future<bool> isOwnerPackageSupported() async {
     try {
-      final bool result = await _channel.invokeMethod('isOwnerPackageSupported');
+      final bool result =
+          await _channel.invokeMethod('isOwnerPackageSupported');
       return result;
     } catch (e) {
       logger.e('检查支持失败: $e');
@@ -122,7 +124,8 @@ class AppFileScannerChannel {
   }
 
   /// 通过文件名模式扫描（例如微信相机文件）
-  static Future<List<FileItem>> scanByFileNamePattern(List<String> patterns) async {
+  static Future<List<FileItem>> scanByFileNamePattern(
+      List<String> patterns) async {
     try {
       logger.i('调用文件名模式扫描: $patterns');
       final startTime = DateTime.now();
@@ -135,13 +138,14 @@ class AppFileScannerChannel {
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
 
-      logger.i('文件名模式扫描完成: ${result.length} 个文件, 耗时: ${duration.inMilliseconds}ms');
+      logger.i(
+          '文件名模式扫描完成: ${result.length} 个文件, 耗时: ${duration.inMilliseconds}ms');
 
       final files = <FileItem>[];
-      
+
       for (final item in result) {
         final map = Map<String, dynamic>.from(item as Map);
-        
+
         files.add(FileItem(
           name: map['name'] as String,
           path: map['path'] as String,
@@ -152,7 +156,7 @@ class AppFileScannerChannel {
           isDirectory: false,
         ));
       }
-      
+
       return files;
     } catch (e) {
       logger.e('文件名模式扫描失败: $e');
@@ -195,7 +199,7 @@ class AppFileScannerChannel {
   }
 
   /// 检查指定应用是否已安装
-  /// 
+  ///
   /// [packageName] 应用包名，如 'com.tencent.mm'
   /// 返回 true 表示已安装
   static Future<bool> isAppInstalled(String packageName) async {
@@ -212,7 +216,7 @@ class AppFileScannerChannel {
   }
 
   /// 获取指定应用的图标
-  /// 
+  ///
   /// [packageName] 应用包名
   /// 返回图标的字节数据（Uint8List），如果应用未安装或获取失败则返回 null
   static Future<Uint8List?> getAppIcon(String packageName) async {

@@ -100,14 +100,14 @@ class QuickAccessPresenter {
     _viewModel.setScanning(true);
     try {
       final detectedFolders = await _detectQuickAccessFolders();
-      
+
       // 添加到数据库并统计
       final results = <AddFolderResult>[];
       for (final folder in detectedFolders) {
         final result = await _localSource.addFolderWithResult(folder);
         results.add(result);
       }
-      
+
       final stats = _countFolders(detectedFolders, results);
       return await operation(detectedFolders, stats);
     } finally {
@@ -226,11 +226,12 @@ class QuickAccessPresenter {
 
     try {
       onProgress?.call(0.05);
-      
+
       // 使用通用扫描包装器
       return await _executeScanOperation(
         operation: (detectedFolders, stats) async {
-          logger.i('Detector found ${detectedFolders.length} quick access folders');
+          logger.i(
+              'Detector found ${detectedFolders.length} quick access folders');
           onProgress?.call(0.20);
 
           // 🆕 首次扫描特殊处理：自动将系统一级目录加入快速访问
@@ -342,7 +343,8 @@ class QuickAccessPresenter {
           if (entity is File) {
             filesInDir++;
             final fileName = entity.path.split(Platform.pathSeparator).last;
-            final category = AppConfig.instance.fileTypes.getCategoryByExtension(fileName);
+            final category =
+                AppConfig.instance.fileTypes.getCategoryByExtension(fileName);
             counts[category] = (counts[category] ?? 0) + 1;
             counts[FileCategory.all] = (counts[FileCategory.all] ?? 0) + 1;
           }
@@ -375,7 +377,7 @@ class QuickAccessPresenter {
   }
 
   /// 执行深度扫描（系统目录 + 用户目录）
-  /// 
+  ///
   /// 扫描流程：
   /// 1. 使用 QuickAccessFolderDetector 扫描符合条件的文件夹
   /// 2. 将扫描结果添加到数据库（新增/恢复隐藏）
@@ -393,17 +395,20 @@ class QuickAccessPresenter {
       // 使用通用扫描包装器
       return await _executeScanOperation(
         operation: (detectedFolders, stats) async {
-          logger.i('Deep scan found ${detectedFolders.length} quick access folders');
+          logger.i(
+              'Deep scan found ${detectedFolders.length} quick access folders');
 
           final scannedPaths = detectedFolders.map((f) => f.path).toSet();
 
           // 清理过期数据
           final allFolders = await _localSource.getAllFolders();
-          final toRemove = await _identifyStaleFolders(allFolders, scannedPaths);
+          final toRemove =
+              await _identifyStaleFolders(allFolders, scannedPaths);
 
           if (toRemove.isNotEmpty) {
             await _localSource.removeFolders(toRemove);
-            logger.i('Removed ${toRemove.length} stale folders after deep scan');
+            logger
+                .i('Removed ${toRemove.length} stale folders after deep scan');
           }
 
           await loadQuickAccessFolders();

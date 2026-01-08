@@ -28,7 +28,7 @@ void main() {
       // Arrange - 准备测试数据
       const retentionDays = 7;
       final now = DateTime.now();
-      
+
       // 创建过期文件（8天前）
       final expiredItems = [
         AppTrashItem(
@@ -63,7 +63,7 @@ void main() {
       // Assert - 验证结果
       expect(result['deleted'], 2);
       expect(result['size'], 3072); // 1024 + 2048
-      
+
       // 验证数据库删除被调用了2次
       verify(mockDatabase.delete('expired-1')).called(1);
       verify(mockDatabase.delete('expired-2')).called(1);
@@ -73,8 +73,7 @@ void main() {
       // Arrange
       const retentionDays = 7;
       when(mockSettings.retentionDays).thenReturn(retentionDays);
-      when(mockDatabase.getExpired(retentionDays))
-          .thenAnswer((_) async => []);
+      when(mockDatabase.getExpired(retentionDays)).thenAnswer((_) async => []);
 
       // Act
       final result = await trashManager.cleanExpiredFiles();
@@ -89,7 +88,7 @@ void main() {
       // Arrange - 30天保留期
       const retentionDays = 30;
       final now = DateTime.now();
-      
+
       // 创建31天前的文件（过期）
       final expiredItems = [
         AppTrashItem(
@@ -121,7 +120,7 @@ void main() {
       // Arrange
       const retentionDays = 7;
       final now = DateTime.now();
-      
+
       final expiredItems = [
         AppTrashItem(
           id: 'success-1',
@@ -155,11 +154,10 @@ void main() {
       when(mockSettings.retentionDays).thenReturn(retentionDays);
       when(mockDatabase.getExpired(retentionDays))
           .thenAnswer((_) async => expiredItems);
-      
+
       // 第2个文件删除失败
       when(mockDatabase.delete('success-1')).thenAnswer((_) async => 1);
-      when(mockDatabase.delete('fail'))
-          .thenThrow(Exception('Delete failed'));
+      when(mockDatabase.delete('fail')).thenThrow(Exception('Delete failed'));
       when(mockDatabase.delete('success-2')).thenAnswer((_) async => 1);
 
       // Act
@@ -168,7 +166,7 @@ void main() {
       // Assert - 应该成功删除2个文件（跳过失败的）
       expect(result['deleted'], 2);
       expect(result['size'], 4000); // 1000 + 3000
-      
+
       verify(mockDatabase.delete('success-1')).called(1);
       verify(mockDatabase.delete('fail')).called(1);
       verify(mockDatabase.delete('success-2')).called(1);
@@ -178,7 +176,7 @@ void main() {
       // Arrange - 创建100个过期文件
       const retentionDays = 7;
       final now = DateTime.now();
-      
+
       final expiredItems = List.generate(
         100,
         (i) => AppTrashItem(
@@ -211,8 +209,7 @@ void main() {
       // Arrange
       const retentionDays = 7;
       when(mockSettings.retentionDays).thenReturn(retentionDays);
-      when(mockDatabase.getExpired(retentionDays))
-          .thenAnswer((_) async => []);
+      when(mockDatabase.getExpired(retentionDays)).thenAnswer((_) async => []);
 
       // Act
       await trashManager.startAutoCleanup();
@@ -282,7 +279,7 @@ void main() {
       expect(result['success'], 2);
       expect(result['failed'], 0);
       expect(result['totalSize'], 3000);
-      
+
       verify(mockDatabase.delete('item-1')).called(1);
       verify(mockDatabase.delete('item-2')).called(1);
     });
@@ -307,7 +304,7 @@ void main() {
       // Arrange
       const retentionDays = 7;
       final now = DateTime.now();
-      
+
       final expiringSoonItems = [
         AppTrashItem(
           id: 'expiring-1',

@@ -1,14 +1,13 @@
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/feature_config.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
-import 'package:easyfile/core/services/recommendation_settings.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
@@ -33,10 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _displaySettings = FileDisplaySettingsService();
 
   int _minFileSize = FileDisplaySettingsService.defaultMinFileSize;
-  int _recommendationThreshold = RecommendationSettings.defaultFileCountThreshold;
-  
-  late FeatureConfig _featureConfig;
-  bool _loadingFeatureConfig = true;
+  int _recommendationThreshold = 5; // 将从AppConfig加载
 
   @override
   void initState() {
@@ -48,42 +44,33 @@ class _SettingsPageState extends State<SettingsPage> {
     final enhancedScanService =
         EnhancedDuplicateFileScanService(duplicateFileService);
     CacheManagerService().setDuplicateFileScanService(enhancedScanService);
-    
+
     // 初始化系统回收站服务：注入依赖到CacheManagerService
     _initTrashFileService();
 
     _loadSettings();
-    _loadFeatureConfig();
   }
-  
+
   /// 初始化系统回收站服务
   Future<void> _initTrashFileService() async {
     try {
       final trashFileService = await locator.getAsync<TrashFileService>();
       CacheManagerService().setTrashFileService(trashFileService);
     } catch (e) {
-      logger.e('Failed to initialize TrashFileService for cache management: $e');
-    }
-  }
-  
-  /// 加载功能配置
-  Future<void> _loadFeatureConfig() async {
-    _featureConfig = await locator.getAsync<FeatureConfig>();
-    if (mounted) {
-      setState(() {
-        _loadingFeatureConfig = false;
-      });
+      logger
+          .e('Failed to initialize TrashFileService for cache management: $e');
     }
   }
 
   /// 加载设置
   Future<void> _loadSettings() async {
     final minSize = await _displaySettings.getMinFileSize();
-    final recSettings = await RecommendationSettings.load();
+    final recThreshold =
+        AppConfig.instance.fileScan.recommendationFileCountThreshold;
 
     setState(() {
       _minFileSize = minSize;
-      _recommendationThreshold = recSettings.fileCountThreshold;
+      _recommendationThreshold = recThreshold;
     });
   }
 
@@ -110,7 +97,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSectionHeader('存储与缓存', Icons.storage),
           _buildCacheManagementTile(context),
           // 回收站设置（根据功能配置显示）
-          if (!_loadingFeatureConfig && _featureConfig.isTrashEnabled) ...[
+          if (AppConfig.instance.feature.isTrashEnabled) ...[
             const Divider(height: 1, indent: 56),
             _buildTrashTile(context),
           ],
@@ -118,7 +105,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(height: 32),
 
           // 功能设置（至少有一个功能启用时才显示）
-          if (!_loadingFeatureConfig && _featureConfig.isNewFilesEnabled) ...[ 
+          if (AppConfig.instance.feature.isNewFilesEnabled) ...[
             _buildSectionHeader('功能设置', Icons.tune),
             _buildNewFilesPrivacyTile(context),
             const Divider(height: 32),
@@ -130,8 +117,10 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(height: 1, indent: 56),
           _buildDuplicateScanSettingTile(context),
           const Divider(height: 1, indent: 56),
-          _buildScanTestTile(context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
-          _buildScanTestTile(context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
+          _buildScanTestTile(
+              context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
+          _buildScanTestTile(
+              context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
 
           const Divider(height: 32),
 
@@ -544,7 +533,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         },
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: RecommendationSettings.availableThresholds.map((threshold) {
+                          children: AppConfig
+                              .instance.fileScan.recommendationThresholdOptions
+                              .map((threshold) {
                             return RadioListTile<int>(
                               title: Text('$threshold 个文件'),
                               value: threshold,
@@ -571,9 +562,9 @@ class _SettingsPageState extends State<SettingsPage> {
             _recommendationThreshold = selected;
           });
 
-          // 保存设置
-          final settings = RecommendationSettings(fileCountThreshold: selected);
-          await settings.save();
+          // 保存设置到AppConfig
+          await AppConfig.instance.fileScan
+              .setRecommendationFileCountThreshold(selected);
 
           // 刷新推荐卡片（清除缓存并重新加载）
           logger.i('📌 开发者选项：阈值已修改为 $selected，刷新推荐卡片');

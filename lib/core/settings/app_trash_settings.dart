@@ -1,42 +1,41 @@
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/file_scan_config.dart';
+import 'package:easyfile/core/config/app_config.dart';
 
 /// EasyFile回收站配置管理
 ///
-/// 管理回收站相关的用户设置（从FileScanConfig统一读取）
+/// 管理回收站相关的用户设置（通过AppConfig统一读取）
 class AppTrashSettings {
-  final FileScanConfig _config;
+  // 删除_config字段，直接使用AppConfig.instance
 
-  AppTrashSettings(FileScanConfig config) : _config = config;
-
-  // ==================== 读取设置（从FileScanConfig） ====================
+  // ==================== 读取设置（从AppConfig） ====================
 
   /// 回收站功能是否启用
-  bool get isEnabled => _config.trashEnabled;
+  bool get isEnabled => AppConfig.instance.fileScan.trashEnabled;
 
   /// 文件保留天数（自动清理周期）
-  int get retentionDays => _config.trashRetentionDays;
+  int get retentionDays => AppConfig.instance.fileScan.trashRetentionDays;
 
   /// 可选的保留天数
-  List<int> get retentionOptions => _config.trashRetentionOptions;
+  List<int> get retentionOptions =>
+      AppConfig.instance.fileScan.trashRetentionOptions;
 
-  // ==================== 保存设置（委托给FileScanConfig） ====================
+  // ==================== 保存设置（委托给AppConfig） ====================
 
   /// 启用/禁用回收站功能
   Future<void> setEnabled(bool value) async {
-    await _config.setTrashEnabled(value);
+    await AppConfig.instance.fileScan.setTrashEnabled(value);
   }
 
   /// 设置文件保留天数
   Future<void> setRetentionDays(int days) async {
-    await _config.setTrashRetentionDays(days);
+    await AppConfig.instance.fileScan.setTrashRetentionDays(days);
   }
 
   // ==================== 默认恢复目录配置 ====================
 
   /// Android 存储基础路径
   static const String _storageBase = '/storage/emulated/0';
-  
+
   /// 恢复目录后缀
   static const String _restoreSuffix = '/EasyFile_Restored';
 
@@ -61,12 +60,12 @@ class AppTrashSettings {
 
   /// 默认恢复目录映射（用于UI显示）
   static Map<String, String> get defaultRestorePaths => {
-    'image': '$_storageBase/Pictures$_restoreSuffix',
-    'video': '$_storageBase/Movies$_restoreSuffix',
-    'audio': '$_storageBase/Music$_restoreSuffix',
-    'document': '$_storageBase/Documents$_restoreSuffix',
-    'other': '$_storageBase/Download$_restoreSuffix',
-  };
+        'image': '$_storageBase/Pictures$_restoreSuffix',
+        'video': '$_storageBase/Movies$_restoreSuffix',
+        'audio': '$_storageBase/Music$_restoreSuffix',
+        'document': '$_storageBase/Documents$_restoreSuffix',
+        'other': '$_storageBase/Download$_restoreSuffix',
+      };
 
   // ==================== 辅助方法 ====================
 
@@ -84,10 +83,10 @@ class AppTrashSettings {
     };
   }
 
-  /// 重置所有设置为默认值（使用 FileScanConfig.reset 统一重置）
+  /// 重置所有设置为默认值（使用 AppConfig.fileScan.reset 统一重置）
   Future<void> resetToDefaults() async {
-    // 使用 FileScanConfig 的 reset 方法，自动应用所有默认值
-    await _config.reset();
+    // 使用 AppConfig 的 reset 方法，自动应用所有默认值
+    await AppConfig.instance.fileScan.reset();
     logger.i('App trash settings reset to defaults');
   }
 

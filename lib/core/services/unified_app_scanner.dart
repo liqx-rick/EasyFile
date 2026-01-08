@@ -11,7 +11,7 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 统一应用文件扫描器
-/// 
+///
 /// 提供完整的应用文件扫描解决方案：
 /// 1. 检测应用是否安装（持久化缓存）
 /// 2. 获取应用图标（可选）
@@ -19,20 +19,20 @@ import 'package:easyfile/core/logger.dart';
 /// 4. 路径扫描（全版本兼容，全面）
 /// 5. 结果对比与去重
 /// 6. 文件数量缓存（6小时有效期）
-/// 
+///
 /// 使用示例：
 /// ```dart
 /// final scanner = UnifiedAppScanner(
 ///   appDetectionService,
 ///   fileCountCache: fileCountCache,  // 可选
 /// );
-/// 
+///
 /// // 快速获取文件数量（优先使用缓存）
 /// final count = await scanner.getFileCountFast(appKey: 'wechat');
 /// if (count != null) {
 ///   print('微信文件数量: $count (来自缓存)');
 /// }
-/// 
+///
 /// // 完整扫描（会更新缓存）
 /// final result = await scanner.scanApp(
 ///   appKey: 'wechat',
@@ -53,7 +53,7 @@ class UnifiedAppScanner {
   }) : _fileCountCache = fileCountCache;
 
   /// 扫描应用文件
-  /// 
+  ///
   /// [appKey] 应用标识，如 'wechat', 'qq'
   /// [additionalPaths] 附加扫描路径
   /// [withIcon] 是否获取应用图标
@@ -91,7 +91,8 @@ class UnifiedAppScanner {
     Uint8List? appIcon;
     if (withIcon) {
       appIcon = await _detectionService.getAppIcon(packageName);
-      logger.d('图标获取: ${appIcon != null ? "成功 (${appIcon.length} bytes)" : "失败"}');
+      logger.d(
+          '图标获取: ${appIcon != null ? "成功 (${appIcon.length} bytes)" : "失败"}');
     }
 
     // 步骤3: 构建完整扫描路径
@@ -109,12 +110,12 @@ class UnifiedAppScanner {
         final supported = await AppFileScannerChannel.isOwnerPackageSupported();
         if (supported) {
           // 获取缓存中的旧数量
-          final oldCount = _fileCountCache != null 
+          final oldCount = _fileCountCache != null
               ? await _fileCountCache!.getFileCount(appKey)
               : null;
-          
+
           mediaStoreResult = await _scanByMediaStore(packageName);
-          
+
           // 计算增量
           final newCount = mediaStoreResult.files.length;
           if (oldCount != null && oldCount > 0) {
@@ -147,14 +148,16 @@ class UnifiedAppScanner {
     logger.i('差异文件: ${differenceFiles.length} 个');
 
     // 步骤7: 合并去重
-    final totalBeforeMerge = mediaStoreResult.files.length + pathScanResult.files.length;
+    final totalBeforeMerge =
+        mediaStoreResult.files.length + pathScanResult.files.length;
     final allFiles = _mergeAndDeduplicate(
       mediaStoreResult.files,
       pathScanResult.files,
     );
     final duplicates = totalBeforeMerge - allFiles.length;
-    logger.i('总文件数: ${allFiles.length} (去重后), 去重前: $totalBeforeMerge, 重复: $duplicates 个');
-    
+    logger.i(
+        '总文件数: ${allFiles.length} (去重后), 去重前: $totalBeforeMerge, 重复: $duplicates 个');
+
     // 调试：检查PDF文件的路径格式
     if (appKey == 'wechat') {
       final config = AppConfig.instance.fileTypes;
@@ -162,15 +165,14 @@ class UnifiedAppScanner {
       final mediaStorePdfs = mediaStoreResult.files
           .where((f) => config.isPdfFile(f.path))
           .toList();
-      final pathScanPdfs = pathScanResult.files
-          .where((f) => config.isPdfFile(f.path))
-          .toList();
-      
+      final pathScanPdfs =
+          pathScanResult.files.where((f) => config.isPdfFile(f.path)).toList();
+
       if (mediaStorePdfs.isNotEmpty || pathScanPdfs.isNotEmpty) {
         logger.w('⚠️ PDF文件统计:');
         logger.w('  MediaStore: ${mediaStorePdfs.length} 个');
         logger.w('  路径扫描: ${pathScanPdfs.length} 个');
-        
+
         // 显示最近的几个PDF路径
         if (mediaStorePdfs.length <= 3) {
           for (final pdf in mediaStorePdfs) {
@@ -182,27 +184,29 @@ class UnifiedAppScanner {
             logger.w('  [PathScan]  ${pdf.path}');
           }
         }
-        
+
         // 检查是否有重复的PDF
         final mediaStorePdfPaths = mediaStorePdfs.map((f) => f.path).toSet();
         final pathScanPdfPaths = pathScanPdfs.map((f) => f.path).toSet();
         final commonPdfs = mediaStorePdfPaths.intersection(pathScanPdfPaths);
-        
+
         logger.w('  共同PDF: ${commonPdfs.length} 个 (已去重)');
-        logger.w('  MediaStore独有: ${mediaStorePdfPaths.length - commonPdfs.length} 个');
-        logger.w('  PathScan独有: ${pathScanPdfPaths.length - commonPdfs.length} 个');
-        
+        logger.w(
+            '  MediaStore独有: ${mediaStorePdfPaths.length - commonPdfs.length} 个');
+        logger.w(
+            '  PathScan独有: ${pathScanPdfPaths.length - commonPdfs.length} 个');
+
         // 输出独有PDF示例
         final mediaStoreOnlyPdfs = mediaStorePdfPaths.difference(commonPdfs);
         final pathScanOnlyPdfs = pathScanPdfPaths.difference(commonPdfs);
-        
+
         if (mediaStoreOnlyPdfs.isNotEmpty) {
           logger.w('  MediaStore独有PDF示例 (前3个):');
           for (final path in mediaStoreOnlyPdfs.take(3)) {
             logger.w('    - $path');
           }
         }
-        
+
         if (pathScanOnlyPdfs.isNotEmpty) {
           logger.w('  PathScan独有PDF示例 (前3个):');
           for (final path in pathScanOnlyPdfs.take(3)) {
@@ -235,14 +239,14 @@ class UnifiedAppScanner {
   }
 
   /// 快速获取文件数量（优先使用缓存）
-  /// 
+  ///
   /// 性能优化：
   /// - 优先读取缓存（<5ms）
   /// - 缓存失效则返回 null，由调用方决定是否完整扫描
-  /// 
+  ///
   /// [appKey] 应用标识
   /// 返回缓存的文件数量，如果缓存不存在或已过期则返回 null
-  /// 
+  ///
   /// 使用示例：
   /// ```dart
   /// final count = await scanner.getFileCountFast(appKey: 'wechat');
@@ -269,7 +273,7 @@ class UnifiedAppScanner {
   }
 
   /// 批量快速获取文件数量（优先使用缓存）
-  /// 
+  ///
   /// [appKeys] 应用Key列表
   /// 返回映射表（appKey -> 文件数量），未缓存的不包含在结果中
   Future<Map<String, int>> getFileCountBatchFast({
@@ -281,7 +285,7 @@ class UnifiedAppScanner {
   }
 
   /// 清除文件数量缓存
-  /// 
+  ///
   /// 用于用户主动刷新或检测到数据不准确时
   Future<void> clearFileCountCache({String? appKey}) async {
     if (_fileCountCache == null) return;
@@ -296,7 +300,7 @@ class UnifiedAppScanner {
   }
 
   /// 构建扫描路径
-  /// 
+  ///
   /// 结合基础路径、文件夹关键字和附加路径
   Future<List<String>> _buildScanPaths(
     AppConfigData config,
@@ -369,10 +373,8 @@ class UnifiedAppScanner {
         )) {
           if (entity is File) {
             // 计算当前文件深度
-            final currentDepth = entity.path
-                .split('/')
-                .where((s) => s.isNotEmpty)
-                .length;
+            final currentDepth =
+                entity.path.split('/').where((s) => s.isNotEmpty).length;
             final relativeDepth = currentDepth - baseDepth;
 
             // 限制递归深度为5层
@@ -420,14 +422,15 @@ class UnifiedAppScanner {
   }
 
   /// 计算差异文件（路径扫描 - MediaStore）
-  /// 
+  ///
   /// 这些文件只能通过路径扫描找到，MediaStore 未索引
   List<FileItem> _calculateDifference(
     List<FileItem> pathScanFiles,
     List<FileItem> mediaStoreFiles,
   ) {
     // 使用小写路径进行比较
-    final mediaStorePathSet = mediaStoreFiles.map((f) => f.path.toLowerCase()).toSet();
+    final mediaStorePathSet =
+        mediaStoreFiles.map((f) => f.path.toLowerCase()).toSet();
 
     return pathScanFiles.where((file) {
       return !mediaStorePathSet.contains(file.path.toLowerCase());
@@ -464,7 +467,7 @@ class UnifiedAppScanner {
   }
 
   /// 批量扫描多个应用
-  /// 
+  ///
   /// [appKeys] 应用Key列表
   /// 返回扫描结果映射表（appKey -> AppScanResult）
   Future<Map<String, AppScanResult>> scanMultipleApps(

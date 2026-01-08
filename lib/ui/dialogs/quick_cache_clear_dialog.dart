@@ -4,7 +4,7 @@ import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
 
 /// 一键清理缓存对话框
-/// 
+///
 /// 提供快速清理所有缓存的简化界面，包含：
 /// - 简短说明和可展开的详细说明
 /// - 一键清理按钮（调用clearAllCache）
@@ -110,7 +110,8 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
   }
 
   /// 显示清理结果对话框
-  void _showResultDialog(ClearAllResult? result, int clearedSize, bool isTimeout) {
+  void _showResultDialog(
+      ClearAllResult? result, int clearedSize, bool isTimeout) {
     String title;
     String mainMessage;
     String? subMessage;
@@ -224,7 +225,8 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color:
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -311,7 +313,8 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
                       '高级缓存管理',
                       style: TextStyle(
                         fontSize: 12,
-                        color: _isClearing ? Colors.grey[400] : Colors.grey[600],
+                        color:
+                            _isClearing ? Colors.grey[400] : Colors.grey[600],
                       ),
                     ),
                   ],
@@ -325,7 +328,8 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  color: colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -406,4 +410,3 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
     );
   }
 }
-        

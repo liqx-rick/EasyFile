@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:easyfile/core/config/file_scan_config.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
 
@@ -13,7 +13,6 @@ class NewFilesSettingsPage extends StatefulWidget {
 }
 
 class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
-  late FileScanConfig _fileScanConfig;
   int _retentionDays = 7;
   int _displayCount = 50;
   int _originalRetentionDays = 7;
@@ -27,10 +26,9 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    _fileScanConfig = await locator.getAsync<FileScanConfig>();
     setState(() {
-      _retentionDays = _fileScanConfig.newFilesRetentionDays;
-      _displayCount = _fileScanConfig.newFilesDisplayCount;
+      _retentionDays = AppConfig.instance.fileScan.newFilesRetentionDays;
+      _displayCount = AppConfig.instance.fileScan.newFilesDisplayCount;
       _originalRetentionDays = _retentionDays;
       _originalDisplayCount = _displayCount;
       _isLoading = false;
@@ -41,22 +39,25 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
     try {
       // 检查 displayCount 或 retentionDays 是否发生变化
       final bool displayCountChanged = _displayCount != _originalDisplayCount;
-      final bool retentionDaysChanged = _retentionDays != _originalRetentionDays;
-      
-      // 保存到FileScanConfig
+      final bool retentionDaysChanged =
+          _retentionDays != _originalRetentionDays;
+
+      // 保存到AppConfig
       if (retentionDaysChanged) {
-        await _fileScanConfig.setNewFilesRetentionDays(_retentionDays);
+        await AppConfig.instance.fileScan
+            .setNewFilesRetentionDays(_retentionDays);
       }
       if (displayCountChanged) {
-        await _fileScanConfig.setNewFilesDisplayCount(_displayCount);
+        await AppConfig.instance.fileScan
+            .setNewFilesDisplayCount(_displayCount);
       }
-      
+
       // 如果显示数量或保留天数发生变化，清除缓存以便重新扫描
       if (displayCountChanged || retentionDaysChanged) {
         final localSource = locator<NewFilesLocalSource>();
         await localSource.clearCache();
       }
-      
+
       // 更新原始设置
       _originalRetentionDays = _retentionDays;
       _originalDisplayCount = _displayCount;
@@ -215,7 +216,8 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
                   onChanged: (value) {
                     setState(() {
                       // 将滑块值映射到 3/7/14
-                      final int mappedValue = value <= 5 ? 3 : (value <= 10 ? 7 : 14);
+                      final int mappedValue =
+                          value <= 5 ? 3 : (value <= 10 ? 7 : 14);
                       _retentionDays = mappedValue;
                     });
                   },
@@ -241,12 +243,17 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
   Widget _buildDisplayCountSlider(ColorScheme colorScheme) {
     // 确保滑块值必须是20/50/100/200之一
     int displayValue = _displayCount;
-    if (displayValue != 20 && displayValue != 50 && displayValue != 100 && displayValue != 200) {
+    if (displayValue != 20 &&
+        displayValue != 50 &&
+        displayValue != 100 &&
+        displayValue != 200) {
       displayValue = 50; // 默认值50
     }
 
     // 映射：20->0, 50->1, 100->2, 200->3
-    double sliderValue = displayValue == 20 ? 0 : (displayValue == 50 ? 1 : (displayValue == 100 ? 2 : 3));
+    double sliderValue = displayValue == 20
+        ? 0
+        : (displayValue == 50 ? 1 : (displayValue == 100 ? 2 : 3));
 
     return Column(
       children: [
@@ -289,7 +296,9 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
                   label: '$displayValue个',
                   onChanged: (value) {
                     // 映射回实际值：0->20, 1->50, 2->100, 3->200
-                    int actualValue = value == 0 ? 20 : (value == 1 ? 50 : (value == 2 ? 100 : 200));
+                    int actualValue = value == 0
+                        ? 20
+                        : (value == 1 ? 50 : (value == 2 ? 100 : 200));
                     setState(() {
                       _displayCount = actualValue;
                     });
@@ -312,5 +321,4 @@ class _NewFilesSettingsPageState extends State<NewFilesSettingsPage> {
       ],
     );
   }
-
 }

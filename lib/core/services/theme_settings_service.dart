@@ -4,7 +4,8 @@ import 'package:easyfile/core/logger.dart';
 
 /// 主题设置管理服务 - 管理应用主题的持久化存储和读取
 class ThemeSettingsService extends ChangeNotifier {
-  static final ThemeSettingsService _instance = ThemeSettingsService._internal();
+  static final ThemeSettingsService _instance =
+      ThemeSettingsService._internal();
   factory ThemeSettingsService() => _instance;
 
   ThemeSettingsService._internal();
@@ -23,7 +24,9 @@ class ThemeSettingsService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedTheme = prefs.getString(_themeKey);
-      _themeMode = savedTheme != null ? _stringToThemeMode(savedTheme) : ThemeMode.system;
+      _themeMode = savedTheme != null
+          ? _stringToThemeMode(savedTheme)
+          : ThemeMode.system;
       _initialized = true;
       logger.i('🎨 Theme initialized: $_themeMode');
     } catch (e) {

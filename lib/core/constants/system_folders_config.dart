@@ -10,9 +10,9 @@
 /// - 提供路径判断和转换工具方法
 class SystemFoldersConfig {
   // ==================== 核心系统目录 ====================
-  
+
   /// 预定义的系统目录列表（根路径）
-  /// 
+  ///
   /// 这些是 Android 系统或用户常用的标准目录，
   /// 修改此列表会影响整个应用的系统目录认知
   static const List<String> systemPaths = [
@@ -26,22 +26,22 @@ class SystemFoldersConfig {
   ];
 
   // ==================== 扩展系统目录 ====================
-  
+
   /// 扩展系统目录列表（用于安全检查和路径过滤）
-  /// 
+  ///
   /// 这些目录虽然不在快速访问中展示，但在安全检查时需要警告用户
   /// 包括：备用下载目录、铃声目录、Android应用目录等
   static const List<String> extendedSystemPaths = [
-    '/storage/emulated/0/Downloads/',     // 备用下载目录（部分设备使用）
-    '/storage/emulated/0/Alarms/',        // 闹钟铃声
+    '/storage/emulated/0/Downloads/', // 备用下载目录（部分设备使用）
+    '/storage/emulated/0/Alarms/', // 闹钟铃声
     '/storage/emulated/0/Notifications/', // 通知铃声
-    '/storage/emulated/0/Ringtones/',     // 来电铃声
-    '/storage/emulated/0/Podcasts/',      // 播客
-    '/storage/emulated/0/Android/',       // Android 应用数据根目录
+    '/storage/emulated/0/Ringtones/', // 来电铃声
+    '/storage/emulated/0/Podcasts/', // 播客
+    '/storage/emulated/0/Android/', // Android 应用数据根目录
   ];
 
   /// 系统目录的显示名称（中文）
-  /// 
+  ///
   /// 用于 UI 展示，对应 systemPaths 中的路径
   static const Map<String, String> systemNames = {
     '/storage/emulated/0/Download/': '下载',
@@ -54,7 +54,7 @@ class SystemFoldersConfig {
   };
 
   /// 扩展系统目录的显示名称（中文）
-  /// 
+  ///
   /// 用于 UI 展示和文件来源识别，对应 extendedSystemPaths 中的路径
   static const Map<String, String> extendedSystemNames = {
     '/storage/emulated/0/Downloads/': '下载',
@@ -66,7 +66,7 @@ class SystemFoldersConfig {
   };
 
   /// 常见二级目录的显示名称映射（大小写不敏感）
-  /// 
+  ///
   /// 用于识别系统目录下的应用/功能子目录
   /// 映射key为小写，查找时需先转换为小写
   static const Map<String, String> subdirectoryNames = {
@@ -78,20 +78,20 @@ class SystemFoldersConfig {
     'dingtalk': '钉钉',
     'wxwork': '企业微信',
     'wework': '企业微信',
-    
+
     // 浏览器/网盘
     'baidunetdisk': '百度网盘',
     'quark': '夸克',
     'ucdownloads': 'UC浏览器',
     'uc': 'UC浏览器',
-    
+
     // 系统功能
     'bluetooth': '蓝牙',
     'screenshots': '截屏',
     'camera': '相机',
     'recordings': '录音',
     'sounds': '声音',
-    
+
     // 其他常见
     'edit': '编辑',
     'sent': '发送',
@@ -104,16 +104,16 @@ class SystemFoldersConfig {
   static const String unknownSource = '未知';
 
   // ==================== 工具方法 ====================
-  
+
   /// 获取所有系统目录（核心 + 扩展）
-  /// 
+  ///
   /// 用于安全检查等需要完整系统目录列表的场景
   static List<String> getAllSystemPaths() {
     return [...systemPaths, ...extendedSystemPaths];
   }
-  
+
   /// 获取所有系统目录名称（用于重命名检查）
-  /// 
+  ///
   /// 提取所有系统目录的文件夹名称，用于防止用户重命名系统目录
   /// 例如：['Download', 'Pictures', 'DCIM', ...]
   static List<String> getAllSystemFolderNames() {
@@ -126,12 +126,12 @@ class SystemFoldersConfig {
   }
 
   /// 获取系统目录的显示名称
-  /// 
+  ///
   /// **参数**：
   /// - [path]: 目录路径
-  /// 
+  ///
   /// **返回**：该路径对应的中文名称，如果不在预定义列表中返回 '未知'
-  /// 
+  ///
   /// **示例**：
   /// ```dart
   /// var name = SystemFoldersConfig.getSystemName('/storage/emulated/0/Download/');
@@ -142,18 +142,18 @@ class SystemFoldersConfig {
   }
 
   /// 检查路径是否为系统目录或其子目录
-  /// 
+  ///
   /// **参数**：
   /// - [path]: 要检查的目录路径
-  /// 
+  ///
   /// **返回**：如果是系统目录或系统目录的子目录，返回 true；否则返回 false
-  /// 
+  ///
   /// **说明**：
   /// - 完全匹配的根路径会返回 true
   /// - 位于系统目录下的任何子目录也会返回 true
   /// - 自动处理路径尾部斜杠差异，确保匹配准确性
   /// - 例如 `/storage/emulated/0/Download/WeChat/` 会返回 true
-  /// 
+  ///
   /// **示例**：
   /// ```dart
   /// SystemFoldersConfig.isSystemFolder('/storage/emulated/0/Download/')      // true
@@ -164,30 +164,30 @@ class SystemFoldersConfig {
   static bool isSystemFolder(String path) {
     // 标准化路径：确保有尾部斜杠，以统一比较格式
     String normalizedPath = path.endsWith('/') ? path : '$path/';
-    
+
     return systemPaths.any((sysPath) =>
         normalizedPath == sysPath || normalizedPath.startsWith(sysPath));
   }
 
   /// 获取路径的系统目录根路径
-  /// 
+  ///
   /// **参数**：
   /// - [path]: 要查询的目录路径
-  /// 
+  ///
   /// **返回**：如果该路径属于系统目录，返回对应的根路径；否则返回 null
-  /// 
+  ///
   /// **说明**：
   /// - 用于确定一个目录属于哪个系统目录
   /// - 例如 `/storage/emulated/0/Download/WeChat/` 会返回 `/storage/emulated/0/Download/`
   /// - 用于 UI 展开/折叠二级目录时的分组
-  /// 
+  ///
   /// **示例**：
   /// ```dart
   /// var root = SystemFoldersConfig.getSystemFolderRoot(
   ///   '/storage/emulated/0/Download/WeChat/'
   /// );
   /// // root = '/storage/emulated/0/Download/'
-  /// 
+  ///
   /// var none = SystemFoldersConfig.getSystemFolderRoot(
   ///   '/storage/emulated/0/MyCustom/'
   /// );
@@ -204,26 +204,26 @@ class SystemFoldersConfig {
   }
 
   /// 获取扩展系统目录的显示名称
-  /// 
+  ///
   /// **参数**：
   /// - [path]: 扩展系统目录路径
-  /// 
+  ///
   /// **返回**：该路径对应的中文名称，如果不在列表中返回 '系统'
   static String getExtendedSystemName(String path) {
     return extendedSystemNames[path] ?? '系统';
   }
 
   /// 获取二级目录的显示名称（大小写不敏感）
-  /// 
+  ///
   /// **参数**：
   /// - [dirName]: 目录名称
-  /// 
+  ///
   /// **返回**：映射的中文名称，如果未找到映射则返回原始名称
-  /// 
+  ///
   /// **说明**：
   /// - 自动转换为小写进行匹配
   /// - 未匹配时保留原始大小写，提供友好的兜底显示
-  /// 
+  ///
   /// **示例**：
   /// ```dart
   /// getSubdirectoryName('WeiXin')  // '微信'

@@ -9,11 +9,11 @@ import 'package:easyfile/data/models/file_category.dart';
 /// 文件夹分析服务
 ///
 /// 提供文件夹统计分析功能
-/// 
+///
 /// **注意**: 此服务已在 DI 容器中注册，但目前未在生产代码中使用
 /// （通过搜索 `locator<FolderAnalyzer>()` 未找到任何调用）
 /// 可能是为未来功能预留的工具类（如文件夹推荐、统计信息展示等）
-/// 
+///
 /// @date 2026-01-02 - 添加未使用状态说明
 class FolderAnalyzer {
   /// 分析文件夹统计信息

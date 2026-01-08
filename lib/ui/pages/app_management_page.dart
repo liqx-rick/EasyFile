@@ -28,7 +28,7 @@ class _AppManagementPageState extends State<AppManagementPage>
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _scrollController = ScrollController();
-  
+
   // 文件监听服务
   FileChangeListenerService? _fileChangeListener;
 
@@ -62,18 +62,18 @@ class _AppManagementPageState extends State<AppManagementPage>
     _loadAndRefreshApps(); // 先加载缓存，再后台刷新
     _initFileChangeListener();
   }
-  
+
   /// 初始化文件变化监听
   Future<void> _initFileChangeListener() async {
     try {
       final statisticsCache = AppStatisticsCache();
       await statisticsCache.initialize();
-      
+
       _fileChangeListener = FileChangeListenerService(
         statisticsCache: statisticsCache,
       );
       await _fileChangeListener!.startListening();
-      
+
       logger.i('✓ 应用管理页面: 文件监听已启动');
     } catch (e) {
       logger.e('启动文件监听失败: $e');
@@ -97,12 +97,13 @@ class _AppManagementPageState extends State<AppManagementPage>
     // 当应用从后台返回前台时，检测权限变化或快速刷新
     if (state == AppLifecycleState.resumed) {
       logger.i('App resumed, checking permission and apps');
-      
+
       // 异步检查权限状态和缓存状态
       _checkPermission().then((_) async {
         // 如果权限状态从无到有，执行完整扫描（不显示顶部状态栏，使用中间加载指示器）
         if (!_hadPermissionBefore && _hasPermission) {
-          logger.i('Permission state changed: granted, reloading with full scan');
+          logger
+              .i('Permission state changed: granted, reloading with full scan');
           _loadApps(); // 不传showBanner参数，默认false，显示中间的加载状态
         } else {
           // 检查缓存是否存在，决定使用增量刷新还是完全刷新
@@ -110,7 +111,7 @@ class _AppManagementPageState extends State<AppManagementPage>
             includeSystemApps: _showSystemApps,
             withIcons: false, // 仅检测缓存存在性，不加载数据
           );
-          
+
           if (!hasCache) {
             // 缓存被清空（可能用户刚清理了缓存），执行完全刷新
             logger.i('Cache cleared, performing full refresh');
@@ -121,7 +122,7 @@ class _AppManagementPageState extends State<AppManagementPage>
             _refreshAppsWithBanner(incremental: true);
           }
         }
-        
+
         // 更新权限状态记录
         _hadPermissionBefore = _hasPermission;
       });
@@ -155,30 +156,33 @@ class _AppManagementPageState extends State<AppManagementPage>
   }
 
   /// 加载并刷新应用（进入页面时调用）
-  /// 
+  ///
   /// 先快速显示缓存内容，然后使用增量刷新提升性能
   void _loadAndRefreshApps() {
     // 1. 快速检查缓存是否存在（不加载数据，仅检测）
-    _appService.quickLoadApps(
+    _appService
+        .quickLoadApps(
       includeSystemApps: _showSystemApps,
-      withIcons: false,  // 仅检测缓存，不加载图标，避免无缓存时的重复扫描
-    ).then((result) async {
+      withIcons: false, // 仅检测缓存，不加载图标，避免无缓存时的重复扫描
+    )
+        .then((result) async {
       final (apps, isFromCache) = result;
-      
+
       if (isFromCache && apps.isNotEmpty && mounted) {
         // 2a. 有缓存：先加载缓存（需要图标）
         final (cachedApps, _) = await _appService.quickLoadApps(
           includeSystemApps: _showSystemApps,
-          withIcons: true,  // 加载完整缓存（含图标）
+          withIcons: true, // 加载完整缓存（含图标）
         );
-        
+
         if (mounted) {
           setState(() {
             _apps = cachedApps;
             _applyFilters();
           });
-          logger.i('Loaded ${cachedApps.length} apps from cache, starting incremental refresh');
-          
+          logger.i(
+              'Loaded ${cachedApps.length} apps from cache, starting incremental refresh');
+
           // 然后增量刷新
           _refreshAppsWithBanner(incremental: true);
         }
@@ -205,7 +209,7 @@ class _AppManagementPageState extends State<AppManagementPage>
   }
 
   /// 显示刷新状态栏并执行刷新
-  /// 
+  ///
   /// [incremental] true=增量刷新（仅检测变化），false=完全扫描（重新加载所有数据）
   Future<void> _refreshAppsWithBanner({bool incremental = false}) async {
     setState(() {
@@ -230,7 +234,7 @@ class _AppManagementPageState extends State<AppManagementPage>
   /// 刷新应用列表
   ///
   /// [incremental] true=增量刷新（快速），false=完全扫描（慢但准确）
-  /// 
+  ///
   /// 增量刷新：仅检测卸载应用+更新使用统计，保留图标和存储信息缓存
   /// 完全扫描：重新获取所有应用和存储信息
   Future<void> _refreshApps({bool incremental = false}) async {
@@ -247,11 +251,12 @@ class _AppManagementPageState extends State<AppManagementPage>
           _apps,
           includeSystemApps: _showSystemApps,
         );
-        logger.i('Incremental refresh completed: ${appsWithStorage.length} apps');
+        logger
+            .i('Incremental refresh completed: ${appsWithStorage.length} apps');
       } else {
         // 完全扫描：重新获取所有应用和存储信息
         logger.i('Starting full refresh...');
-        
+
         // 2. 直接从 native 获取最新应用列表（跳过缓存）
         final apps = await _appService.getInstalledApps(
           includeSystemApps: _showSystemApps,
@@ -280,14 +285,14 @@ class _AppManagementPageState extends State<AppManagementPage>
           },
           includeSystemApps: _showSystemApps,
         );
-        
+
         // 清除扫描状态
         if (mounted) {
           setState(() {
             _isScanning = false;
           });
         }
-        
+
         logger.i('Full refresh completed: ${appsWithStorage.length} apps');
       }
 
@@ -310,13 +315,13 @@ class _AppManagementPageState extends State<AppManagementPage>
   }
 
   /// 加载应用列表（完整扫描，带进度显示）
-  /// 
+  ///
   /// ⚠️ 使用场景：
   /// - 权限刚授予时（_requestPermission）
   /// - 系统应用筛选切换时
-  /// 
+  ///
   /// 进入页面时的缓存加载由 _loadAndRefreshApps() 处理
-  /// 
+  ///
   /// [showBanner] 是否显示刷新状态栏（权限变化时使用）
   Future<void> _loadApps({bool showBanner = false}) async {
     // 显示状态栏（如果需要）
@@ -332,9 +337,9 @@ class _AppManagementPageState extends State<AppManagementPage>
     if (!_isLoading) {
       setState(() {
         _isLoading = true;
-        _isScanning = true;  // 立即显示扫描状态
+        _isScanning = true; // 立即显示扫描状态
         _loadCurrent = 0;
-        _loadTotal = 0;  // 总数在获取应用列表后更新
+        _loadTotal = 0; // 总数在获取应用列表后更新
       });
     }
 
@@ -348,16 +353,16 @@ class _AppManagementPageState extends State<AppManagementPage>
       logger.i('Loaded ${apps.length} apps (fromCache: $isFromCache)');
 
       List<EasyFileAppInfo> appsWithStorage;
-      
+
       if (isFromCache) {
         // 从缓存加载：直接使用，不重新查询存储信息
         appsWithStorage = apps;
-        
+
         // 验证并更新baseline（只针对用户应用）
         if (!_showSystemApps) {
           await _appService.validateAndUpdateBaseline(apps);
         }
-        
+
         // 清除扫描状态（无需显示进度）
         if (mounted) {
           setState(() {
@@ -392,7 +397,7 @@ class _AppManagementPageState extends State<AppManagementPage>
           appsWithStorage,
           includeSystemApps: _showSystemApps,
         );
-        
+
         // 清除扫描状态
         if (mounted) {
           setState(() {
@@ -652,37 +657,44 @@ class _AppManagementPageState extends State<AppManagementPage>
                     const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onSelected: _isLoading ? null : (selected) async { // 加载时禁用
-                  logger.i('🔄 系统应用切换: $selected, 当前baseline=${_appService.deviceBaselineTime}');
-                  
-                  // 如果要显示系统应用，确保baseline已经存在
-                  if (selected && _appService.deviceBaselineTime == null) {
-                    logger.w('⚠️ Baseline未加载，先加载用户应用以计算baseline');
-                    // 先加载用户应用以计算baseline（baseline在加载用户应用时自动计算并保存）
-                    logger.i('📥 [第1次加载] 加载用户应用以计算baseline...');
-                    await _loadApps(); // 此时 _showSystemApps 还是 false，加载用户应用
-                    logger.i('✓ Baseline已计算并保存: ${_appService.deviceBaselineTime}');
-                    
-                    // 计算完baseline后，切换到系统应用
-                    logger.i('📥 [第2次加载] 切换到系统应用，使用已计算的baseline');
-                    if (mounted) {
-                      setState(() {
-                        _showSystemApps = true;
-                      });
-                      await _loadApps();
-                      logger.i('✓ 切换完成，当前显示${_apps.length}个应用');
-                    }
-                    return;
-                  }
-                  
-                  // 切换显示范围并重新加载（使用已保存的baseline）
-                  logger.i('📥 [切换加载] 切换到${selected ? "系统应用" : "用户应用"}，使用已有baseline');
-                  setState(() {
-                    _showSystemApps = selected;
-                  });
-                  await _loadApps();
-                  logger.i('✓ 切换完成，当前显示${_apps.length}个应用');
-                },
+                onSelected: _isLoading
+                    ? null
+                    : (selected) async {
+                        // 加载时禁用
+                        logger.i(
+                            '🔄 系统应用切换: $selected, 当前baseline=${_appService.deviceBaselineTime}');
+
+                        // 如果要显示系统应用，确保baseline已经存在
+                        if (selected &&
+                            _appService.deviceBaselineTime == null) {
+                          logger.w('⚠️ Baseline未加载，先加载用户应用以计算baseline');
+                          // 先加载用户应用以计算baseline（baseline在加载用户应用时自动计算并保存）
+                          logger.i('📥 [第1次加载] 加载用户应用以计算baseline...');
+                          await _loadApps(); // 此时 _showSystemApps 还是 false，加载用户应用
+                          logger.i(
+                              '✓ Baseline已计算并保存: ${_appService.deviceBaselineTime}');
+
+                          // 计算完baseline后，切换到系统应用
+                          logger.i('📥 [第2次加载] 切换到系统应用，使用已计算的baseline');
+                          if (mounted) {
+                            setState(() {
+                              _showSystemApps = true;
+                            });
+                            await _loadApps();
+                            logger.i('✓ 切换完成，当前显示${_apps.length}个应用');
+                          }
+                          return;
+                        }
+
+                        // 切换显示范围并重新加载（使用已保存的baseline）
+                        logger.i(
+                            '📥 [切换加载] 切换到${selected ? "系统应用" : "用户应用"}，使用已有baseline');
+                        setState(() {
+                          _showSystemApps = selected;
+                        });
+                        await _loadApps();
+                        logger.i('✓ 切换完成，当前显示${_apps.length}个应用');
+                      },
               ),
             ],
           ),
@@ -752,7 +764,7 @@ class _AppManagementPageState extends State<AppManagementPage>
       final loadingText = _isScanning
           ? (_loadTotal > 0 ? '扫描中... $_loadCurrent/$_loadTotal' : '扫描中...')
           : (_loadTotal > 0 ? '加载中... $_loadCurrent/$_loadTotal' : '加载中...');
-      
+
       return SliverFillRemaining(
         child: Center(
           child: Column(
@@ -838,7 +850,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                   builder: (context) {
                     final stats = app.usageStats!;
                     final deviceBaseline = _appService.deviceBaselineTime;
-                    
+
                     // 统一传递基准时间，让 getLastUsedDescription 内部判断如何显示
                     final description = stats.getLastUsedDescription(
                       deviceBaselineTime: deviceBaseline,
@@ -1002,7 +1014,8 @@ class _AppManagementPageState extends State<AppManagementPage>
           ],
         ),
         body: RefreshIndicator(
-          onRefresh: () => _refreshAppsWithBanner(incremental: false), // 下拉刷新使用完全扫描
+          onRefresh: () =>
+              _refreshAppsWithBanner(incremental: false), // 下拉刷新使用完全扫描
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
@@ -1015,8 +1028,10 @@ class _AppManagementPageState extends State<AppManagementPage>
                     if (_showRefreshBanner)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -1030,7 +1045,8 @@ class _AppManagementPageState extends State<AppManagementPage>
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.blue[700]!),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1054,7 +1070,9 @@ class _AppManagementPageState extends State<AppManagementPage>
               SliverPersistentHeader(
                 pinned: true,
                 delegate: _StickyHeaderDelegate(
-                  height: _showSearchBar ? 114 : 58, // 动态高度：搜索栏(48+8) + 排序栏(50+8) = 114；仅排序栏(50+8) = 58
+                  height: _showSearchBar
+                      ? 114
+                      : 58, // 动态高度：搜索栏(48+8) + 排序栏(50+8) = 114；仅排序栏(50+8) = 58
                   child: Container(
                     color: Theme.of(context).scaffoldBackgroundColor,
                     child: Column(

@@ -237,8 +237,7 @@ void main() {
 
     test('场景13: 正好36小时，应该需要扫描（边界值）', () async {
       // 模拟正好36小时前的扫描
-      final exactly36Hours =
-          DateTime.now().subtract(const Duration(hours: 36));
+      final exactly36Hours = DateTime.now().subtract(const Duration(hours: 36));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
         'system_trash_last_scan_time',
@@ -249,7 +248,8 @@ void main() {
         const Duration(hours: 36),
       );
       // 实现中使用 elapsed > duration，由于时间流逝，elapsed 会大于36小时
-      expect(shouldScan, true, reason: '正好36小时前（加上执行时间），elapsed > duration，应该扫描');
+      expect(shouldScan, true,
+          reason: '正好36小时前（加上执行时间），elapsed > duration，应该扫描');
     });
 
     test('场景14: 36小时+1毫秒，应该需要扫描', () async {

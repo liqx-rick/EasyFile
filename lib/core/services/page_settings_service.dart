@@ -205,11 +205,10 @@ class PageSettingsService extends ChangeNotifier {
   /// 恢复推荐页面设置
   Future<void> resetRecommendSettings() async {
     _userSettings.removeWhere((pageId, _) =>
-      pageId == PageId.recommendApplication ||
-      pageId == PageId.recommendContent ||
-      pageId == PageId.recommendCleanup
-    );
-    
+        pageId == PageId.recommendApplication ||
+        pageId == PageId.recommendContent ||
+        pageId == PageId.recommendCleanup);
+
     // 保存设置
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -220,7 +219,7 @@ class PageSettingsService extends ChangeNotifier {
     } catch (e) {
       // 忽略保存错误
     }
-    
+
     notifyListeners();
   }
 

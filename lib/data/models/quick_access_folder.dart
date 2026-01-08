@@ -4,14 +4,14 @@ import 'package:easyfile/data/models/folder_stats.dart';
 /// 快速访问文件夹类型（v2.0 简化版）
 enum QuickAccessFolderType {
   /// 系统预定义目录
-  /// 
+  ///
   /// 包括：下载、图片、相机、音乐、视频、文档、声音等
   /// 这些目录由 [SystemFoldersConfig] 全局管理
   /// 支持二级目录展开
   system,
 
   /// 其他目录
-  /// 
+  ///
   /// 包括：应用目录、用户自建目录等
   /// 这些目录只支持一级显示
   other,
@@ -61,7 +61,7 @@ class QuickAccessFolder {
   final String? iconName;
 
   /// 父文件夹路径（用于子文件夹）
-  /// 
+  ///
   /// 如果该文件夹是另一个文件夹的子文件夹，此字段存储父文件夹的路径。
   /// 仅当 [isSubfolder] 为 true 时此字段才有意义。
   final String? parentPath;
@@ -87,13 +87,13 @@ class QuickAccessFolder {
   String get displayName => userAlias ?? recommendedAlias ?? originalName;
 
   /// 是否是子文件夹
-  /// 
+  ///
   /// 当此值为 true 时，表示该文件夹是另一个文件夹的子文件夹，
   /// 应该在 UI 中以缩进或嵌套方式展示在 [parentPath] 所指文件夹的下方。
   bool get isSubfolder => parentPath != null;
 
   /// 获取系统目录根路径（仅 system 类型有效）
-  /// 
+  ///
   /// 如果该文件夹是系统目录或其子目录，返回对应的系统目录根路径
   /// 例如：`/storage/emulated/0/Download/WeChat/` 返回 `/storage/emulated/0/Download/`
   /// 其他类型返回 null
@@ -103,7 +103,7 @@ class QuickAccessFolder {
   }
 
   /// 获取相对于系统根的子路径（仅系统二级目录有效）
-  /// 
+  ///
   /// 如果该目录是系统目录的子目录，返回相对于根目录的相对路径
   /// 例如：`/storage/emulated/0/Download/WeChat/` 返回 `WeChat/`
   /// 如果是根目录本身，返回 null
@@ -112,12 +112,12 @@ class QuickAccessFolder {
     final root = systemRoot;
     if (root == null) return null;
 
-    if (path == root) return null;  // 根目录本身
-    return path.substring(root.length);  // 子路径
+    if (path == root) return null; // 根目录本身
+    return path.substring(root.length); // 子路径
   }
 
   /// 是否为系统目录的二级子目录
-  /// 
+  ///
   /// 用于判断是否需要在 UI 中展开显示该目录
   bool get isSystemSubfolder {
     if (type != QuickAccessFolderType.system) return false;

@@ -1,7 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/sources/local_file_source.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/storage/mock_config_storage.dart';
 
 void main() {
+  setUpAll(() async {
+    await AppConfig.instance.initialize(storage: MockConfigStorage());
+  });
+
   group('LocalFileRepository Tests', () {
     late LocalFileRepository repository;
 

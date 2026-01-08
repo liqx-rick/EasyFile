@@ -1,5 +1,4 @@
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/config/file_types_config.dart';
 
 /// 文件工具类
 ///
@@ -9,7 +8,7 @@ import 'package:easyfile/core/config/file_types_config.dart';
 /// 所有扩展名列表统一由配置管理，支持远程更新和会员扩展
 class FileUtils {
   // 懒加载配置引用
-  static FileTypesConfig get _config => AppConfig.instance.fileTypes;
+  static dynamic get _config => AppConfig.instance.fileTypes;
 
   // ==================== 文件类型判断方法 ====================
 

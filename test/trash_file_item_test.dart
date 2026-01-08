@@ -1,7 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
+import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/storage/mock_config_storage.dart';
 
 void main() {
+  setUpAll(() async {
+    // 初始化AppConfig用于测试
+    await AppConfig.instance.initialize(storage: MockConfigStorage());
+  });
+
   group('TrashFileItem Tests', () {
     test('should create TrashFileItem with all properties', () {
       final now = DateTime.now();

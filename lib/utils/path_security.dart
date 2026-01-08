@@ -46,11 +46,11 @@ class PathSecurity {
   // 注意：系统重要目录列表已迁移到 SystemFoldersConfig.getAllSystemPaths()
   // 系统目录名称列表已迁移到 SystemFoldersConfig.getAllSystemFolderNames()
   // 这样可以避免在多处维护相同的目录列表，确保单一数据源
-  
+
   /// 额外的系统关键目录名称（不在 SystemFoldersConfig 中的特殊目录）
   static const List<String> _additionalSystemFolderNames = [
-    'data',  // Android应用数据目录
-    'obb',   // Android扩展文件目录
+    'data', // Android应用数据目录
+    'obb', // Android扩展文件目录
     'media', // Android媒体目录
   ];
 
@@ -79,8 +79,8 @@ class PathSecurity {
   static bool isSystemFolderName(String folderName) {
     // 使用 SystemFoldersConfig 获取所有系统目录名称
     final systemFolderNames = SystemFoldersConfig.getAllSystemFolderNames();
-    return systemFolderNames.contains(folderName) || 
-           _additionalSystemFolderNames.contains(folderName);
+    return systemFolderNames.contains(folderName) ||
+        _additionalSystemFolderNames.contains(folderName);
   }
 
   /// 获取路径的风险等级

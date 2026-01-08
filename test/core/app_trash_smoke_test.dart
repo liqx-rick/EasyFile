@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/data/models/app_trash_item.dart';
 
 /// 快速冒烟测试 - Phase 1 基础架构
-/// 
+///
 /// 只测试AppTrashItem模型的核心逻辑（不依赖Android环境）
 /// 注意：Settings和PathSecurity的测试需要完整环境，留到Phase 2在真机测试
 void main() {
@@ -27,7 +27,7 @@ void main() {
     test('应该正确计算文件删除天数', () {
       final now = DateTime.now();
       final threeDaysAgo = now.subtract(const Duration(days: 3));
-      
+
       final item = AppTrashItem(
         id: 'test-id',
         trashPath: '/data/.trash/file.txt',
@@ -44,7 +44,7 @@ void main() {
     test('应该正确判断即将过期的文件', () {
       final now = DateTime.now();
       const retentionDays = 7;
-      
+
       // 5天前删除（距离7天清理还有2天，应该即将过期）
       final fiveDaysAgo = now.subtract(const Duration(days: 5));
       final itemExpiringSoon = AppTrashItem(
@@ -77,7 +77,7 @@ void main() {
     test('应该正确判断已过期的文件', () {
       final now = DateTime.now();
       final retentionDays = 7;
-      
+
       // 8天前删除（已过期）
       final eightDaysAgo = now.subtract(const Duration(days: 8));
       final expiredItem = AppTrashItem(
@@ -195,8 +195,8 @@ void main() {
       expect(restored.fileName, original.fileName);
       expect(restored.size, original.size);
       expect(restored.mimeType, original.mimeType);
-      expect(restored.deletedAt.millisecondsSinceEpoch, 
-             original.deletedAt.millisecondsSinceEpoch);
+      expect(restored.deletedAt.millisecondsSinceEpoch,
+          original.deletedAt.millisecondsSinceEpoch);
     });
 
     test('应该正确转换为数据库Map', () {

@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/feature_config.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
@@ -80,9 +80,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   bool _hasCheckedRestore = false; // 标记是否已经检查过恢复
   double _categoryCardSize = 0.0; // 存储分类卡片尺寸
   bool _isInitializing = true; // 标记是否正在初始化
-
-  // 功能配置（缓存）
-  late FeatureConfig _featureConfig;
 
   // 推荐服务（全局实例，复用缓存）
   RecommendationService? _recommendationService;
@@ -301,10 +298,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
-
-      // 获取功能配置
-      _featureConfig = await locator.getAsync<FeatureConfig>();
-      logger.d('FeatureConfig obtained: $_featureConfig');
 
       // 初始化推荐服务（全局单例，带缓存）
       await _initializeRecommendationService();
@@ -1250,7 +1243,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             margin: const EdgeInsets.symmetric(horizontal: 6),
           ),
           // 收藏 Tab（根据功能配置显示）
-          if (_featureConfig.isFavoritesEnabled) ...[
+          if (AppConfig.instance.feature.isFavoritesEnabled) ...[
             _buildNavTab(
               context,
               '收藏',
@@ -1282,7 +1275,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             useColoredIcon: vm.currentTab == TabView.recent, // 当前Tab时显示彩色
           ),
           // 新文件 Tab - 根据功能配置决定是否显示
-          if (_featureConfig.isNewFilesEnabled) ...[
+          if (AppConfig.instance.feature.isNewFilesEnabled) ...[
             Container(
               width: 1,
               height: 16,
@@ -1461,7 +1454,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               ),
             ),
             // 新文件 Tab - 根据功能配置决定是否显示
-            if (_featureConfig.isNewFilesEnabled) ...[
+            if (AppConfig.instance.feature.isNewFilesEnabled) ...[
               Container(
                 width: 1,
                 height: 24,
@@ -3857,7 +3850,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             ),
                             const PopupMenuDivider(),
                             // 应用管理（根据功能配置显示）
-                            if (_featureConfig.isAppManagementEnabled)
+                            if (AppConfig
+                                .instance.feature.isAppManagementEnabled)
                               const PopupMenuItem(
                                 value: 'app_management',
                                 child: Row(
@@ -3879,7 +3873,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               ),
                             ),
                             // 回收站（根据功能配置显示）
-                            if (_featureConfig.isTrashEnabled)
+                            if (AppConfig.instance.feature.isTrashEnabled)
                               const PopupMenuItem(
                                 value: 'trash',
                                 child: Row(

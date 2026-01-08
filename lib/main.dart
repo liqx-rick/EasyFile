@@ -56,7 +56,8 @@ Future<void> main() async {
     await cacheManager.init();
     final diagnosis = await cacheManager.diagnoseCache();
 
-    if (diagnosis['initialized'] == false || diagnosis['cacheDirNull'] == true) {
+    if (diagnosis['initialized'] == false ||
+        diagnosis['cacheDirNull'] == true) {
       final success = await cacheManager.forceReinitialize();
       if (!success) {
         logger.w('Thumbnail cache initialization failed');
@@ -71,7 +72,7 @@ Future<void> main() async {
     final mediastoreCacheService = MediaStoreCacheService();
     await mediastoreCacheService.initialize();
     logger.i('✓ MediaStore 缓存服务已初始化');
-    
+
     // 后台预热缓存（不阻塞UI启动）
     mediastoreCacheService.warmUp().then((_) {
       logger.i('✓ MediaStore 缓存预热完成');

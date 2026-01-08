@@ -38,8 +38,6 @@ void main() {
         expect(AppConfig.instance.storage, same(customStorage));
       });
 
-
-
       test('should allow re-initialization', () async {
         await AppConfig.instance.initialize(storage: MockConfigStorage());
         // 再次初始化不应该报错
@@ -86,7 +84,8 @@ void main() {
 
       test('should reset all configs to defaults', () async {
         // 修改配置
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
 
         expect(AppConfig.instance.feature.isNewFilesEnabled, false);
@@ -101,7 +100,8 @@ void main() {
       });
 
       test('should reset feature config independently', () async {
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
 
         // 只重置 feature config
@@ -113,7 +113,8 @@ void main() {
       });
 
       test('should reset file scan config independently', () async {
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
 
         // 只重置 fileScan config
@@ -134,7 +135,8 @@ void main() {
 
       test('should maintain state across accesses', () async {
         await AppConfig.instance.initialize(storage: MockConfigStorage());
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
 
         // 通过不同引用访问应该得到相同状态
         final instance1 = AppConfig.instance;
@@ -165,7 +167,8 @@ void main() {
         await AppConfig.instance.initialize(storage: customStorage);
 
         // 在 feature 中写入
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
 
         // 应该能在存储中直接读取
         final value = customStorage.getBool('feature_new_files');
@@ -179,7 +182,8 @@ void main() {
 
         // 第一次初始化并修改配置
         await AppConfig.instance.initialize(storage: storage);
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
 
         expect(AppConfig.instance.feature.isNewFilesEnabled, false);

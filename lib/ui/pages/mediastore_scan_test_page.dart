@@ -12,7 +12,7 @@ import 'package:easyfile/ui/pages/file_preview_page.dart';
 /// MediaStore vs 文件系统扫描对比测试页面
 class MediaStoreScanTestPage extends StatefulWidget {
   final CategoryType categoryType;
-  
+
   const MediaStoreScanTestPage({
     super.key,
     this.categoryType = CategoryType.documents,
@@ -24,15 +24,15 @@ class MediaStoreScanTestPage extends StatefulWidget {
 
 class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
   bool _isScanning = false;
-  
+
   // MediaStore 扫描结果
   List<FileItem>? _mediaStoreResults;
   int? _mediaStoreDuration;
-  
+
   // 文件系统扫描结果
   List<FileItem>? _fileSystemResults;
   int? _fileSystemDuration;
-  
+
   late final FilePresenter _presenter;
 
   @override
@@ -44,26 +44,27 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
   /// 执行 MediaStore 扫描
   Future<void> _scanWithMediaStore() async {
     logger.i('开始 MediaStore 扫描测试 - 类型: ${widget.categoryType}');
-    
+
     final startTime = DateTime.now();
-    
+
     try {
       // 将 CategoryType 转换为 MediaScanType
       final scanType = _categoryTypeToMediaScanType(widget.categoryType);
-      
+
       // 使用统一的扫描方法
       final results = await MediaStoreScannerChannel.scan(scanType);
-      
+
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
-      
+
       setState(() {
         _mediaStoreResults = results;
         _mediaStoreDuration = duration.inMilliseconds;
       });
-      
+
       final categoryName = _getCategoryName();
-      logger.i('MediaStore 扫描完成: ${results.length} 个$categoryName, 耗时: ${duration.inMilliseconds}ms');
+      logger.i(
+          'MediaStore 扫描完成: ${results.length} 个$categoryName, 耗时: ${duration.inMilliseconds}ms');
     } catch (e) {
       logger.e('MediaStore 扫描失败: $e');
       if (mounted) {
@@ -77,26 +78,27 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
   /// 执行文件系统扫描
   Future<void> _scanWithFileSystem() async {
     logger.i('开始文件系统扫描测试 - 类型: ${widget.categoryType}');
-    
+
     final startTime = DateTime.now();
-    
+
     try {
       // 强制使用文件系统扫描（不使用 MediaStore）
       final results = await _presenter.scanFilesByCategory(
         widget.categoryType,
         useMediaStore: false,
       );
-      
+
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
-      
+
       setState(() {
         _fileSystemResults = results;
         _fileSystemDuration = duration.inMilliseconds;
       });
-      
+
       final categoryName = _getCategoryName();
-      logger.i('文件系统扫描完成: ${results.length} 个$categoryName, 耗时: ${duration.inMilliseconds}ms');
+      logger.i(
+          '文件系统扫描完成: ${results.length} 个$categoryName, 耗时: ${duration.inMilliseconds}ms');
     } catch (e) {
       logger.e('文件系统扫描失败: $e');
       if (mounted) {
@@ -151,7 +153,7 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
   /// 执行对比测试
   Future<void> _runComparisonTest() async {
     if (_isScanning) return;
-    
+
     setState(() {
       _isScanning = true;
       _mediaStoreResults = null;
@@ -162,13 +164,13 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
 
     // 先执行 MediaStore 扫描
     await _scanWithMediaStore();
-    
+
     // 等待1秒，避免影响性能测试
     await Future.delayed(const Duration(seconds: 1));
-    
+
     // 再执行文件系统扫描
     await _scanWithFileSystem();
-    
+
     setState(() {
       _isScanning = false;
     });
@@ -177,7 +179,7 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
   @override
   Widget build(BuildContext context) {
     final categoryName = _getCategoryName();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text('扫描方式对比测试 - $categoryName'),
@@ -205,9 +207,9 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
                 padding: const EdgeInsets.all(16),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // 结果对比
             Expanded(
               child: Row(
@@ -222,9 +224,9 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
                       duration: _mediaStoreDuration,
                     ),
                   ),
-                  
+
                   const SizedBox(width: 16),
-                  
+
                   // 文件系统结果
                   Expanded(
                     child: _buildResultCard(
@@ -238,9 +240,9 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // 对比分析
             if (_mediaStoreResults != null && _fileSystemResults != null)
               _buildComparisonAnalysis(),
@@ -282,9 +284,9 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
                 ),
               ],
             ),
-            
+
             const Divider(height: 24),
-            
+
             // 结果数据
             if (results == null && duration == null)
               const Expanded(
@@ -304,7 +306,7 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
               const SizedBox(height: 8),
               _buildStatRow(
                 '扫描耗时',
-                duration != null 
+                duration != null
                     ? '${(duration / 1000).toStringAsFixed(2)}s'
                     : '-',
                 highlight: true,
@@ -357,10 +359,10 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
     final mediaStoreDuration = _mediaStoreDuration!;
     final fileSystemDuration = _fileSystemDuration!;
     final categoryName = _getCategoryName();
-    
+
     final countDiff = mediaStoreCount - fileSystemCount;
     final speedImprovement = fileSystemDuration / mediaStoreDuration;
-    
+
     return Card(
       color: Colors.green.shade50,
       child: Padding(
@@ -382,7 +384,6 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
               ],
             ),
             const SizedBox(height: 12),
-            
             Text(
               '📊 数量差异: ${countDiff >= 0 ? '+' : ''}$countDiff 个$categoryName',
               style: TextStyle(
@@ -391,7 +392,6 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
               ),
             ),
             const SizedBox(height: 8),
-            
             Text(
               '⚡ 性能提升: ${speedImprovement.toStringAsFixed(1)}x',
               style: const TextStyle(
@@ -401,12 +401,10 @@ class _MediaStoreScanTestPageState extends State<MediaStoreScanTestPage> {
               ),
             ),
             const SizedBox(height: 8),
-            
             Text(
               '⏱️ 时间节省: ${((fileSystemDuration - mediaStoreDuration) / 1000).toStringAsFixed(2)}s',
               style: const TextStyle(fontSize: 14),
             ),
-            
             if (countDiff != 0) ...[
               const SizedBox(height: 12),
               Row(
@@ -506,7 +504,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // 统计信息
             Container(
               padding: const EdgeInsets.all(12),
@@ -529,7 +527,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 文件列表
             Expanded(
               child: DefaultTabController(
@@ -589,16 +587,16 @@ class _DifferenceFilesDialog extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               ...patterns.entries.map((entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '${entry.key}: ${entry.value} 个',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              )),
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${entry.key}: ${entry.value} 个',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  )),
             ],
           ),
         ),
-        
+
         // 文件列表
         Expanded(
           child: ListView.builder(
@@ -606,7 +604,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
             itemBuilder: (context, index) {
               final file = files[index];
               final reason = _analyzeWhyNotIndexed(file, source);
-              
+
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: InkWell(
@@ -671,9 +669,9 @@ class _DifferenceFilesDialog extends StatelessWidget {
                             ],
                           ),
                         ),
-                        
+
                         const SizedBox(width: 8),
-                        
+
                         // 预览图标
                         Container(
                           padding: const EdgeInsets.all(8),
@@ -702,14 +700,14 @@ class _DifferenceFilesDialog extends StatelessWidget {
   /// 分析路径模式
   Map<String, int> _analyzePathPatterns(List<FileItem> files) {
     final patterns = <String, int>{};
-    
+
     for (final file in files) {
       final path = file.path.toLowerCase();
-      
+
       if (path.contains('/.')) {
         patterns['隐藏目录 (/.xxx)'] = (patterns['隐藏目录 (/.xxx)'] ?? 0) + 1;
       } else if (path.contains('/android/data/')) {
-        patterns['应用数据 (/Android/data/)'] = 
+        patterns['应用数据 (/Android/data/)'] =
             (patterns['应用数据 (/Android/data/)'] ?? 0) + 1;
       } else if (path.contains('/cache/') || path.contains('/temp/')) {
         patterns['缓存/临时目录'] = (patterns['缓存/临时目录'] ?? 0) + 1;
@@ -721,7 +719,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
         patterns['其他位置'] = (patterns['其他位置'] ?? 0) + 1;
       }
     }
-    
+
     return patterns;
   }
 
@@ -729,7 +727,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
   String _analyzeWhyNotIndexed(FileItem file, String source) {
     final path = file.path.toLowerCase();
     final name = file.name.toLowerCase();
-    
+
     if (source == '文件系统') {
       // 分析为什么 MediaStore 没有索引
       if (path.contains('/.')) {
@@ -756,7 +754,7 @@ class _DifferenceFilesDialog extends StatelessWidget {
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
-    
+
     if (diff.inDays > 365) {
       return '${(diff.inDays / 365).floor()}年前';
     } else if (diff.inDays > 30) {
@@ -771,7 +769,8 @@ class _DifferenceFilesDialog extends StatelessWidget {
   }
 
   /// 预览文件
-  void _previewFile(BuildContext context, FileItem file, List<FileItem> fileList) {
+  void _previewFile(
+      BuildContext context, FileItem file, List<FileItem> fileList) {
     if (!context.mounted) return;
 
     // 检查文件是否存在
@@ -798,4 +797,3 @@ class _DifferenceFilesDialog extends StatelessWidget {
     );
   }
 }
-

@@ -22,7 +22,8 @@ class NewFileItem {
       path: json['path'] as String,
       created: DateTime.parse(json['created'] as String),
       discovered: DateTime.parse(json['discovered'] as String),
-      displayName: json['displayName'] as String? ?? json['source'] as String, // 兼容旧数据
+      displayName:
+          json['displayName'] as String? ?? json['source'] as String, // 兼容旧数据
     );
   }
 

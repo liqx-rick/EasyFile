@@ -79,8 +79,7 @@ class ComprehensiveScanResult {
   }
 
   /// 获取快速访问文件夹的总发现数（包含所有类型）
-  int get totalQuickAccessFound =>
-      systemFoldersCount + otherFoldersCount;
+  int get totalQuickAccessFound => systemFoldersCount + otherFoldersCount;
 
   /// 获取格式化的扫描摘要
   String getSummary() {

@@ -21,7 +21,8 @@ void main() {
     });
 
     group('完整配置工作流', () {
-      test('complete workflow: initialize -> modify -> persist -> reload', () async {
+      test('complete workflow: initialize -> modify -> persist -> reload',
+          () async {
         // 1. 初始化配置系统
         await AppConfig.instance.initialize();
 
@@ -30,8 +31,10 @@ void main() {
         expect(AppConfig.instance.fileScan.largeFileThreshold, 50);
 
         // 2. 修改配置
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
-        await AppConfig.instance.feature.setFeature('large_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('large_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
         await AppConfig.instance.fileScan.setNewFilesRetentionDays(15);
         await AppConfig.instance.appScanner.setAppEnabled('qq', false);
@@ -46,7 +49,8 @@ void main() {
         final qqConfig = await AppConfig.instance.appScanner.getAppConfig('qq');
         expect(qqConfig?.enabled, false);
 
-        final telegramConfig = await AppConfig.instance.appScanner.getAppConfig('telegram');
+        final telegramConfig =
+            await AppConfig.instance.appScanner.getAppConfig('telegram');
         expect(telegramConfig?.priority, 1);
 
         // 4. 模拟应用重启（重新初始化）
@@ -58,10 +62,12 @@ void main() {
         expect(AppConfig.instance.fileScan.largeFileThreshold, 100);
         expect(AppConfig.instance.fileScan.newFilesRetentionDays, 15);
 
-        final qqConfig2 = await AppConfig.instance.appScanner.getAppConfig('qq');
+        final qqConfig2 =
+            await AppConfig.instance.appScanner.getAppConfig('qq');
         expect(qqConfig2?.enabled, false);
 
-        final telegramConfig2 = await AppConfig.instance.appScanner.getAppConfig('telegram');
+        final telegramConfig2 =
+            await AppConfig.instance.appScanner.getAppConfig('telegram');
         expect(telegramConfig2?.priority, 1);
       });
 
@@ -82,7 +88,8 @@ void main() {
         await AppConfig.instance.appScanner.addCustomApp(customApp);
 
         // 验证添加成功
-        final retrieved = await AppConfig.instance.appScanner.getAppConfig('custom_test');
+        final retrieved =
+            await AppConfig.instance.appScanner.getAppConfig('custom_test');
         expect(retrieved, isNotNull);
         expect(retrieved!.appName, '测试应用');
 
@@ -90,7 +97,8 @@ void main() {
         await AppConfig.instance.initialize();
 
         // 验证持久化
-        final retrieved2 = await AppConfig.instance.appScanner.getAppConfig('custom_test');
+        final retrieved2 =
+            await AppConfig.instance.appScanner.getAppConfig('custom_test');
         expect(retrieved2, isNotNull);
         expect(retrieved2!.appName, '测试应用');
       });
@@ -139,9 +147,11 @@ void main() {
         await AppConfig.instance.appScanner.setAppPriority('wps', 1);
         await AppConfig.instance.appScanner.setAppPriority('dingtalk', 3);
 
-        final telegram = await AppConfig.instance.appScanner.getAppConfig('telegram');
+        final telegram =
+            await AppConfig.instance.appScanner.getAppConfig('telegram');
         final wps = await AppConfig.instance.appScanner.getAppConfig('wps');
-        final dingtalk = await AppConfig.instance.appScanner.getAppConfig('dingtalk');
+        final dingtalk =
+            await AppConfig.instance.appScanner.getAppConfig('dingtalk');
 
         expect(telegram!.priority, 1);
         expect(wps!.priority, 1);
@@ -152,7 +162,8 @@ void main() {
         await AppConfig.instance.initialize();
 
         // 记录初始值
-        final initialLargeFiles = AppConfig.instance.feature.isLargeFilesEnabled;
+        final initialLargeFiles =
+            AppConfig.instance.feature.isLargeFilesEnabled;
         final initialThreshold = AppConfig.instance.fileScan.largeFileThreshold;
 
         // 只更新部分配置
@@ -164,8 +175,10 @@ void main() {
         expect(AppConfig.instance.feature.isNewFilesEnabled, false);
 
         // 未被更新的配置应该保持不变
-        expect(AppConfig.instance.feature.isLargeFilesEnabled, initialLargeFiles);
-        expect(AppConfig.instance.fileScan.largeFileThreshold, initialThreshold);
+        expect(
+            AppConfig.instance.feature.isLargeFilesEnabled, initialLargeFiles);
+        expect(
+            AppConfig.instance.fileScan.largeFileThreshold, initialThreshold);
       });
     });
 
@@ -174,7 +187,8 @@ void main() {
         await AppConfig.instance.initialize();
 
         // 禁用大文件功能
-        await AppConfig.instance.feature.setFeature('large_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('large_files', enabled: false);
 
         // 但仍然可以设置大文件阈值（配置独立）
         await AppConfig.instance.fileScan.setLargeFileThreshold(200);
@@ -187,7 +201,8 @@ void main() {
         await AppConfig.instance.initialize();
 
         // 禁用应用管理功能
-        await AppConfig.instance.feature.setFeature('app_management', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('app_management', enabled: false);
 
         // 但仍然可以管理应用配置
         await AppConfig.instance.appScanner.setAppEnabled('qq', false);
@@ -219,7 +234,8 @@ void main() {
         await AppConfig.instance.initialize();
 
         // 修改多个配置
-        await AppConfig.instance.feature.setFeature('new_files', enabled: false);
+        await AppConfig.instance.feature
+            .setFeature('new_files', enabled: false);
         await AppConfig.instance.fileScan.setLargeFileThreshold(100);
         await AppConfig.instance.appScanner.setAppEnabled('qq', false);
 
@@ -243,7 +259,8 @@ void main() {
 
         // 初始化应该在 500ms 内完成
         expect(stopwatch.elapsedMilliseconds, lessThan(500));
-        debugPrint('Config initialization took: ${stopwatch.elapsedMilliseconds}ms');
+        debugPrint(
+            'Config initialization took: ${stopwatch.elapsedMilliseconds}ms');
       });
 
       test('config reads should be fast', () async {
@@ -262,7 +279,8 @@ void main() {
 
         // 1000次读取应该在 100ms 内完成
         expect(stopwatch.elapsedMilliseconds, lessThan(100));
-        debugPrint('1000 config reads took: ${stopwatch.elapsedMilliseconds}ms');
+        debugPrint(
+            '1000 config reads took: ${stopwatch.elapsedMilliseconds}ms');
       });
 
       test('batch updates should be efficient', () async {
@@ -293,7 +311,8 @@ void main() {
 
         // 尝试设置无效的回收站天数
         expect(
-          () async => await AppConfig.instance.fileScan.setTrashRetentionDays(100),
+          () async =>
+              await AppConfig.instance.fileScan.setTrashRetentionDays(100),
           throwsArgumentError,
         );
 
@@ -318,7 +337,8 @@ void main() {
         }
 
         // 配置系统应该仍然正常工作
-        final wechat = await AppConfig.instance.appScanner.getAppConfig('wechat');
+        final wechat =
+            await AppConfig.instance.appScanner.getAppConfig('wechat');
         expect(wechat, isNotNull);
         expect(wechat!.appName, '微信'); // 应该是原始配置
       });

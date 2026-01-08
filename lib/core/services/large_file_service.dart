@@ -333,14 +333,17 @@ class LargeFileService {
 
     // ✅ 使用 FileTypesConfig 统一管理扩展名
     final config = AppConfig.instance.fileTypes;
-    
+
     // 构建带点的扩展名列表（FileTypesConfig 存储的是不带点的格式）
     final videoExtensions = config.videoExtensions.map((e) => '.$e').toSet();
     final audioExtensions = config.audioExtensions.map((e) => '.$e').toSet();
     final imageExtensions = config.imageExtensions.map((e) => '.$e').toSet();
-    final documentExtensions = config.documentExtensions.map((e) => '.$e').toSet();
-    final archiveExtensions = [...config.archiveExtensions, ...config.apkExtensions]
-        .map((e) => '.$e').toSet();
+    final documentExtensions =
+        config.documentExtensions.map((e) => '.$e').toSet();
+    final archiveExtensions = [
+      ...config.archiveExtensions,
+      ...config.apkExtensions
+    ].map((e) => '.$e').toSet();
 
     for (final type in fileTypes) {
       switch (type) {

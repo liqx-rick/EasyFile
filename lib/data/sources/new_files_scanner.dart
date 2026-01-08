@@ -18,7 +18,7 @@ class CancelToken {
 
 /// 新文件扫描器
 /// 负责扫描指定目录下的新文件
-/// 
+///
 /// 注意：不再保存配置，每次扫描时传入最新配置确保实时生效
 class NewFilesScanner {
   CancelToken? _currentScanToken;
@@ -34,52 +34,52 @@ class NewFilesScanner {
   }
 
   /// 扫描新文件（性能优化版）
-  /// 
+  ///
   /// **策略**: 使用Android MediaStore原生扫描（快速，2-3秒）
-  /// 
+  ///
   /// **取消机制**: 支持Tab切换时中断扫描
-  /// 
+  ///
   /// **参数**:
   /// - [retentionDays] 保留天数，从FileScanConfig传入确保使用最新配置
   /// - [maxResults] 最大结果数，用于预留缓存空间
-  /// 
+  ///
   /// **返回**: 按创建时间倒序排列的文件列表（最多maxResults项）
   Future<List<NewFileItem>> scanNewFiles({
     required int retentionDays,
     int maxResults = 200,
   }) async {
     logger.i('NewFilesScanner: Starting native scan');
-    
+
     // 取消之前的扫描
     if (_currentScanToken != null) {
       _currentScanToken!.cancel();
     }
     _currentScanToken = CancelToken();
-    
+
     try {
       // 检查取消状态
       if (_currentScanToken!.isCancelled) {
         logger.i('NewFilesScanner: Scan cancelled before native scan');
         return [];
       }
-      
+
       // 使用原生优化扫描
       final nativeResults = await NewFilesNativeChannel.scanRecentFiles(
         retentionDays,
       );
-      
+
       // 检查取消状态
       if (_currentScanToken!.isCancelled) {
         logger.i('NewFilesScanner: Scan cancelled after native scan');
         return [];
       }
-      
+
       // 限制数量
       final limitedResults = nativeResults.take(maxResults).toList();
-      
-      logger.i('NewFilesScanner: Native scan complete, found ${limitedResults.length} files');
+
+      logger.i(
+          'NewFilesScanner: Native scan complete, found ${limitedResults.length} files');
       return limitedResults;
-      
     } catch (e) {
       logger.e('NewFilesScanner: Native scan failed: $e');
       // 返回空列表，UI层会显示友好的错误提示
@@ -123,8 +123,9 @@ class NewFilesScanner {
       try {
         // 获取缓存文件的修改时间
         final directory = await getApplicationDocumentsDirectory();
-        final cacheFile = File('${directory.path}${Platform.pathSeparator}new_files_index.json');
-        
+        final cacheFile = File(
+            '${directory.path}${Platform.pathSeparator}new_files_index.json');
+
         if (await cacheFile.exists()) {
           final stat = await cacheFile.stat();
           final age = DateTime.now().difference(stat.modified);
@@ -139,7 +140,8 @@ class NewFilesScanner {
           }
 
           // 超过1小时：执行完整扫描
-          logger.i('Cache expired (${age.inHours} hours old), performing full scan');
+          logger.i(
+              'Cache expired (${age.inHours} hours old), performing full scan');
         }
       } catch (e) {
         logger.e('Error checking cache file age: $e');
@@ -152,6 +154,4 @@ class NewFilesScanner {
       maxResults: maxResults,
     );
   }
-
-
 }

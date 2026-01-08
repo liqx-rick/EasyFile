@@ -2,20 +2,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 缓存管理服务
-/// 
+///
 /// 检查缓存的有效性
 /// 使用 SharedPreferences 存储缓存元数据
 class CacheService {
   static const int _defaultCacheValidityDays = 7; // 缓存7天有效
 
   /// 检查缓存是否有效
-  /// 
+  ///
   /// 返回 true：缓存有效，可以使用
   /// 返回 false：缓存无效或已过期，需要重新扫描
   Future<bool> isCacheValid() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 获取最后扫描时间戳
       final lastScanTimeStr = prefs.getString('last_full_scan_time');
       if (lastScanTimeStr == null) {
@@ -33,7 +33,8 @@ class CacheService {
       final daysSinceScan = DateTime.now().difference(lastScanTime).inDays;
       final isValid = daysSinceScan < _defaultCacheValidityDays;
 
-      logger.i('[CacheService] Cache age: $daysSinceScan days, valid: $isValid');
+      logger
+          .i('[CacheService] Cache age: $daysSinceScan days, valid: $isValid');
       return isValid;
     } catch (e) {
       logger.e('[CacheService] Error checking cache validity: $e');
@@ -56,7 +57,7 @@ class CacheService {
   }
 
   /// 更新最后扫描时间
-  /// 
+  ///
   /// 应该在完整扫描完成（P2完成）后调用
   Future<void> updateLastScanTime() async {
     try {

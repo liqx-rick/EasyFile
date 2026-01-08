@@ -12,7 +12,7 @@ void main() {
       // 初始化测试环境
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 使用 LocalConfigStorage
       final storage = LocalConfigStorage(prefs);
       appScannerConfig = AppScannerConfig(storage);
@@ -35,7 +35,7 @@ void main() {
 
       // 默认有5个应用：微信、QQ、Telegram、WPS、钉钉
       expect(enabledApps.length, 5);
-      
+
       // 验证优先级排序（微信和QQ优先级为1，其他为2）
       expect(enabledApps[0].priority, 1); // 微信或QQ
       expect(enabledApps[1].priority, 1); // 微信或QQ
@@ -110,7 +110,7 @@ void main() {
       );
 
       await appScannerConfig.addCustomApp(customApp);
-      
+
       // 验证添加成功
       var customConfig = await appScannerConfig.getAppConfig('custom_app');
       expect(customConfig, isNotNull);
@@ -232,7 +232,8 @@ void main() {
 
     test('should access app scanner config via AppConfig', () async {
       // 通过 AppConfig 访问应用扫描配置
-      final wechatConfig = await AppConfig.instance.appScanner.getAppConfig('wechat');
+      final wechatConfig =
+          await AppConfig.instance.appScanner.getAppConfig('wechat');
 
       expect(wechatConfig, isNotNull);
       expect(wechatConfig!.appKey, 'wechat');
@@ -251,7 +252,8 @@ void main() {
       await AppConfig.instance.appScanner.setAppPriority('telegram', 1);
 
       // 验证优先级改变
-      final telegramConfig = await AppConfig.instance.appScanner.getAppConfig('telegram');
+      final telegramConfig =
+          await AppConfig.instance.appScanner.getAppConfig('telegram');
       expect(telegramConfig!.priority, 1);
     });
   });

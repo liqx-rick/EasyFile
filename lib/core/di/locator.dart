@@ -16,8 +16,6 @@ import 'package:easyfile/core/services/app_storage_cache_manager.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
-import 'package:easyfile/core/config/feature_config.dart';
-import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/config/storage/config_storage.dart';
 import 'package:easyfile/core/config/storage/local_config_storage.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
@@ -63,18 +61,6 @@ void setupLocator() {
   locator.registerLazySingletonAsync<ConfigStorage>(() async {
     logger.d('Creating ConfigStorage (LocalConfigStorage)');
     return await LocalConfigStorage.create();
-  });
-
-  locator.registerLazySingletonAsync<FeatureConfig>(() async {
-    logger.d('Creating FeatureConfig');
-    final storage = await locator.getAsync<ConfigStorage>();
-    return FeatureConfig(storage);
-  });
-
-  locator.registerLazySingletonAsync<FileScanConfig>(() async {
-    logger.d('Creating FileScanConfig');
-    final storage = await locator.getAsync<ConfigStorage>();
-    return FileScanConfig(storage);
   });
 
   // Data Sources
@@ -152,21 +138,20 @@ void setupLocator() {
     return AppTrashDatabase();
   });
 
-  locator.registerLazySingletonAsync<AppTrashSettings>(() async {
+  locator.registerLazySingleton<AppTrashSettings>(() {
     logger.d('Creating AppTrashSettings');
-    final config = await locator.getAsync<FileScanConfig>();
-    return AppTrashSettings(config);
+    return AppTrashSettings();
   });
 
-  locator.registerLazySingletonAsync<AppTrashManager>(() async {
+  locator.registerLazySingleton<AppTrashManager>(() {
     logger.d('Creating AppTrashManager');
     final database = locator<AppTrashDatabase>();
-    final settings = await locator.getAsync<AppTrashSettings>();
+    final settings = locator<AppTrashSettings>();
     final manager = AppTrashManager(
       database: database,
       settings: settings,
     );
-    await manager.initialize();
+    // 注意：initialize()需要在使用前调用
     return manager;
   });
 
