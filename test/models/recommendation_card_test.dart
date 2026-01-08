@@ -111,18 +111,31 @@ void main() {
       expect(defaultRecommendationConfigs.length, 9);
     });
 
-    test('配置列表按优先级排序', () {
-      expect(defaultRecommendationConfigs[0].type, RecommendationType.wechat);
-      expect(defaultRecommendationConfigs[1].type, RecommendationType.qq);
-      expect(defaultRecommendationConfigs[2].type, RecommendationType.wps);
-      expect(defaultRecommendationConfigs[3].type, RecommendationType.telegram);
-      expect(defaultRecommendationConfigs[4].type, RecommendationType.dingtalk);
-      expect(defaultRecommendationConfigs[5].type, RecommendationType.memories);
-      expect(defaultRecommendationConfigs[6].type, RecommendationType.videos);
-      expect(
-          defaultRecommendationConfigs[7].type, RecommendationType.recordings);
-      expect(
-          defaultRecommendationConfigs[8].type, RecommendationType.largeFiles);
+    test('配置列表包含所有必需类型', () {
+      // 验证包含5个应用类卡片
+      final appTypes = defaultRecommendationConfigs
+          .where((c) => c.isAppCard)
+          .map((c) => c.type)
+          .toSet();
+      expect(appTypes, containsAll([
+        RecommendationType.wechat,
+        RecommendationType.wps,
+        RecommendationType.qq,
+        RecommendationType.telegram,
+        RecommendationType.dingtalk,
+      ]));
+
+      // 验证包含4个系统类托底卡片
+      final systemTypes = defaultRecommendationConfigs
+          .where((c) => !c.isAppCard)
+          .map((c) => c.type)
+          .toSet();
+      expect(systemTypes, containsAll([
+        RecommendationType.memories,
+        RecommendationType.videos,
+        RecommendationType.recordings,
+        RecommendationType.largeFiles,
+      ]));
     });
 
     test('应用类配置都需要文件数量检测', () {

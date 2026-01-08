@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/ui/widgets/quick_access_section.dart';
 
 /// 缓存管理页面
 ///
@@ -308,6 +309,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         _clearingItemName = null;
       });
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result?.message ?? '清理失败，请重试'),
@@ -316,6 +319,16 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
           duration: const Duration(seconds: 2),
         ),
       );
+
+      // 刷新首页推荐卡片（在显示 SnackBar 后延迟执行，确保页面状态稳定）
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        try {
+          await QuickAccessSection.refreshRecommendations();
+          logger.i('✓ Recommendations refreshed after cache clear');
+        } catch (e) {
+          logger.w('Failed to refresh recommendations: $e');
+        }
+      });
 
       // 重新加载缓存数据
       await _loadCacheData();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/ui/pages/cache_management_page.dart';
+import 'package:easyfile/ui/widgets/quick_access_section.dart';
 
 /// 一键清理缓存对话框
 ///
@@ -102,11 +103,23 @@ class _QuickCacheClearDialogState extends State<QuickCacheClearDialog> {
       _isClearing = false;
     });
 
+    if (!mounted) return;
+
     // 关闭当前对话框
     Navigator.of(context).pop();
 
     // 显示结果对话框
     _showResultDialog(result, cacheSizeBeforeClear, isTimeout);
+
+    // 刷新首页推荐卡片（在对话框关闭后，确保主页已经重新构建）
+    Future.delayed(const Duration(milliseconds: 300), () async {
+      try {
+        await QuickAccessSection.refreshRecommendations();
+        logger.i('✓ Recommendations refreshed after cache clear');
+      } catch (e) {
+        logger.w('Failed to refresh recommendations: $e');
+      }
+    });
   }
 
   /// 显示清理结果对话框

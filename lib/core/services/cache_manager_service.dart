@@ -636,7 +636,7 @@ class CacheManagerService {
                   key.startsWith('file_count_') || // FileCountCache (count)
                   key.startsWith('file_count_time_') || // FileCountCache (time)
                   key.startsWith('app_installed_') || // AppDetectionService
-                  key.startsWith('app_list_cache_') // AppListCacheManager（新增）
+                  key.startsWith('app_list_cache_') // AppListCacheManager
               )
           .toList();
 

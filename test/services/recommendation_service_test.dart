@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
@@ -10,8 +9,13 @@ import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/config/storage/mock_config_storage.dart';
 
-/// 测试用的应用统计缓存（不执行实际缓存）
+/// 测试用的应用统计缓存（可控制返回的统计数据）
 class MockAppStatisticsCache extends AppStatisticsCache {
+  final Map<String, int> _fileCounts;
+
+  MockAppStatisticsCache({Map<String, int>? fileCounts})
+      : _fileCounts = fileCounts ?? {};
+
   @override
   Future<void> initialize() async {
     // Mock实现不需要实际初始化
@@ -19,8 +23,18 @@ class MockAppStatisticsCache extends AppStatisticsCache {
 
   @override
   Future<AppStatistics?> get(String appKey) async {
-    // Mock实现始终返回null，让测试走实际扫描逻辑
-    return null;
+    final fileCount = _fileCounts[appKey];
+    if (fileCount == null) {
+      return null;
+    }
+
+    // 返回Mock统计数据（不会过期）
+    return AppStatistics(
+      fileCount: fileCount,
+      totalSize: fileCount * 1024 * 1024, // 假设每个文件1MB
+      weeklyGrowth: 0,
+      cachedAt: DateTime.now(),
+    );
   }
 
   @override
@@ -77,13 +91,11 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
     bool useMediaStore = true,
     bool updateCache = true,
   }) async {
-    final fileCount = _fileCounts[appKey] ?? 0;
-
     return AppScanResult(
       appName: appKey,
       packageName: 'com.test.$appKey',
       isInstalled: true,
-      allFiles: List.generate(fileCount, (i) => null as dynamic), // 模拟文件列表
+      allFiles: const [], // 返回空列表而不是null列表
       mediaStoreFiles: const [],
       pathScanFiles: const [],
       differenceFiles: const [],
@@ -121,10 +133,15 @@ void main() {
       final cards = await service.getRecommendations();
 
       expect(cards.length, 4);
-      expect(cards[0].type, RecommendationType.memories);
-      expect(cards[1].type, RecommendationType.videos);
-      expect(cards[2].type, RecommendationType.recordings);
-      expect(cards[3].type, RecommendationType.largeFiles);
+      // 验证都是系统类托底卡片
+      expect(cards.every((c) => c.appKey == null), true);
+      final cardTypes = cards.map((c) => c.type).toSet();
+      expect(cardTypes, containsAll([
+        RecommendationType.memories,
+        RecommendationType.videos,
+        RecommendationType.recordings,
+        RecommendationType.largeFiles,
+      ]));
     });
 
     test('微信已安装但文件数不足 - 应被过滤', () async {
@@ -140,7 +157,11 @@ void main() {
           'wechat': 2, // 只有2个文件，要求>3
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 2, // 返回文件数量
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -167,7 +188,11 @@ void main() {
           'wechat': 50, // 文件数>3
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 50,
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -196,7 +221,12 @@ void main() {
           'qq': 30,
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 50,
+          'qq': 30,
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -206,10 +236,16 @@ void main() {
       final cards = await service.getRecommendations();
 
       expect(cards.length, 4);
-      expect(cards[0].type, RecommendationType.wechat);
-      expect(cards[1].type, RecommendationType.qq);
-      expect(cards[2].type, RecommendationType.memories); // 托底
-      expect(cards[3].type, RecommendationType.videos); // 托底
+      // 验证微信和QQ都在列表中
+      expect(cards.any((c) => c.type == RecommendationType.wechat), true);
+      expect(cards.any((c) => c.type == RecommendationType.qq), true);
+      // 验证微信在QQ之前（priority: wechat=1, qq=3）
+      final wechatIndex = cards.indexWhere((c) => c.type == RecommendationType.wechat);
+      final qqIndex = cards.indexWhere((c) => c.type == RecommendationType.qq);
+      expect(wechatIndex < qqIndex, true);
+      // 剩余2个应该是托底卡片
+      final appCardCount = cards.where((c) => c.appKey != null).length;
+      expect(appCardCount, 2);
     });
 
     test('所有应用都满足条件 - 应只返回前4个', () async {
@@ -219,6 +255,7 @@ void main() {
           'com.tencent.mobileqq': true,
           'org.telegram.messenger': true,
           'cn.wps.moffice_eng': true,
+          'com.alibaba.android.rimet': true,
         },
       );
 
@@ -226,12 +263,21 @@ void main() {
         detectionService,
         fileCounts: {
           'wechat': 50,
+          'wps': 40,
           'qq': 30,
           'telegram': 25,
-          'wps': 20,
+          'dingtalk': 20,
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 50,
+          'wps': 40,
+          'qq': 30,
+          'telegram': 25,
+          'dingtalk': 20,
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -240,57 +286,24 @@ void main() {
 
       final cards = await service.getRecommendations();
 
-      // 只返回前4个
+      // 只返回前4个，按priority排序
       expect(cards.length, 4);
-      expect(cards[0].type, RecommendationType.wechat);
-      expect(cards[1].type, RecommendationType.qq);
-      expect(cards[2].type, RecommendationType.telegram);
-      expect(cards[3].type, RecommendationType.wps);
-    });
-  });
-
-  group('RecommendationService 自定义配置测试', () {
-    test('使用自定义配置列表', () async {
-      final customConfigs = [
-        const RecommendationConfig(
-          type: RecommendationType.memories,
-          title: '自定义时光记忆',
-          icon: Icons.camera,
-          color: Colors.red,
-          minFileCount: 0,
-        ),
-      ];
-
-      final detectionService = MockAppDetectionService();
-      final scanner = MockUnifiedAppScanner(detectionService);
-      final statisticsCache = MockAppStatisticsCache();
-      final service = RecommendationService(
-        detectionService: detectionService,
-        scanner: scanner,
-        statisticsCache: statisticsCache,
-        configs: customConfigs,
-      );
-
-      final cards = await service.getRecommendations();
-
-      expect(cards.length, 1);
-      expect(cards[0].title, '自定义时光记忆');
-    });
-
-    test('空配置列表 - 应返回空数组', () async {
-      final detectionService = MockAppDetectionService();
-      final scanner = MockUnifiedAppScanner(detectionService);
-      final statisticsCache = MockAppStatisticsCache();
-      final service = RecommendationService(
-        detectionService: detectionService,
-        scanner: scanner,
-        statisticsCache: statisticsCache,
-        configs: [],
-      );
-
-      final cards = await service.getRecommendations();
-
-      expect(cards.isEmpty, true);
+      expect(cards.every((c) => c.appKey != null), true); // 都是应用卡片
+      
+      // 验证按priority排序（wechat=1, wps=2, qq=3, telegram=4）
+      final cardTypes = cards.map((c) => c.type).toList();
+      expect(cardTypes, containsAll([
+        RecommendationType.wechat,
+        RecommendationType.wps,
+        RecommendationType.qq,
+        RecommendationType.telegram,
+      ]));
+      
+      // 验证顺序正确
+      expect(cardTypes[0], RecommendationType.wechat);
+      expect(cardTypes[1], RecommendationType.wps);
+      expect(cardTypes[2], RecommendationType.qq);
+      expect(cardTypes[3], RecommendationType.telegram);
     });
   });
 
@@ -308,7 +321,11 @@ void main() {
           'wechat': 3, // 等于minFileCount
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 3,
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -331,10 +348,14 @@ void main() {
       final scanner = MockUnifiedAppScanner(
         detectionService,
         fileCounts: {
-          'wechat': 4, // 大于minFileCount
+          'wechat': 6,
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 6, // 文件数>5（阈值）
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -383,7 +404,11 @@ void main() {
           'wechat': 50,
         },
       );
-      final statisticsCache = MockAppStatisticsCache();
+      final statisticsCache = MockAppStatisticsCache(
+        fileCounts: {
+          'wechat': 50,
+        },
+      );
       final service = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,

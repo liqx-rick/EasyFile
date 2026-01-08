@@ -78,17 +78,19 @@ class RecommendationService {
   /// 获取推荐卡片列表（已过滤+排序，最多4个）
   ///
   /// 流程：
-  /// 1. 从AppConfig加载文件数量阈值
-  /// 2. 遍历配置列表（按优先级）
-  /// 3. 应用类：检测安装 + 文件数量（全部使用缓存）
-  /// 4. 系统类：直接显示（托底卡片）
-  /// 5. 返回前4个符合条件的卡片
+  /// 1. 从 AppScannerConfig 获取按 priority 排序的启用应用
+  /// 2. 遍历应用配置，检测安装 + 文件数量（全部使用缓存）
+  /// 3. 从 defaultRecommendationConfigs 获取对应的 UI 配置
+  /// 4. 不足4个时，补充系统类托底卡片
+  /// 5. 返回最多4个符合条件的卡片
   ///
   /// [forceRefresh] 是否强制刷新（清除缓存后重新扫描）
   ///
   /// 性能：
   /// - 首次加载（无缓存）：~50ms（应用检测 4×10ms + 初始化）
   /// - 后续加载（有缓存）：<10ms（全部命中缓存）
+  ///
+  /// 注意：排序由 AppScannerConfig.priority 控制，不再依赖 configs 数组顺序
   Future<List<RecommendationCard>> getRecommendations(
       {bool forceRefresh = false}) async {
     final stopwatch = Stopwatch()..start();
@@ -99,29 +101,54 @@ class RecommendationService {
         AppConfig.instance.fileScan.recommendationFileCountThreshold;
 
     logger.i('========== 开始生成推荐卡片 ==========');
-    logger.d('配置数量: ${configs.length}');
     logger.d('文件数量阈值: $threshold');
     logger.d('forceRefresh: $forceRefresh');
 
-    for (final config in configs) {
+    // 1. 获取按 priority 排序的启用应用配置
+    final enabledApps = await AppConfig.instance.appScanner.getEnabledApps();
+    logger.d('启用应用数量: ${enabledApps.length}');
+
+    // 2. 遍历应用配置（已按 priority 排序）
+    for (final appConfig in enabledApps) {
       // 已达到4个，停止检测
       if (displayCards.length >= 4) {
         logger.d('已达到4个推荐卡片，停止检测');
         break;
       }
 
-      logger.d('检测卡片: ${config.title} (${config.type})');
+      // 3. 从 defaultRecommendationConfigs 获取对应的 UI 配置
+      final uiConfig = defaultRecommendationConfigs
+          .where((c) => c.appKey == appConfig.appKey)
+          .firstOrNull;
 
-      // 应用类卡片
-      if (config.isAppCard) {
-        final card = await _checkAppCard(config, threshold);
-        if (card != null) {
-          displayCards.add(card);
-          logger.d('  ✓ 添加到推荐列表 (文件数: ${card.fileCount})');
-        }
+      if (uiConfig == null) {
+        logger.w(
+            '未找到应用 ${appConfig.appKey} 的 UI 配置，跳过');
+        continue;
       }
-      // 系统类卡片（托底）
-      else {
+
+      logger.d(
+          '检测应用: ${appConfig.appName} (priority: ${appConfig.priority})');
+
+      // 4. 检测应用卡片
+      final card = await _checkAppCard(uiConfig, threshold);
+      if (card != null) {
+        displayCards.add(card);
+        logger.d('  ✓ 添加到推荐列表 (文件数: ${card.fileCount})');
+      }
+    }
+
+    // 5. 不足4个，补充系统类托底卡片
+    if (displayCards.length < 4) {
+      logger.d('应用类卡片不足4个，补充系统类托底卡片');
+
+      final systemConfigs =
+          defaultRecommendationConfigs.where((c) => !c.isAppCard);
+
+      for (final config in systemConfigs) {
+        if (displayCards.length >= 4) break;
+
+        logger.d('添加托底卡片: ${config.title}');
         final card = await _checkSystemCard(config, forceRefresh: forceRefresh);
         displayCards.add(card);
         logger.d('  ✓ 添加托底卡片 (文件数: ${card.fileCount})');

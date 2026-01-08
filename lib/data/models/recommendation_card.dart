@@ -193,14 +193,6 @@ const List<RecommendationConfig> defaultRecommendationConfigs = [
   ),
 
   RecommendationConfig(
-    type: RecommendationType.qq,
-    title: 'QQ',
-    icon: Icons.chat_bubble,
-    color: Color(0xFF1296DB), // QQ蓝
-    minFileCount: 3,
-  ),
-
-  RecommendationConfig(
     type: RecommendationType.wps,
     title: 'WPS',
     icon: Icons.description,
@@ -209,10 +201,10 @@ const List<RecommendationConfig> defaultRecommendationConfigs = [
   ),
 
   RecommendationConfig(
-    type: RecommendationType.dingtalk,
-    title: '钉钉',
-    icon: Icons.work,
-    color: Color(0xFF2A5CFF), // 钉钉蓝
+    type: RecommendationType.qq,
+    title: 'QQ',
+    icon: Icons.chat_bubble,
+    color: Color(0xFF1296DB), // QQ蓝
     minFileCount: 3,
   ),
 
@@ -221,6 +213,14 @@ const List<RecommendationConfig> defaultRecommendationConfigs = [
     title: 'Telegram',
     icon: Icons.send,
     color: Color(0xFF0088CC), // Telegram蓝
+    minFileCount: 3,
+  ),
+
+  RecommendationConfig(
+    type: RecommendationType.dingtalk,
+    title: '钉钉',
+    icon: Icons.work,
+    color: Color(0xFF2A5CFF), // 钉钉蓝
     minFileCount: 3,
   ),
 

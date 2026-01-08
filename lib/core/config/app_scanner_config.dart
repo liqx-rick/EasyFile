@@ -194,26 +194,6 @@ class AppScannerConfig {
       priority: 1,
       enabled: true,
     ),
-    'qq': const AppConfigData(
-      appKey: 'qq',
-      appName: 'QQ',
-      description: '社交聊天，文件传输频繁',
-      packageNames: ['com.tencent.mobileqq'],
-      appLabelPatterns: ['QQ', 'qq'],
-      folderKeywords: ['QQ', 'tencent'],
-      priority: 2,
-      enabled: true,
-    ),
-    'telegram': const AppConfigData(
-      appKey: 'telegram',
-      appName: 'Telegram',
-      description: '即时通讯，文档/媒体存储多',
-      packageNames: ['org.telegram.messenger'],
-      appLabelPatterns: ['Telegram'],
-      folderKeywords: ['Telegram'],
-      priority: 2,
-      enabled: true,
-    ),
     'wps': const AppConfigData(
       appKey: 'wps',
       appName: 'WPS',
@@ -221,7 +201,17 @@ class AppScannerConfig {
       packageNames: ['cn.wps.moffice_eng', 'cn.wps.moffice'],
       appLabelPatterns: ['WPS', 'wps'],
       folderKeywords: ['WPS', 'kingsoft'],
-      priority: 1,
+      priority: 2,
+      enabled: true,
+    ),
+    'qq': const AppConfigData(
+      appKey: 'qq',
+      appName: 'QQ',
+      description: '社交聊天，文件传输频繁',
+      packageNames: ['com.tencent.mobileqq'],
+      appLabelPatterns: ['QQ', 'qq'],
+      folderKeywords: ['QQ', 'tencent'],
+      priority: 3,
       enabled: true,
     ),
     'dingtalk': const AppConfigData(
@@ -231,9 +221,20 @@ class AppScannerConfig {
       packageNames: ['com.alibaba.android.rimet'],
       appLabelPatterns: ['钉钉', 'DingTalk', 'dingtalk'],
       folderKeywords: ['DingTalk', 'dingtalk'],
-      priority: 2,
+      priority: 4,
       enabled: true,
     ),
+    'telegram': const AppConfigData(
+      appKey: 'telegram',
+      appName: 'Telegram',
+      description: '即时通讯，文档/媒体存储多',
+      packageNames: ['org.telegram.messenger'],
+      appLabelPatterns: ['Telegram'],
+      folderKeywords: ['Telegram'],
+      priority: 5,
+      enabled: true,
+    ),
+
   };
 
   // ==================== 读取配置 ====================
