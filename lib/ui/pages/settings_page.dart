@@ -111,18 +111,19 @@ class _SettingsPageState extends State<SettingsPage> {
             const Divider(height: 32),
           ],
 
-          // 开发者选项
-          _buildSectionHeader('开发者选项', Icons.developer_mode),
-          _buildRecommendationThresholdTile(context),
-          const Divider(height: 1, indent: 56),
-          _buildDuplicateScanSettingTile(context),
-          const Divider(height: 1, indent: 56),
-          _buildScanTestTile(
-              context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
-          _buildScanTestTile(
-              context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
-
-          const Divider(height: 32),
+          // 开发者选项（根据配置决定是否显示）
+          if (AppConfig.instance.feature.isDeveloperOptionsEnabled) ...[
+            _buildSectionHeader('开发者选项', Icons.developer_mode),
+            _buildRecommendationThresholdTile(context),
+            const Divider(height: 1, indent: 56),
+            _buildDuplicateScanSettingTile(context),
+            const Divider(height: 1, indent: 56),
+            _buildScanTestTile(
+                context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
+            _buildScanTestTile(
+                context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
+            const Divider(height: 32),
+          ],
 
           const SizedBox(height: 32),
         ],

@@ -44,6 +44,10 @@ class FeatureConfig {
   /// 会员功能（未来）
   bool get isPremiumEnabled => _getBool('premium', defaultValue: false);
 
+  /// 开发者选项显示开关（默认隐藏）
+  bool get isDeveloperOptionsEnabled =>
+      _getBool('developer_options', defaultValue: false);
+
   // ==================== 内部实现 ====================
 
   bool _getBool(String key, {required bool defaultValue}) {
