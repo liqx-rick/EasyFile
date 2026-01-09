@@ -112,6 +112,195 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     }
   }
 
+  /// 验证文件夹名称
+  String? _validateFolderName(String name) {
+    if (name.trim().isEmpty) {
+      return '文件夹名不能为空';
+    }
+
+    // 检查非法字符
+    final invalidChars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+    for (final char in invalidChars) {
+      if (name.contains(char)) {
+        return '文件夹名不能包含以下字符：/ \\ : * ? " < > |';
+      }
+    }
+
+    // 检查是否已存在同名文件夹
+    final existingFolder = _folders.any((f) => f.name == name);
+    if (existingFolder) {
+      return '该文件夹名称已存在';
+    }
+
+    return null;
+  }
+
+  /// 显示创建文件夹对话框
+  Future<void> _showCreateFolderDialog() async {
+    final textController = TextEditingController();
+    String? errorText;
+
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.create_new_folder, color: Colors.blue),
+              SizedBox(width: 12),
+              Text('创建新文件夹'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: textController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: '文件夹名称',
+                  hintText: '请输入文件夹名称',
+                  errorText: errorText,
+                  errorMaxLines: 3,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.folder),
+                ),
+                onChanged: (value) {
+                  setDialogState(() {
+                    errorText = _validateFolderName(value);
+                  });
+                },
+                onSubmitted: (value) {
+                  if (_validateFolderName(value) == null && value.isNotEmpty) {
+                    Navigator.of(context).pop(value.trim());
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: errorText == null && textController.text.isNotEmpty
+                  ? () => Navigator.of(context).pop(textController.text.trim())
+                  : null,
+              child: const Text('创建'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // 延迟 dispose，等待对话框关闭动画和键盘收起动画完成
+    // 这避免了在对话框重建时使用已 dispose 的 controller
+    await Future.delayed(const Duration(milliseconds: 300));
+    textController.dispose();
+
+    // 如果返回了文件夹名称，则创建文件夹
+    if (result != null && result.isNotEmpty) {
+      await _createFolder(result);
+    }
+  }
+
+  /// 创建文件夹
+  Future<void> _createFolder(String folderName) async {
+    try {
+      final newFolderPath = '$_currentPath${Platform.pathSeparator}$folderName';
+      final newFolder = Directory(newFolderPath);
+
+      // 创建文件夹
+      await newFolder.create();
+      logger.i('Folder created successfully: $newFolderPath');
+
+      // 刷新列表
+      await _loadFolders();
+
+      // 自动进入新创建的文件夹
+      await _navigateToFolder(newFolderPath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('文件夹 "$folderName" 创建成功'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      logger.e('Error creating folder: $e');
+      if (mounted) {
+        _showErrorDialog(
+          '无法创建文件夹',
+          _getErrorMessage(e),
+          _getErrorSuggestion(e),
+        );
+      }
+    }
+  }
+
+  /// 获取错误信息
+  String _getErrorMessage(dynamic error) {
+    final errorStr = error.toString().toLowerCase();
+    if (errorStr.contains('permission') || errorStr.contains('denied')) {
+      return '没有在此位置创建文件夹的权限';
+    } else if (errorStr.contains('exist')) {
+      return '该文件夹已存在';
+    } else if (errorStr.contains('space')) {
+      return '存储空间不足';
+    } else {
+      return '发生未知错误：$error';
+    }
+  }
+
+  /// 获取错误建议
+  String? _getErrorSuggestion(dynamic error) {
+    final errorStr = error.toString().toLowerCase();
+    if (errorStr.contains('permission') || errorStr.contains('denied')) {
+      return '请选择其他位置或检查权限设置';
+    } else if (errorStr.contains('exist')) {
+      return '请使用其他名称或删除现有文件夹';
+    } else if (errorStr.contains('space')) {
+      return '请清理存储空间后重试';
+    }
+    return null;
+  }
+
+  /// 显示错误对话框
+  void _showErrorDialog(String title, String message, String? suggestion) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.error_outline, color: Colors.red, size: 48),
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('错误原因：$message'),
+            if (suggestion != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '建议：$suggestion',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('我知道了'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -205,23 +394,16 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                       fontSize: 20, fontWeight: FontWeight.bold),
                 ),
               ),
-              if (_currentPath != _rootPath)
-                IconButton(
-                  icon: const Icon(Icons.arrow_upward, size: 20),
-                  onPressed: _navigateUp,
-                  tooltip: '返回上级',
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        isDark ? Colors.grey[800] : Colors.grey[100],
-                    padding: const EdgeInsets.all(6),
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 16),
 
           // 当前浏览路径
           _buildCurrentPathCard(theme, isDark),
+          const SizedBox(height: 12),
+
+          // 操作栏（返回上级 + 创建文件夹）
+          _buildActionBar(theme, isDark),
           const SizedBox(height: 12),
 
           // 文件夹列表
@@ -239,123 +421,111 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         // 左侧信息面板
         Expanded(
           flex: 1,
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 提示文字
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '请在右侧选择文件夹',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                      if (_currentPath != _rootPath)
-                        IconButton(
-                          icon: const Icon(Icons.arrow_upward, size: 20),
-                          onPressed: _navigateUp,
-                          tooltip: '返回上级',
-                          style: IconButton.styleFrom(
-                            backgroundColor:
-                                isDark ? Colors.grey[800] : Colors.grey[100],
-                            padding: const EdgeInsets.all(8),
-                          ),
-                        ),
-                    ],
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 提示文字
+                Text(
+                  '请在右侧选择文件夹',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 16),
 
-                  // 当前浏览路径卡片
-                  _buildCurrentPathCard(theme, isDark),
-                  const SizedBox(height: 16),
+                // 当前浏览路径卡片
+                _buildCurrentPathCard(theme, isDark),
+                const SizedBox(height: 16),
 
-                  // 底部按钮
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              Navigator.of(context).pop(_currentPath),
-                          child: const Text('选择此文件夹'),
-                        ),
+                // 操作栏（返回上级 + 创建文件夹）
+                _buildActionBar(theme, isDark),
+
+                // 操作信息（如果有）
+                if (widget.sourceFileName != null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? Colors.grey[700]! : Colors.blue[200]!,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // 操作标识（图标和文字在同一行）
-                  if (widget.sourceFileName != null) ...[
-                    const SizedBox(height: 25),
-                    Row(
-                      children: [
-                        Icon(
-                          widget.operationType == '复制'
-                              ? Icons.copy
-                              : Icons.drive_file_move,
-                          size: 40,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '您正在${widget.operationType}：${widget.sourceFileName!}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
                     ),
-                    const SizedBox(height: 10),
-
-                    // 当前位置
-                    Row(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '当前位置：',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.grey[400] : Colors.grey[700],
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            _getDisplayPath(widget.currentPath),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color:
-                                  isDark ? Colors.grey[400] : Colors.grey[600],
+                        Row(
+                          children: [
+                            Icon(
+                              widget.operationType == '复制'
+                                  ? Icons.copy
+                                  : Icons.drive_file_move,
+                              size: 20,
+                              color: theme.colorScheme.primary,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '正在${widget.operationType}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.sourceFileName!,
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '当前位置：${_getDisplayPath(widget.currentPath)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ],
-              ),
+
+                // 使用 Expanded 和 SizedBox 占据剩余空间
+                const Expanded(child: SizedBox()),
+
+                // 底部按钮（调整顺序：取消在左，确认在右）
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(_currentPath),
+                        child: const Text('选择此文件夹'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -408,6 +578,35 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 构建操作栏（返回上级 + 创建文件夹）
+  Widget _buildActionBar(ThemeData theme, bool isDark) {
+    final canNavigateUp = _currentPath != _rootPath;
+
+    return Row(
+      children: [
+        // 返回上级
+        TextButton.icon(
+          onPressed: canNavigateUp ? _navigateUp : null,
+          icon: const Icon(Icons.arrow_upward, size: 18),
+          label: const Text('返回上级'),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // 新建文件夹
+        TextButton.icon(
+          onPressed: _showCreateFolderDialog,
+          icon: const Icon(Icons.create_new_folder, size: 18),
+          label: const Text('新建文件夹'),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        ),
+      ],
     );
   }
 
