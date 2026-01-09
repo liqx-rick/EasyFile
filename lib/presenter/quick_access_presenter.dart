@@ -6,6 +6,7 @@ import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/comprehensive_scan_result.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/sources/quick_access_local_source.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 import 'package:easyfile/data/services/quick_access_folder_detector.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
@@ -343,8 +344,9 @@ class QuickAccessPresenter {
           if (entity is File) {
             filesInDir++;
             final fileName = entity.path.split(Platform.pathSeparator).last;
+            final extension = FileUtils.getExtension(fileName);
             final category =
-                AppConfig.instance.fileTypes.getCategoryByExtension(fileName);
+                AppConfig.instance.fileTypes.getCategoryByExtension(extension);
             counts[category] = (counts[category] ?? 0) + 1;
             counts[FileCategory.all] = (counts[FileCategory.all] ?? 0) + 1;
           }

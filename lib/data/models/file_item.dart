@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/utils/file_utils.dart';
 
 class FileItem {
   final String name;
@@ -25,7 +26,8 @@ class FileItem {
   /// 获取文件类型分类
   FileCategory get category {
     if (isDirectory) return FileCategory.all;
-    return AppConfig.instance.fileTypes.getCategoryByExtension(name);
+    final extension = FileUtils.getExtension(name);
+    return AppConfig.instance.fileTypes.getCategoryByExtension(extension);
   }
 
   factory FileItem.fromEntity(FileSystemEntity entity) {
