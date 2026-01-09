@@ -97,8 +97,8 @@ class CategoryInfo {
           type: CategoryType.music,
           name: '音乐',
           icon: Icons.music_note,
-          backgroundColor: Color(0xFFE8F5E8), // 淡绿色
-          iconColor: Color(0xFF388E3C), // 绿色
+          backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
+          iconColor: Color(0xFF1976D2), // 蓝色 (接近primaryColor)
         ),
 
         // 视频

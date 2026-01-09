@@ -22,7 +22,7 @@ class AudioCoverWidget extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.purple.shade700, Colors.purple.shade500],
+          colors: [Colors.blue.shade700, Colors.blue.shade500],
         ),
         borderRadius: BorderRadius.circular(4),
       ),

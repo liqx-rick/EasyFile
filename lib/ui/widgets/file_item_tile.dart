@@ -299,7 +299,7 @@ class _FileItemTileState extends State<FileItemTile> {
     } else if (config.isVideoFile(fileName)) {
       return Colors.orange;
     } else if (config.isAudioFile(fileName)) {
-      return Colors.purple;
+      return Colors.blue;
     } else if (config.isPdfFile(fileName)) {
       return Colors.red;
     } else if (config.isDocumentFile(fileName)) {

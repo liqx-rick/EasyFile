@@ -1808,7 +1808,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                 category: 'audios',
                 count: stats['audios']!,
                 icon: Icons.audiotrack,
-                color: Colors.green[400],
+                color: const Color(0xFF1976D2), // 蓝色，与播放器主题一致
               ),
             ],
             if (stats['documents']! > 0) ...[

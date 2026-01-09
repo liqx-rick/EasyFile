@@ -225,7 +225,8 @@ class _AboutPageState extends State<AboutPage> {
               _buildOpenSourceItem('get_it', '依赖注入'),
               _buildOpenSourceItem('permission_handler', '权限管理'),
               _buildOpenSourceItem('video_player', '视频播放'),
-              _buildOpenSourceItem('audioplayers', '音频播放'),
+              _buildOpenSourceItem('just_audio', '音频播放（后台支持）'),
+              _buildOpenSourceItem('just_audio_background', '音频后台通知'),
               _buildOpenSourceItem('disk_space_plus', '存储空间'),
               const SizedBox(height: 8),
               Text(

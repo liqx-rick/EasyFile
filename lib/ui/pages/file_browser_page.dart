@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -50,6 +49,7 @@ import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
+import 'package:easyfile/ui/mixins/background_restoration_mixin.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
@@ -72,12 +72,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         AutomaticKeepAliveClientMixin,
         EditModeMixin,
         CreateFolderMixin,
-        PopScopeHandlerMixin {
+        PopScopeHandlerMixin,
+        BackgroundRestorationMixin {
   late FilePresenter presenter;
   late FileViewModel viewModel;
   QuickAccessPresenter? quickAccessPresenter;
   QuickAccessViewModel? quickAccessViewModel;
-  bool _hasCheckedRestore = false; // 标记是否已经检查过恢复
   double _categoryCardSize = 0.0; // 存储分类卡片尺寸
   bool _isInitializing = true; // 标记是否正在初始化
 
@@ -353,13 +353,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       }
 
       // 延迟初始化应用程序数据，先显示UI - 这个优化保留
-      Future.microtask(() => _initializeAppWithPermission());
-
-      // 只在首次初始化时检查是否需要恢复文件预览
-      if (!_hasCheckedRestore) {
-        _checkAndRestoreFilePreview();
-        _hasCheckedRestore = true;
-      }
+      Future.microtask(() => _initializeAppWithOrchestrator());
     } catch (e) {
       logger.e('Error in _initializeDependencies: $e');
       if (mounted) {
@@ -445,10 +439,19 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 当应用从后台恢复时
     if (state == AppLifecycleState.resumed) {
-      // 1. 重新检查权限状态
+      // 1. 检查是否从通知点击启动，需要恢复播放器页面
+      if (mounted) {
+        checkAndRestoreFilePreview(
+          context: context,
+          viewModel: viewModel,
+          presenter: presenter,
+        );
+      }
+
+      // 2. 重新检查权限状态
       _checkPermissionAfterResume();
 
-      // 2. 如果在新文件Tab，自动后台刷新列表
+      // 3. 如果在新文件Tab，自动后台刷新列表
       _refreshNewFilesOnResume();
     }
   }
@@ -492,87 +495,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       presenter.refreshNewFilesInBackground();
     } else {
       logger.d('Not on newFiles tab, skipping refresh');
-    }
-  }
-
-  /// 检查并恢复文件预览
-  Future<void> _checkAndRestoreFilePreview() async {
-    // 延迟执行，确保页面构建完成
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final lastFilePath = prefs.getString('last_viewed_file_path');
-
-        if (lastFilePath != null && lastFilePath.isNotEmpty) {
-          logger.i('FileBrowserPage: Found last viewed file: $lastFilePath');
-
-          final file = File(lastFilePath);
-          if (file.existsSync()) {
-            final fileItem = FileItem(
-              name: file.path.split(Platform.pathSeparator).last,
-              path: file.path,
-              size: file.lengthSync(),
-              modified: file.lastModifiedSync(),
-              isDirectory: false,
-            );
-
-            logger.i('FileBrowserPage: Restoring file preview');
-            if (mounted) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => FilePreviewPage(
-                    file: fileItem,
-                    viewModel: viewModel,
-                    presenter: presenter,
-                  ),
-                ),
-              );
-            }
-          } else {
-            logger.w('FileBrowserPage: Last viewed file no longer exists');
-            await prefs.remove('last_viewed_file_path');
-          }
-        }
-      } catch (e) {
-        logger.e('FileBrowserPage: Error restoring file preview: $e');
-      }
-    });
-  }
-
-  /// 初始化应用程序数据（带权限检查）
-  ///
-  /// 该方法是应用启动时的入口点，会：
-  /// 1. 检查文件系统访问权限
-  /// 2. 初始化UI主题（无论是否有权限）
-  /// 3. 如果有权限，进行完整的应用初始化
-  /// 4. 如果没有权限，显示权限提示横幅但不阻塞页面显示
-  /// 初始化权限并启动应用
-  ///
-  /// 1. 检查权限状态
-  /// 2. 初始化主题
-  /// 3. 如果权限已授予，调用 StartupOrchestrator 进行三场景路由初始化
-  /// 4. 如果没有权限，显示权限提示横幅但不阻塞页面显示
-  Future<void> _initializeAppWithPermission() async {
-    logger.i('═══════════════════════════════════════');
-    logger.i('📱 FileBrowserPage._initializeAppWithPermission started');
-    logger.i('═══════════════════════════════════════');
-
-    try {
-      // 先检查权限状态
-      final permissionState = await _permissionService.checkPermission();
-      setState(() {
-        _permissionState = permissionState;
-      });
-
-      // 同步 ViewModel 主题（MaterialApp 中的主题已从 ThemeSettingsService 加载）
-      presenter.initializeTheme();
-
-      if (permissionState.isGranted) {
-        logger.i('Permission granted, starting orchestrator...');
-        await _initializeAppWithOrchestrator();
-      }
-    } catch (e) {
-      logger.e('Error during app initialization: $e');
     }
   }
 

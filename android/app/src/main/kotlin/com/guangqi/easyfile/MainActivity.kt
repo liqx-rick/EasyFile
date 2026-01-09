@@ -28,8 +28,25 @@ import kotlinx.coroutines.withContext
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import androidx.exifinterface.media.ExifInterface
+import com.ryanheise.audioservice.AudioServicePlugin
+import androidx.annotation.NonNull
 
 class MainActivity : FlutterActivity() {
+    
+    // Override to provide the shared FlutterEngine for audio_service
+    override fun provideFlutterEngine(context: Context): FlutterEngine {
+        return AudioServicePlugin.getFlutterEngine(context)
+    }
+    
+    // Override to get cached engine ID for audio_service
+    override fun getCachedEngineId(): String {
+        return AudioServicePlugin.getFlutterEngineId()
+    }
+    
+    // The engine is managed by AudioServicePlugin, should not be destroyed with activity
+    override fun shouldDestroyEngineWithHost(): Boolean {
+        return false
+    }
     // 文件分享功能通道
     private val CHANNEL = "com.guangqi.easyfile/share"
     // 应用状态查询通道（判断是否从后台恢复）
@@ -60,6 +77,8 @@ class MainActivity : FlutterActivity() {
     private val NEW_FILES_CHANNEL = "easyfile/new_files"
     // 日志配置通道（统一日志级别控制）
     private val LOG_CONFIG_CHANNEL = "easyfile/log_config"
+    // 音频通知栏启动通道
+    private val AUDIO_NOTIFICATION_CHANNEL = "easyfile/audio_notification"
     private val TAG = "MainActivity"
     
     private var isRestoringFromBackground = false
@@ -71,6 +90,9 @@ class MainActivity : FlutterActivity() {
     private var appEventSink: EventChannel.EventSink? = null
     private var fileChangeEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: android.database.ContentObserver? = null
+    
+    // 保存从通知栏启动的标记
+    private var launchedFromNotification = false
     
     // 应用安装/卸载广播接收器
     private val packageChangeReceiver = object : BroadcastReceiver() {
@@ -109,7 +131,20 @@ class MainActivity : FlutterActivity() {
         isRestoringFromBackground = savedInstanceState != null || 
                                    (intent?.flags?.and(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != 0)
         
-        LogHelper.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate")
+        // 检查是否从通知栏启动（audio_service通知栏点击会带来新的intent）
+        val action = intent?.action
+        val categories = intent?.categories
+        val flags = intent?.flags
+        
+        LogHelper.i(TAG, "onCreate - intent action: $action, categories: $categories, flags: $flags")
+        
+        // audio_service的通知栏点击会带来特定的action
+        launchedFromNotification = (action == "com.ryanheise.audioservice.NOTIFICATION_CLICK")
+        
+        LogHelper.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate, fromNotification: $launchedFromNotification")
+        
+        // Initialize FlutterEngine for audio_service BEFORE other operations
+        AudioServicePlugin.getFlutterEngine(this)
         
         // 初始化 MediaStoreTrashHelper
         trashHelper = MediaStoreTrashHelper(this)
@@ -144,10 +179,40 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        
+        val action = intent.action
+        val categories = intent.categories
+        val flags = intent.flags
+        
+        LogHelper.i(TAG, "onNewIntent - action: $action, categories: $categories, flags: $flags")
+        
+        // audio_service的通知栏点击会发送特定的action
+        if (action == "com.ryanheise.audioservice.NOTIFICATION_CLICK") {
+            launchedFromNotification = true
+            LogHelper.i(TAG, "Detected audio notification click via onNewIntent")
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        
+        // 音频通知栏启动 Channel
+        MethodChannel(messenger, AUDIO_NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "wasLaunchedFromNotification" -> {
+                    LogHelper.i(TAG, "Flutter query - launchedFromNotification: $launchedFromNotification")
+                    val wasLaunched = launchedFromNotification
+                    // 重置标记
+                    launchedFromNotification = false
+                    result.success(wasLaunched)
+                }
+                else -> result.notImplemented()
+            }
+        }
         
         // 日志配置 Channel（统一日志级别控制）
         MethodChannel(messenger, LOG_CONFIG_CHANNEL).setMethodCallHandler { call, result ->

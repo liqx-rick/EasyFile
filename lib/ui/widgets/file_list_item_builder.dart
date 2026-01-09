@@ -169,8 +169,8 @@ class FileListItemBuilder {
     // 音频文件
     if (mimeType.startsWith('audio/') || config.isAudioFile(fileName)) {
       icon = Icons.audiotrack;
-      bgColor = Colors.pink[50]!;
-      iconColor = Colors.pink[700]!;
+      bgColor = const Color(0xFFE3F2FD); // 淡蓝色，与播放器主题一致
+      iconColor = const Color(0xFF1976D2); // 蓝色，与播放器主题一致
     }
     // PDF文档
     else if (mimeType.contains('pdf') || config.isPdfFile(fileName)) {

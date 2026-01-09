@@ -266,9 +266,9 @@ class _LargeFileScanConfigDialogState extends State<LargeFileScanConfigDialog> {
       case FileTypeFilter.video:
         return Colors.red;
       case FileTypeFilter.audio:
-        return Colors.purple;
-      case FileTypeFilter.image:
         return Colors.blue;
+      case FileTypeFilter.image:
+        return Colors.green;
       case FileTypeFilter.document:
         return Colors.orange;
       case FileTypeFilter.archive:

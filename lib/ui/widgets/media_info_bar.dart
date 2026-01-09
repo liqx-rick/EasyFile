@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
 
@@ -77,16 +77,15 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
   Future<void> _loadAudioInfo() async {
     final player = AudioPlayer();
     try {
-      await player.setSourceDeviceFile(widget.filePath);
-      await Future.delayed(const Duration(milliseconds: 500));
-      final duration = await player.getDuration();
+      await player.setFilePath(widget.filePath);
+      final duration = player.duration;
       if (mounted && duration != null) {
         setState(() {
           _duration = duration;
         });
       }
     } finally {
-      player.dispose();
+      await player.dispose();
     }
   }
 
@@ -111,7 +110,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: widget.isVideo ? Colors.blue.shade50 : Colors.purple.shade50,
+        color: Colors.blue.shade50,
         border: Border(
           bottom: BorderSide(color: Colors.grey.shade300, width: 1),
         ),
@@ -124,7 +123,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
             children: [
               Icon(
                 widget.isVideo ? Icons.video_library : Icons.audio_file,
-                color: widget.isVideo ? Colors.blue : Colors.purple,
+                color: Colors.blue,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -165,7 +164,7 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
                   _InfoChip(
                     icon: Icons.access_time,
                     label: _formatDuration(_duration!),
-                    color: widget.isVideo ? Colors.blue : Colors.purple,
+                    color: Colors.blue,
                   ),
 
                 // 分辨率（仅视频）
@@ -180,14 +179,14 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
                 _InfoChip(
                   icon: Icons.description,
                   label: _getFileFormat(),
-                  color: widget.isVideo ? Colors.blue : Colors.purple,
+                  color: Colors.blue,
                 ),
 
                 // 文件大小
                 _InfoChip(
                   icon: Icons.storage,
                   label: FileUtils.formatFileSize(widget.fileSize),
-                  color: widget.isVideo ? Colors.blue : Colors.purple,
+                  color: Colors.blue,
                 ),
               ],
             ),

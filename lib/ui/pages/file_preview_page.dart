@@ -10,7 +10,7 @@ import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/widgets/video_player_widget.dart';
-import 'package:easyfile/ui/widgets/audio_player_widget.dart';
+import 'package:easyfile/ui/widgets/background_audio_player_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
@@ -21,6 +21,7 @@ import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart' as pw_pdf;
 import 'package:pdf/widgets.dart' as pw;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
@@ -42,7 +43,7 @@ class FilePreviewPage extends StatefulWidget {
   State<FilePreviewPage> createState() => _FilePreviewPageState();
 }
 
-class _FilePreviewPageState extends State<FilePreviewPage> {
+class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingObserver {
   // 滑动切换相关状态
   late PageController _pageController;
   late int _currentIndex;
@@ -65,6 +66,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentIndex = widget.initialIndex ?? 0;
     _pageController = PageController(initialPage: _currentIndex);
 
@@ -81,6 +83,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
     if (widget.fileList != null && widget.fileList!.length > 1) {
       _scheduleIndicatorFadeOut();
     }
+
+    // 保存当前预览文件路径（用于后台恢复）
+    _saveCurrentFilePath();
   }
 
   /// 计划页码指示器淡出动画
@@ -148,10 +153,39 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _uiHideTimer?.cancel();
     _pageController.dispose();
     _disableImmersiveMode();
+    // 不在dispose时清除路径，因为音频可能还在后台播放
+    // 用户可能从通知栏返回播放器界面
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused) {
+      // 进入后台时保存当前文件路径
+      _saveCurrentFilePath();
+      logger.d('FilePreviewPage: Saved file path on pause');
+    } else if (state == AppLifecycleState.resumed) {
+      logger.d('FilePreviewPage: App resumed in preview page');
+    }
+  }
+
+  /// 保存当前预览文件路径
+  Future<void> _saveCurrentFilePath() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentFile = widget.fileList != null && widget.fileList!.isNotEmpty
+          ? widget.fileList![_currentIndex]
+          : widget.file;
+      await prefs.setString('last_viewed_file_path', currentFile.path);
+      logger.d('Saved current file path: ${currentFile.path}');
+    } catch (e) {
+      logger.e('Failed to save current file path: $e');
+    }
   }
 
   @override
@@ -208,6 +242,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
               itemBuilder: (context, index) {
                 return _FilePreviewItem(
                   file: widget.fileList![index],
+                  fileList: widget.fileList,
                   key: ValueKey(widget.fileList![index].path),
                   onTap: _toggleUIVisibility, // 传递点击回调
                   onSetUIVisible: (show) {
@@ -406,6 +441,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
         appBar: _showUI ? _buildFloatingAppBar(context) : null,
         body: _FilePreviewItem(
           file: file,
+          fileList: widget.fileList,
           onTap: _toggleUIVisibility, // 传递点击回调
           onSetUIVisible: (show) {
             _uiHideTimer?.cancel();
@@ -831,12 +867,14 @@ class _FilePreviewPageState extends State<FilePreviewPage> {
 /// 单个文件预览项组件（用于 PageView）
 class _FilePreviewItem extends StatefulWidget {
   final FileItem file;
+  final List<FileItem>? fileList; // 播放列表（用于音频播放器）
   final VoidCallback? onTap; // 点击回调，用于切换UI
   final Function(bool show)? onSetUIVisible; // 强制设置UI显示状态
 
   const _FilePreviewItem({
     super.key,
     required this.file,
+    this.fileList,
     this.onTap,
     this.onSetUIVisible,
   });
@@ -853,11 +891,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   PdfController? _pdfController; // 仅在非 Windows 平台使用
 
   @override
-  // 只为图片和文本文件保持状态，视频和音频不保持（避免内存问题）
+  // 保持图片、文本、PDF和音频文件的状态，视频不保持（避免内存问题）
   bool get wantKeepAlive =>
       FileUtils.isImageFile(widget.file.name) ||
       FileUtils.isTextFile(widget.file.name) ||
-      FileUtils.isPdfFile(widget.file.name);
+      FileUtils.isPdfFile(widget.file.name) ||
+      FileUtils.isAudioFile(widget.file.name); // 添加音频文件保持状态
 
   @override
   void initState() {
@@ -1222,11 +1261,11 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   Widget _buildAudioPreview() {
-    return GestureDetector(
-      onTap: widget.onTap, // 点击切换UI
-      child: AudioPlayerWidget(
+    return Center(
+      child: BackgroundAudioPlayerWidget(
         audioPath: widget.file.path,
         fileName: widget.file.name,
+        fileList: widget.fileList,
       ),
     );
   }
