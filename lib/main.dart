@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:easyfile/app.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
@@ -32,6 +33,15 @@ Future<void> main() async {
   // 初始化 AppConfig（必须在其他服务之前）
   await AppConfig.instance.initialize();
   logger.i('✓ AppConfig initialized');
+
+  // 配置全局 AudioSession（在任何播放器创建之前）
+  try {
+    final audioSession = await AudioSession.instance;
+    await audioSession.configure(AudioSessionConfiguration.music());
+    logger.i('✓ AudioSession initialized globally');
+  } catch (e) {
+    logger.e('Failed to initialize AudioSession: $e');
+  }
 
   setupLocator();
 

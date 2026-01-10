@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/services/background_audio_service.dart';
 
 /// 媒体文件信息栏组件
 ///
@@ -75,17 +75,47 @@ class _MediaInfoBarState extends State<MediaInfoBar> {
   }
 
   Future<void> _loadAudioInfo() async {
-    final player = AudioPlayer();
+    // 等待一小段时间，确保 BackgroundAudioService 的播放器已初始化
+    await Future.delayed(const Duration(milliseconds: 100));
+    
     try {
-      await player.setFilePath(widget.filePath);
-      final duration = player.duration;
-      if (mounted && duration != null) {
-        setState(() {
-          _duration = duration;
-        });
+      final audioService = BackgroundAudioService();
+      
+      // 从共享播放器获取时长
+      if (audioService.currentAudioPath == widget.filePath) {
+        final player = audioService.player;
+        
+        // 等待播放器加载完成
+        int attempts = 0;
+        while (attempts < 20 && (player == null || player.duration == null)) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          attempts++;
+          
+          if (audioService.player != null && audioService.player!.duration != null) {
+            if (mounted) {
+              setState(() {
+                _duration = audioService.player!.duration;
+              });
+            }
+            return;
+          }
+        }
+        
+        // 如果已经有时长，直接使用
+        if (player != null && player.duration != null) {
+          if (mounted) {
+            setState(() {
+              _duration = player.duration;
+            });
+          }
+          return;
+        }
       }
-    } finally {
-      await player.dispose();
+      
+      // 如果播放器路径不匹配，说明不是当前文件，跳过显示时长
+      logger.d('Audio duration not available for non-current file');
+    } catch (e) {
+      logger.w('Failed to load audio duration: $e');
     }
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:path/path.dart' as path;
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
@@ -55,12 +56,32 @@ class BackgroundAudioService {
     }
 
     try {
+      // 注意：AudioSession 已在 main() 中全局初始化，这里只需设置事件监听
+      final audioSession = await AudioSession.instance;
+      
+      // 监听音频中断事件
+      audioSession.interruptionEventStream.listen((event) {
+        logger.w('Audio interruption: ${event.type}');
+        if (event.begin) {
+          logger.w('Audio interrupted, pausing playback');
+          pause();
+        } else {
+          logger.i('Audio interruption ended, can resume');
+        }
+      });
+      
+      // 监听音频焦点变化（耳机拔出等）
+      audioSession.becomingNoisyEventStream.listen((_) {
+        logger.w('Audio becoming noisy (earphone unplugged), pausing');
+        pause();
+      });
+
       await JustAudioBackground.init(
         androidNotificationChannelId: 'com.easyfile.audio',
         androidNotificationChannelName: 'EasyFile Audio Player',
         androidNotificationOngoing: false, // 可滑动关闭通知，显示关闭按钮
         androidNotificationClickStartsActivity: true,
-        androidStopForegroundOnPause: false, // 暂停时保持前台服务，维持后台播放
+        androidStopForegroundOnPause: true, // 暂停时停止前台服务
       );
       _isBackgroundServiceInitialized = true;
       logger.d('JustAudioBackground initialized successfully');
@@ -86,6 +107,10 @@ class BackgroundAudioService {
       // 确保只创建一次 AudioPlayer
       if (_audioPlayer == null) {
         _audioPlayer = AudioPlayer();
+        
+        // 设置默认音量为 1.0（满音量）
+        await _audioPlayer!.setVolume(1.0);
+        
         logger.d('AudioPlayer created');
       }
 
@@ -113,8 +138,6 @@ class BackgroundAudioService {
           logger.e('Failed to start playback: $e');
         });
       }
-      
-      logger.d('loadAndPlay completed successfully');
     } catch (e, stackTrace) {
       logger.e('Failed to load and play audio: $e\n$stackTrace');
       rethrow;
@@ -141,7 +164,7 @@ class BackgroundAudioService {
             id: fileItem.path,
             title: fileName,
             artist: 'EasyFile',
-            artUri: Uri.parse('asset:///assets/icon/icon.png'),
+            artUri: Uri.parse('asset:///assets/icon/app_icon.png'),
           ),
         ),
       );
@@ -168,7 +191,7 @@ class BackgroundAudioService {
           id: audioPath,
           title: fileName,
           artist: 'EasyFile',
-          artUri: Uri.parse('asset:///assets/icon/icon.png'),
+          artUri: Uri.parse('asset:///assets/icon/app_icon.png'),
         ),
       ),
     );
@@ -213,12 +236,25 @@ class BackgroundAudioService {
 
   /// 下一首
   Future<void> seekToNext() async {
-    if (_audioPlayer == null || !_audioPlayer!.hasNext) return;
+    if (_audioPlayer == null) return;
+    
+    // 如果有播放列表且长度大于1，允许切换（即使在单曲循环模式下）
+    final hasPlaylist = _currentPlaylist != null && _currentPlaylist!.length > 1;
+    if (!hasPlaylist && !_audioPlayer!.hasNext) return;
 
     try {
-      await _audioPlayer!.seekToNext();
-      _currentIndex = _audioPlayer!.currentIndex ?? _currentIndex;
-      logger.d('Playing next track, index: $_currentIndex');
+      if (hasPlaylist) {
+        // 有播放列表时，手动计算下一首索引
+        final nextIndex = (_currentIndex + 1) % _currentPlaylist!.length;
+        await _audioPlayer!.seek(Duration.zero, index: nextIndex);
+        _currentIndex = nextIndex;
+        logger.d('Playing next track (playlist mode), index: $_currentIndex');
+      } else {
+        // 没有播放列表，使用默认行为
+        await _audioPlayer!.seekToNext();
+        _currentIndex = _audioPlayer!.currentIndex ?? _currentIndex;
+        logger.d('Playing next track, index: $_currentIndex');
+      }
     } catch (e) {
       logger.e('Failed to play next: $e');
     }
@@ -226,12 +262,25 @@ class BackgroundAudioService {
 
   /// 上一首
   Future<void> seekToPrevious() async {
-    if (_audioPlayer == null || !_audioPlayer!.hasPrevious) return;
+    if (_audioPlayer == null) return;
+    
+    // 如果有播放列表且长度大于1，允许切换（即使在单曲循环模式下）
+    final hasPlaylist = _currentPlaylist != null && _currentPlaylist!.length > 1;
+    if (!hasPlaylist && !_audioPlayer!.hasPrevious) return;
 
     try {
-      await _audioPlayer!.seekToPrevious();
-      _currentIndex = _audioPlayer!.currentIndex ?? _currentIndex;
-      logger.d('Playing previous track, index: $_currentIndex');
+      if (hasPlaylist) {
+        // 有播放列表时，手动计算上一首索引
+        final prevIndex = (_currentIndex - 1 + _currentPlaylist!.length) % _currentPlaylist!.length;
+        await _audioPlayer!.seek(Duration.zero, index: prevIndex);
+        _currentIndex = prevIndex;
+        logger.d('Playing previous track (playlist mode), index: $_currentIndex');
+      } else {
+        // 没有播放列表，使用默认行为
+        await _audioPlayer!.seekToPrevious();
+        _currentIndex = _audioPlayer!.currentIndex ?? _currentIndex;
+        logger.d('Playing previous track, index: $_currentIndex');
+      }
     } catch (e) {
       logger.e('Failed to play previous: $e');
     }

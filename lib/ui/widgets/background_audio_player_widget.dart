@@ -146,6 +146,20 @@ class _BackgroundAudioPlayerWidgetState
     _audioService.setLoopMode(_isLooping ? LoopMode.one : LoopMode.off);
   }
 
+  // 判断是否可以切换到上一首（有播放列表或播放器支持）
+  bool _canSkipPrevious(AudioPlayer player) {
+    final hasPlaylist = _audioService.currentPlaylist != null && 
+                        _audioService.currentPlaylist!.length > 1;
+    return hasPlaylist || player.hasPrevious;
+  }
+
+  // 判断是否可以切换到下一首（有播放列表或播放器支持）
+  bool _canSkipNext(AudioPlayer player) {
+    final hasPlaylist = _audioService.currentPlaylist != null && 
+                        _audioService.currentPlaylist!.length > 1;
+    return hasPlaylist || player.hasNext;
+  }
+
   // 快进/后退
   Future<void> _skip(Duration delta) async {
     final player = _audioService.player;
@@ -403,11 +417,11 @@ class _BackgroundAudioPlayerWidgetState
 
         // 上一首（始终显示，无法使用时置灰）
         Opacity(
-          opacity: player.hasPrevious ? 1.0 : 0.3,
+          opacity: _canSkipPrevious(player) ? 1.0 : 0.3,
           child: IconButton(
             icon: const Icon(Icons.skip_previous),
             iconSize: iconSize,
-            onPressed: player.hasPrevious ? _playPrevious : null,
+            onPressed: _canSkipPrevious(player) ? _playPrevious : null,
             tooltip: '上一首',
           ),
         ),
@@ -456,11 +470,11 @@ class _BackgroundAudioPlayerWidgetState
 
         // 下一首（始终显示，无法使用时置灰）
         Opacity(
-          opacity: player.hasNext ? 1.0 : 0.3,
+          opacity: _canSkipNext(player) ? 1.0 : 0.3,
           child: IconButton(
             icon: const Icon(Icons.skip_next),
             iconSize: iconSize,
-            onPressed: player.hasNext ? _playNext : null,
+            onPressed: _canSkipNext(player) ? _playNext : null,
             tooltip: '下一首',
           ),
         ),
