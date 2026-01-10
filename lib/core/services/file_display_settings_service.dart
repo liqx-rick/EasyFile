@@ -6,11 +6,13 @@ import 'package:easyfile/core/logger.dart';
 /// 管理文件列表的显示选项，如：
 /// - 是否显示隐藏文件（以.开头的文件）
 /// - 是否显示系统文件夹（Android、.thumbnails等）
+/// - 是否隐藏空目录（快速访问菜单）
 class FileDisplaySettingsService {
   static const String _keyShowHiddenFiles = 'show_hidden_files';
   static const String _keyShowSystemFiles = 'show_system_files';
   static const String _keyShowFullPath = 'show_full_path';
   static const String _keyMinFileSize = 'duplicate_scan_min_file_size';
+  static const String _keyHideEmptyFolders = 'hide_empty_folders';
 
   // 默认最小文件大小：100KB
   static const int defaultMinFileSize = 100 * 1024; // 100KB
@@ -82,6 +84,28 @@ class FileDisplaySettingsService {
       logger.i('Show full path set to: $show');
     } catch (e) {
       logger.e('Error setting show full path: $e');
+    }
+  }
+
+  /// 获取是否隐藏空文件夹（快速访问菜单）
+  Future<bool> getHideEmptyFolders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_keyHideEmptyFolders) ?? true; // 默认开启隐藏空文件夹
+    } catch (e) {
+      logger.e('Error getting hide empty folders setting: $e');
+      return true; // 出错时默认隐藏
+    }
+  }
+
+  /// 设置是否隐藏空文件夹（快速访问菜单）
+  Future<void> setHideEmptyFolders(bool hide) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyHideEmptyFolders, hide);
+      logger.i('Hide empty folders set to: $hide');
+    } catch (e) {
+      logger.e('Error setting hide empty folders: $e');
     }
   }
 

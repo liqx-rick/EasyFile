@@ -90,6 +90,8 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildViewSortRestoreTile(context),
           const Divider(height: 1, indent: 56),
           _buildFileDisplayTile(context),
+          const Divider(height: 1, indent: 56),
+          _buildHideEmptyFoldersTile(context),
 
           const Divider(height: 32),
 
@@ -304,6 +306,37 @@ class _SettingsPageState extends State<SettingsPage> {
           MaterialPageRoute(
             builder: (context) => const FileDisplaySettingsPage(),
           ),
+        );
+      },
+    );
+  }
+
+  /// 隐藏空文件夹开关
+  Widget _buildHideEmptyFoldersTile(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return FutureBuilder<bool>(
+      future: _displaySettings.getHideEmptyFolders(),
+      builder: (context, snapshot) {
+        final hideEmpty = snapshot.data ?? true;
+
+        return SwitchListTile(
+          secondary: Icon(
+            hideEmpty ? Icons.folder_off : Icons.folder_open,
+            color: colorScheme.primary,
+          ),
+          title: const Text('隐藏空文件夹'),
+          subtitle: Text(
+            hideEmpty
+                ? '快速访问菜单中不显示空目录'
+                : '快速访问菜单中显示所有目录',
+            style: const TextStyle(fontSize: 13),
+          ),
+          value: hideEmpty,
+          onChanged: (value) async {
+            await _displaySettings.setHideEmptyFolders(value);
+            setState(() {}); // 触发重建以更新UI
+          },
         );
       },
     );

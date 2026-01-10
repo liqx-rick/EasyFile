@@ -11,6 +11,7 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/services/permission_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
@@ -90,6 +91,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   PermissionState _permissionState = PermissionState.unknown;
   bool _isFirstScan = false;
   double _scanProgress = 0.0; // 扫描进度 (0.0 - 1.0)
+
+  // 文件显示设置缓存
+  bool _hideEmptyFolders = true; // 默认隐藏空文件夹
 
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
@@ -299,6 +303,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       _permissionService = locator<PermissionService>();
       logger.d('PermissionService obtained: $_permissionService');
 
+      // 加载文件显示设置
+      await _loadFileDisplaySettings();
+
       // 初始化推荐服务（全局单例，带缓存）
       await _initializeRecommendationService();
 
@@ -361,6 +368,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           _isInitializing = false;
         });
       }
+    }
+  }
+
+  /// 加载文件显示设置
+  Future<void> _loadFileDisplaySettings() async {
+    try {
+      final displaySettings = FileDisplaySettingsService();
+      _hideEmptyFolders = await displaySettings.getHideEmptyFolders();
+    } catch (e) {
+      logger.e('Error loading file display settings: $e');
+      _hideEmptyFolders = true;
     }
   }
 
@@ -862,7 +880,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       ),
     );
 
-    // 从设置页面返回后，刷新当前视图
+    // 从设置页面返回后，重新加载设置并刷新当前视图
+    await _loadFileDisplaySettings();
+    
     if (viewModel.currentTab == TabView.browse &&
         viewModel.currentPath.isNotEmpty) {
       await presenter.loadFiles(viewModel.currentPath);
@@ -951,15 +971,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     final availableHeight = overlay.size.height - top - 16.0; // 16.0 为底部留白
     final maxMenuHeight = availableHeight.clamp(200.0, 500.0); // 最小200，最大500
 
+    // 异步构建菜单项（支持过滤空文件夹）
+    final menuItems = await _buildQuickAccessMenuItemsAsync();
+
+    if (!mounted) return;
+
     showMenu<QuickAccessFolder>(
-      context: context,
+      context: this.context,
       position: RelativeRect.fromLTRB(
         left,
         top,
         right,
         bottom,
       ),
-      items: _buildQuickAccessMenuItems(),
+      items: menuItems,
       constraints: BoxConstraints(
         maxHeight: maxMenuHeight,
         maxWidth: menuWidth,
@@ -972,7 +997,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建快捷访问菜单项
-  List<PopupMenuEntry<QuickAccessFolder>> _buildQuickAccessMenuItems() {
+  Future<List<PopupMenuEntry<QuickAccessFolder>>>
+      _buildQuickAccessMenuItemsAsync() async {
     if (quickAccessViewModel == null) return [];
 
     final allFolders = quickAccessViewModel!.folders;
@@ -1831,22 +1857,83 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     return result;
   }
 
-  /// 获取排序后的浏览文件列表
-  List<FileItem> _getSortedBrowseFiles(
+  /// 获取排序和过滤后的浏览文件列表
+  /// 
+  /// 应用以下处理：
+  /// 1. 已恢复文件夹：固定按修改时间降序排列
+  /// 2. 空文件夹过滤：根据设置隐藏不包含任何文件的文件夹
+  /// 3. 用户排序：应用用户在浏览页设置的排序规则
+  List<FileItem> _getSortedAndFilteredBrowseFiles(
       List<FileItem> files, String currentPath) {
-    // 特殊处理：已恢复文件文件夹固定按时间降序（最新恢复的在前）
+    // 特殊处理：已恢复文件文件夹固定按时间降序
     if (currentPath == '/storage/emulated/0/EasyFile/Restored') {
       return FileComparatorUtil.sortFiles(
         files,
         SortType.modifiedTime,
-        ascending: false, // 降序：最新的在前
+        ascending: false,
       );
     }
 
-    // 其他文件夹使用用户设置的排序
+    // 根据设置过滤空文件夹
+    var displayFiles = files;
+    if (_hideEmptyFolders) {
+      final filteredFiles = <FileItem>[];
+      for (var file in files) {
+        if (!file.isDirectory) {
+          filteredFiles.add(file);
+          continue;
+        }
+
+        if (!_isFolderEmpty(file.path)) {
+          filteredFiles.add(file);
+        }
+      }
+      displayFiles = filteredFiles;
+    }
+
+    // 应用用户设置的排序
     final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
     final ascending = PageSettingsService().getSortAscending(PageId.homeBrowse);
-    return FileComparatorUtil.sortFiles(files, sortType, ascending: ascending);
+    return FileComparatorUtil.sortFiles(displayFiles, sortType,
+        ascending: ascending);
+  }
+  
+  /// 检查文件夹是否为空（递归检查所有子目录）
+  /// 
+  /// 如果文件夹不包含任何可见文件（包括子目录中的文件），则视为空文件夹
+  /// 隐藏文件和隐藏目录中的文件不计入
+  bool _isFolderEmpty(String path) {
+    try {
+      final dir = Directory(path);
+      if (!dir.existsSync()) {
+        return true;
+      }
+
+      // 递归获取所有文件和子目录
+      final entities = dir.listSync(recursive: true);
+      
+      if (entities.isEmpty) {
+        return true;
+      }
+
+      // 过滤：只保留非隐藏的文件（不包括目录）
+      final visibleFiles = entities.where((entity) {
+        if (entity is! File) {
+          return false;
+        }
+        
+        final segments = entity.path.split(Platform.pathSeparator);
+        final isHidden = segments.any((segment) => 
+          segment.startsWith('.') && segment.length > 1);
+        return !isHidden;
+      }).toList();
+
+      return visibleFiles.isEmpty;
+    } catch (e) {
+      // 权限问题或其他错误时，保守处理：显示该文件夹
+      logger.w('Error checking if folder is empty: $path, error: $e');
+      return false;
+    }
   }
 
   /// 获取收藏文件的日期分组
@@ -2510,8 +2597,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 收藏Tab：应用过滤和排序
       displayFiles = _getFilteredFavoriteFiles(vm.files);
     } else if (vm.currentTab == TabView.browse) {
-      // 浏览Tab：应用排序
-      displayFiles = _getSortedBrowseFiles(vm.files, vm.currentPath);
+      // 浏览Tab：应用排序和空文件夹过滤
+      displayFiles = _getSortedAndFilteredBrowseFiles(vm.files, vm.currentPath);
     } else if (vm.currentTab == TabView.recent) {
       // 最近Tab：始终按访问时间降序显示，不受用户排序设置影响
       displayFiles = List<FileItem>.from(vm.files)
