@@ -28,6 +28,7 @@ import 'package:easyfile/ui/pages/settings_page.dart';
 import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
+import 'package:easyfile/ui/pages/archive_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/trash_page.dart';
@@ -47,6 +48,7 @@ import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/extraction_source_banner.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
@@ -976,7 +978,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     if (!mounted) return;
 
-    showMenu<QuickAccessFolder>(
+    final result = await showMenu<dynamic>(
       context: this.context,
       position: RelativeRect.fromLTRB(
         left,
@@ -989,20 +991,51 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         maxHeight: maxMenuHeight,
         maxWidth: menuWidth,
       ),
-    ).then((selectedFolder) {
-      if (selectedFolder != null && mounted) {
-        _onQuickAccessItemTap(selectedFolder);
+    );
+
+    if (result != null && mounted) {
+      if (result is String) {
+        // 工具项点击
+        _handleToolAction(result);
+      } else if (result is QuickAccessFolder) {
+        // 文件夹点击
+        _onQuickAccessItemTap(result);
       }
-    });
+    }
+  }
+
+  /// 处理工具项点击
+  void _handleToolAction(String action) {
+    switch (action) {
+      case 'tool_archives':
+        _navigateToArchiveManagementPage();
+        break;
+      case 'tool_apps':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const AppManagementPage(),
+          ),
+        );
+        break;
+    }
+  }
+
+  /// 导航到压缩包管理页面
+  void _navigateToArchiveManagementPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const ArchiveManagementPage(),
+      ),
+    );
   }
 
   /// 构建快捷访问菜单项
-  Future<List<PopupMenuEntry<QuickAccessFolder>>>
+  Future<List<PopupMenuEntry<dynamic>>>
       _buildQuickAccessMenuItemsAsync() async {
     if (quickAccessViewModel == null) return [];
 
     final allFolders = quickAccessViewModel!.folders;
-    final items = <PopupMenuEntry<QuickAccessFolder>>[];
+    final items = <PopupMenuEntry<dynamic>>[];
 
     // 获取所有已添加到快捷访问的文件夹
     final allAccessFolders =
@@ -1075,6 +1108,77 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         ),
       );
     }
+
+    // ====== 工具 Section ======
+    if (items.isNotEmpty) {
+      items.add(const PopupMenuDivider());
+    }
+
+    // 工具标题（不可点击）
+    items.add(
+      const PopupMenuItem<dynamic>(
+        enabled: false,
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Icon(Icons.build_outlined, size: 16, color: Colors.grey),
+            SizedBox(width: 8),
+            Text(
+              '工具',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // 压缩包管理
+    items.add(
+      PopupMenuItem<String>(
+        value: 'tool_archives',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.folder_zip,
+              size: 18,
+              color: Colors.orange[700],
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              '压缩包',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // 应用管理
+    items.add(
+      PopupMenuItem<String>(
+        value: 'tool_apps',
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.apps,
+              size: 18,
+              color: Colors.blue[700],
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              '应用管理',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
 
     return items;
   }
@@ -2781,6 +2885,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       );
     } else {
       // 列表模式
+      // 检查是否需要高亮（解压的文件夹）
+      final shouldHighlight = vm.shouldHighlightExtraction &&
+          vm.extractionTargetPath == item.path;
+
       return FileItemTile(
         file: item,
         showFullPath: false,
@@ -2795,6 +2903,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         isFavorite: vm.isFavoriteFile(item.path),
         isSelected: isSelected,
         showCheckbox: isEditMode,
+        isHighlighted: shouldHighlight,
         onFavoriteToggle: !item.isDirectory
             ? () async {
                 final messenger = ScaffoldMessenger.of(context);
@@ -3152,6 +3261,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     ),
                     height: 40.0,
                   ),
+                ),
+
+              // 解压来源提示条 - browse模式且有解压上下文时显示
+              if (vm.currentTab == TabView.browse &&
+                  vm.extractionSourceName != null)
+                const SliverToBoxAdapter(
+                  child: ExtractionSourceBanner(),
                 ),
 
               // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab）

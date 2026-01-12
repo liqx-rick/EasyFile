@@ -38,6 +38,8 @@ dependencies:
   installed_apps: ^1.3.1  # device_apps的活跃fork，API兼容
   fl_chart: ^0.69.0  # 图表库，用于饼图展示
   lpinyin: ^2.0.3  # 中文转拼音库，用于应用名称拼音排序
+  file_picker: ^8.0.0+1  # 文件/目录选择器（SAF）
+  ffi: ^2.1.5
 
 dev_dependencies:
   flutter_test:

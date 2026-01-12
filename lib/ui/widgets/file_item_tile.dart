@@ -31,6 +31,7 @@ class FileItemTile extends StatefulWidget {
   final String? sourceText; // 文件来源文本
   final bool isSelected; // 是否处于选中状态
   final bool showCheckbox; // 是否显示复选框
+  final bool isHighlighted; // 是否高亮显示（用于特殊标记，如解压后的文件夹）
   // 可配置项（保持向后兼容的默认值）
   final double leadingSize; // 缩略图或图标大小（像素）
   final double titleFontSize;
@@ -55,6 +56,7 @@ class FileItemTile extends StatefulWidget {
     this.sourceText,
     this.isSelected = false,
     this.showCheckbox = false,
+    this.isHighlighted = false,
     this.leadingSize = 40,
     this.titleFontSize = 14,
     this.subtitleFontSize = 11,
@@ -71,6 +73,7 @@ class FileItemTile extends StatefulWidget {
 class _FileItemTileState extends State<FileItemTile> {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isImage =
         !widget.file.isDirectory && FileUtils.isImageFile(widget.file.name);
     final isVideo =
@@ -80,7 +83,8 @@ class _FileItemTileState extends State<FileItemTile> {
     final isDocument =
         !widget.file.isDirectory && FileUtils.isDocumentFile(widget.file.name);
 
-    return ListTile(
+    // 高亮容器
+    final listTile = ListTile(
       //dense: widget.dense,
       contentPadding: widget.contentPaddingOverride,
       minVerticalPadding: widget.showFullPath ? 8 : 0,
@@ -92,6 +96,7 @@ class _FileItemTileState extends State<FileItemTile> {
           fontWeight:
               widget.file.isDirectory ? FontWeight.w500 : FontWeight.normal,
           fontSize: widget.titleFontSize,
+          color: widget.isHighlighted ? theme.colorScheme.primary : null,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -140,6 +145,24 @@ class _FileItemTileState extends State<FileItemTile> {
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
     );
+
+    // 如果需要高亮，包裹在高亮容器中
+    if (widget.isHighlighted) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: theme.colorScheme.primary,
+              width: 4,
+            ),
+          ),
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+        ),
+        child: listTile,
+      );
+    }
+
+    return listTile;
   }
 
   /// 构建leading图标/缩略图
