@@ -1,0 +1,311 @@
+#include "archive_wrapper.h"
+#include <archive.h>
+#include <archive_entry.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+// 全局状态管理（用于取消操作）
+typedef struct {
+    int64_t handle_id;
+    bool cancelled;
+    struct archive* archive;
+} ExtractionHandle;
+
+static ExtractionHandle* g_handles = NULL;
+static int g_handle_count = 0;
+static int64_t g_next_handle_id = 1;
+
+// ==================== 内部工具函数 ====================
+
+static ExtractionHandle* create_handle(struct archive* a) {
+    g_handles = realloc(g_handles, sizeof(ExtractionHandle) * (g_handle_count + 1));
+    ExtractionHandle* handle = &g_handles[g_handle_count];
+    handle->handle_id = g_next_handle_id++;
+    handle->cancelled = false;
+    handle->archive = a;
+    g_handle_count++;
+    return handle;
+}
+
+static ExtractionHandle* find_handle(int64_t handle_id) {
+    for (int i = 0; i < g_handle_count; i++) {
+        if (g_handles[i].handle_id == handle_id) {
+            return &g_handles[i];
+        }
+    }
+    return NULL;
+}
+
+static void remove_handle(int64_t handle_id) {
+    for (int i = 0; i < g_handle_count; i++) {
+        if (g_handles[i].handle_id == handle_id) {
+            // 移动后续元素
+            memmove(&g_handles[i], &g_handles[i + 1], 
+                    (g_handle_count - i - 1) * sizeof(ExtractionHandle));
+            g_handle_count--;
+            g_handles = realloc(g_handles, sizeof(ExtractionHandle) * g_handle_count);
+            break;
+        }
+    }
+}
+
+static void safe_strncpy(char* dest, const char* src, size_t size) {
+    if (src == NULL) {
+        dest[0] = '\0';
+        return;
+    }
+    strncpy(dest, src, size - 1);
+    dest[size - 1] = '\0';
+}
+
+// ==================== 核心 API 实现 ====================
+
+int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* result) {
+    if (options == NULL || result == NULL) {
+        return -1;
+    }
+
+    memset(result, 0, sizeof(ExtractResult));
+    
+    struct archive* a = archive_read_new();
+    struct archive* ext = archive_write_disk_new();
+    struct archive_entry* entry;
+    
+    // 创建句柄用于取消操作
+    ExtractionHandle* handle = create_handle(a);
+    
+    // 支持所有格式和压缩算法
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    
+    // 设置写入选项
+    int flags = ARCHIVE_EXTRACT_TIME;
+    if (options->preserve_permissions) {
+        flags |= ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS;
+    }
+    archive_write_disk_set_options(ext, flags);
+    archive_write_disk_set_standard_lookup(ext);
+    
+    // 打开压缩包
+    int r = archive_read_open_filename(a, options->archive_path, 10240);
+    if (r != ARCHIVE_OK) {
+        safe_strncpy(result->error_message, archive_error_string(a), 
+                     sizeof(result->error_message));
+        result->status = ARCHIVE_ERR_OPEN_FAILED;
+        archive_read_free(a);
+        archive_write_free(ext);
+        remove_handle(handle->handle_id);
+        return -1;
+    }
+    
+    // 计算总大小（用于进度）
+    int64_t total_size = 0;
+    int64_t current_size = 0;
+    int64_t file_count = 0;
+    
+    // 第一遍：计算总大小
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        total_size += archive_entry_size(entry);
+        file_count++;
+        archive_read_data_skip(a);
+    }
+    
+    result->total_files = file_count;
+    result->total_bytes = total_size;
+    
+    // 重新打开压缩包进行实际解压
+    archive_read_close(a);
+    archive_read_free(a);
+    a = archive_read_new();
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    archive_read_open_filename(a, options->archive_path, 10240);
+    handle->archive = a;
+    
+    // 第二遍：实际解压
+    while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
+        // 检查是否被取消
+        if (handle->cancelled) {
+            safe_strncpy(result->error_message, "Operation cancelled by user", 
+                         sizeof(result->error_message));
+            result->status = ARCHIVE_ERR_CANCELLED;
+            archive_read_close(a);
+            archive_read_free(a);
+            archive_write_close(ext);
+            archive_write_free(ext);
+            remove_handle(handle->handle_id);
+            return -1;
+        }
+        
+        // 构造完整路径
+        const char* current_file = archive_entry_pathname(entry);
+        char full_path[4096];
+        snprintf(full_path, sizeof(full_path), "%s/%s", 
+                 options->dest_path, current_file);
+        archive_entry_set_pathname(entry, full_path);
+        
+        // 写入文件
+        r = archive_write_header(ext, entry);
+        if (r == ARCHIVE_OK) {
+            const void* buff;
+            size_t size;
+            int64_t offset;
+            
+            while ((r = archive_read_data_block(a, &buff, &size, &offset)) == ARCHIVE_OK) {
+                archive_write_data_block(ext, buff, size, offset);
+                current_size += size;
+                
+                // 进度回调
+                if (options->on_progress != NULL && total_size > 0) {
+                    double progress = (double)current_size / (double)total_size;
+                    options->on_progress(progress, current_file, current_size, total_size);
+                }
+            }
+            
+            if (r != ARCHIVE_EOF) {
+                safe_strncpy(result->error_message, archive_error_string(a), 
+                             sizeof(result->error_message));
+            }
+        }
+        
+        archive_write_finish_entry(ext);
+        result->extracted_files++;
+    }
+    
+    // 清理资源
+    archive_read_close(a);
+    archive_read_free(a);
+    archive_write_close(ext);
+    archive_write_free(ext);
+    
+    int64_t handle_id = handle->handle_id;
+    remove_handle(handle_id);
+    
+    result->status = ARCHIVE_OK;
+    return handle_id;
+}
+
+bool archive_cancel(int64_t handle_id) {
+    ExtractionHandle* handle = find_handle(handle_id);
+    if (handle != NULL) {
+        handle->cancelled = true;
+        return true;
+    }
+    return false;
+}
+
+int archive_list_contents(const char* archive_path, ListResult* result) {
+    if (archive_path == NULL || result == NULL) {
+        return ARCHIVE_ERR_INVALID_PATH;
+    }
+    
+    memset(result, 0, sizeof(ListResult));
+    
+    struct archive* a = archive_read_new();
+    struct archive_entry* entry;
+    
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    
+    int r = archive_read_open_filename(a, archive_path, 10240);
+    if (r != ARCHIVE_OK) {
+        safe_strncpy(result->error_message, archive_error_string(a), 
+                     sizeof(result->error_message));
+        result->status = ARCHIVE_ERR_OPEN_FAILED;
+        archive_read_free(a);
+        return result->status;
+    }
+    
+    // 第一遍：计数
+    int64_t count = 0;
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        count++;
+        archive_read_data_skip(a);
+    }
+    
+    // 分配内存
+    result->entries = (ArchiveEntry*)calloc(count, sizeof(ArchiveEntry));
+    result->entry_count = count;
+    
+    // 重新打开
+    archive_read_close(a);
+    archive_read_free(a);
+    a = archive_read_new();
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    archive_read_open_filename(a, archive_path, 10240);
+    
+    // 第二遍：填充数据
+    int64_t index = 0;
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK && index < count) {
+        ArchiveEntry* ae = &result->entries[index];
+        
+        safe_strncpy(ae->name, archive_entry_pathname(entry), sizeof(ae->name));
+        safe_strncpy(ae->pathname, archive_entry_pathname(entry), sizeof(ae->pathname));
+        ae->size = archive_entry_size(entry);
+        ae->compressed_size = archive_entry_size(entry); // libarchive 不直接提供压缩大小
+        ae->mtime = archive_entry_mtime(entry);
+        ae->is_directory = (archive_entry_filetype(entry) == AE_IFDIR);
+        ae->mode = archive_entry_mode(entry);
+        ae->crc32 = 0; // libarchive 不直接提供 CRC32
+        
+        index++;
+        archive_read_data_skip(a);
+    }
+    
+    archive_read_close(a);
+    archive_read_free(a);
+    
+    result->status = ARCHIVE_OK;
+    return ARCHIVE_OK;
+}
+
+void archive_free_list_result(ListResult* result) {
+    if (result != NULL && result->entries != NULL) {
+        free(result->entries);
+        result->entries = NULL;
+        result->entry_count = 0;
+    }
+}
+
+int archive_validate(const char* archive_path) {
+    if (archive_path == NULL) {
+        return ARCHIVE_ERR_INVALID_PATH;
+    }
+    
+    struct archive* a = archive_read_new();
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    
+    int r = archive_read_open_filename(a, archive_path, 10240);
+    if (r != ARCHIVE_OK) {
+        archive_read_free(a);
+        return ARCHIVE_ERR_OPEN_FAILED;
+    }
+    
+    // 尝试读取第一个条目
+    struct archive_entry* entry;
+    r = archive_read_next_header(a, &entry);
+    
+    archive_read_close(a);
+    archive_read_free(a);
+    
+    return (r == ARCHIVE_OK) ? ARCHIVE_OK : ARCHIVE_ERR_FORMAT;
+}
+
+const char* archive_get_error_message(int error_code) {
+    switch (error_code) {
+        case ARCHIVE_OK: return "Success";
+        case ARCHIVE_ERR_INVALID_PATH: return "Invalid archive path";
+        case ARCHIVE_ERR_OPEN_FAILED: return "Failed to open archive";
+        case ARCHIVE_ERR_READ_FAILED: return "Failed to read archive";
+        case ARCHIVE_ERR_WRITE_FAILED: return "Failed to write file";
+        case ARCHIVE_ERR_FORMAT: return "Invalid archive format";
+        case ARCHIVE_ERR_CANCELLED: return "Operation cancelled";
+        case ARCHIVE_ERR_MEMORY: return "Out of memory";
+        case ARCHIVE_ERR_PERMISSION: return "Permission denied";
+        default: return "Unknown error";
+    }
+}

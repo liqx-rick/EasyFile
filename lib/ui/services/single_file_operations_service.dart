@@ -16,6 +16,8 @@ import 'package:easyfile/utils/path_security.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/ui/dialogs/extract_archive_dialog.dart';
+import 'package:easyfile/ui/pages/archive_viewer_page.dart';
 
 /// 单文件操作服务
 ///
@@ -137,6 +139,63 @@ class SingleFileOperationsService {
       logger.e('Share file failed: $e');
       if (_isMounted) {
         _showErrorSnackBar('分享失败：$e', null, messenger);
+      }
+    }
+  }
+
+  /// 解压压缩包
+  /// 
+  /// 显示解压对话框，允许用户选择解压目录
+  Future<void> extractArchive(FileItem file) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    // 检查是否是压缩包文件
+    if (!FileUtils.isArchiveFile(file.name)) {
+      _showErrorSnackBar('该文件不是压缩包', Colors.orange, messenger);
+      return;
+    }
+
+    try {
+      if (!_isMounted) return;
+
+      // 显示解压对话框
+      await showDialog(
+        context: context,
+        builder: (context) => ExtractArchiveDialog(archiveFile: file),
+      );
+    } catch (e) {
+      logger.e('Extract archive failed: $e');
+      if (_isMounted) {
+        _showErrorSnackBar('解压失败：$e', null, messenger);
+      }
+    }
+  }
+
+  /// 查看压缩包内容
+  /// 
+  /// 显示压缩包内的文件列表，不实际解压
+  Future<void> viewArchiveContents(FileItem file) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    // 检查是否是压缩包文件
+    if (!FileUtils.isArchiveFile(file.name)) {
+      _showErrorSnackBar('该文件不是压缩包', Colors.orange, messenger);
+      return;
+    }
+
+    try {
+      if (!_isMounted) return;
+
+      // 导航到压缩包查看器页面
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ArchiveViewerPage(archiveFile: file),
+        ),
+      );
+    } catch (e) {
+      logger.e('View archive contents failed: $e');
+      if (_isMounted) {
+        _showErrorSnackBar('查看失败：$e', null, messenger);
       }
     }
   }

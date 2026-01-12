@@ -60,6 +60,11 @@ class FileViewModel extends ChangeNotifier {
   ViewMode _viewMode = ViewMode.list;
   String? _lastBrowsePath; // 保存浏览模式下的最后路径
 
+  // 解压上下文信息（用于显示提示条）
+  String? _extractionSourceName; // 解压来源的压缩包名称
+  String? _extractionTargetPath; // 解压目标路径
+  bool _shouldHighlightExtraction = false; // 是否需要高亮显示解压的文件夹
+
   // SharedPreferences keys
   static const String _keyCurrentTab = 'current_tab';
   static const String _keyLastBrowsePath = 'last_browse_path';
@@ -615,6 +620,49 @@ class FileViewModel extends ChangeNotifier {
     _viewMode = _viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list;
     notifyListeners();
   }
+
+  // ==================== 解压上下文管理 ====================
+
+  /// 设置解压上下文信息（解压完成后调用）
+  void setExtractionContext({
+    required String sourceName,
+    required String targetPath,
+    bool shouldHighlight = false,
+  }) {
+    logger.d('Setting extraction context: $sourceName -> $targetPath');
+    _extractionSourceName = sourceName;
+    _extractionTargetPath = targetPath;
+    _shouldHighlightExtraction = shouldHighlight;
+    notifyListeners();
+  }
+
+  /// 清除解压上下文信息
+  void clearExtractionContext() {
+    logger.d('Clearing extraction context');
+    _extractionSourceName = null;
+    _extractionTargetPath = null;
+    _shouldHighlightExtraction = false;
+    notifyListeners();
+  }
+
+  /// 获取解压来源名称
+  String? get extractionSourceName => _extractionSourceName;
+
+  /// 获取解压目标路径
+  String? get extractionTargetPath => _extractionTargetPath;
+
+  /// 是否需要高亮显示解压的文件夹
+  bool get shouldHighlightExtraction => _shouldHighlightExtraction;
+
+  /// 检查当前路径是否是解压目标路径
+  bool get isExtractionTarget =>
+      _extractionTargetPath != null && _currentPath == _extractionTargetPath;
+
+  /// 检查当前路径是否是解压目标的父目录
+  bool get isExtractionParent =>
+      _extractionTargetPath != null &&
+      _extractionTargetPath!.startsWith(_currentPath) &&
+      _extractionTargetPath != _currentPath;
 
   /// Getter for last browse path (for restoring state)
   String? get lastBrowsePath => _lastBrowsePath;
