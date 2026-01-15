@@ -8,6 +8,7 @@ import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
+import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
 
 /// 缓存管理服务
 ///
@@ -345,6 +346,25 @@ class CacheManagerService {
       ));
     }
 
+    // 11. 压缩包预览缓存
+    try {
+      final size = await ArchivePreviewCacheManager.getCacheSize();
+      items.add(CacheItem(
+        name: '压缩包预览缓存',
+        description: size > 0 ? '临时提取的预览文件' : '无缓存',
+        size: size,
+        type: CacheType.archivePreview,
+      ));
+    } catch (e) {
+      logger.e('Failed to get archive preview cache info: $e');
+      items.add(CacheItem(
+        name: '压缩包预览缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.archivePreview,
+      ));
+    }
+
     return items;
   }
 
@@ -426,6 +446,11 @@ class CacheManagerService {
           } else {
             logger.w('Trash file service not initialized');
           }
+          return true;
+
+        case CacheType.archivePreview:
+          await ArchivePreviewCacheManager.clearAllCache();
+          logger.i('Archive preview cache cleared');
           return true;
       }
     } catch (e) {
@@ -750,6 +775,7 @@ enum CacheType {
   appManagement, // 应用管理缓存（存储、统计、文件数量、检测）
   mediaStore, // 媒体库扫描缓存（照片、视频、录音）
   junkScan, // 垃圾文件扫描缓存（垃圾文件清理+系统回收站扫描）
+  archivePreview, // 压缩包预览缓存
 }
 
 extension CacheTypeExtension on CacheType {
@@ -775,6 +801,8 @@ extension CacheTypeExtension on CacheType {
         return '媒体库扫描缓存';
       case CacheType.junkScan:
         return '垃圾文件扫描缓存';
+      case CacheType.archivePreview:
+        return '压缩包预览缓存';
     }
   }
 }

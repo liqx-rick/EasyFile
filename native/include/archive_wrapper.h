@@ -57,6 +57,13 @@ typedef struct {
     char error_message[512];      // 错误消息
 } ListResult;
 
+/// 单文件提取结果
+typedef struct {
+    bool success;                 // 是否成功
+    int64_t extracted_size;       // 提取的文件大小（字节）
+    char error_message[512];      // 错误消息
+} SingleFileExtractResult;
+
 // ==================== 核心 API ====================
 
 /// 解压压缩包
@@ -90,6 +97,19 @@ void archive_free_list_result(ListResult* result);
 /// @param archive_path 压缩包路径
 /// @return 0=有效, 非0=无效（错误码）
 int archive_validate(const char* archive_path);
+
+/// 提取单个文件
+/// @param archive_path 压缩包路径
+/// @param entry_path 条目在压缩包中的路径
+/// @param output_path 输出文件路径
+/// @param result 提取结果（输出参数）
+/// @return 0=成功, 非0=错误码
+int archive_extract_single_file(
+    const char* archive_path,
+    const char* entry_path,
+    const char* output_path,
+    SingleFileExtractResult* result
+);
 
 /// 获取错误消息
 /// @param error_code 错误码

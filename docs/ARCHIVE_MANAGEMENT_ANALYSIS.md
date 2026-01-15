@@ -11,9 +11,10 @@
 **总体完成度**: ⚠️ **约 70%**
 
 - ✅ **核心功能完整**: 扫描、查看、解压、导航全部实现
-- ✅ **技术方案稳健**: MediaStore + 纯 FFI + 静态链接 libarchive
+- ✅ **技术方案稳健**: MediaStore + flutter_archive，避免权限问题
 - ✅ **用户体验优秀**: 进度显示、多种查看选项、解压上下文保存
 - ❌ **批量操作缺失**: 无搜索、无多选、无批量删除
+- ⚠️ **技术选型偏差**: 使用 flutter_archive（Platform Channel）而非纯 FFI
 
 ---
 
@@ -21,19 +22,18 @@
 
 ### 解压技术方案
 
-| 项目 | 当前实现 | 位置 | 评估 |
+| 项目 | 实际实现 | 位置 | 评估 |
 |------|--------|------|------|
-| **技术栈** | dart:ffi ^2.1.5 | pubspec.yaml | ✅ 完全符合 |
-| **底层库** | libarchive 3.8.1（静态链接） | android/src/main/jniLibs/ | ✅ 符合规划 |
-| **调用方式** | 纯 FFI（直接调用 C API） | lib/ffi/archive_ffi.dart | ✅ 纯 FFI |
-| **支持平台** | Android (ARM only) | ArchiveService | ✅ 符合 |
+| **技术栈** | flutter_archive ^6.0.3 | pubspec.yaml 第 41 行 | ⚠️ 部分符合 |
+| **底层库** | libarchive | ArchiveService 第 2 行 | ✅ 符合规划 |
+| **调用方式** | Platform Channel | flutter_archive 包装 | ⚠️ 非纯 FFI |
+| **支持平台** | Android 优先 | ArchiveService 第 234 行 | ✅ 符合 |
 
-**实现说明**:
-- 使用纯 FFI 直接调用 libarchive C API
-- libarchive 静态链接所有编解码器（bz2/lzma/lz4/zstd）
-- C 封装层：`native/src/archive_wrapper.c`
-- Dart FFI 绑定：`lib/ffi/archive_ffi.dart`
-- 支持 ZIP/RAR/7Z/TAR/GZ/BZ2/XZ/LZ4/ZSTD 等格式
+**详细说明**:
+- 使用的是 `flutter_archive^6.0.3`（libarchive 的 Flutter 封装）
+- 底层确实使用 libarchive，但通过 Platform Channel 而非纯 FFI
+- flutter_archive 在 Native 层调用 libarchive C 库，但 Dart 层通过 MethodChannel 通信
+- 虽然技术选型略有偏差，但功能完整性和稳定性均优秀
 
 ---
 
@@ -98,16 +98,16 @@
 **文件**: `lib/core/services/archive_service.dart` (240 行)
 
 #### 已实现功能
-- ✅ 支持 10+ 种格式（ZIP, RAR, 7Z, TAR, GZ, BZ2, XZ, LZ4, ZSTD, 及组合格式）
+- ✅ 支持 9 种格式（第 9 行注释：ZIP, RAR, 7z, TAR, GZ, BZ2, XZ, TGZ, TBZ2）
 - ✅ 解压到指定目录（第 13-90 行：extractTo 方法）
 - ✅ 自动处理文件夹名冲突（第 98-107 行：自动添加 _1, _2 后缀）
 - ✅ 进度回调（第 62-68 行：onProgress 回调）
 - ✅ 验证压缩包有效性（第 135-146 行：validateArchive 方法）
 - ✅ 列出压缩包内容（第 183-238 行：listArchiveContents 方法）
-- ✅ 取消功能（第 100-107 行：cancelExtraction 方法）
 
 #### 潜在问题
 - ⚠️ **错误处理** - 仅记录日志，未针对不同错误类型提供友好提示
+- ⚠️ **取消功能** - 无法中途取消解压操作
 
 ---
 

@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/dialogs/extraction_progress_dialog.dart';
+import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
 
 /// 解压对话框
 /// 
@@ -23,7 +22,6 @@ class ExtractArchiveDialog extends StatefulWidget {
 class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
   late TextEditingController _folderNameController;
   late String _targetBaseDir;
-  bool _autoRename = true;
 
   @override
   void initState() {
@@ -52,31 +50,40 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
     return fileName.substring(0, lastDot);
   }
 
-  /// 获取完整的解压路径
-  String get _fullPath {
-    return '$_targetBaseDir/${_folderNameController.text}';
+  /// 选择目标目录
+  Future<void> _chooseTargetDirectory() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => FolderPickerDialog(
+        currentPath: _targetBaseDir,
+        title: '选择解压目标位置',
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _targetBaseDir = result;
+      });
+    }
   }
 
-  /// 选择目标目录（使用 SAF）
-  Future<void> _chooseTargetDirectory() async {
-    try {
-      final result = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择解压目标目录',
-        initialDirectory: _targetBaseDir,
-      );
-
-      if (result != null && mounted) {
-        setState(() {
-          _targetBaseDir = result;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择目录失败: $e')),
-        );
-      }
+  /// 获取根目录显示名称
+  String _getRootDisplayName(String path) {
+    if (path == '/storage/emulated/0' || path.startsWith('/storage/emulated/0/')) {
+      return '内部存储';
     }
+    return '根目录';
+  }
+
+  /// 格式化路径显示（只显示相对路径）
+  String _formatPathDisplay(String path) {
+    if (path == '/storage/emulated/0') {
+      return '/';
+    }
+    if (path.startsWith('/storage/emulated/0/')) {
+      return '/${path.substring('/storage/emulated/0/'.length)}';
+    }
+    return path;
   }
 
   /// 开始解压
@@ -102,7 +109,7 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
           archiveFile: widget.archiveFile,
           targetBaseDir: _targetBaseDir,
           folderName: folderName,
-          autoRename: _autoRename,
+          autoRename: true, // 始终启用自动重命名
         ),
       );
     }
@@ -114,19 +121,39 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
     final colorScheme = theme.colorScheme;
 
     return AlertDialog(
-      title: const Text('解压压缩包'),
-      content: SingleChildScrollView(
+      title: const Text('解压'),
+      content: SizedBox(
+        width: double.maxFinite,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 文件信息
-            _buildFileInfo(theme),
+            Row(
+              children: [
+                Icon(
+                  Icons.folder_zip,
+                  color: Colors.amber[700],
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.archiveFile.name,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
 
-            // 目标目录选择
+            // 目标目录选择 - 标签包含根目录名称
             Text(
-              '解压到:',
+              '到（${_getRootDisplayName(_targetBaseDir)}）：',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w500,
               ),
@@ -136,35 +163,27 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
               onTap: _chooseTargetDirectory,
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   border: Border.all(color: theme.dividerColor),
                   borderRadius: BorderRadius.circular(8),
-                  color: colorScheme.surface,
+                  color: Colors.grey[100], // 灰色背景
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
-                        _targetBaseDir,
+                        _formatPathDisplay(_targetBaseDir),
                         style: theme.textTheme.bodyMedium,
-                        maxLines: 2,
+                        maxLines: 3, // 增加到3行，提供更多显示空间
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Icon(
                       Icons.folder_open,
-                      size: 20,
+                      size: 18,
                       color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '更改',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
                     ),
                   ],
                 ),
@@ -172,56 +191,26 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
             ),
             const SizedBox(height: 16),
 
-            // 文件夹名称
+            // 文件夹名称 - 黄色背景
             TextField(
               controller: _folderNameController,
-              decoration: const InputDecoration(
-                labelText: '文件夹名称',
-                border: OutlineInputBorder(),
-                hintText: '输入解压后的文件夹名称',
+              decoration: InputDecoration(
+                labelText: '文件夹',
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.amber[50], // 黄色背景
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                suffixIcon: _folderNameController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _folderNameController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
               ),
-              onChanged: (_) => setState(() {}), // 更新完整路径显示
-            ),
-            const SizedBox(height: 12),
-
-            // 完整路径显示
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '完整路径: $_fullPath/',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 选项
-            CheckboxListTile(
-              title: const Text('如果文件夹已存在，自动重命名'),
-              subtitle: const Text('例如: backup → backup_1'),
-              value: _autoRename,
-              onChanged: (value) => setState(() => _autoRename = value!),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
+              onChanged: (_) => setState(() {}),
             ),
           ],
         ),
@@ -231,53 +220,11 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        ElevatedButton(
+        FilledButton(
           onPressed: _startExtraction,
           child: const Text('开始解压'),
         ),
       ],
-    );
-  }
-
-  Widget _buildFileInfo(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.folder_zip,
-                color: Colors.amber[700],
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.archiveFile.name,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '大小: ${FileSizeFormatter.formatBytes(widget.archiveFile.size)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

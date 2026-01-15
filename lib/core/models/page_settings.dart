@@ -33,6 +33,9 @@ enum PageId {
   /// 下载分类
   categoryDownloads('category_downloads'),
 
+  /// 压缩包管理
+  archiveManagement('archive_management'),
+
   /// 推荐页面-应用模式（统一处理所有应用：微信/QQ/Telegram/WPS）
   recommendApplication('recommend_application'),
 
@@ -298,6 +301,8 @@ class PageDefaultSettings {
         return '内容推荐';
       case PageId.recommendCleanup:
         return '清理推荐';
+      case PageId.archiveManagement:
+        return '压缩包管理';
     }
   }
 
@@ -340,6 +345,8 @@ class PageDefaultSettings {
         return '个性化内容推荐';
       case PageId.recommendCleanup:
         return '大文件清理建议';
+      case PageId.archiveManagement:
+        return '管理设备上的压缩包文件';
     }
   }
 }

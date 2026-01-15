@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <locale.h>
 
 // 全局状态管理（用于取消操作）
 typedef struct {
@@ -69,6 +70,9 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
 
     memset(result, 0, sizeof(ExtractResult));
     
+    // 设置 locale 为 UTF-8 以支持 Unicode 文件名
+    setlocale(LC_ALL, "en_US.UTF-8");
+    
     struct archive* a = archive_read_new();
     struct archive* ext = archive_write_disk_new();
     struct archive_entry* entry;
@@ -79,6 +83,9 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     // 支持所有格式和压缩算法
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 设置 libarchive 选项以更好地处理 Unicode
+    archive_read_set_options(a, "rar:hdrcharset=UTF-8");
     
     // 设置写入选项
     int flags = ARCHIVE_EXTRACT_TIME;
@@ -105,15 +112,42 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     int64_t current_size = 0;
     int64_t file_count = 0;
     
-    // 第一遍：计算总大小
-    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+    // 第一遍：计算总大小并检查格式
+    const char* format_name = archive_format_name(a);
+    int first_pass_error = ARCHIVE_OK;
+    
+    while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
         total_size += archive_entry_size(entry);
         file_count++;
         archive_read_data_skip(a);
     }
     
+    // 记录第一遍扫描的错误
+    if (r != ARCHIVE_EOF) {
+        first_pass_error = r;
+    }
+    
     result->total_files = file_count;
     result->total_bytes = total_size;
+    
+    // 如果没有文件，记录格式信息
+    if (file_count == 0) {
+        if (format_name != NULL && strlen(format_name) > 0) {
+            char msg[512];
+            snprintf(msg, sizeof(msg), "Unsupported or encrypted format: %s", format_name);
+            safe_strncpy(result->error_message, msg, sizeof(result->error_message));
+        } else {
+            safe_strncpy(result->error_message, 
+                         "Archive format not recognized or encrypted", 
+                         sizeof(result->error_message));
+        }
+        result->status = ARCHIVE_ERR_OPEN_FAILED;
+        archive_read_close(a);
+        archive_read_free(a);
+        archive_write_free(ext);
+        remove_handle(handle->handle_id);
+        return -1;
+    }
     
     // 重新打开压缩包进行实际解压
     archive_read_close(a);
@@ -121,6 +155,10 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 再次设置选项
+    archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    
     archive_read_open_filename(a, options->archive_path, 10240);
     handle->archive = a;
     
@@ -136,11 +174,18 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
             archive_write_close(ext);
             archive_write_free(ext);
             remove_handle(handle->handle_id);
-            return -1;
+            return handle->handle_id;
+        }
+        
+        // Try UTF-8 pathname first
+        const char* pathname_utf8 = archive_entry_pathname_utf8(entry);
+        const char* current_file = pathname_utf8 ? pathname_utf8 : archive_entry_pathname(entry);
+        
+        if (current_file == NULL) {
+            continue;
         }
         
         // 构造完整路径
-        const char* current_file = archive_entry_pathname(entry);
         char full_path[4096];
         snprintf(full_path, sizeof(full_path), "%s/%s", 
                  options->dest_path, current_file);
@@ -203,11 +248,18 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     
     memset(result, 0, sizeof(ListResult));
     
+    // 设置 locale 为 UTF-8 以支持 Unicode 文件名
+    setlocale(LC_ALL, "en_US.UTF-8");
+    
     struct archive* a = archive_read_new();
     struct archive_entry* entry;
     
+    // 支持所有格式和过滤器
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 设置 libarchive 选项以更好地处理 Unicode
+    archive_read_set_options(a, "rar:hdrcharset=UTF-8");
     
     int r = archive_read_open_filename(a, archive_path, 10240);
     if (r != ARCHIVE_OK) {
@@ -218,11 +270,44 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
         return result->status;
     }
     
-    // 第一遍：计数
+    // 检查格式
+    const char* format_name = archive_format_name(a);
+    
+    // 第一遍：计数并检查错误
     int64_t count = 0;
-    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+    int last_error = ARCHIVE_OK;
+    const char* last_error_msg = NULL;
+    
+    while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
         count++;
         archive_read_data_skip(a);
+    }
+    
+    // 记录最后的错误状态
+    if (r != ARCHIVE_EOF) {
+        last_error = r;
+        last_error_msg = archive_error_string(a);
+        // 如果遇到错误但没有条目，记录错误信息
+        if (count == 0 && last_error_msg != NULL) {
+            safe_strncpy(result->error_message, last_error_msg, 
+                         sizeof(result->error_message));
+        }
+    }
+    
+    // 如果没有条目，检查是否是不支持的格式
+    if (count == 0) {
+        // 如果已经有错误消息（如 UTF-16BE 编码错误），保留它
+        if (result->error_message[0] == '\0') {
+            if (format_name != NULL && strlen(format_name) > 0) {
+                // 记录格式信息到错误消息
+                char msg[512];
+                snprintf(msg, sizeof(msg), "Unsupported or encrypted format: %s", format_name);
+                safe_strncpy(result->error_message, msg, sizeof(result->error_message));
+            } else {
+                safe_strncpy(result->error_message, "Archive format not recognized or encrypted", 
+                             sizeof(result->error_message));
+            }
+        }
     }
     
     // 分配内存
@@ -235,6 +320,10 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 再次设置选项
+    archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    
     archive_read_open_filename(a, archive_path, 10240);
     
     // 第二遍：填充数据
@@ -242,8 +331,16 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK && index < count) {
         ArchiveEntry* ae = &result->entries[index];
         
-        safe_strncpy(ae->name, archive_entry_pathname(entry), sizeof(ae->name));
-        safe_strncpy(ae->pathname, archive_entry_pathname(entry), sizeof(ae->pathname));
+        // 尝试使用 UTF-8 pathname，如果失败则使用普通 pathname
+        const char* pathname_utf8 = archive_entry_pathname_utf8(entry);
+        const char* pathname = pathname_utf8 ? pathname_utf8 : archive_entry_pathname(entry);
+        
+        if (pathname == NULL) {
+            pathname = "Unknown";
+        }
+        
+        safe_strncpy(ae->name, pathname, sizeof(ae->name));
+        safe_strncpy(ae->pathname, pathname, sizeof(ae->pathname));
         ae->size = archive_entry_size(entry);
         ae->compressed_size = archive_entry_size(entry); // libarchive 不直接提供压缩大小
         ae->mtime = archive_entry_mtime(entry);
@@ -293,6 +390,150 @@ int archive_validate(const char* archive_path) {
     archive_read_free(a);
     
     return (r == ARCHIVE_OK) ? ARCHIVE_OK : ARCHIVE_ERR_FORMAT;
+}
+
+int archive_extract_single_file(const char* archive_path, const char* entry_path, 
+                                const char* output_path, SingleFileExtractResult* result) {
+    if (archive_path == NULL || entry_path == NULL || output_path == NULL || result == NULL) {
+        return ARCHIVE_ERR_INVALID_PATH;
+    }
+
+    memset(result, 0, sizeof(SingleFileExtractResult));
+    result->success = false;
+    result->extracted_size = 0;
+
+    struct archive* a = archive_read_new();
+    struct archive* ext = archive_write_disk_new();
+    struct archive_entry* entry;
+    int r;
+
+    // 配置读取器
+    archive_read_support_format_all(a);
+    archive_read_support_filter_all(a);
+    archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+
+    // 配置写入器
+    archive_write_disk_set_options(ext, 
+        ARCHIVE_EXTRACT_TIME | 
+        ARCHIVE_EXTRACT_PERM | 
+        ARCHIVE_EXTRACT_ACL | 
+        ARCHIVE_EXTRACT_FFLAGS);
+    archive_write_disk_set_standard_lookup(ext);
+
+    // 打开压缩包
+    r = archive_read_open_filename(a, archive_path, 10240);
+    if (r != ARCHIVE_OK) {
+        safe_strncpy(result->error_message, archive_error_string(a), 
+                     sizeof(result->error_message));
+        archive_read_free(a);
+        archive_write_free(ext);
+        return ARCHIVE_ERR_OPEN_FAILED;
+    }
+
+    bool found = false;
+    int64_t total_size = 0;
+
+    // 遍历条目查找目标文件
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        const char* current_pathname = archive_entry_pathname_utf8(entry);
+        if (current_pathname == NULL) {
+            current_pathname = archive_entry_pathname(entry);
+        }
+
+        if (current_pathname == NULL) {
+            continue;
+        }
+
+        // 精确匹配路径
+        if (strcmp(current_pathname, entry_path) == 0) {
+            found = true;
+            int64_t size = archive_entry_size(entry);
+            
+            // 检查文件大小限制（200MB）
+            if (size > 200 * 1024 * 1024) {
+                safe_strncpy(result->error_message, 
+                             "File too large (>200MB), please extract entire archive", 
+                             sizeof(result->error_message));
+                archive_read_free(a);
+                archive_write_free(ext);
+                return ARCHIVE_ERR_WRITE_FAILED;
+            }
+
+            // 设置输出路径
+            archive_entry_set_pathname(entry, output_path);
+
+            // 写入文件
+            r = archive_write_header(ext, entry);
+            if (r != ARCHIVE_OK) {
+                safe_strncpy(result->error_message, archive_error_string(ext), 
+                             sizeof(result->error_message));
+                archive_read_free(a);
+                archive_write_free(ext);
+                return ARCHIVE_ERR_WRITE_FAILED;
+            }
+
+            // 复制数据
+            if (size > 0) {
+                const void* buff;
+                size_t size_read;
+                int64_t offset;
+
+                while (true) {
+                    r = archive_read_data_block(a, &buff, &size_read, &offset);
+                    if (r == ARCHIVE_EOF) {
+                        break;
+                    }
+                    if (r != ARCHIVE_OK) {
+                        safe_strncpy(result->error_message, archive_error_string(a), 
+                                     sizeof(result->error_message));
+                        archive_read_free(a);
+                        archive_write_free(ext);
+                        return ARCHIVE_ERR_READ_FAILED;
+                    }
+
+                    r = archive_write_data_block(ext, buff, size_read, offset);
+                    if (r != ARCHIVE_OK) {
+                        safe_strncpy(result->error_message, archive_error_string(ext), 
+                                     sizeof(result->error_message));
+                        archive_read_free(a);
+                        archive_write_free(ext);
+                        return ARCHIVE_ERR_WRITE_FAILED;
+                    }
+
+                    total_size += size_read;
+                }
+            }
+
+            r = archive_write_finish_entry(ext);
+            if (r != ARCHIVE_OK) {
+                safe_strncpy(result->error_message, archive_error_string(ext), 
+                             sizeof(result->error_message));
+                archive_read_free(a);
+                archive_write_free(ext);
+                return ARCHIVE_ERR_WRITE_FAILED;
+            }
+
+            result->success = true;
+            result->extracted_size = total_size;
+            break;  // 找到文件后立即停止
+        } else {
+            // 跳过不需要的条目
+            archive_read_data_skip(a);
+        }
+    }
+
+    archive_read_close(a);
+    archive_read_free(a);
+    archive_write_close(ext);
+    archive_write_free(ext);
+
+    if (!found) {
+        safe_strncpy(result->error_message, "File not found in archive", 
+                     sizeof(result->error_message));
+        return ARCHIVE_ERR_READ_FAILED;
+    }
+
+    return ARCHIVE_OK;
 }
 
 const char* archive_get_error_message(int error_code) {

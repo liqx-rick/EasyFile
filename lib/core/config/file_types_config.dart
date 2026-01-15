@@ -89,6 +89,8 @@ class FileTypesConfig {
         'csv',
         'md',
         'log', // 日志文件（与 getTextExtensions() 保持一致）
+        'json', // JSON 配置文件
+        'xml', // XML 配置文件
       ]);
 
   /// 办公文档文件扩展名（Office套件文档）
@@ -355,7 +357,7 @@ class FileTypesConfig {
   List<String> getPptExtensions() => ['ppt', 'pptx'];
 
   /// 获取文本文件扩展名
-  List<String> getTextExtensions() => ['txt', 'md', 'log', 'rtf'];
+  List<String> getTextExtensions() => ['txt', 'md', 'log', 'json', 'xml', 'rtf'];
 
   // ==================== MIME 类型映射 ====================
 

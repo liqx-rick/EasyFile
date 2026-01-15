@@ -122,6 +122,39 @@ class ArchiveFFI {
     }
   }
 
+  /// 提取单个文件
+  SingleFileExtractResultNative extractSingleFile({
+    required String archivePath,
+    required String entryPath,
+    required String outputPath,
+  }) {
+    final archivePathPtr = archivePath.toNativeUtf8();
+    final entryPathPtr = entryPath.toNativeUtf8();
+    final outputPathPtr = outputPath.toNativeUtf8();
+    final resultPtr = calloc<SingleFileExtractResult>();
+
+    try {
+      final status = _bindings.archive_extract_single_file(
+        archivePathPtr.cast(),
+        entryPathPtr.cast(),
+        outputPathPtr.cast(),
+        resultPtr,
+      );
+
+      return SingleFileExtractResultNative(
+        status: status,
+        success: resultPtr.ref.success,
+        extractedSize: resultPtr.ref.extracted_size,
+        errorMessage: _readCString(resultPtr.ref.error_message, 512),
+      );
+    } finally {
+      calloc.free(resultPtr);
+      calloc.free(outputPathPtr);
+      calloc.free(entryPathPtr);
+      calloc.free(archivePathPtr);
+    }
+  }
+
   /// 读取 C 字符串（从固定大小的 Array）
   String _readCString(ffi.Array<ffi.Uint8> cArray, int maxSize) {
     final bytes = <int>[];
@@ -188,6 +221,15 @@ final class ListResult extends ffi.Struct {
   external ffi.Array<ffi.Uint8> error_message;
 }
 
+final class SingleFileExtractResult extends ffi.Struct {
+  @ffi.Bool()
+  external bool success;
+  @ffi.Int64()
+  external int extracted_size;
+  @ffi.Array(512)
+  external ffi.Array<ffi.Uint8> error_message;
+}
+
 /// 进度回调类型
 typedef ProgressCallbackNative = ffi.Void Function(
   ffi.Double progress,
@@ -233,6 +275,20 @@ class ArchiveNativeBindings {
   late final archive_validate = _lib.lookupFunction<
       ffi.Int32 Function(ffi.Pointer<ffi.Char>),
       int Function(ffi.Pointer<ffi.Char>)>('archive_validate');
+
+  late final archive_extract_single_file = _lib.lookupFunction<
+      ffi.Int32 Function(
+        ffi.Pointer<ffi.Char>, // archive_path
+        ffi.Pointer<ffi.Char>, // entry_path
+        ffi.Pointer<ffi.Char>, // output_path
+        ffi.Pointer<SingleFileExtractResult>,
+      ),
+      int Function(
+        ffi.Pointer<ffi.Char>,
+        ffi.Pointer<ffi.Char>,
+        ffi.Pointer<ffi.Char>,
+        ffi.Pointer<SingleFileExtractResult>,
+      )>('archive_extract_single_file');
 }
 
 /// Dart 数据类 - 从 Native 结构转换
@@ -291,4 +347,18 @@ class ListResultNative {
   });
 
   bool get success => status == 0;
+}
+
+class SingleFileExtractResultNative {
+  final int status;
+  final bool success;
+  final int extractedSize;
+  final String errorMessage;
+
+  SingleFileExtractResultNative({
+    required this.status,
+    required this.success,
+    required this.extractedSize,
+    required this.errorMessage,
+  });
 }
