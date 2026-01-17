@@ -7,7 +7,13 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:provider/provider.dart';
 import 'package:easyfile/ui/pages/extracted_files_browser_page.dart';
 
-/// 解压记录页面
+/// ⚠️ 已废弃 - 解压记录功能已迁移到 ArchiveManagementPage
+/// 
+/// 此文件保留用于参考，实际功能已整合到压缩包管理页面的第二个Tab中。
+/// 如确认无问题，可以删除此文件。
+/// 
+/// 迁移日期: 2026-01-16
+@Deprecated('Use ArchiveManagementPage._buildRecordsTab() instead')
 class ExtractionRecordsPage extends StatefulWidget {
   const ExtractionRecordsPage({super.key});
 
@@ -127,6 +133,34 @@ class _ExtractionRecordsPageState extends State<ExtractionRecordsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // 检测是否在Tab中使用（通过检查是否有ModalRoute）
+    final route = ModalRoute.of(context);
+    final isInTab = route == null || !route.isCurrent;
+
+    // 如果在Tab中使用，不显示AppBar
+    if (isInTab) {
+      return _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _records.isEmpty
+              ? _buildEmptyState(theme)
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _records.length,
+                  separatorBuilder: (context, index) => const Divider(height: 32),
+                  itemBuilder: (context, index) {
+                    final record = _records[index];
+                    final folderExists = _folderExistsMap[record.targetPath] ?? false;
+                    return _buildRecordItem(
+                      record,
+                      folderExists,
+                      theme,
+                      colorScheme,
+                    );
+                  },
+                );
+    }
+
+    // 独立页面使用时显示完整的Scaffold和AppBar
     return Scaffold(
       appBar: AppBar(
         title: Text('解压记录 (${_records.length})'),

@@ -16,6 +16,7 @@ import 'package:easyfile/ui/pages/trash_config_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
+import 'package:easyfile/ui/pages/unrar_poc_demo_page.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
 
@@ -116,6 +117,8 @@ class _SettingsPageState extends State<SettingsPage> {
           // 开发者选项（根据配置决定是否显示）
           if (AppConfig.instance.feature.isDeveloperOptionsEnabled) ...[
             _buildSectionHeader('开发者选项', Icons.developer_mode),
+            _buildUnrarPocTile(context),
+            const Divider(height: 1, indent: 56),
             _buildRecommendationThresholdTile(context),
             const Divider(height: 1, indent: 56),
             _buildDuplicateScanSettingTile(context),
@@ -610,6 +613,37 @@ class _SettingsPageState extends State<SettingsPage> {
             );
           }
         }
+      },
+    );
+  }
+
+  /// UnRAR PoC 验证入口
+  Widget _buildUnrarPocTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.science, color: Colors.orange),
+      title: const Text('UnRAR PoC 验证'),
+      subtitle: const Text('验证UnRAR集成的可行性（概念验证）'),
+      trailing: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'PoC',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange,
+            ),
+          ),
+          SizedBox(width: 8),
+          Icon(Icons.chevron_right),
+        ],
+      ),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const UnrarPocDemoPage(),
+          ),
+        );
       },
     );
   }

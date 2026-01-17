@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Android",
+            "includePath": [
+                "${workspaceFolder}/native/include/**",
+                "${workspaceFolder}/native/src/**",
+                "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/*/sysroot/usr/include/**"
+            ],
+            "defines": [
+                "__ANDROID__",
+                "_UNIX",
+                "RARDLL"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

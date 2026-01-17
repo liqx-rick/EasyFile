@@ -6,6 +6,8 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:provider/provider.dart';
+import 'package:easyfile/ui/pages/extracted_files_browser_page.dart';
+import 'package:easyfile/ui/widgets/password_input_dialog.dart';
 
 /// 解压进度对话框
 ///
@@ -41,7 +43,8 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
 
   /// 获取根目录显示名称
   String _getRootDisplayName(String path) {
-    if (path == '/storage/emulated/0' || path.startsWith('/storage/emulated/0/')) {
+    if (path == '/storage/emulated/0' ||
+        path.startsWith('/storage/emulated/0/')) {
       return '内部存储';
     }
     return '根目录';
@@ -66,55 +69,96 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
 
   /// 开始解压
   Future<void> _startExtraction() async {
-    setState(() {
-      _isExtracting = true;
-      _progress = 0.0;
-      _statusMessage = '正在解压...';
-    });
+    String? password;
+    int attempts = 0;
+    const maxAttempts = 3;
+    bool needRetry = true;
 
-    try {
-      final result = await _archiveService.extractTo(
-        archivePath: widget.archiveFile.path,
-        targetDir: widget.targetBaseDir,
-        folderName: widget.folderName,
-        autoRename: widget.autoRename,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _progress = progress;
-              _statusMessage = '正在解压... ${(progress * 100).toInt()}%';
-            });
+    while (attempts < maxAttempts && needRetry) {
+      setState(() {
+        _isExtracting = true;
+        _progress = 0.0;
+        _statusMessage = '正在解压...';
+      });
+
+      try {
+        final result = await _archiveService.extractTo(
+          archivePath: widget.archiveFile.path,
+          targetDir: widget.targetBaseDir,
+          folderName: widget.folderName,
+          autoRename: widget.autoRename,
+          password: password,
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _progress = progress;
+                _statusMessage = '正在解压... ${(progress * 100).toInt()}%';
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          setState(() {
+            _isExtracting = false;
+            _result = result;
+            _statusMessage = result.success ? '解压完成！' : '解压失败';
+          });
+
+          // 解压成功后保存记录
+          if (result.success && result.targetPath.isNotEmpty) {
+            await _recordService.addRecord(
+              archivePath: widget.archiveFile.path,
+              targetPath: result.targetPath,
+              fileCount: result.extractedFiles ?? 0,
+            );
+            needRetry = false;
+          } else {
+            // 检查是否需要密码
+            if (_needsPassword(result.errorMessage)) {
+              attempts++;
+
+              // 显示密码输入对话框
+              password = await showDialog<String>(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => PasswordInputDialog(
+                  remainingAttempts: maxAttempts - attempts,
+                ),
+              );
+
+              // 用户取消
+              if (password == null) {
+                needRetry = false;
+              }
+            } else {
+              // 非密码错误，不重试
+              needRetry = false;
+            }
           }
-        },
-      );
-
-      if (mounted) {
-        setState(() {
-          _isExtracting = false;
-          _result = result;
-          _statusMessage = result.success ? '解压完成！' : '解压失败';
-        });
-
-        // 解压成功后保存记录
-        if (result.success && result.targetPath.isNotEmpty) {
-          await _recordService.addRecord(
-            archivePath: widget.archiveFile.path,
-            targetPath: result.targetPath,
-            fileCount: result.extractedFiles ?? 0,
-          );
         }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isExtracting = false;
-          _result = archive_svc.ExtractResult.failure(
-            errorMessage: e.toString(),
-          );
-          _statusMessage = '解压失败';
-        });
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isExtracting = false;
+            _result = archive_svc.ExtractResult.failure(
+              errorMessage: e.toString(),
+            );
+            _statusMessage = '解压失败';
+          });
+        }
+        needRetry = false;
       }
     }
+  }
+
+  /// 检查错误消息是否表示需要密码
+  bool _needsPassword(String? errorMessage) {
+    if (errorMessage == null) return false;
+    final lowerError = errorMessage.toLowerCase();
+    return lowerError.contains('password') ||
+        lowerError.contains('encrypted') ||
+        lowerError.contains('密码');
   }
 
   /// 查看解压后的文件
@@ -127,15 +171,18 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
     // 关闭对话框
     Navigator.pop(context);
 
-    // 保存解压上下文信息（用于显示提示条）
-    viewModel.setExtractionContext(
-      sourceName: widget.archiveFile.name,
-      targetPath: _result!.targetPath,
+    // 导航到解压文件浏览页面
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExtractedFilesBrowserPage(
+          archiveName: widget.archiveFile.name,
+          extractedPath: _result!.targetPath,
+          presenter: presenter,
+          viewModel: viewModel,
+        ),
+      ),
     );
-
-    // 导航到解压后的文件夹
-    await presenter.loadFiles(_result!.targetPath, isRootNavigation: true);
-    viewModel.setCurrentTab(TabView.browse);
   }
 
   @override
@@ -144,9 +191,9 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
     final colorScheme = theme.colorScheme;
 
     return AlertDialog(
-      title: _isExtracting 
-          ? const Text('正在解压') 
-          : (_result?.success == true 
+      title: _isExtracting
+          ? const Text('正在解压')
+          : (_result?.success == true
               ? Row(
                   children: [
                     Icon(
@@ -158,7 +205,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
                     const Text('解压成功'),
                   ],
                 )
-              : const Text('解压结果')),
+              : const Text('解压失败')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,6 +326,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               ],
             ] else ...[
               // 失败
+              const SizedBox(height: 8),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -289,78 +337,16 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '解压失败',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: Colors.red[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (_result!.errorMessage.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _result!.errorMessage,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
+                    child: Text(
+                      _result!.errorMessage,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-              ),
-              // 提供可能的原因和解决方案
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.amber[300]!,
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.amber[900],
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '可能的原因：',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.amber[900],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '• 压缩包需要密码\n'
-                      '• 文件已损坏\n'
-                      '• 不支持的压缩格式版本\n'
-                      '• RAR 5.0 及以上版本\n'
-                      '• 磁盘空间不足',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.amber[900],
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ],

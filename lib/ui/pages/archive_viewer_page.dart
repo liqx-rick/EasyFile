@@ -7,6 +7,7 @@ import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/widgets/password_input_dialog.dart';
 import 'package:open_file/open_file.dart';
 
 /// 压缩包查看器页面
@@ -48,7 +49,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     try {
       final result =
           await _archiveService.listArchiveContents(widget.archiveFile.path);
-      
+
       if (result.success) {
         setState(() {
           _allEntries = result.entries;
@@ -154,21 +155,21 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
                         widget.archiveFile.path,
                         type: 'application/vnd.rar',
                       );
-                      
+
                       // 如果返回 noAppToOpen，尝试使用通用的 zip 类型
                       if (result.type == ResultType.noAppToOpen) {
                         final result2 = await OpenFile.open(
                           widget.archiveFile.path,
                           type: 'application/zip',
                         );
-                        
+
                         // 如果还是没有应用，尝试使用通配符
                         if (result2.type == ResultType.noAppToOpen) {
                           final result3 = await OpenFile.open(
                             widget.archiveFile.path,
                             type: '*/*',
                           );
-                          
+
                           if (result3.type != ResultType.done && mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('未找到可以打开此文件的应用')),
@@ -303,7 +304,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
 
   List<ArchiveEntryInfo> _getEntriesForCurrentPath() {
     if (_allEntries == null) return [];
-    
+
     if (_currentPath.isEmpty) {
       // 显示根目录内容
       return _allEntries!.where((entry) {
@@ -313,14 +314,16 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       }).toList();
     } else {
       // 显示当前路径下的内容
-      final prefix = _currentPath.endsWith('/') ? _currentPath : '$_currentPath/';
+      final prefix =
+          _currentPath.endsWith('/') ? _currentPath : '$_currentPath/';
       return _allEntries!.where((entry) {
         final path = entry.path;
         if (!path.startsWith(prefix)) return false;
-        
+
         // 只显示直接子项
         final relativePath = path.substring(prefix.length);
-        return !relativePath.contains('/') || relativePath.split('/').length == 1;
+        return !relativePath.contains('/') ||
+            relativePath.split('/').length == 1;
       }).toList();
     }
   }
@@ -340,7 +343,10 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
 
   Future<void> _previewFile(ArchiveEntryInfo entry) async {
     // 检查文件大小限制
-    final maxSizeBytes = AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB * 1024 * 1024;
+    final maxSizeBytes =
+        AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB *
+            1024 *
+            1024;
     if (entry.size > maxSizeBytes) {
       if (!mounted) return;
       _showSizeExceedDialog(entry);
@@ -366,17 +372,75 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       );
     }
 
-    // 提取文件到缓存
+    // 提取文件到缓存，支持密码重试
+    String? password;
+    int attempts = 0;
+    const maxAttempts = 3;
+    bool success = false;
     String? cachedPath;
     String? errorMessage;
 
-    cachedPath = await ArchivePreviewCacheManager.extractForPreview(
-      archivePath: widget.archiveFile.path,
-      entryPath: entry.path,
-      onError: (msg) {
-        errorMessage = msg;
-      },
-    );
+    while (attempts < maxAttempts && !success) {
+      cachedPath = await ArchivePreviewCacheManager.extractForPreview(
+        archivePath: widget.archiveFile.path,
+        entryPath: entry.path,
+        password: password,
+        onError: (msg) {
+          errorMessage = msg;
+        },
+      );
+
+      if (cachedPath != null) {
+        success = true;
+        break;
+      }
+
+      // 检查是否需要密码
+      if (errorMessage != null && _needsPassword(errorMessage)) {
+        attempts++;
+
+        // 关闭进度对话框
+        if (showProgress && mounted) {
+          Navigator.of(context).pop();
+        }
+
+        // 显示密码输入对话框
+        if (!mounted) return;
+        password = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PasswordInputDialog(
+            remainingAttempts: maxAttempts - attempts,
+          ),
+        );
+
+        // 用户取消
+        if (password == null) {
+          break;
+        }
+
+        // 重新显示进度对话框
+        if (showProgress && mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('正在提取文件...'),
+                ],
+              ),
+            ),
+          );
+        }
+      } else {
+        // 非密码错误，直接退出
+        break;
+      }
+    }
 
     // 关闭进度对话框
     if (showProgress && mounted) {
@@ -529,7 +593,16 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         ),
       );
     }
-    
+
     return null;
+  }
+
+  /// 检查错误消息是否表示需要密码
+  bool _needsPassword(String? errorMessage) {
+    if (errorMessage == null) return false;
+    final lowerError = errorMessage.toLowerCase();
+    return lowerError.contains('password') ||
+        lowerError.contains('encrypted') ||
+        lowerError.contains('密码');
   }
 }

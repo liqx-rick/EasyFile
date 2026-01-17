@@ -86,6 +86,7 @@ class ArchiveFFI {
         final entriesPtr = resultPtr.ref.entries;
         for (int i = 0; i < resultPtr.ref.entry_count; i++) {
           final entry = entriesPtr.elementAt(i).ref;
+          
           entries.add(ArchiveEntryNative(
             name: _readCString(entry.name, 1024),
             pathname: _readCString(entry.pathname, 2048),
@@ -156,12 +157,20 @@ class ArchiveFFI {
   }
 
   /// 读取 C 字符串（从固定大小的 Array）
+  /// 
+  /// Native 层已经通过 libarchive 将文件名转换为 UTF-8 编码
+  /// 这里只需要简单地从字节数组构造字符串即可
   String _readCString(ffi.Array<ffi.Uint8> cArray, int maxSize) {
     final bytes = <int>[];
     for (int i = 0; i < maxSize; i++) {
       if (cArray[i] == 0) break;
       bytes.add(cArray[i]);
     }
+    
+    if (bytes.isEmpty) return '';
+    
+    // Native 层已经通过 libarchive 的 hdrcharset 选项将文件名转换为 UTF-8
+    // 直接从字节构造字符串即可
     return String.fromCharCodes(bytes);
   }
 }

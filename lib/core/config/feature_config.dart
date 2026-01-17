@@ -46,7 +46,7 @@ class FeatureConfig {
 
   /// 开发者选项显示开关（默认隐藏）
   bool get isDeveloperOptionsEnabled =>
-      _getBool('developer_options', defaultValue: false);
+      _getBool('developer_options', defaultValue: true);
 
   // ==================== 内部实现 ====================
 

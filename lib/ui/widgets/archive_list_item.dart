@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/utils/file_utils.dart';
 
+/// Checkbox位置枚举（临时定义，应该在file_collection_view.dart中）
+enum CheckboxPosition { leading, trailing }
+
 /// 压缩包列表项组件
 ///
 /// 专门用于压缩包管理页面的列表项显示
@@ -18,6 +21,7 @@ class ArchiveListItem extends StatelessWidget {
   final bool isSelected; // 是否处于选中状态
   final bool hasExtracted; // 是否已解压（显示角标）
   final bool showCheckbox; // 是否显示复选框
+  final CheckboxPosition checkboxPosition; // 复选框位置（修复问题4）
   final bool showExtractButton; // 是否显示解压按钮（编辑模式下隐藏）
 
   const ArchiveListItem({
@@ -29,6 +33,7 @@ class ArchiveListItem extends StatelessWidget {
     this.isSelected = false,
     this.hasExtracted = false,
     this.showCheckbox = false,
+    this.checkboxPosition = CheckboxPosition.leading, // 默认左侧（向后兼容）
     this.showExtractButton = true,
   });
 
@@ -43,27 +48,35 @@ class ArchiveListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
-            // 左侧：复选框（编辑模式）或图标（带角标）
-            if (showCheckbox)
+            // 左侧：复选框（编辑模式且位置为leading）或图标（带角标）
+            if (showCheckbox && checkboxPosition == CheckboxPosition.leading)
               Checkbox(
                 value: isSelected,
                 onChanged: (_) => onTap?.call(),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               )
-            else
+            else if (!showCheckbox || checkboxPosition == CheckboxPosition.trailing)
               Stack(
                 clipBehavior: Clip.none,
                 children: [
                   _buildArchiveIcon(),
-                  // 角标：已解压标记
+                  // 角标：已解压标记（内嵌到图标右上角）
                   if (hasExtracted)
                     Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Icon(
-                        Icons.check_circle,
-                        size: 20,
-                        color: Colors.green[600],
+                      top: 2,
+                      right: 2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check,
+                          size: 14,
+                          color: Colors.green[600],
+                          weight: 700,
+                        ),
                       ),
                     ),
                 ],
@@ -103,8 +116,15 @@ class ArchiveListItem extends StatelessWidget {
               ),
             ),
 
-            // 右侧：解压按钮（非编辑模式）
-            if (showExtractButton && !showCheckbox) ...[
+            // 右侧：复选框（编辑模式且位置为trailing）或解压按钮（非编辑模式）
+            if (showCheckbox && checkboxPosition == CheckboxPosition.trailing) ...[
+              const SizedBox(width: 8),
+              Checkbox(
+                value: isSelected,
+                onChanged: (_) => onTap?.call(),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ] else if (showExtractButton && !showCheckbox) ...[
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.folder_zip_outlined, size: 18),

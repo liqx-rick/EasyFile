@@ -60,7 +60,8 @@ class ArchivePreviewCacheManager {
   }
 
   /// 写入元数据
-  static Future<void> _writeMeta(String archivePath, Map<String, dynamic> meta) async {
+  static Future<void> _writeMeta(
+      String archivePath, Map<String, dynamic> meta) async {
     final metaFile = await _getMetaFile(archivePath);
     await metaFile.writeAsString(jsonEncode(meta));
   }
@@ -71,6 +72,7 @@ class ArchivePreviewCacheManager {
     required String archivePath,
     required String entryPath,
     required void Function(String message) onError,
+    String? password,
   }) async {
     try {
       // 1. 构建缓存文件路径
@@ -87,7 +89,7 @@ class ArchivePreviewCacheManager {
       // 3. 检查文件大小限制（从压缩包读取）
       final archiveService = ArchiveService();
       final listResult = await archiveService.listArchiveContents(archivePath);
-      
+
       if (!listResult.success) {
         onError(listResult.errorMessage ?? '读取压缩包失败');
         return null;
@@ -99,9 +101,13 @@ class ArchivePreviewCacheManager {
       );
 
       // 检查200MB限制
-      final maxSizeBytes = AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB * 1024 * 1024;
+      final maxSizeBytes =
+          AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB *
+              1024 *
+              1024;
       if (entry.size > maxSizeBytes) {
-        onError('文件过大（>${AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB}MB）\n\n请解压整个压缩包后操作');
+        onError(
+            '文件过大（>${AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB}MB）\n\n请解压整个压缩包后操作');
         return null;
       }
 
@@ -110,6 +116,7 @@ class ArchivePreviewCacheManager {
         archivePath,
         entryPath,
         cachedFilePath,
+        password: password,
       );
 
       if (!result.success) {
@@ -136,23 +143,27 @@ class ArchivePreviewCacheManager {
   static Future<void> _ensureCacheLimit() async {
     try {
       final root = await _getCacheRoot();
-      final maxSizeBytes = AppConfig.instance.cacheConfig.archivePreviewCacheSizeMB * 1024 * 1024;
-      
+      final maxSizeBytes =
+          AppConfig.instance.cacheConfig.archivePreviewCacheSizeMB *
+              1024 *
+              1024;
+
       // 获取所有缓存目录及其大小和创建时间
       final cacheInfos = <Map<String, dynamic>>[];
-      
+
       await for (final entity in root.list()) {
         if (entity is Directory) {
           final metaFile = File(path.join(entity.path, _metaFileName));
           DateTime createdAt = DateTime.now();
-          
+
           if (await metaFile.exists()) {
             try {
               final meta = jsonDecode(await metaFile.readAsString());
-              createdAt = DateTime.parse(meta['createdAt'] ?? DateTime.now().toIso8601String());
+              createdAt = DateTime.parse(
+                  meta['createdAt'] ?? DateTime.now().toIso8601String());
             } catch (_) {}
           }
-          
+
           final size = await _getDirectorySize(entity);
           cacheInfos.add({
             'path': entity.path,
@@ -163,23 +174,23 @@ class ArchivePreviewCacheManager {
       }
 
       // 计算总大小
-      final totalSize = cacheInfos.fold<int>(0, (sum, info) => sum + (info['size'] as int));
-      
+      final totalSize =
+          cacheInfos.fold<int>(0, (sum, info) => sum + (info['size'] as int));
+
       if (totalSize <= maxSizeBytes) {
         return; // 未超过限制
       }
 
       // LRU清理：按创建时间排序（最旧的优先）
-      cacheInfos.sort((a, b) => 
-        (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime)
-      );
+      cacheInfos.sort((a, b) =>
+          (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime));
 
       int currentSize = totalSize;
       for (final info in cacheInfos) {
         if (currentSize <= maxSizeBytes) {
           break;
         }
-        
+
         final dir = Directory(info['path'] as String);
         if (await dir.exists()) {
           await dir.delete(recursive: true);
@@ -195,7 +206,8 @@ class ArchivePreviewCacheManager {
   static Future<int> _getDirectorySize(Directory dir) async {
     int totalSize = 0;
     try {
-      await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in dir.list(recursive: true, followLinks: false)) {
         if (entity is File) {
           try {
             totalSize += await entity.length();
@@ -210,18 +222,19 @@ class ArchivePreviewCacheManager {
   static Future<void> clearExpiredCache() async {
     try {
       final root = await _getCacheRoot();
-      final expireDays = AppConfig.instance.cacheConfig.archivePreviewCacheExpireDays;
+      final expireDays =
+          AppConfig.instance.cacheConfig.archivePreviewCacheExpireDays;
       final now = DateTime.now();
 
       await for (final entity in root.list()) {
         if (entity is Directory) {
           final metaFile = File(path.join(entity.path, _metaFileName));
-          
+
           if (await metaFile.exists()) {
             try {
               final meta = jsonDecode(await metaFile.readAsString());
               final createdAt = DateTime.parse(meta['createdAt']);
-              
+
               if (now.difference(createdAt).inDays >= expireDays) {
                 await entity.delete(recursive: true);
               }

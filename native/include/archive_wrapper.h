@@ -39,8 +39,8 @@ typedef struct {
 
 /// 文件条目信息
 typedef struct {
-    char name[1024];              // 文件名
-    char pathname[2048];          // 完整路径
+    char name[1024];              // 文件名（UTF-8或尝试转换后）
+    char pathname[2048];          // 完整路径（UTF-8或尝试转换后）
     int64_t size;                 // 未压缩大小
     int64_t compressed_size;      // 压缩后大小
     int64_t mtime;                // 修改时间 (Unix timestamp)

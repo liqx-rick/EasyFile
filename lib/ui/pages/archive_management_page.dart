@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/category_info.dart';
+import 'package:easyfile/data/models/extraction_record.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
 import 'package:easyfile/core/services/extraction_record_service.dart';
@@ -17,13 +19,15 @@ import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/ui/widgets/archive_list_item.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/mixins/category_like_page_mixin.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/batch_operations_mixin.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/pages/archive_viewer_page.dart';
-import 'package:easyfile/ui/pages/extraction_records_page.dart';
+import 'package:easyfile/ui/pages/extracted_files_browser_page.dart';
 
 /// 压缩包管理页面
 ///
@@ -47,13 +51,19 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         CategoryLikePageMixin<ArchiveManagementPage>,
         EditModeMixin<ArchiveManagementPage>,
         BatchOperationsMixin<ArchiveManagementPage>,
-        SingleTickerProviderStateMixin {
+        SingleTickerProviderStateMixin,
+        WidgetsBindingObserver {
   // TabController
   late final TabController _tabController;
   
   // 解压记录服务
   final ExtractionRecordService _recordService = ExtractionRecordService();
   int _recordCount = 0;
+  
+  // 解压记录列表数据
+  List<ExtractionRecord> _extractionRecords = [];
+  Map<String, bool> _recordFolderExistsMap = {};
+  bool _isLoadingRecords = true;
   
   // 已解压压缩包标记（用于显示角标）
   Set<String> _extractedArchives = {};
@@ -79,6 +89,35 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   // SelectionController（来自 EditModeMixin）
   final SelectionController _selectionController = SelectionController();
 
+  // 单文件操作服务（修复问题1、2、3）- 延迟创建以便访问context
+  SingleFileOperationsService? _singleFileOperationsService;
+  
+  SingleFileOperationsService get singleFileOperationsService {
+    _singleFileOperationsService ??= SingleFileOperationsService(
+      context: context,
+      viewModel: _viewModel,
+      presenter: _presenter,
+      onRefresh: _forceRefreshAfterOperation, // 修复问题2、3：使用强制刷新
+      onUIUpdate: () {
+        // 轻量级UI刷新（不重新加载数据，只更新UI状态）
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+    return _singleFileOperationsService!;
+  }
+  
+  /// 操作完成后强制刷新（修复问题2、3）
+  Future<void> _forceRefreshAfterOperation() async {
+    // 延迟一点确保文件系统操作完成
+    await Future.delayed(const Duration(milliseconds: 100));
+    // 清除可能的缓存
+    _singleFileOperationsService = null;
+    // 重新扫描
+    await _scanArchives();
+  }
+
   @override
   SelectionController get selectionController => _selectionController;
 
@@ -101,6 +140,71 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     return true;
   }
 
+  /// 处理ViewModel更新（修复问题2、3、删除实时刷新：实时更新文件信息）
+  void _handleViewModelUpdate() {
+    if (!mounted) return;
+
+    // 处理文件删除
+    final deletedPath = _viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      logger.d('ArchiveManagementPage: Processing file deletion: $deletedPath');
+      setState(() {
+        final initialLength = allFiles.length;
+        allFiles.removeWhere((f) => f.path == deletedPath);
+        final removed = initialLength - allFiles.length;
+        if (removed > 0) {
+          logger.i('Removed $removed file(s) from archive list. Remaining: ${allFiles.length}');
+          // 同时从选择列表中移除（如果在编辑模式下）
+          if (isEditMode && _selectionController.contains(deletedPath)) {
+            _selectionController.deselect(deletedPath);
+          }
+          // 从已解压标记中移除
+          _extractedArchives.remove(deletedPath);
+          _saveExtractedArchives();
+        }
+      });
+      return;
+    }
+
+    // 处理文件更新（重命名、移动、复制等）
+    final updatedFile = _viewModel.lastUpdatedNewFile;
+    if (updatedFile != null) {
+      final oldPath = _viewModel.lastUpdatedOldPath;
+      logger.d('ArchiveManagementPage: Processing file update');
+      logger.d('  Old path: $oldPath');
+      logger.d('  New path: ${updatedFile.path}');
+
+      setState(() {
+        if (oldPath != null) {
+          // 重命名或移动：更新现有文件
+          final index = allFiles.indexWhere((f) => f.path == oldPath);
+          if (index != -1) {
+            allFiles[index] = updatedFile;
+            logger.d('Updated file at index $index: ${allFiles[index].path}');
+          } else {
+            logger.w('File not found for update: $oldPath');
+          }
+        }
+      });
+      return;
+    }
+
+    // 处理文件添加（复制操作）
+    final addedFile = _viewModel.lastAddedFile;
+    if (addedFile != null && FileUtils.isArchiveFile(addedFile.name)) {
+      logger.d('ArchiveManagementPage: Processing file addition: ${addedFile.path}');
+      setState(() {
+        // 检查是否已存在（避免重复添加）
+        if (!allFiles.any((f) => f.path == addedFile.path)) {
+          allFiles.add(addedFile);
+          // 重新排序
+          _applySorting();
+          logger.i('Added file to archive list. Total: ${allFiles.length}');
+        }
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,8 +213,9 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.index == 1) {
-        // 切换到记录Tab时更新记录数
+        // 切换到记录Tab时更新记录数和列表
         _loadRecordCount();
+        _loadExtractionRecords();
       }
       setState(() {});
     });
@@ -136,14 +241,20 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       setState(() {});
     });
 
+    // 监听ViewModel变化（修复问题2、3：实时更新文件信息）
+    _viewModel.addListener(_handleViewModelUpdate);
+
+    // 监听应用生命周期（应用恢复时刷新列表）
+    WidgetsBinding.instance.addObserver(this);
+
     // 加载解压记录数量
     _loadRecordCount();
 
     // 加载排序偏好
     _loadSortPreferences();
 
-    // 加载记录数
-    _loadRecordCount();
+    // 加载解压记录列表
+    _loadExtractionRecords();
 
     // 异步静默清理过期缓存（不阻塞UI）
     Future.microtask(() {
@@ -187,6 +298,105 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     }
   }
 
+  /// 删除所有解压记录
+  Future<void> _deleteAllExtractionRecords() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清空所有记录'),
+        content: const Text('确定要清空所有解压记录吗？\n（不会删除解压后的文件）'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('清空'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _recordService.deleteAllRecords();
+      await _loadRecordCount();
+      await _loadExtractionRecords();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已清空所有记录')),
+        );
+      }
+    }
+  }
+
+  /// 加载解压记录列表
+  Future<void> _loadExtractionRecords() async {
+    setState(() => _isLoadingRecords = true);
+
+    final records = await _recordService.getAllRecords();
+    
+    // 批量检查文件夹是否存在
+    final paths = records.map((r) => r.targetPath).toList();
+    final existsMap = await _recordService.batchCheckFoldersExist(paths);
+
+    if (mounted) {
+      setState(() {
+        _extractionRecords = records;
+        _recordFolderExistsMap = existsMap;
+        _isLoadingRecords = false;
+      });
+    }
+  }
+
+  /// 删除单条解压记录
+  Future<void> _deleteExtractionRecord(ExtractionRecord record) async {
+    await _recordService.deleteRecord(record.id);
+    await _loadRecordCount();
+    await _loadExtractionRecords();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已删除记录')),
+      );
+    }
+  }
+
+  /// 查看解压文件
+  Future<void> _viewExtractedFiles(ExtractionRecord record) async {
+    // 导航到解压文件浏览页面
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExtractedFilesBrowserPage(
+          archiveName: record.archiveName,
+          extractedPath: record.targetPath,
+          presenter: _presenter,
+          viewModel: _viewModel,
+        ),
+      ),
+    );
+  }
+
+  /// 格式化路径显示
+  String _formatRecordPathDisplay(String path) {
+    if (path == '/storage/emulated/0') {
+      return '内部存储';
+    }
+    if (path.startsWith('/storage/emulated/0/')) {
+      final relativePath = path.substring('/storage/emulated/0/'.length);
+      return '内部存储$relativePath';
+    }
+    return path;
+  }
+
+  /// 格式化日期时间
+  String _formatRecordDateTime(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   /// 加载排序偏好
   Future<void> _loadSortPreferences() async {
     try {
@@ -209,12 +419,25 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _selectionController.selectedNotifier.removeListener(() {});
     _selectionController.dispose();
+    _viewModel.removeListener(_handleViewModelUpdate);
     super.dispose();
+  }
+
+  /// 应用生命周期状态变化回调
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      // 应用从后台恢复到前台，刷新压缩包列表
+      logger.d('App resumed, refreshing archive list');
+      _scanArchives();
+    }
   }
 
   /// 扫描压缩包列表
@@ -225,8 +448,39 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     });
 
     try {
+      // 保存当前最近添加的文件（避免被扫描结果覆盖）
+      final recentlyAddedFile = _viewModel.lastAddedFile;
+      
       // 直接使用 presenter 的分类扫描能力（复用现有逻辑）
-      allFiles = await _presenter.scanFilesByCategory(CategoryType.archive);
+      final scannedFiles = await _presenter.scanFilesByCategory(CategoryType.archive);
+      
+      // 修复MediaStore返回不完整数据的问题
+      await _fixIncompleteFileMetadata(scannedFiles);
+      
+      // 如果有最近添加的文件，确保它在列表中（修复批量复制后显示错误的问题）
+      if (recentlyAddedFile != null && 
+          FileUtils.isArchiveFile(recentlyAddedFile.name)) {
+        logger.d('Preserving recently added file: ${recentlyAddedFile.path}');
+        
+        // 如果扫描结果中不包含这个文件，或者包含但数据不完整，使用 ViewModel 中的版本
+        final existingIndex = scannedFiles.indexWhere((f) => f.path == recentlyAddedFile.path);
+        if (existingIndex == -1) {
+          // 文件不在扫描结果中，添加它
+          logger.i('Adding recently added file to scan results: ${recentlyAddedFile.name}');
+          scannedFiles.add(recentlyAddedFile);
+        } else {
+          // 文件在扫描结果中，但检查数据是否完整
+          final scannedFile = scannedFiles[existingIndex];
+          if (scannedFile.size == 0 || scannedFile.modified.year == 1970) {
+            // 扫描结果数据不完整，使用 ViewModel 中的正确数据
+            logger.w('Scan result has incomplete data for ${recentlyAddedFile.name}');
+            logger.i('Replacing with correct data: size=${recentlyAddedFile.size}, date=${recentlyAddedFile.modified}');
+            scannedFiles[existingIndex] = recentlyAddedFile;
+          }
+        }
+      }
+      
+      allFiles = scannedFiles;
 
       // 应用排序
       _applySorting();
@@ -247,6 +501,52 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           SnackBar(content: Text('扫描失败: $e')),
         );
       }
+    }
+  }
+
+  /// 修复MediaStore返回的不完整文件元数据
+  /// 
+  /// MediaStore可能返回size=0或date=1970的文件（缓存问题），
+  /// 通过File.stat()重新获取正确的元数据
+  Future<void> _fixIncompleteFileMetadata(List<FileItem> files) async {
+    int fixedCount = 0;
+    
+    for (int i = 0; i < files.length; i++) {
+      final file = files[i];
+      
+      // 检查是否有不完整的元数据
+      if (file.size == 0 || file.modified.year == 1970) {
+        try {
+          final ioFile = File(file.path);
+          if (await ioFile.exists()) {
+            final stat = await ioFile.stat();
+            
+            // 只在数据确实有问题时才修复
+            if ((file.size == 0 && stat.size > 0) || 
+                (file.modified.year == 1970 && stat.modified.year > 1970)) {
+              logger.w('Fixing incomplete metadata for: ${file.name}');
+              logger.d('  Old: size=${file.size}, modified=${file.modified}');
+              logger.d('  New: size=${stat.size}, modified=${stat.modified}');
+              
+              // 创建新的FileItem替换旧的
+              files[i] = FileItem(
+                name: file.name,
+                path: file.path,
+                size: stat.size,
+                modified: stat.modified,
+                isDirectory: file.isDirectory,
+              );
+              fixedCount++;
+            }
+          }
+        } catch (e) {
+          logger.e('Failed to fix metadata for ${file.name}: $e');
+        }
+      }
+    }
+    
+    if (fixedCount > 0) {
+      logger.i('Fixed $fixedCount file(s) with incomplete metadata');
     }
   }
 
@@ -353,33 +653,55 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // 修复问题6：手动处理返回键
     return PopScope(
-      canPop: _tabController.index == 0, // 只有在压缩包Tab时才能直接返回
+      canPop: !isEditMode && !_isSearchMode && _tabController.index == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-
-        // 如果在解压记录Tab，切换回压缩包Tab
+        
+        // 优先级1: Tab切换
         if (_tabController.index == 1) {
           setState(() {
             _tabController.index = 0;
           });
+          return;
+        }
+        
+        // 优先级2: 退出搜索模式
+        if (_isSearchMode) {
+          setState(() {
+            _isSearchMode = false;
+            _searchController.clear();
+          });
+          return;
+        }
+        
+        // 优先级3: 退出编辑模式
+        if (isEditMode) {
+          exitEditMode();
+          return;
         }
       },
       child: Scaffold(
         appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('压缩包管理', style: TextStyle(fontSize: 18)),
-            if (!_isScanning && _tabController.index == 0)
-              Text(
-                '${filteredFiles.length} 个文件',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-          ],
-        ),
+        leading: isEditMode && _tabController.index == 0
+            ? SelectAllButton(
+                selectedCount: _selectionController.selected.length,
+                totalCount: filteredFiles.length,
+                onPressed: () {
+                  setState(() {
+                    if (_selectionController.selected.length == filteredFiles.length) {
+                      _selectionController.clear();
+                    } else {
+                      _selectionController.selectAll(
+                        filteredFiles.map((f) => f.path).toList(),
+                      );
+                    }
+                  });
+                },
+              )
+            : null,
+        title: const Text('压缩包管理', style: TextStyle(fontSize: 18)),
         actions: _tabController.index == 0
             ? [
                 Padding(
@@ -425,7 +747,15 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
                   ),
                 ),
               ]
-            : null,
+            : _tabController.index == 1 && _recordCount > 0
+                ? [
+                    IconButton(
+                      icon: const Icon(Icons.delete_sweep),
+                      tooltip: '清空所有记录',
+                      onPressed: _deleteAllExtractionRecords,
+                    ),
+                  ]
+                : null,
         bottom: TabBar(
           controller: _tabController,
           tabs: [
@@ -457,7 +787,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           // Tab 1: 压缩包列表
           _buildArchiveListTab(theme),
           // Tab 2: 解压记录
-          ExtractionRecordsPage(),
+          _buildRecordsTab(theme),
         ],
       ),
       ),
@@ -465,38 +795,47 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   }
 
   Widget _buildArchiveListTab(ThemeData theme) {
-    return Scaffold(
-      body: Column(
-        children: [
-          // 搜索框（使用 FileSearchBar 组件）
-          if (_isSearchMode)
-            FileSearchBar(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              hintText: '搜索压缩包...',
-              onSearch: (query) async {
-                // 搜索逻辑已在 controller 的 listener 中处理
-              },
-              onClose: () {
-                setState(() {
-                  _searchController.clear();
-                  _isSearchMode = false;
-                });
-              },
-              onChanged: (query) {
-                setState(() {
-                  // 触发重新过滤
-                });
-              },
-            ),
-          // 列表
-          Expanded(
-            child: _buildBody(theme),
+    final body = Column(
+      children: [
+        // 搜索框（使用 FileSearchBar 组件）
+        if (_isSearchMode)
+          FileSearchBar(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            hintText: '搜索压缩包...',
+            onSearch: (query) async {
+              // 搜索逻辑已在 controller 的 listener 中处理
+            },
+            onClose: () {
+              setState(() {
+                _searchController.clear();
+                _isSearchMode = false;
+              });
+            },
+            onChanged: (query) {
+              setState(() {
+                // 触发重新过滤
+              });
+            },
           ),
-        ],
-      ),
-      bottomNavigationBar: isEditMode ? _buildSelectionBottomBar(theme) : null,
+        // 列表
+        Expanded(
+          child: _buildBody(theme),
+        ),
+      ],
     );
+    
+    // 如果在编辑模式，包装底部导航栏
+    if (isEditMode) {
+      return Column(
+        children: [
+          Expanded(child: body),
+          _buildSelectionBottomBar(theme),
+        ],
+      );
+    }
+    
+    return body;
   }
 
   /// 构建批量选择操作工具栏
@@ -605,7 +944,8 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           file: file,
           isSelected: isSelected,
           hasExtracted: hasExtracted,
-          showCheckbox: isEditMode,
+          showCheckbox: isEditMode, // 修复问题1：编辑模式显示checkbox
+          checkboxPosition: CheckboxPosition.trailing,
           showExtractButton: !isEditMode, // 编辑模式下隐藏解压按钮
           onTap: () {
             if (isEditMode) {
@@ -638,11 +978,11 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         }
       },
       onLongPress: (file) {
-        // 编辑模式下禁用长按（避免与选择操作冲突）
-        if (isEditMode) return;
-
-        // 长按：显示单文件操作菜单（与 CategoryFilePage 保持一致）
-        _showOperationsMenu(file);
+        if (!isEditMode) {
+          // 长按进入编辑模式并选中（修复问题5相关）
+          enterEditMode();
+          _selectionController.select(file.path);
+        }
       },
       padding: const EdgeInsets.symmetric(vertical: 0),
     );
@@ -694,24 +1034,11 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     });
     _saveExtractedArchives();
 
-    final service = SingleFileOperationsService(
-      context: context,
-      viewModel: _viewModel,
-      presenter: _presenter,
-      onRefresh: _scanArchives,
-    );
-    service.extractArchive(archive);
+    singleFileOperationsService.extractArchive(archive);
   }
 
-  /// 显示操作菜单
+  /// 显示操作菜单（修复问题1、2、3 - 使用复用的service）
   void _showOperationsMenu(FileItem archive) {
-    final service = SingleFileOperationsService(
-      context: context,
-      viewModel: _viewModel,
-      presenter: _presenter,
-      onRefresh: _scanArchives,
-    );
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -720,8 +1047,197 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       ),
       builder: (context) => SingleFileOperationsSheet(
         file: archive,
-        service: service,
+        service: singleFileOperationsService,
       ),
+    );
+  }
+
+  /// 构建解压记录Tab
+  Widget _buildRecordsTab(ThemeData theme) {
+    return _isLoadingRecords
+        ? const Center(child: CircularProgressIndicator())
+        : _extractionRecords.isEmpty
+            ? _buildRecordsEmptyState(theme)
+            : ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _extractionRecords.length,
+                separatorBuilder: (context, index) => const Divider(height: 32),
+                itemBuilder: (context, index) {
+                  final record = _extractionRecords[index];
+                  final folderExists = _recordFolderExistsMap[record.targetPath] ?? false;
+                  return _buildRecordItem(
+                    record,
+                    folderExists,
+                    theme,
+                  );
+                },
+              );
+  }
+
+  /// 构建解压记录空状态
+  Widget _buildRecordsEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history,
+            size: 64,
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '暂无解压记录',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '解压压缩包后会显示在这里',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建单条解压记录项
+  Widget _buildRecordItem(
+    ExtractionRecord record,
+    bool folderExists,
+    ThemeData theme,
+  ) {
+    final colorScheme = theme.colorScheme;
+    final isDeleted = !folderExists;
+    final textColor = isDeleted
+        ? colorScheme.onSurfaceVariant.withOpacity(0.5)
+        : colorScheme.onSurface;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 压缩包名称
+        Row(
+          children: [
+            Icon(
+              Icons.folder_zip,
+              color: isDeleted ? Colors.grey[400] : Colors.amber[700],
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                record.archiveName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: textColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        
+        // 解压文件夹信息
+        Row(
+          children: [
+            const SizedBox(width: 28),
+            Icon(
+              Icons.folder,
+              color: isDeleted ? Colors.grey[400] : colorScheme.primary,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      record.folderName,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '(${record.fileCount}个文件)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (isDeleted) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.warning_amber,
+                      size: 16,
+                      color: Colors.orange[700],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '已删除',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // 位置和时间
+        Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: Text(
+            _formatRecordPathDisplay(record.targetPath),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: Text(
+            _formatRecordDateTime(record.extractedAt),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 操作按钮
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (folderExists)
+              TextButton.icon(
+                onPressed: () => _viewExtractedFiles(record),
+                icon: const Icon(Icons.folder_open, size: 18),
+                label: const Text('查看文件'),
+              ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () => _deleteExtractionRecord(record),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('删除'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

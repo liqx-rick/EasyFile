@@ -245,16 +245,14 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     if (archive_path == NULL || result == NULL) {
         return ARCHIVE_ERR_INVALID_PATH;
     }
-    
+
     memset(result, 0, sizeof(ListResult));
     
-    // 设置 locale 为 UTF-8 以支持 Unicode 文件名
     setlocale(LC_ALL, "en_US.UTF-8");
     
     struct archive* a = archive_read_new();
     struct archive_entry* entry;
     
-    // 支持所有格式和过滤器
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
     
@@ -263,7 +261,7 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     
     int r = archive_read_open_filename(a, archive_path, 10240);
     if (r != ARCHIVE_OK) {
-        safe_strncpy(result->error_message, archive_error_string(a), 
+        safe_strncpy(result->error_message, archive_error_string(a),
                      sizeof(result->error_message));
         result->status = ARCHIVE_ERR_OPEN_FAILED;
         archive_read_free(a);
@@ -287,24 +285,21 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     if (r != ARCHIVE_EOF) {
         last_error = r;
         last_error_msg = archive_error_string(a);
-        // 如果遇到错误但没有条目，记录错误信息
         if (count == 0 && last_error_msg != NULL) {
-            safe_strncpy(result->error_message, last_error_msg, 
+            safe_strncpy(result->error_message, last_error_msg,
                          sizeof(result->error_message));
         }
     }
     
     // 如果没有条目，检查是否是不支持的格式
     if (count == 0) {
-        // 如果已经有错误消息（如 UTF-16BE 编码错误），保留它
         if (result->error_message[0] == '\0') {
             if (format_name != NULL && strlen(format_name) > 0) {
-                // 记录格式信息到错误消息
                 char msg[512];
                 snprintf(msg, sizeof(msg), "Unsupported or encrypted format: %s", format_name);
                 safe_strncpy(result->error_message, msg, sizeof(result->error_message));
             } else {
-                safe_strncpy(result->error_message, "Archive format not recognized or encrypted", 
+                safe_strncpy(result->error_message, "Archive format not recognized or encrypted",
                              sizeof(result->error_message));
             }
         }
@@ -314,16 +309,13 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     result->entries = (ArchiveEntry*)calloc(count, sizeof(ArchiveEntry));
     result->entry_count = count;
     
-    // 重新打开
+    // 重新打开以读取实际数据
     archive_read_close(a);
     archive_read_free(a);
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
-    
-    // 再次设置选项
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
-    
     archive_read_open_filename(a, archive_path, 10240);
     
     // 第二遍：填充数据
@@ -331,22 +323,20 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     while (archive_read_next_header(a, &entry) == ARCHIVE_OK && index < count) {
         ArchiveEntry* ae = &result->entries[index];
         
-        // 尝试使用 UTF-8 pathname，如果失败则使用普通 pathname
-        const char* pathname_utf8 = archive_entry_pathname_utf8(entry);
-        const char* pathname = pathname_utf8 ? pathname_utf8 : archive_entry_pathname(entry);
-        
+        const char* pathname = archive_entry_pathname(entry);
         if (pathname == NULL) {
             pathname = "Unknown";
         }
         
         safe_strncpy(ae->name, pathname, sizeof(ae->name));
         safe_strncpy(ae->pathname, pathname, sizeof(ae->pathname));
+        
         ae->size = archive_entry_size(entry);
-        ae->compressed_size = archive_entry_size(entry); // libarchive 不直接提供压缩大小
+        ae->compressed_size = archive_entry_size(entry);
         ae->mtime = archive_entry_mtime(entry);
         ae->is_directory = (archive_entry_filetype(entry) == AE_IFDIR);
         ae->mode = archive_entry_mode(entry);
-        ae->crc32 = 0; // libarchive 不直接提供 CRC32
+        ae->crc32 = 0;
         
         index++;
         archive_read_data_skip(a);

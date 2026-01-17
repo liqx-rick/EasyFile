@@ -11,11 +11,78 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include/libarchive
+    ${CMAKE_SOURCE_DIR}/include/unrar  # UnRAR SDK头文件
+)
+
+# UnRAR SDK 源文件 - 只包含DLL接口需要的核心文件，排除Windows专用文件
+set(UNRAR_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/unrar/rar.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/strlist.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/strfn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/pathfn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/smallfn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/global.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/file.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/filefn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/filcreat.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/archive.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/arcread.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/unicode.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/system.cpp
+    # ${CMAKE_SOURCE_DIR}/src/unrar/isnt.cpp  # Windows专用，Android不需要
+    ${CMAKE_SOURCE_DIR}/src/unrar/crypt.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/crc.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/rawread.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/encname.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/resource.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/match.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/timefn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/rdwrfn.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/consio.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/options.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/cmddata.cpp  # 命令行数据处理
+    ${CMAKE_SOURCE_DIR}/src/unrar/errhnd.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/rarvm.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/secpassword.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/rijndael.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/getbits.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/sha1.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/sha256.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/blake2s.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/hash.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/extinfo.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/extract.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/volume.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/list.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/find.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/unpack.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/headers.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/threadpool.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/rs16.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/qopen.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/ui.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/filestr.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/scantree.cpp
+    ${CMAKE_SOURCE_DIR}/src/unrar/dll.cpp
+)
+
+# UnRAR 编译定义
+add_definitions(
+    -DRARDLL              # 编译为DLL
+    -DSILENT              # 静默模式（无控制台输出）
+    -DNOVOLUME            # 不支持分卷RAR
+    -D_FILE_OFFSET_BITS=64  # 支持大文件
+    -D_LARGEFILE_SOURCE     # 大文件支持
+    -D_UNIX               # Unix平台
+    # Android上禁用一些可选功能
+    # -DUSE_LUTIMES       # Android上可能不支持lutimes
 )
 
 # 我们的封装库源文件
 add_library(archive_wrapper SHARED
     ${CMAKE_SOURCE_DIR}/src/archive_wrapper.c
+    ${CMAKE_SOURCE_DIR}/src/unrar_wrapper.cpp  # UnRAR封装（真实实现）
+    ${UNRAR_SOURCES}  # UnRAR SDK源码
 )
 
 # 预编译的 libarchive 库
