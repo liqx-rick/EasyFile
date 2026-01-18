@@ -8,6 +8,9 @@ class ArchiveEntryInfo {
   /// 文件路径（相对于压缩包根目录）
   final String path;
 
+  /// 原始路径字节（用于ZIP GBK编码文件提取）
+  final List<int>? rawPathname;
+
   /// 文件大小（字节，未压缩大小）
   final int size;
 
@@ -29,6 +32,7 @@ class ArchiveEntryInfo {
   const ArchiveEntryInfo({
     required this.name,
     required this.path,
+    this.rawPathname,
     required this.size,
     required this.compressedSize,
     required this.isDirectory,

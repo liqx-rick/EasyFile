@@ -57,8 +57,21 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           _isLoading = false;
         });
       } else {
+        // 检查是否可能是密码保护的压缩包
+        final errorMsg = result.errorMessage ?? '无法读取压缩包内容';
+        final mayNeedPassword = _needsPassword(errorMsg);
+        
+        // 检查是否是 libarchive 不支持的加密文件
+        final isUnsupportedEncryption = errorMsg.toLowerCase().contains('currently not supported');
+        
         setState(() {
-          _errorMessage = result.errorMessage ?? '无法读取压缩包内容';
+          if (isUnsupportedEncryption) {
+            _errorMessage = '此压缩格式的加密文件暂不支持查看\n（7z/tar等格式的密码保护功能尚未实现）';
+          } else if (mayNeedPassword) {
+            _errorMessage = '此压缩包可能需要密码。\n请先解压后查看内容。';
+          } else {
+            _errorMessage = errorMsg;
+          }
           _isLoading = false;
           _canOpenWithOtherApp = result.canOpenWithOtherApp;
         });
@@ -100,9 +113,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _currentPath.isEmpty
-                  ? widget.archiveFile.name
-                  : _currentPath.split('/').last,
+              widget.archiveFile.name,
               style: const TextStyle(fontSize: 16),
             ),
             if (_entries != null)
@@ -303,27 +314,50 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
   }
 
   List<ArchiveEntryInfo> _getEntriesForCurrentPath() {
-    if (_allEntries == null) return [];
+    if (_allEntries == null) {
+      return [];
+    }
 
     if (_currentPath.isEmpty) {
-      // 显示根目录内容
-      return _allEntries!.where((entry) {
+      // 显示根目录内容：只显示直接子项
+      // 文件夹：以'/'结尾且只有1个'/' -> "dir/"
+      // 文件：不包含'/' -> "file.txt"
+      final filtered = _allEntries!.where((entry) {
         final path = entry.path;
-        // 只显示根目录的文件和文件夹（不包含子目录内容）
-        return !path.contains('/') || path.split('/').length == 1;
+        final slashCount = '/'.allMatches(path).length;
+        
+        if (path.endsWith('/')) {
+          // 文件夹：只显示第一级
+          return slashCount == 1;
+        } else {
+          // 文件：只显示根目录的文件
+          return slashCount == 0;
+        }
       }).toList();
+      return filtered;
     } else {
       // 显示当前路径下的内容
       final prefix =
           _currentPath.endsWith('/') ? _currentPath : '$_currentPath/';
       return _allEntries!.where((entry) {
         final path = entry.path;
+        // 排除目录自身
+        if (path == _currentPath) return false;
+        // 只显示以prefix开头的项
         if (!path.startsWith(prefix)) return false;
 
         // 只显示直接子项
         final relativePath = path.substring(prefix.length);
-        return !relativePath.contains('/') ||
-            relativePath.split('/').length == 1;
+        if (relativePath.isEmpty) return false;
+        
+        if (path.endsWith('/')) {
+          // 文件夹：相对路径应该只有一级（如 "subdir/"）
+          final slashCount = '/'.allMatches(relativePath).length;
+          return slashCount == 1;
+        } else {
+          // 文件：相对路径不应该包含 '/'
+          return !relativePath.contains('/');
+        }
       }).toList();
     }
   }
@@ -335,10 +369,32 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         _currentPath = entry.path;
         _entries = _getEntriesForCurrentPath();
       });
+      
+      // 显示当前路径的导航提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('当前位置: ${_getCurrentPathDisplay()}'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
       // 预览文件
       _previewFile(entry);
     }
+  }
+  
+  String _getCurrentPathDisplay() {
+    if (_currentPath.isEmpty) {
+      return widget.archiveFile.name;
+    }
+    // 移除末尾的 '/'
+    final path = _currentPath.endsWith('/') 
+        ? _currentPath.substring(0, _currentPath.length - 1)
+        : _currentPath;
+    return '${widget.archiveFile.name}/$path';
   }
 
   Future<void> _previewFile(ArchiveEntryInfo entry) async {
@@ -376,11 +432,12 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     String? password;
     int attempts = 0;
     const maxAttempts = 3;
-    bool success = false;
+    bool needRetry = true;
+
     String? cachedPath;
     String? errorMessage;
 
-    while (attempts < maxAttempts && !success) {
+    while (attempts < maxAttempts && needRetry) {
       cachedPath = await ArchivePreviewCacheManager.extractForPreview(
         archivePath: widget.archiveFile.path,
         entryPath: entry.path,
@@ -391,18 +448,14 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       );
 
       if (cachedPath != null) {
-        success = true;
+        // 提取成功
+        needRetry = false;
         break;
       }
 
       // 检查是否需要密码
       if (errorMessage != null && _needsPassword(errorMessage)) {
         attempts++;
-
-        // 关闭进度对话框
-        if (showProgress && mounted) {
-          Navigator.of(context).pop();
-        }
 
         // 显示密码输入对话框
         if (!mounted) return;
@@ -416,29 +469,11 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
 
         // 用户取消
         if (password == null) {
-          break;
-        }
-
-        // 重新显示进度对话框
-        if (showProgress && mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => const AlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('正在提取文件...'),
-                ],
-              ),
-            ),
-          );
+          needRetry = false;
         }
       } else {
         // 非密码错误，直接退出
-        break;
+        needRetry = false;
       }
     }
 
@@ -450,11 +485,19 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     if (!mounted) return;
 
     if (cachedPath == null) {
-      // 提取失败
+      // 提取失败 - 改进错误消息
+      String displayError = errorMessage ?? '提取文件失败';
+      
+      // 如果是 libarchive 不支持的加密文件，提供更友好的提示
+      if (errorMessage?.toLowerCase().contains('currently not supported') ?? false) {
+        displayError = '此压缩格式的加密文件暂不支持预览\n（7z/tar等格式的密码保护功能尚未实现）';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMessage ?? '提取文件失败'),
+          content: Text(displayError),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
       return;
@@ -601,8 +644,20 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
   bool _needsPassword(String? errorMessage) {
     if (errorMessage == null) return false;
     final lowerError = errorMessage.toLowerCase();
+    
+    // libarchive 不支持加密文件的密码提取，不要提示输入密码
+    if (lowerError.contains('currently not supported')) {
+      return false;
+    }
+    
     return lowerError.contains('password') ||
         lowerError.contains('encrypted') ||
-        lowerError.contains('密码');
+        lowerError.contains('密码') ||
+        lowerError.contains('error code: -108') || // minizip-ng密码错误码（entry_open）
+        lowerError.contains('error code: -3') || // minizip-ng密码错误码（read）
+        lowerError.contains('error code: -10') || // CRC错误（也可能是密码问题）
+        lowerError.contains('(error code: -108)') ||
+        lowerError.contains('(error code: -3)') ||
+        lowerError.contains('(error code: -10)');
   }
 }

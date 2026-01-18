@@ -2,7 +2,9 @@
 
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:convert';
 import 'package:ffi/ffi.dart';
+import 'package:gbk_codec/gbk_codec.dart';
 
 /// FFI 绑定类 - 负责加载和管理 Native 库
 class ArchiveFFI {
@@ -158,8 +160,10 @@ class ArchiveFFI {
 
   /// 读取 C 字符串（从固定大小的 Array）
   /// 
-  /// Native 层已经通过 libarchive 将文件名转换为 UTF-8 编码
-  /// 这里只需要简单地从字节数组构造字符串即可
+  /// 使用多阶段解码策略：
+  /// 1. 优先尝试 UTF-8 解码
+  /// 2. 如果失败，尝试 GBK 解码（中文 Windows 常用）
+  /// 3. 最后使用 Latin1 作为后备
   String _readCString(ffi.Array<ffi.Uint8> cArray, int maxSize) {
     final bytes = <int>[];
     for (int i = 0; i < maxSize; i++) {
@@ -169,9 +173,37 @@ class ArchiveFFI {
     
     if (bytes.isEmpty) return '';
     
-    // Native 层已经通过 libarchive 的 hdrcharset 选项将文件名转换为 UTF-8
-    // 直接从字节构造字符串即可
-    return String.fromCharCodes(bytes);
+    // 阶段1: 尝试 UTF-8 解码
+    try {
+      final utf8Result = utf8.decode(bytes, allowMalformed: false);
+      // 如果解码成功且不包含替换字符，则认为是 UTF-8
+      if (!utf8Result.contains('�')) {
+        return utf8Result;
+      }
+    } catch (e) {
+      // UTF-8 解码失败，继续尝试 GBK
+    }
+    
+    // 阶段2: 尝试 GBK 解码（中文 Windows 常用）
+    try {
+      try {
+        return gbk_bytes.decode(bytes);
+      } catch (e) {
+        // 可能末尾被截断，尝试去掉最后 1-2 个字节
+        if (bytes.length > 2) {
+          try {
+            return gbk_bytes.decode(bytes.sublist(0, bytes.length - 1));
+          } catch (_) {
+            return gbk_bytes.decode(bytes.sublist(0, bytes.length - 2));
+          }
+        } else {
+          rethrow;
+        }
+      }
+    } catch (e) {
+      // GBK 解码失败，使用 Latin1 作为后备
+      return latin1.decode(bytes);
+    }
   }
 }
 

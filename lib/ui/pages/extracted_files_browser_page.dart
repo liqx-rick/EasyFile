@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
@@ -114,6 +115,74 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
   String _currentPath = '';
   String _rootPath = ''; // 存储根路径
 
+  /// ViewModel变化回调 - 同步文件列表
+  void _onViewModelChanged() {
+    if (!mounted) return;
+
+    // 处理文件删除
+    final deletedPath = widget.viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      setState(() {
+        final initialLength = _files.length;
+        _files.removeWhere((f) => f.path == deletedPath);
+        final removed = initialLength - _files.length;
+        if (removed > 0) {
+          logger.d(
+              'Extracted files page: Removed $removed file(s). Remaining: ${_files.length}');
+        }
+      });
+      return;
+    }
+
+    // 处理文件更新（重命名/移动）
+    final oldPath = widget.viewModel.lastUpdatedOldPath;
+    final newFile = widget.viewModel.lastUpdatedNewFile;
+
+    if (oldPath != null && newFile != null) {
+      setState(() {
+        // 检查文件是否在当前列表中
+        final index = _files.indexWhere((f) => f.path == oldPath);
+        if (index != -1) {
+          // 判断文件是移动到其他目录还是在当前目录重命名
+          final newFileDir = path.dirname(newFile.path);
+
+          if (newFileDir == _currentPath) {
+            // 在当前目录内重命名/移动 → 更新路径
+            _files[index] = newFile;
+            logger
+                .d('Updated file in extracted files page: $oldPath -> ${newFile.path}');
+          } else {
+            // 移动到其他目录 → 从列表中移除
+            _files.removeAt(index);
+            logger.d(
+                'File moved to different directory, removed from list: $oldPath');
+          }
+        }
+      });
+      return;
+    }
+
+    // 处理文件添加（复制/恢复操作）
+    final addedFile = widget.viewModel.lastAddedFile;
+    if (addedFile != null) {
+      // 只添加到当前目录的文件
+      final addedFileDir = path.dirname(addedFile.path);
+      if (addedFileDir == _currentPath) {
+        setState(() {
+          // 检查是否已存在
+          if (!_files.any((f) => f.path == addedFile.path)) {
+            _files.add(addedFile);
+            // 重新排序（固定按名称升序）
+            FileComparatorUtil.sortFilesInPlace(_files, SortType.name,
+                ascending: true);
+            logger.d(
+                'Extracted files page: Added file ${addedFile.path}. Total: ${_files.length}');
+          }
+        });
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -122,6 +191,9 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
     _selectionController.selectedNotifier.addListener(() {
       setState(() {});
     });
+
+    // 监听ViewModel变化，当文件列表更新时同步本地状态
+    widget.viewModel.addListener(_onViewModelChanged);
 
     // 初始化根路径和当前路径
     _rootPath = widget.extractedPath;
@@ -137,6 +209,7 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
     _searchFocusNode.dispose();
     _selectionController.selectedNotifier.removeListener(() {});
     _selectionController.dispose();
+    widget.viewModel.removeListener(_onViewModelChanged);
     super.dispose();
   }
 
@@ -303,7 +376,7 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
                     isSearchMode: _isSearchMode,
                     showSortButton: false, // 隐藏排序
                     showGroupButton: false, // 隐藏分组
-                    showViewModeToggle: true, // 保留网格切换
+                    showViewModeToggle: false, // 隐藏网格切换
                     iconSize: 22,
                   ),
                   // 编辑模式按钮
@@ -351,15 +424,21 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
             // 编辑模式提示条
             if (isEditMode)
               const EditModeHintBar(),
-            // 导航栏（如果不在根目录）
-            if (_currentPath != _rootPath)
-              FolderNavigationBar(
-                currentPath: _currentPath,
-                onBackPressed: _navigateUp,
-              ),
             // 文件列表
             Expanded(
-              child: _buildBody(theme),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _buildBody(theme),
+                  ),
+                  // 底部导航栏（如果不在根目录）
+                  if (_currentPath != _rootPath)
+                    FolderNavigationBar(
+                      currentPath: _currentPath,
+                      onBackPressed: _navigateUp,
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -382,7 +461,7 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
 
     return SelectionBottomBar(
       selectedPaths: _selectionController.selected,
-      isAllFavorite: false, // 解压文件不支持收藏
+      isAllFavorite: batchService.isAllSelectedFavorite(_selectionController.selected),
       onCopy: () {
         if (!mounted) return;
         batchService.batchCopy(
@@ -408,7 +487,14 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
           shouldRefresh: true,
         );
       },
-      onToggleFavorite: null, // 解压文件不支持收藏
+      onToggleFavorite: () async {
+        if (!mounted) return;
+        await batchService.batchToggleFavorite(context, _selectionController.selected);
+        // 刷新列表以显示收藏状态
+        if (mounted) {
+          await _loadFilesInPath(_currentPath);
+        }
+      },
       onDelete: () {
         if (!mounted) return;
         batchService.batchDelete(context, _selectionController.selected);
@@ -450,6 +536,11 @@ class _ExtractedFilesBrowserPageState extends State<ExtractedFilesBrowserPage>
       config: UnifiedViewConfig.fromContext(context),
       selectionController: _selectionController,
       showCheckbox: isEditMode,
+      showFavoriteButton: true,
+      isFavorite: (path) => widget.viewModel.isFavoriteFile(path),
+      onFavoriteToggle: (file) async {
+        return await widget.presenter.toggleFavoriteFile(file);
+      },
       onTap: (file) {
         if (isEditMode) {
           _selectionController.toggle(file.path);

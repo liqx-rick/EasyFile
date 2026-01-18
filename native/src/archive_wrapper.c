@@ -85,6 +85,8 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     archive_read_support_filter_all(a);
     
     // 设置 libarchive 选项以更好地处理 Unicode
+    // 对所有格式设置 hdrcharset
+    archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
     
     // 设置写入选项
@@ -257,6 +259,8 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     archive_read_support_filter_all(a);
     
     // 设置 libarchive 选项以更好地处理 Unicode
+    // 对所有格式设置 hdrcharset
+    archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
     
     int r = archive_read_open_filename(a, archive_path, 10240);
@@ -315,6 +319,8 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    // 设置编码，支持 GBK/CP936 和 UTF-8
+    archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
     archive_read_open_filename(a, archive_path, 10240);
     
@@ -400,6 +406,8 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
     // 配置读取器
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    // 设置编码，支持 GBK/CP936 和 UTF-8
+    archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
 
     // 配置写入器
@@ -457,6 +465,8 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
             if (r != ARCHIVE_OK) {
                 safe_strncpy(result->error_message, archive_error_string(ext), 
                              sizeof(result->error_message));
+                // 删除可能创建的损坏文件
+                remove(output_path);
                 archive_read_free(a);
                 archive_write_free(ext);
                 return ARCHIVE_ERR_WRITE_FAILED;
@@ -476,6 +486,8 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                     if (r != ARCHIVE_OK) {
                         safe_strncpy(result->error_message, archive_error_string(a), 
                                      sizeof(result->error_message));
+                        // 删除可能创建的损坏文件
+                        remove(output_path);
                         archive_read_free(a);
                         archive_write_free(ext);
                         return ARCHIVE_ERR_READ_FAILED;
@@ -485,6 +497,8 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                     if (r != ARCHIVE_OK) {
                         safe_strncpy(result->error_message, archive_error_string(ext), 
                                      sizeof(result->error_message));
+                        // 删除可能创建的损坏文件
+                        remove(output_path);
                         archive_read_free(a);
                         archive_write_free(ext);
                         return ARCHIVE_ERR_WRITE_FAILED;
@@ -498,6 +512,8 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
             if (r != ARCHIVE_OK) {
                 safe_strncpy(result->error_message, archive_error_string(ext), 
                              sizeof(result->error_message));
+                // 删除可能创建的损坏文件
+                remove(output_path);
                 archive_read_free(a);
                 archive_write_free(ext);
                 return ARCHIVE_ERR_WRITE_FAILED;

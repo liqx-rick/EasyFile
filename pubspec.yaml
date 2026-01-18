@@ -40,6 +40,7 @@ dependencies:
   lpinyin: ^2.0.3  # 中文转拼音库，用于应用名称拼音排序
   file_picker: ^8.0.0+1  # 文件/目录选择器（SAF）
   ffi: ^2.1.5
+  gbk_codec: ^0.4.0  # GBK编码解码器，用于ZIP文件名转换
 
 dev_dependencies:
   flutter_test:

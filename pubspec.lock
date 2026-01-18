@@ -408,6 +408,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.3.2"
+  gbk_codec:
+    dependency: "direct main"
+    description:
+      name: gbk_codec
+      sha256: "3af5311fc9393115e3650ae6023862adf998051a804a08fb804f042724999f61"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "0.4.0"
   get_it:
     dependency: "direct main"
     description:

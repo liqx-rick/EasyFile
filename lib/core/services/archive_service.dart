@@ -2,18 +2,22 @@ import 'dart:io';
 import 'package:easyfile/data/models/archive_entry_info.dart';
 import 'package:easyfile/ffi/archive_ffi.dart';
 import 'package:easyfile/ffi/unrar_ffi.dart';
+import 'package:easyfile/ffi/minizip_ffi.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 压缩包服务 (FFI 版本)
 ///
-/// 基于 dart:ffi + libarchive + UnRAR SDK 实现压缩包查看和解压功能
+/// 基于 dart:ffi + libarchive + UnRAR SDK + minizip-ng 实现压缩包查看和解压功能
 /// 支持格式: ZIP, RAR, 7z, TAR, GZ, BZ2, XZ, LZ4, ZSTD, TAR.GZ, TAR.BZ2等
 ///
-/// RAR 文件使用 UnRAR SDK 专门处理，其他格式使用 libarchive
+/// RAR 文件使用 UnRAR SDK 专门处理
+/// ZIP 文件使用 minizip-ng 处理（更好的中文编码支持）
+/// 其他格式使用 libarchive 处理
 /// 注意: 当前仅支持 Android 平台，iOS 支持为未来计划
 class ArchiveService {
   final ArchiveFFI _ffi = ArchiveFFI();
   final UnrarFFI _unrar = UnrarFFI();
+  final MinizipFFI _minizip = MinizipFFI();
   int? _currentHandle;
 
   /// 检查文件是否为RAR格式
@@ -31,6 +35,12 @@ class ArchiveService {
       logger.w('检查RAR文件失败: $e');
       return false;
     }
+  }
+
+  /// 检查文件是否为ZIP格式
+  bool _isZipFile(String filePath) {
+    final lowerPath = filePath.toLowerCase();
+    return lowerPath.endsWith('.zip');
   }
 
   /// 解压压缩包到指定目录
@@ -64,9 +74,15 @@ class ArchiveService {
         );
       }
 
-      // 检测是否为RAR文件
+      // 检测文件格式
       final isRar = _isRarFile(archivePath);
-      logger.i('文件格式检测: ${isRar ? "RAR (UnRAR SDK)" : "其他 (libarchive)"}');
+      final isZip = _isZipFile(archivePath);
+      String formatInfo = isRar 
+          ? "RAR (UnRAR SDK)" 
+          : isZip 
+              ? "ZIP (minizip-ng)" 
+              : "其他 (libarchive)";
+      logger.i('文件格式检测: $formatInfo');
 
       // 处理文件夹名冲突
       String finalFolderName = folderName;
@@ -105,6 +121,14 @@ class ArchiveService {
       if (isRar) {
         // 使用 UnRAR SDK 解压
         return _extractRarFile(
+          archivePath: archivePath,
+          fullPath: fullPath,
+          password: password,
+          onProgress: onProgress,
+        );
+      } else if (isZip) {
+        // 使用 minizip-ng 解压
+        return _extractZipFile(
           archivePath: archivePath,
           fullPath: fullPath,
           password: password,
@@ -184,7 +208,7 @@ class ArchiveService {
                 '提取的文件数(${result.extractedCount})远少于预期($expectedFileCount)，可能是密码错误');
             String errorMsg = password == null || password.isEmpty
                 ? '压缩包需要密码（已提取部分文件）'
-                : '密码错误，仅提取了部分文件（${result.extractedCount}/${expectedFileCount}）';
+                : '密码错误，仅提取了部分文件（${result.extractedCount}/$expectedFileCount）';
             return ExtractResult.failure(
               errorMessage: errorMsg,
               targetPath: fullPath,
@@ -223,6 +247,100 @@ class ArchiveService {
       logger.e('UnRAR 解压异常: $e\n$stackTrace');
       return ExtractResult.failure(
         errorMessage: 'RAR解压失败: ${e.toString()}',
+        targetPath: fullPath,
+      );
+    }
+  }
+
+  /// 使用minizip-ng解压ZIP文件
+  Future<ExtractResult> _extractZipFile({
+    required String archivePath,
+    required String fullPath,
+    String? password,
+    void Function(double progress)? onProgress,
+  }) async {
+    try {
+      logger.i('使用 minizip-ng 解压: $archivePath');
+
+      // 列出所有条目
+      final listResult = await _listZipContents(archivePath);
+      if (!listResult.success || listResult.entries.isEmpty) {
+        return ExtractResult.failure(
+          errorMessage: listResult.errorMessage ?? '无法读取ZIP内容',
+          targetPath: fullPath,
+        );
+      }
+
+      logger.d('ZIP包含 ${listResult.entries.length} 个条目');
+
+      int totalFiles = listResult.entries.where((e) => !e.isDirectory).length;
+      int extractedFiles = 0;
+
+      // 逐个提取文件
+      for (var i = 0; i < listResult.entries.length; i++) {
+        final entry = listResult.entries[i];
+        
+        // 构建输出路径：使用UTF-8解码后的路径
+        final outputPath = '$fullPath/${entry.path}';
+        
+        if (entry.isDirectory) {
+          // 创建目录
+          final dir = Directory(outputPath);
+          if (!dir.existsSync()) {
+            dir.createSync(recursive: true);
+          }
+          logger.d('创建目录: ${entry.path}');
+        } else {
+          // 提取文件：使用原始GBK字节查找，UTF-8路径输出
+          if (entry.rawPathname == null || entry.rawPathname!.isEmpty) {
+            logger.e('条目 ${entry.path} 缺少原始路径字节');
+            continue;
+          }
+          
+          final result = _minizip.extractSingleFile(
+            archivePath,
+            entry.rawPathname!, // 原始GBK字节
+            outputPath, // UTF-8路径
+            password: password,
+          );
+
+          if (result.success) {
+            extractedFiles++;
+            logger.d('提取 ${entry.path} 成功 (${result.fileSize} bytes)');
+            
+            // 更新进度
+            if (onProgress != null) {
+              onProgress(extractedFiles / totalFiles);
+            }
+          } else {
+            logger.e('提取 ${entry.path} 失败: ${result.errorMessage}');
+            // 继续提取其他文件
+          }
+        }
+      }
+
+      logger.i('解压完成: $extractedFiles/$totalFiles 个文件');
+
+      if (extractedFiles == 0 && totalFiles > 0) {
+        String errorMsg = password == null || password.isEmpty 
+            ? '压缩包需要密码' 
+            : '密码错误或文件损坏';
+        return ExtractResult.failure(
+          errorMessage: errorMsg,
+          targetPath: fullPath,
+          extractedFiles: 0,
+        );
+      }
+
+      return ExtractResult.success(
+        targetPath: fullPath,
+        totalFiles: totalFiles,
+        extractedFiles: extractedFiles,
+      );
+    } catch (e, stackTrace) {
+      logger.e('minizip-ng 解压异常: $e\n$stackTrace');
+      return ExtractResult.failure(
+        errorMessage: 'ZIP解压失败: ${e.toString()}',
         targetPath: fullPath,
       );
     }
@@ -393,15 +511,18 @@ class ArchiveService {
       final fileSize = archiveFile.lengthSync();
       logger.d('压缩包文件大小: $fileSize bytes');
 
-      // 检测是否为RAR文件
+      // 检测文件格式并路由到对应的处理器
       final isRar = _isRarFile(archivePath);
-      logger.i('文件格式检测: ${isRar ? "RAR (UnRAR SDK)" : "其他 (libarchive)"}');
-
+      final isZip = _isZipFile(archivePath);
+      
       if (isRar) {
-        // 使用 UnRAR SDK 列出内容
+        logger.i('文件格式检测: RAR (UnRAR SDK)');
         return _listRarContents(archivePath);
+      } else if (isZip) {
+        logger.i('文件格式检测: ZIP (minizip-ng)');
+        return _listZipContents(archivePath);
       } else {
-        // 使用 libarchive 列出其他格式
+        logger.i('文件格式检测: 其他 (libarchive)');
         return _listWithLibarchive(archivePath, fileSize);
       }
     } catch (e, stackTrace) {
@@ -409,6 +530,51 @@ class ArchiveService {
       return ArchiveListResult(
         entries: [],
         errorMessage: '读取失败: ${e.toString()}',
+      );
+    }
+  }
+
+  /// 使用minizip-ng列出ZIP内容
+  Future<ArchiveListResult> _listZipContents(String archivePath) async {
+    try {
+      logger.i('使用 minizip-ng 列出ZIP内容: $archivePath');
+
+      final result = _minizip.listContents(archivePath);
+
+      if (result.success) {
+        logger.i('minizip 读取成功: ${result.entries.length} 个条目');
+
+        // 转换为 ArchiveEntryInfo 列表
+        final entries = result.entries.map((entry) {
+          return ArchiveEntryInfo(
+            name: entry.name,
+            size: entry.size,
+            compressedSize: entry.compressedSize,
+            isDirectory: entry.isDirectory,
+            modificationDate:
+                DateTime.fromMillisecondsSinceEpoch(entry.mtime * 1000),
+            path: entry.pathname,
+            rawPathname: entry.rawPathname, // 保存原始字节
+            compressionMethod: 0,
+            crc: entry.crc32,
+          );
+        }).toList();
+
+        return ArchiveListResult(entries: entries, errorMessage: null);
+      } else {
+        logger.e('minizip 读取失败: ${result.errorMessage}');
+        return ArchiveListResult(
+          entries: [],
+          errorMessage: result.errorMessage.isNotEmpty
+              ? result.errorMessage
+              : 'ZIP文件读取失败',
+        );
+      }
+    } catch (e, stackTrace) {
+      logger.e('minizip 读取异常: $e\n$stackTrace');
+      return ArchiveListResult(
+        entries: [],
+        errorMessage: 'ZIP文件读取失败: ${e.toString()}',
       );
     }
   }
@@ -632,8 +798,9 @@ class ArchiveService {
         await outputDir.create(recursive: true);
       }
 
-      // 检测是否为RAR文件
+      // 检测文件格式
       final isRar = _isRarFile(archivePath);
+      final isZip = _isZipFile(archivePath);
 
       if (isRar) {
         // 使用UnRAR SDK提取RAR文件
@@ -692,6 +859,63 @@ class ArchiveService {
             success: false,
             extractedSize: 0,
             errorMessage: errorMsg,
+          );
+        }
+      } else if (isZip) {
+        // 使用minizip-ng提取ZIP文件
+        logger.d('Using minizip-ng to extract single file from ZIP');
+        
+        // 需要找到原始GBK字节路径
+        List<int>? rawPath;
+        try {
+          final listResult = await _listZipContents(archivePath);
+          if (listResult.success) {
+            logger.d('查找条目: $entryPath (共${listResult.entries.length}个条目)');
+            for (var e in listResult.entries) {
+              logger.d('  条目路径: "${e.path}" == "$entryPath" ? ${e.path == entryPath}');
+            }
+            
+            final entry = listResult.entries.firstWhere(
+              (e) => e.path == entryPath,
+              orElse: () => throw Exception('Entry not found: $entryPath'),
+            );
+            rawPath = entry.rawPathname;
+            logger.d('找到条目的原始字节路径: ${rawPath?.take(20).toList()}');
+          }
+        } catch (e) {
+          logger.w('无法获取原始路径: $e');
+        }
+
+        if (rawPath == null || rawPath.isEmpty) {
+          logger.e('rawPath为空，无法提取');
+          return SingleFileExtractResult(
+            success: false,
+            extractedSize: 0,
+            errorMessage: '无法找到条目的原始路径',
+          );
+        }
+        
+        logger.d('调用extractSingleFile with rawPath length: ${rawPath.length}');
+        final result = _minizip.extractSingleFile(
+          archivePath,
+          rawPath, // 使用原始GBK字节
+          outputPath,
+          password: password,
+        );
+
+        if (result.success) {
+          logger.i('minizip-ng提取成功: $entryPath (${result.fileSize} bytes)');
+          return SingleFileExtractResult(
+            success: true,
+            extractedSize: result.fileSize.toInt(),
+            errorMessage: '',
+          );
+        } else {
+          logger.w('minizip-ng提取失败: ${result.errorMessage}');
+          return SingleFileExtractResult(
+            success: false,
+            extractedSize: 0,
+            errorMessage: result.errorMessage,
           );
         }
       } else {
