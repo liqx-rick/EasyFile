@@ -1190,12 +1190,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
       logger.d('Opening PDF file: ${widget.file.path}');
 
-      // 使用 pdfx 加载 PDF
-      // 注意：pdfx 在某些设备上可能因平台通道问题而失败
-      // 失败时会通过 catch 块优雅降级，提示用户使用外部应用
-      final document = PdfDocument.openFile(widget.file.path);
+      // 先 await 打开 PDF 以捕获加密/损坏等错误
+      // 成功后用 Future.value() 包装传给 PdfController
+      final document = await PdfDocument.openFile(widget.file.path);
+      
       setState(() {
-        _pdfController = PdfController(document: document);
+        _pdfController = PdfController(document: Future.value(document));
         _isLoading = false;
       });
       logger.i('PDF document opened successfully');
@@ -1244,6 +1244,9 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
     }
 
     if (_error != null) {
+      // 判断是否是"不支持的文件类型"错误
+      final isUnsupportedType = _error!.contains('不支持预览此文件类型');
+      
       return GestureDetector(
         onTapUp: (details) {
           widget.onTap?.call();
@@ -1254,7 +1257,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error, size: 48, color: Colors.red),
+                // 如果是不支持的文件类型，显示灰色默认图标；否则显示红色错误图标
+                Icon(
+                  isUnsupportedType ? Icons.insert_drive_file : Icons.error,
+                  size: 48,
+                  color: isUnsupportedType ? Colors.grey : Colors.red,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   _error!,

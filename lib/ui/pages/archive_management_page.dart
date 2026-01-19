@@ -7,6 +7,7 @@ import 'package:easyfile/data/models/extraction_record.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
 import 'package:easyfile/core/services/extraction_record_service.dart';
+import 'package:easyfile/core/services/extraction_notification_manager.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -20,6 +21,7 @@ import 'package:easyfile/ui/widgets/archive_list_item.dart';
 import 'package:easyfile/ui/widgets/file_search_bar.dart';
 import 'package:easyfile/ui/widgets/file_toolbar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/extraction_notification_banner.dart';
 import 'package:easyfile/ui/mixins/category_like_page_mixin.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/batch_operations_mixin.dart';
@@ -60,6 +62,10 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   final ExtractionRecordService _recordService = ExtractionRecordService();
   int _recordCount = 0;
   
+  // 使用 getter 获取单例通知管理器
+  ExtractionNotificationManager get _notificationManager =>
+      ExtractionNotificationManager();
+  
   // 解压记录列表数据
   List<ExtractionRecord> _extractionRecords = [];
   Map<String, bool> _recordFolderExistsMap = {};
@@ -72,6 +78,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   // 数据源和依赖
   late final FilePresenter _presenter;
   late final FileViewModel _viewModel;
+  late final PageSettingsService _pageSettingsService;
 
   // 加载状态
   bool _isScanning = true;
@@ -226,6 +233,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     // 初始化依赖
     _presenter = locator<FilePresenter>();
     _viewModel = locator<FileViewModel>();
+    _pageSettingsService = PageSettingsService();
 
     // 初始化搜索控制器
     _searchController = TextEditingController();
@@ -243,15 +251,15 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
     // 监听ViewModel变化（修复问题2、3：实时更新文件信息）
     _viewModel.addListener(_handleViewModelUpdate);
+    
+    // 监听PageSettingsService变化（响应设置重置）
+    _pageSettingsService.addListener(_handleSettingsUpdate);
 
     // 监听应用生命周期（应用恢复时刷新列表）
     WidgetsBinding.instance.addObserver(this);
 
     // 加载解压记录数量
     _loadRecordCount();
-
-    // 加载排序偏好
-    _loadSortPreferences();
 
     // 加载解压记录列表
     _loadExtractionRecords();
@@ -261,8 +269,10 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       ArchivePreviewCacheManager.clearExpiredCache();
     });
 
-    // 加载压缩包列表
-    _scanArchives();
+    // 先加载排序偏好，再扫描压缩包（确保使用正确的排序）
+    _loadSortPreferences().then((_) {
+      _scanArchives();
+    });
   }
 
   /// 加载已解压压缩包标记
@@ -397,12 +407,23 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
+  /// 处理设置变化（用户在设置页面重置时触发）
+  void _handleSettingsUpdate() {
+    if (!mounted) return;
+    logger.d('Settings updated, reloading sort preferences');
+    _loadSortPreferences().then((_) {
+      if (mounted) {
+        _applySorting();
+      }
+    });
+  }
+
   /// 加载排序偏好
   Future<void> _loadSortPreferences() async {
     try {
       final pageId = PageId.archiveManagement;
-      final sortType = PageSettingsService().getSortType(pageId);
-      final ascending = PageSettingsService().getSortAscending(pageId);
+      final sortType = _pageSettingsService.getSortType(pageId);
+      final ascending = _pageSettingsService.getSortAscending(pageId);
 
       setState(() {
         _sortBy = sortType.name.toLowerCase();
@@ -426,6 +447,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     _selectionController.selectedNotifier.removeListener(() {});
     _selectionController.dispose();
     _viewModel.removeListener(_handleViewModelUpdate);
+    _pageSettingsService.removeListener(_handleSettingsUpdate);
     super.dispose();
   }
 
@@ -550,20 +572,20 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     }
   }
 
-  /// 应用排序
+  /// 应用排序（仅排序，不保存设置）
   void _applySorting() {
     setState(() {
       // 使用 Mixin 提供的排序方法，在 allFiles 上应用排序
       final sortType = _getSortType();
+      logger.d('Applying sort: type=$sortType, ascending=$_sortAscending, files=${allFiles.length}');
       applySorting(allFiles, sortType, ascending: _sortAscending);
-
-      // 保存排序偏好到 PageSettingsService
-      final pageId = PageId.archiveManagement;
-      PageSettingsService().setSortType(pageId, sortType);
-      if (_sortAscending) {
-        PageSettingsService().setSortAscending(pageId, true);
-      } else {
-        PageSettingsService().toggleSortDirection(pageId);
+      
+      // 记录排序后的前几个文件（用于调试）
+      if (allFiles.isNotEmpty) {
+        logger.d('First 3 files after sorting:');
+        for (int i = 0; i < (allFiles.length < 3 ? allFiles.length : 3); i++) {
+          logger.d('  ${i + 1}. ${allFiles[i].name} - ${allFiles[i].modified}');
+        }
       }
     });
   }
@@ -575,9 +597,10 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       case 'size':
         return SortType.size;
       case 'time':
+      case 'modifiedtime':  // 兼容 SortType.modifiedTime.name.toLowerCase()
         return SortType.modifiedTime;
       default:
-        return SortType.name;
+        return SortType.modifiedTime;  // 默认按时间排序
     }
   }
 
@@ -590,6 +613,13 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         _sortAscending = true;
       }
       _applySorting();
+      
+      // 用户手动更改排序时才保存设置
+      final sortType = _getSortType();
+      final pageId = PageId.archiveManagement;
+      _pageSettingsService.setSortType(pageId, sortType);
+      _pageSettingsService.setSortAscending(pageId, _sortAscending);
+      logger.d('User changed sort: type=$sortType, ascending=$_sortAscending');
     });
   }
 
@@ -756,38 +786,30 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
                     ),
                   ]
                 : null,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('压缩包'),
-                  if (!_isScanning)
-                    Text(' (${filteredFiles.length})'),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('解压记录'),
-                  if (_recordCount > 0) Text(' ($_recordCount)'),
-                ],
-              ),
-            ),
-          ],
+        bottom: _NotificationAndTabBar(
+          notificationManager: _notificationManager,
+          tabController: _tabController,
+          isScanning: _isScanning,
+          filteredFilesLength: filteredFiles.length,
+          recordCount: _recordCount,
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          // Tab 1: 压缩包列表
-          _buildArchiveListTab(theme),
-          // Tab 2: 解压记录
-          _buildRecordsTab(theme),
+          // 解压完成通知横幅（在 TabBar 正下方）
+          ExtractionNotificationBanner(manager: _notificationManager),
+          // TabBarView
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Tab 1: 压缩包列表
+                _buildArchiveListTab(theme),
+                // Tab 2: 解压记录
+                _buildRecordsTab(theme),
+              ],
+            ),
+          ),
         ],
       ),
       ),
@@ -1236,6 +1258,57 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
               label: const Text('删除'),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 自定义 PreferredSizeWidget：通知横幅 + TabBar
+class _NotificationAndTabBar extends StatelessWidget implements PreferredSizeWidget {
+  final ExtractionNotificationManager notificationManager;
+  final TabController tabController;
+  final bool isScanning;
+  final int filteredFilesLength;
+  final int recordCount;
+
+  const _NotificationAndTabBar({
+    required this.notificationManager,
+    required this.tabController,
+    required this.isScanning,
+    required this.filteredFilesLength,
+    required this.recordCount,
+  });
+
+  @override
+  Size get preferredSize {
+    // 只返回 TabBar 的高度，通知横幅放在 body 里
+    return const Size.fromHeight(kTextTabBarHeight);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      controller: tabController,
+      tabs: [
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('压缩包'),
+              if (!isScanning)
+                Text(' ($filteredFilesLength)'),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('解压记录'),
+              if (recordCount > 0) Text(' ($recordCount)'),
+            ],
+          ),
         ),
       ],
     );

@@ -24,6 +24,7 @@ typedef struct {
     const char* dest_path;        // 目标路径
     bool overwrite;               // 是否覆盖
     bool preserve_permissions;    // 保留权限
+    const char* password;         // 密码（可为 NULL）
     ProgressCallback on_progress; // 进度回调
     void* user_data;              // 用户数据
 } ExtractOptions;
@@ -102,12 +103,14 @@ int archive_validate(const char* archive_path);
 /// @param archive_path 压缩包路径
 /// @param entry_path 条目在压缩包中的路径
 /// @param output_path 输出文件路径
+/// @param password 密码（可为 NULL）
 /// @param result 提取结果（输出参数）
 /// @return 0=成功, 非0=错误码
 int archive_extract_single_file(
     const char* archive_path,
     const char* entry_path,
     const char* output_path,
+    const char* password,
     SingleFileExtractResult* result
 );
 

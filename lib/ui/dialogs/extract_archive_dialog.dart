@@ -97,19 +97,22 @@ class _ExtractArchiveDialogState extends State<ExtractArchiveDialog> {
       return;
     }
 
-    // 关闭当前对话框
-    Navigator.pop(context);
-
-    // 显示进度对话框并开始解压
+    // 关闭当前对话框并显示进度对话框（使用 pushReplacement 避免叠加）
     if (mounted) {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => ExtractionProgressDialog(
-          archiveFile: widget.archiveFile,
-          targetBaseDir: _targetBaseDir,
-          folderName: folderName,
-          autoRename: true, // 始终启用自动重命名
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (context) => Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Center(
+              child: ExtractionProgressDialog(
+                archiveFile: widget.archiveFile,
+                targetBaseDir: _targetBaseDir,
+                folderName: folderName,
+                autoRename: true,
+              ),
+            ),
+          ),
         ),
       );
     }

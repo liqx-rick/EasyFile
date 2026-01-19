@@ -151,6 +151,38 @@ class ArchiveService {
     }
   }
 
+  /// 在后台 Isolate 中解压（避免阻塞 UI）
+  Future<ExtractResult> extractToInBackground({
+    required String archivePath,
+    required String targetDir,
+    required String folderName,
+    bool autoRename = true,
+    String? password,
+  }) async {
+    // 目前直接调用extractTo，未来可以迁移到Isolate
+    return extractTo(
+      archivePath: archivePath,
+      targetDir: targetDir,
+      folderName: folderName,
+      autoRename: autoRename,
+      password: password,
+    );
+  }
+
+  /// 停止当前解压操作
+  bool stopExtraction() {
+    if (_currentHandle != null) {
+      final success = _ffi.cancelExtraction(_currentHandle!);
+      if (success) {
+        logger.i('停止信号已发送');
+        _currentHandle = null;
+      }
+      return success;
+    }
+    logger.w('没有正在进行的解压操作');
+    return false;
+  }
+
   /// 使用UnRAR SDK解压RAR文件
   Future<ExtractResult> _extractRarFile({
     required String archivePath,
@@ -389,9 +421,20 @@ class ArchiveService {
       } else {
         logger.e(
             '解压失败 (libarchive): status=${result.status}, error=${result.errorMessage}');
+        
+        // 特别处理7z加密文件
+        String errorMessage = result.errorMessage.isEmpty ? '解压失败' : result.errorMessage;
+        if (archivePath.toLowerCase().endsWith('.7z') && 
+            errorMessage.contains('encrypted')) {
+          errorMessage = '此7z文件已加密\n\n'
+              '当前版本暂不支持解压加密的7z文件。\n\n'
+              '您可以：\n'
+              '• 在电脑上使用7-Zip软件解压\n'
+              '• 或改用ZIP或RAR格式的加密压缩包';
+        }
+        
         return ExtractResult.failure(
-          errorMessage:
-              result.errorMessage.isEmpty ? '解压失败' : result.errorMessage,
+          errorMessage: errorMessage,
           targetPath: fullPath,
           extractedFiles: result.extractedFiles,
         );
@@ -675,7 +718,16 @@ class ArchiveService {
               '此文件使用了特殊字符编码（UTF-16BE），当前无法读取。';
         } else if (result.errorMessage.contains('Unsupported') ||
             result.errorMessage.contains('encrypted')) {
-          userMessage = result.errorMessage;
+          // 特别处理7z加密文件
+          if (archivePath.toLowerCase().endsWith('.7z')) {
+            userMessage = '此7z文件已加密\n\n'
+                '当前版本暂不支持加密的7z文件。\n\n'
+                '您可以：\n'
+                '• 在电脑上使用7-Zip软件解压\n'
+                '• 或改用ZIP格式的加密压缩包';
+          } else {
+            userMessage = result.errorMessage;
+          }
         } else if (!isValid) {
           userMessage = '压缩包格式不支持或文件已损坏';
         } else {
@@ -925,6 +977,7 @@ class ArchiveService {
           archivePath: archivePath,
           entryPath: entryPath,
           outputPath: outputPath,
+          password: password,  // 传递密码
         );
 
         if (result.success) {
@@ -936,10 +989,20 @@ class ArchiveService {
           );
         } else {
           logger.w('提取失败: ${result.errorMessage}');
+          
+          // 特别处理7z加密文件
+          String errorMessage = result.errorMessage;
+          if (archivePath.toLowerCase().endsWith('.7z') && 
+              errorMessage.contains('encrypted')) {
+            errorMessage = '此文件已加密\n\n'
+                '当前版本暂不支持预览加密的7z文件。\n'
+                '请在电脑上使用7-Zip软件解压后查看。';
+          }
+          
           return SingleFileExtractResult(
             success: false,
             extractedSize: 0,
-            errorMessage: result.errorMessage,
+            errorMessage: errorMessage,
           );
         }
       }

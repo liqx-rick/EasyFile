@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'package:ffi/ffi.dart';
 import 'package:gbk_codec/gbk_codec.dart';
 
-/// FFI 绑定类 - 负责加载和管理 Native 库
+/// FFI 绑定�?- 负责加载和管�?Native �?
 class ArchiveFFI {
   late final ffi.DynamicLibrary _lib;
   late final ArchiveNativeBindings _bindings;
@@ -24,7 +24,8 @@ class ArchiveFFI {
       // 未来支持
       return ffi.DynamicLibrary.process();
     } else {
-      throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
+      throw UnsupportedError(
+          'Unsupported platform: ${Platform.operatingSystem}');
     }
   }
 
@@ -34,10 +35,12 @@ class ArchiveFFI {
     required String destPath,
     bool overwrite = true,
     bool preservePermissions = false,
+    String? password,
     void Function(double progress, String filename)? onProgress,
   }) {
     final archivePathPtr = archivePath.toNativeUtf8();
     final destPathPtr = destPath.toNativeUtf8();
+    final passwordPtr = password?.toNativeUtf8();
     final optionsPtr = calloc<ExtractOptions>();
     final resultPtr = calloc<ExtractResult>();
 
@@ -46,6 +49,7 @@ class ArchiveFFI {
       optionsPtr.ref.dest_path = destPathPtr.cast();
       optionsPtr.ref.overwrite = overwrite;
       optionsPtr.ref.preserve_permissions = preservePermissions;
+      optionsPtr.ref.password = passwordPtr?.cast<ffi.Char>() ?? ffi.nullptr;
       optionsPtr.ref.on_progress = ffi.nullptr;
       optionsPtr.ref.user_data = ffi.nullptr;
 
@@ -60,6 +64,7 @@ class ArchiveFFI {
         handleId: handleId,
       );
     } finally {
+      if (passwordPtr != null) calloc.free(passwordPtr);
       calloc.free(resultPtr);
       calloc.free(optionsPtr);
       calloc.free(destPathPtr);
@@ -72,7 +77,7 @@ class ArchiveFFI {
     return _bindings.archive_cancel(handleId);
   }
 
-  /// 列出压缩包内容
+  /// 列出压缩包内�?
   ListResultNative listContents(String archivePath) {
     final pathPtr = archivePath.toNativeUtf8();
     final resultPtr = calloc<ListResult>();
@@ -88,7 +93,7 @@ class ArchiveFFI {
         final entriesPtr = resultPtr.ref.entries;
         for (int i = 0; i < resultPtr.ref.entry_count; i++) {
           final entry = entriesPtr.elementAt(i).ref;
-          
+
           entries.add(ArchiveEntryNative(
             name: _readCString(entry.name, 1024),
             pathname: _readCString(entry.pathname, 2048),
@@ -114,7 +119,7 @@ class ArchiveFFI {
     }
   }
 
-  /// 验证压缩包
+  /// 验证压缩�?
   bool validate(String archivePath) {
     final pathPtr = archivePath.toNativeUtf8();
     try {
@@ -130,10 +135,12 @@ class ArchiveFFI {
     required String archivePath,
     required String entryPath,
     required String outputPath,
+    String? password,
   }) {
     final archivePathPtr = archivePath.toNativeUtf8();
     final entryPathPtr = entryPath.toNativeUtf8();
     final outputPathPtr = outputPath.toNativeUtf8();
+    final passwordPtr = password?.toNativeUtf8();
     final resultPtr = calloc<SingleFileExtractResult>();
 
     try {
@@ -141,6 +148,7 @@ class ArchiveFFI {
         archivePathPtr.cast(),
         entryPathPtr.cast(),
         outputPathPtr.cast(),
+        passwordPtr?.cast<ffi.Char>() ?? ffi.nullptr,
         resultPtr,
       );
 
@@ -151,6 +159,7 @@ class ArchiveFFI {
         errorMessage: _readCString(resultPtr.ref.error_message, 512),
       );
     } finally {
+      if (passwordPtr != null) calloc.free(passwordPtr);
       calloc.free(resultPtr);
       calloc.free(outputPathPtr);
       calloc.free(entryPathPtr);
@@ -158,21 +167,21 @@ class ArchiveFFI {
     }
   }
 
-  /// 读取 C 字符串（从固定大小的 Array）
-  /// 
+  /// 读取 C 字符串（从固定大小的 Array�?
+  ///
   /// 使用多阶段解码策略：
   /// 1. 优先尝试 UTF-8 解码
-  /// 2. 如果失败，尝试 GBK 解码（中文 Windows 常用）
-  /// 3. 最后使用 Latin1 作为后备
+  /// 2. 如果失败，尝�?GBK 解码（中�?Windows 常用�?
+  /// 3. 最后使�?Latin1 作为后备
   String _readCString(ffi.Array<ffi.Uint8> cArray, int maxSize) {
     final bytes = <int>[];
     for (int i = 0; i < maxSize; i++) {
       if (cArray[i] == 0) break;
       bytes.add(cArray[i]);
     }
-    
+
     if (bytes.isEmpty) return '';
-    
+
     // 阶段1: 尝试 UTF-8 解码
     try {
       final utf8Result = utf8.decode(bytes, allowMalformed: false);
@@ -183,7 +192,7 @@ class ArchiveFFI {
     } catch (e) {
       // UTF-8 解码失败，继续尝试 GBK
     }
-    
+
     // 阶段2: 尝试 GBK 解码（中文 Windows 常用）
     try {
       try {
@@ -201,7 +210,7 @@ class ArchiveFFI {
         }
       }
     } catch (e) {
-      // GBK 解码失败，使用 Latin1 作为后备
+      // GBK 解码失败，使�?Latin1 作为后备
       return latin1.decode(bytes);
     }
   }
@@ -216,6 +225,7 @@ final class ExtractOptions extends ffi.Struct {
   external bool overwrite;
   @ffi.Bool()
   external bool preserve_permissions;
+  external ffi.Pointer<ffi.Char> password;
   external ffi.Pointer<ffi.NativeFunction<ProgressCallbackNative>> on_progress;
   external ffi.Pointer<ffi.Void> user_data;
 }
@@ -295,9 +305,9 @@ class ArchiveNativeBindings {
         ffi.Pointer<ExtractResult>,
       )>('archive_extract_async');
 
-  late final archive_cancel = _lib.lookupFunction<
-      ffi.Bool Function(ffi.Int64),
-      bool Function(int)>('archive_cancel');
+  late final archive_cancel =
+      _lib.lookupFunction<ffi.Bool Function(ffi.Int64), bool Function(int)>(
+          'archive_cancel');
 
   late final archive_list_contents = _lib.lookupFunction<
       ffi.Int32 Function(
@@ -322,9 +332,11 @@ class ArchiveNativeBindings {
         ffi.Pointer<ffi.Char>, // archive_path
         ffi.Pointer<ffi.Char>, // entry_path
         ffi.Pointer<ffi.Char>, // output_path
+        ffi.Pointer<ffi.Char>, // password
         ffi.Pointer<SingleFileExtractResult>,
       ),
       int Function(
+        ffi.Pointer<ffi.Char>,
         ffi.Pointer<ffi.Char>,
         ffi.Pointer<ffi.Char>,
         ffi.Pointer<ffi.Char>,
@@ -332,7 +344,7 @@ class ArchiveNativeBindings {
       )>('archive_extract_single_file');
 }
 
-/// Dart 数据类 - 从 Native 结构转换
+/// Dart 数据�?- �?Native 结构转换
 
 class ExtractResultNative {
   final int status;

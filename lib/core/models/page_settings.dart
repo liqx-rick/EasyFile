@@ -255,6 +255,14 @@ class PageDefaultSettings {
       sortAscending: false, // 大文件在前
       groupEnabled: false,
     ),
+
+    // 压缩包管理: 列表/按修改时间/不分组
+    PageId.archiveManagement: PageSettings(
+      viewMode: ViewMode.list,
+      sortType: SortType.modifiedTime,
+      sortAscending: false, // 最新的在前
+      groupEnabled: false,
+    ),
   };
 
   /// 获取页面的默认设置

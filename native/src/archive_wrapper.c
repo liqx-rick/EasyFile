@@ -6,6 +6,17 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <locale.h>
+#include <ctype.h>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOG_TAG "ArchiveWrapper"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+#define LOGD(...) fprintf(stderr, __VA_ARGS__)
+#define LOGE(...) fprintf(stderr, __VA_ARGS__)
+#endif
 
 // 全局状态管理（用于取消操作）
 typedef struct {
@@ -14,9 +25,27 @@ typedef struct {
     struct archive* archive;
 } ExtractionHandle;
 
+// 密码回调数据结构
+typedef struct {
+    const char* password;
+} PasswordCallbackData;
+
 static ExtractionHandle* g_handles = NULL;
 static int g_handle_count = 0;
 static int64_t g_next_handle_id = 1;
+
+// ==================== 密码回调函数 ====================
+
+// libarchive 密码回调函数
+static const char* passphrase_callback(struct archive* a, void* client_data) {
+    PasswordCallbackData* data = (PasswordCallbackData*)client_data;
+    if (data != NULL && data->password != NULL) {
+        LOGD("[Native] passphrase_callback called, returning password");
+        return data->password;
+    }
+    LOGD("[Native] passphrase_callback called, but no password available");
+    return NULL;
+}
 
 // ==================== 内部工具函数 ====================
 
@@ -84,10 +113,32 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
     
+    // 设置密码（如果提供）
+    PasswordCallbackData* password_data = NULL;
+    if (options->password != NULL && strlen(options->password) > 0) {
+        // 方法1: 直接添加密码到密码池
+        int ret1 = archive_read_add_passphrase(a, options->password);
+        LOGD("[Native] archive_read_add_passphrase returned: %d", ret1);
+        
+        // 方法2: 设置密码回调函数（对 7z 等格式必需）
+        password_data = malloc(sizeof(PasswordCallbackData));
+        password_data->password = options->password;
+        int ret2 = archive_read_set_passphrase_callback(a, password_data, passphrase_callback);
+        LOGD("[Native] archive_read_set_passphrase_callback returned: %d", ret2);
+        
+        // 调试日志
+        LOGD("[Native] Password set: length=%zu", strlen(options->password));
+    } else {
+        LOGD("[Native] No password provided");
+    }
+    
     // 设置 libarchive 选项以更好地处理 Unicode
     // 对所有格式设置 hdrcharset
     archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    // 7z 格式特殊处理：支持 UTF-16LE 编码的文件名
+    archive_read_set_options(a, "7zip:hdrcharset=UTF-16LE");
+    archive_read_set_options(a, "zip:hdrcharset=UTF-8,CP936");
     
     // 设置写入选项
     int flags = ARCHIVE_EXTRACT_TIME;
@@ -100,7 +151,9 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     // 打开压缩包
     int r = archive_read_open_filename(a, options->archive_path, 10240);
     if (r != ARCHIVE_OK) {
-        safe_strncpy(result->error_message, archive_error_string(a), 
+        const char* err = archive_error_string(a);
+        LOGE("[Native] archive_read_open_filename failed: %s", err ? err : "unknown error");
+        safe_strncpy(result->error_message, err, 
                      sizeof(result->error_message));
         result->status = ARCHIVE_ERR_OPEN_FAILED;
         archive_read_free(a);
@@ -109,6 +162,8 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
         return -1;
     }
     
+    LOGD("[Native] archive_read_open_filename succeeded");
+    
     // 计算总大小（用于进度）
     int64_t total_size = 0;
     int64_t current_size = 0;
@@ -116,6 +171,7 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     
     // 第一遍：计算总大小并检查格式
     const char* format_name = archive_format_name(a);
+    LOGD("[Native] Archive format: %s", format_name ? format_name : "unknown");
     int first_pass_error = ARCHIVE_OK;
     
     while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
@@ -124,8 +180,12 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
         archive_read_data_skip(a);
     }
     
+    LOGD("[Native] First pass: scanned %lld files, r=%d (ARCHIVE_EOF=%d)", file_count, r, ARCHIVE_EOF);
+    
     // 记录第一遍扫描的错误
     if (r != ARCHIVE_EOF) {
+        const char* err = archive_error_string(a);
+        LOGE("[Native] First pass error: %s (code=%d)", err ? err : "unknown", r);
         first_pass_error = r;
     }
     
@@ -157,6 +217,14 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 设置密码（如果提供）- 重新打开时也必须设置密码回调
+    if (options->password != NULL && strlen(options->password) > 0) {
+        archive_read_add_passphrase(a, options->password);
+        // 重新设置密码回调
+        archive_read_set_passphrase_callback(a, password_data, passphrase_callback);
+        LOGD("[Native] Reopen: Password reset");
+    }
     
     // 再次设置选项
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
@@ -211,14 +279,73 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
                 }
             }
             
+            // 检查是否因为错误而退出（而不是正常的 EOF）
             if (r != ARCHIVE_EOF) {
-                safe_strncpy(result->error_message, archive_error_string(a), 
-                             sizeof(result->error_message));
+                const char* error_msg = archive_error_string(a);
+                
+                // 检测是否是密码相关错误
+                int is_password_error = 0;
+                if (error_msg != NULL) {
+                    // 转换为小写进行检查
+                    char lower_msg[512];
+                    size_t msg_len = strlen(error_msg);
+                    if (msg_len < sizeof(lower_msg)) {
+                        for (size_t i = 0; i < msg_len && i < sizeof(lower_msg) - 1; i++) {
+                            lower_msg[i] = tolower((unsigned char)error_msg[i]);
+                        }
+                        lower_msg[msg_len] = '\0';
+                        
+                        // 检查常见的密码/加密错误关键词
+                        if (strstr(lower_msg, "password") != NULL ||
+                            strstr(lower_msg, "passphrase") != NULL ||
+                            strstr(lower_msg, "encrypted") != NULL ||
+                            strstr(lower_msg, "encryption") != NULL ||
+                            strstr(lower_msg, "wrong password") != NULL ||
+                            strstr(lower_msg, "incorrect password") != NULL) {
+                            is_password_error = 1;
+                        }
+                    }
+                }
+                
+                // 如果是密码错误，添加明确的标记
+                if (is_password_error) {
+                    snprintf(result->error_message, sizeof(result->error_message),
+                             "[PASSWORD_ERROR] %s", error_msg ? error_msg : "Encrypted archive requires password");
+                } else {
+                    safe_strncpy(result->error_message, error_msg, 
+                                 sizeof(result->error_message));
+                }
+                result->status = ARCHIVE_ERR_READ_FAILED;
+                
+                // 立即停止解压并返回错误
+                archive_write_finish_entry(ext);
+                archive_read_close(a);
+                archive_read_free(a);
+                archive_write_close(ext);
+                archive_write_free(ext);
+                if (password_data != NULL) {
+                    free(password_data);
+                }
+                remove_handle(handle->handle_id);
+                return handle->handle_id;
             }
         }
         
         archive_write_finish_entry(ext);
         result->extracted_files++;
+    }
+    
+    // 检查循环是否因为错误而退出（而不是正常的 EOF）
+    if (r != ARCHIVE_EOF && r != ARCHIVE_OK) {
+        const char* error_msg = archive_error_string(a);
+        if (error_msg != NULL && strlen(error_msg) > 0) {
+            safe_strncpy(result->error_message, error_msg, 
+                         sizeof(result->error_message));
+        } else {
+            safe_strncpy(result->error_message, "Failed to read archive entries", 
+                         sizeof(result->error_message));
+        }
+        result->status = ARCHIVE_ERR_READ_FAILED;
     }
     
     // 清理资源
@@ -227,10 +354,18 @@ int64_t archive_extract_async(const ExtractOptions* options, ExtractResult* resu
     archive_write_close(ext);
     archive_write_free(ext);
     
+    // 释放密码回调数据
+    if (password_data != NULL) {
+        free(password_data);
+    }
+    
     int64_t handle_id = handle->handle_id;
     remove_handle(handle_id);
     
-    result->status = ARCHIVE_OK;
+    // 只有在 status 没有被设置为错误时才设置为成功
+    if (result->status == 0) {
+        result->status = ARCHIVE_OK;
+    }
     return handle_id;
 }
 
@@ -262,6 +397,9 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     // 对所有格式设置 hdrcharset
     archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    // 7z 格式特殊处理：支持 UTF-16LE 编码的文件名
+    archive_read_set_options(a, "7zip:hdrcharset=UTF-16LE");
+    archive_read_set_options(a, "zip:hdrcharset=UTF-8,CP936");
     
     int r = archive_read_open_filename(a, archive_path, 10240);
     if (r != ARCHIVE_OK) {
@@ -322,6 +460,9 @@ int archive_list_contents(const char* archive_path, ListResult* result) {
     // 设置编码，支持 GBK/CP936 和 UTF-8
     archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    // 7z 格式特殊处理：支持 UTF-16LE 编码的文件名
+    archive_read_set_options(a, "7zip:hdrcharset=UTF-16LE");
+    archive_read_set_options(a, "zip:hdrcharset=UTF-8,CP936");
     archive_read_open_filename(a, archive_path, 10240);
     
     // 第二遍：填充数据
@@ -389,7 +530,8 @@ int archive_validate(const char* archive_path) {
 }
 
 int archive_extract_single_file(const char* archive_path, const char* entry_path, 
-                                const char* output_path, SingleFileExtractResult* result) {
+                                const char* output_path, const char* password,
+                                SingleFileExtractResult* result) {
     if (archive_path == NULL || entry_path == NULL || output_path == NULL || result == NULL) {
         return ARCHIVE_ERR_INVALID_PATH;
     }
@@ -406,9 +548,28 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
     // 配置读取器
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
+    
+    // 设置密码（如果提供）
+    PasswordCallbackData* password_data = NULL;
+    if (password != NULL && strlen(password) > 0) {
+        LOGD("[Native] Password provided: '%s' (length=%zu)", password, strlen(password));
+        archive_read_add_passphrase(a, password);
+        LOGD("[Native] archive_read_add_passphrase() called");
+        // 设置密码回调（对 7z 等格式必需）
+        password_data = malloc(sizeof(PasswordCallbackData));
+        password_data->password = password;
+        archive_read_set_passphrase_callback(a, password_data, passphrase_callback);
+        LOGD("[Native] Password callback registered");
+    } else {
+        LOGD("[Native] No password provided for extraction");
+    }
+    
     // 设置编码，支持 GBK/CP936 和 UTF-8
     archive_read_set_options(a, "hdrcharset=UTF-8,CP936");
     archive_read_set_options(a, "rar:hdrcharset=UTF-8");
+    // 7z 格式特殊处理：支持 UTF-16LE 编码的文件名
+    archive_read_set_options(a, "7zip:hdrcharset=UTF-16LE");
+    archive_read_set_options(a, "zip:hdrcharset=UTF-8,CP936");
 
     // 配置写入器
     archive_write_disk_set_options(ext, 
@@ -425,6 +586,9 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                      sizeof(result->error_message));
         archive_read_free(a);
         archive_write_free(ext);
+        if (password_data != NULL) {
+            free(password_data);
+        }
         return ARCHIVE_ERR_OPEN_FAILED;
     }
 
@@ -469,6 +633,9 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                 remove(output_path);
                 archive_read_free(a);
                 archive_write_free(ext);
+                if (password_data != NULL) {
+                    free(password_data);
+                }
                 return ARCHIVE_ERR_WRITE_FAILED;
             }
 
@@ -478,18 +645,25 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                 size_t size_read;
                 int64_t offset;
 
+                LOGD("[Native] Starting to read encrypted data, size=%lld", (long long)size);
                 while (true) {
                     r = archive_read_data_block(a, &buff, &size_read, &offset);
                     if (r == ARCHIVE_EOF) {
+                        LOGD("[Native] Data read completed (EOF)");
                         break;
                     }
                     if (r != ARCHIVE_OK) {
-                        safe_strncpy(result->error_message, archive_error_string(a), 
+                        const char* err = archive_error_string(a);
+                        LOGE("[Native] Data read error: %s (code=%d)", err, r);
+                        safe_strncpy(result->error_message, err, 
                                      sizeof(result->error_message));
                         // 删除可能创建的损坏文件
                         remove(output_path);
                         archive_read_free(a);
                         archive_write_free(ext);
+                        if (password_data != NULL) {
+                            free(password_data);
+                        }
                         return ARCHIVE_ERR_READ_FAILED;
                     }
 
@@ -501,6 +675,9 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                         remove(output_path);
                         archive_read_free(a);
                         archive_write_free(ext);
+                        if (password_data != NULL) {
+                            free(password_data);
+                        }
                         return ARCHIVE_ERR_WRITE_FAILED;
                     }
 
@@ -516,6 +693,9 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
                 remove(output_path);
                 archive_read_free(a);
                 archive_write_free(ext);
+                if (password_data != NULL) {
+                    free(password_data);
+                }
                 return ARCHIVE_ERR_WRITE_FAILED;
             }
 
@@ -532,6 +712,11 @@ int archive_extract_single_file(const char* archive_path, const char* entry_path
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
+    
+    // 释放密码回调数据
+    if (password_data != NULL) {
+        free(password_data);
+    }
 
     if (!found) {
         safe_strncpy(result->error_message, "File not found in archive", 

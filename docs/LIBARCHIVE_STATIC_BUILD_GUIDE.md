@@ -59,7 +59,7 @@ git checkout v3.8.1
 mkdir build-android-arm64
 cd build-android-arm64
 
-# CMake 配置（静态链接）
+# CMake 配置（静态链接 + 加密支持）
 cmake .. \
   -DCMAKE_TOOLCHAIN_FILE=$env:ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
   -DANDROID_ABI=arm64-v8a \
@@ -71,11 +71,22 @@ cmake .. \
   -DENABLE_LZ4=ON \
   -DENABLE_ZSTD=ON \
   -DENABLE_ZLIB=ON \
+  -DENABLE_OPENSSL=ON \
+  -DENABLE_MBEDTLS=ON \
+  -DENABLE_NETTLE=ON \
+  -DENABLE_CNG=OFF \
   -DBZIP2_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/libbz2.a \
   -DLIBLZMA_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/liblzma.a \
   -DLZ4_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/liblz4.a \
   -DZSTD_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/libzstd.a \
-  -DZLIB_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/libz.a
+  -DZLIB_LIBRARIES=C:/dev/vcpkg/installed/arm64-android/lib/libz.a \
+  -DOPENSSL_ROOT_DIR=C:/dev/vcpkg/installed/arm64-android
+
+# 注意：加密支持需要以下任一库
+# - OpenSSL (推荐，Android NDK 已包含)
+# - mbedTLS
+# - Nettle
+# 至少启用一个以支持加密 7z/RAR
 
 # 编译
 cmake --build . --config Release
