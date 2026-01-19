@@ -14,6 +14,7 @@ import 'package:easyfile/ui/widgets/background_audio_player_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/pages/archive_viewer_page.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:open_file/open_file.dart';
@@ -90,6 +91,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
 
     // 保存当前预览文件路径（用于后台恢复）
     _saveCurrentFilePath();
+
+    // 检查是否是压缩包文件，如果是则自动导航到压缩包查看器
+    if (!widget.isReadOnly && FileUtils.isArchiveFile(widget.file.name)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToArchiveViewer();
+      });
+    }
   }
 
   /// 计划页码指示器淡出动画
@@ -189,6 +197,25 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
       logger.d('Saved current file path: ${currentFile.path}');
     } catch (e) {
       logger.e('Failed to save current file path: $e');
+    }
+  }
+
+  /// 导航到压缩包查看器
+  Future<void> _navigateToArchiveViewer() async {
+    logger.i('🗜️ Navigating to ArchiveViewerPage for: ${widget.file.name}');
+    
+    final needsRefresh = await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ArchiveViewerPage(
+          archiveFile: widget.file,
+          isReadOnly: true,  // 从预览入口进入，设置为只读模式
+        ),
+      ),
+    );
+    
+    // 如果压缩包查看器返回需要刷新，则通知父页面
+    if (needsRefresh == true && mounted) {
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -1105,6 +1132,13 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         }
       } catch (e) {
         logger.w('❌ Failed to load unknown file as text: $e');
+      }
+
+      // 检查是否是压缩包文件（在不支持之前检查）
+      if (FileUtils.isArchiveFile(widget.file.name)) {
+        logger.i('🗜️ Archive file detected, will navigate to ArchiveViewerPage');
+        // 不显示错误，导航逻辑在 initState 中处理
+        return;
       }
 
       // 确实不支持的文件类型

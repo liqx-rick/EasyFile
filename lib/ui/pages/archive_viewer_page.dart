@@ -15,10 +15,12 @@ import 'package:open_file/open_file.dart';
 /// 显示压缩包内的文件和目录列表，不实际解压
 class ArchiveViewerPage extends StatefulWidget {
   final FileItem archiveFile;
+  final bool isReadOnly; // 只读模式（从文件预览进入，禁止解压等操作）
 
   const ArchiveViewerPage({
     super.key,
     required this.archiveFile,
+    this.isReadOnly = false,
   });
 
   @override
@@ -137,7 +139,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
               ),
               if (_entries != null)
                 Text(
-                  '${_entries!.length} 个项目',
+                  '${_entries!.length} 个项目${widget.isReadOnly ? ' · 只读模式' : ''}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
