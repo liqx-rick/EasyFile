@@ -4,11 +4,7 @@ import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
-import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/core/data_sources/data_source_helpers.dart';
-import 'package:easyfile/core/data_sources/media_store_data_source.dart';
 import 'package:easyfile/core/services/app_statistics_cache.dart';
 
 ///
@@ -196,112 +192,21 @@ class RecommendationService {
 
     logger.d('  应用已安装: ${appConfig.appName}');
 
-    // 3. 尝试使用统计数据缓存（包含文件数量、总大小、本周新增）
-    final cachedStats = await _statisticsCache.get(appKey);
-
-    if (cachedStats != null &&
-        cachedStats.isValid(AppStatisticsCache.cacheDuration)) {
-      // 缓存命中：检查文件数量阈值
-      if (cachedStats.fileCount < threshold) {
-        logger.d('  文件数不足: ${cachedStats.fileCount} < $threshold（阈值）');
-        return null;
-      }
-
-      // 获取应用图标
-      Uint8List? appIcon;
-      if (detectionResult.packageName != null) {
-        appIcon =
-            await _detectionService.getAppIcon(detectionResult.packageName!);
-      }
-
-      logger.d(
-          '  ✅ 统计缓存命中 (文件数: ${cachedStats.fileCount}, 大小: ${_formatSize(cachedStats.totalSize)}, 本周新增: ${cachedStats.weeklyGrowth})');
-
-      return RecommendationCard.fromConfig(
-        config,
-        fileCount: cachedStats.fileCount,
-        appIcon: appIcon,
-        totalSize: cachedStats.totalSize,
-        weeklyGrowth: cachedStats.weeklyGrowth,
-      );
-    }
-
-    // 4. 缓存未命中：执行完整扫描
-    logger.d('  统计缓存未命中，执行完整扫描...');
-
-    final scanResult = await _scanner.scanApp(
-      appKey: appKey,
-      updateCache: true, // 更新文件数量缓存
-    );
-
-    // 应用 FileTypesConfig 过滤，确保只统计支持的文件类型
-    final originalCount = scanResult.allFiles.length;
-    final filteredFiles =
-        DataSourceHelpers.filterBySupportedTypes(scanResult.allFiles);
-    final fileCount = filteredFiles.length;
-
-    if (originalCount > fileCount) {
-      logger.d(
-          '  FileTypesConfig 过滤: $originalCount -> $fileCount (过滤 ${originalCount - fileCount} 个不支持的文件)');
-    }
-
-    // 检查文件数量阈值
-    if (fileCount < threshold) {
-      logger.d('  文件数不足: $fileCount < $threshold（阈值）');
-      return null;
-    }
-
-    // 5. 计算总大小（基于过滤后的文件）
-    int totalSize = 0;
-    try {
-      totalSize = filteredFiles.fold<int>(
-        0,
-        (sum, file) => sum + file.size,
-      );
-      logger.d('  总大小: ${_formatSize(totalSize)}');
-    } catch (e) {
-      logger.w('  计算总大小失败: $e');
-    }
-
-    // 6. 计算本周新增（使用DATE_MODIFIED索引）
-    int weeklyGrowth = 0;
-    try {
-      if (detectionResult.packageName != null) {
-        final recentFiles = await MediaStoreScannerChannel.scanRecentAppFiles(
-          packageName: detectionResult.packageName!,
-          days: 7,
-        );
-        weeklyGrowth = recentFiles.length;
-        logger.d('  本周新增: $weeklyGrowth 个文件（索引查询）');
-      }
-    } catch (e) {
-      logger.w('  计算本周新增失败: $e');
-    }
-
-    // 7. 保存统计数据到缓存
-    final statistics = AppStatistics(
-      fileCount: fileCount,
-      totalSize: totalSize,
-      weeklyGrowth: weeklyGrowth,
-      cachedAt: DateTime.now(),
-    );
-    await _statisticsCache.set(appKey, statistics);
-
-    // 8. 获取应用图标
+    // 3. 获取应用图标（无需统计数据，立即返回）
     Uint8List? appIcon;
     if (detectionResult.packageName != null) {
       appIcon =
           await _detectionService.getAppIcon(detectionResult.packageName!);
     }
 
-    logger.d('  ✅ 扫描完成并缓存统计数据');
+    logger.d('  ✅ 应用检测完成，跳过统计扫描（方案A优化）');
 
     return RecommendationCard.fromConfig(
       config,
-      fileCount: fileCount,
+      fileCount: 0, // 不显示统计数据
       appIcon: appIcon,
-      totalSize: totalSize,
-      weeklyGrowth: weeklyGrowth,
+      totalSize: null,
+      weeklyGrowth: null,
     );
   }
 
@@ -313,122 +218,15 @@ class RecommendationService {
   /// [forceRefresh] 是否强制刷新（清除缓存后重新扫描）
   Future<RecommendationCard> _checkSystemCard(RecommendationConfig config,
       {bool forceRefresh = false}) async {
-    logger.i('检查系统卡片: ${config.type} (forceRefresh=$forceRefresh)');
+    logger.i('检查系统卡片: ${config.type} (跳过统计扫描，方案A优化)');
 
-    int fileCount = 0;
-    int totalSize = 0;
-
-    try {
-      // 使用缓存服务获取数据（自动处理缓存逻辑）
-      final cacheService = MediaStoreCacheService();
-      List<FileItem> files = [];
-
-      switch (config.type) {
-        case RecommendationType.memories:
-          // 时光记忆：使用缓存服务获取系统相机照片
-          files = await cacheService.getCachedOrScan(
-            type: MediaStoreType.cameraPhotos,
-            forceRefresh: forceRefresh,
-          );
-          logger.d(
-              '时光记忆: ${files.length}张照片 (${_formatBytes(_calculateTotalSize(files))})');
-          break;
-
-        case RecommendationType.videos:
-          // 生活剪影：使用缓存服务获取系统相机视频
-          files = await cacheService.getCachedOrScan(
-            type: MediaStoreType.cameraVideos,
-            forceRefresh: forceRefresh,
-          );
-          logger.d(
-              '生活剪影: ${files.length}个视频 (${_formatBytes(_calculateTotalSize(files))})');
-          break;
-
-        case RecommendationType.recordings:
-          // 声音记录：使用缓存服务获取录音文件
-          files = await cacheService.getCachedOrScan(
-            type: MediaStoreType.recordings,
-            forceRefresh: forceRefresh,
-          );
-          logger.d(
-              '声音记录: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
-          break;
-
-        case RecommendationType.largeFiles:
-          // 大文件：扫描大文件（>100MB）- 暂不使用缓存
-          final largeFiles = await _scanLargeFiles();
-          files = largeFiles;
-          logger.d(
-              '大文件: ${files.length}个文件 (${_formatBytes(_calculateTotalSize(files))})');
-          break;
-
-        default:
-          break;
-      }
-
-      fileCount = files.length;
-      totalSize = _calculateTotalSize(files);
-    } catch (e) {
-      logger.e('系统卡片统计失败: ${config.type}, 错误: $e');
-    }
-
+    // 直接返回占位卡片，不执行真实扫描
     return RecommendationCard.fromConfig(
       config,
-      fileCount: fileCount,
-      totalSize: totalSize,
-      weeklyGrowth: 0,
+      fileCount: 0, // 不显示统计数据
+      totalSize: null,
+      weeklyGrowth: null,
     );
-  }
-
-  /// 扫描大文件（>100MB）
-  Future<List<FileItem>> _scanLargeFiles() async {
-    final List<FileItem> largeFiles = [];
-    const int sizeThreshold = 100 * 1024 * 1024; // 100MB
-
-    try {
-      // 扫描所有媒体类型
-      final allMedia = <FileItem>[];
-
-      // 图片
-      final images = await MediaStoreScannerChannel.scanImages();
-      allMedia.addAll(images);
-
-      // 视频
-      final videos = await MediaStoreScannerChannel.scanVideos();
-      allMedia.addAll(videos);
-
-      // 音频
-      final audio = await MediaStoreScannerChannel.scanAudio();
-      allMedia.addAll(audio);
-
-      // 文档
-      final documents = await MediaStoreScannerChannel.scanDocuments();
-      allMedia.addAll(documents);
-
-      // 过滤大文件
-      largeFiles.addAll(allMedia.where((file) => file.size > sizeThreshold));
-
-      logger.d('大文件扫描完成: 总媒体${allMedia.length}个, 大文件${largeFiles.length}个');
-    } catch (e) {
-      logger.e('大文件扫描失败: $e');
-    }
-
-    return largeFiles;
-  }
-
-  /// 计算文件总大小
-  int _calculateTotalSize(List<FileItem> files) {
-    return files.fold<int>(0, (sum, file) => sum + file.size);
-  }
-
-  /// 格式化字节数
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '${bytes}B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
   }
 
   /// 刷新推荐卡片（清除缓存并重新加载）
@@ -466,15 +264,5 @@ class RecommendationService {
       'mediastoreCache': mediastoreCacheService.getCacheStats(),
       'configCount': configs.length,
     };
-  }
-
-  /// 格式化文件大小
-  String _formatSize(int bytes) {
-    if (bytes < 1024) return '${bytes}B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
   }
 }

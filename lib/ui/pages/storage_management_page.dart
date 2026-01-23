@@ -226,15 +226,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
           _buildStorageOverviewSection(theme, colorScheme),
           const SizedBox(height: 24),
 
-          // 2. 系统应用
-          if (AppConfig.instance.feature.isAppManagementEnabled) ...[
-            _buildSectionTitle('系统应用', Icons.apps, colorScheme),
-            const SizedBox(height: 12),
-            _buildAppManagementCard(theme, colorScheme),
-            const SizedBox(height: 24),
-          ],
-
-          // 3. 文件清理
+          // 2. 文件清理
           if ((AppConfig.instance.feature.isJunkCleanupEnabled ||
               AppConfig.instance.feature.isLargeFilesEnabled ||
               AppConfig.instance.feature.isDuplicateFilesEnabled)) ...[

@@ -912,7 +912,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
-  /// 检查是否有快捷访问项（包括文件夹和已恢复文件）
+  /// 检查是否有快捷访问项
   bool _hasQuickAccessItems() {
     // 检查是否有快捷访问文件夹
     if (quickAccessViewModel != null &&
@@ -920,23 +920,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return true;
     }
 
-    // 检查是否有已恢复文件
-    return _hasRestoredFiles();
-  }
-
-  /// 检查是否有已恢复文件
-  bool _hasRestoredFiles() {
-    const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-    final restoredDir = Directory(restoredPath);
-
-    if (!restoredDir.existsSync()) return false;
-
-    try {
-      final files = restoredDir.listSync();
-      return files.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
+    return false;
   }
 
   /// 显示快捷访问菜单
@@ -994,39 +978,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
 
     if (result != null && mounted) {
-      if (result is String) {
-        // 工具项点击
-        _handleToolAction(result);
-      } else if (result is QuickAccessFolder) {
+      if (result is QuickAccessFolder) {
         // 文件夹点击
         _onQuickAccessItemTap(result);
       }
     }
-  }
-
-  /// 处理工具项点击
-  void _handleToolAction(String action) {
-    switch (action) {
-      case 'tool_archives':
-        _navigateToArchiveManagementPage();
-        break;
-      case 'tool_apps':
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const AppManagementPage(),
-          ),
-        );
-        break;
-    }
-  }
-
-  /// 导航到压缩包管理页面
-  void _navigateToArchiveManagementPage() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const ArchiveManagementPage(),
-      ),
-    );
   }
 
   /// 构建快捷访问菜单项
@@ -1063,122 +1019,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     for (var folder in otherTypesFolders) {
       items.add(_buildFolderMenuItem(folder, Colors.orange));
     }
-
-    // 已恢复文件（固定入口，移除分组标题）
-    if (_hasRestoredFiles()) {
-      if (items.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
-
-      const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-
-      // 直接添加已恢复文件夹作为可点击项（移除分组标题和文件数量）
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          value: QuickAccessFolder(
-            id: 'restored_files',
-            originalName: '已恢复文件',
-            path: restoredPath,
-            type: QuickAccessFolderType.other,
-            createdAt: DateTime.now(),
-            isAddedToQuickAccess: true,
-            isHidden: false,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                Icons.restore_page,
-                size: 18,
-                color: Colors.purple,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '已恢复文件',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // ====== 工具 Section ======
-    if (items.isNotEmpty) {
-      items.add(const PopupMenuDivider());
-    }
-
-    // 工具标题（不可点击）
-    items.add(
-      const PopupMenuItem<dynamic>(
-        enabled: false,
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Icon(Icons.build_outlined, size: 16, color: Colors.grey),
-            SizedBox(width: 8),
-            Text(
-              '工具',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // 压缩包管理
-    items.add(
-      PopupMenuItem<String>(
-        value: 'tool_archives',
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.folder_zip,
-              size: 18,
-              color: Colors.orange[700],
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              '压缩包',
-              style: TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // 应用管理
-    items.add(
-      PopupMenuItem<String>(
-        value: 'tool_apps',
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.apps,
-              size: 18,
-              color: Colors.blue[700],
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              '应用管理',
-              style: TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-    );
 
     return items;
   }
