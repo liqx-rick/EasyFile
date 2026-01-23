@@ -597,7 +597,7 @@ class CacheManagerService {
   }
 
   /// 获取应用管理缓存大小（估算）
-  /// 包含4个服务的缓存：AppStorageCacheManager、AppStatisticsCache、FileCountCache、AppDetectionService
+  /// 包含3个服务的缓存：AppStorageCacheManager、FileCountCache、AppDetectionService
   Future<int> _getAppManagementCacheSize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -609,7 +609,6 @@ class CacheManagerService {
       // 统计所有应用管理相关的键
       for (final key in keys) {
         if (key.startsWith('app_storage_') || // AppStorageCacheManager
-            key.startsWith('app_statistics_') || // AppStatisticsCache
             key.startsWith('file_count_') || // FileCountCache (count)
             key.startsWith('file_count_time_') || // FileCountCache (time)
             key.startsWith('app_installed_') || // AppDetectionService
@@ -657,7 +656,6 @@ class CacheManagerService {
       final keysToRemove = allKeys
           .where((key) =>
                   key.startsWith('app_storage_') || // AppStorageCacheManager
-                  key.startsWith('app_statistics_') || // AppStatisticsCache
                   key.startsWith('file_count_') || // FileCountCache (count)
                   key.startsWith('file_count_time_') || // FileCountCache (time)
                   key.startsWith('app_installed_') || // AppDetectionService
