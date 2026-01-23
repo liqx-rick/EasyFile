@@ -13,7 +13,6 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
@@ -28,7 +27,6 @@ import 'package:easyfile/ui/pages/settings_page.dart';
 import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
-import 'package:easyfile/ui/pages/archive_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/trash_page.dart';
@@ -393,18 +391,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final detectionService = AppDetectionService();
       await detectionService.initialize();
 
-      // 创建统计缓存并初始化
-      final statisticsCache = AppStatisticsCache();
-      await statisticsCache.initialize();
-
       // 创建扫描器
       final scanner = UnifiedAppScanner(detectionService);
 
-      // 创建推荐服务
+      // 创建推荐服务（方案A优化：无需statisticsCache）
       _recommendationService = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
-        statisticsCache: statisticsCache,
       );
 
       logger.d('推荐服务初始化完成');
@@ -3052,7 +3045,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     fileViewModel: vm,
                     filePresenter: presenter,
                     categoryCardSize: _categoryCardSize,
-                    recommendationService: _recommendationService,
+                    recommendationService: _recommendationService!,
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -3400,7 +3393,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             fileViewModel: vm,
                             filePresenter: presenter,
                             categoryCardSize: _categoryCardSize,
-                            recommendationService: _recommendationService,
+                            recommendationService: _recommendationService!,
                           ),
                           const SizedBox(height: 2),
 

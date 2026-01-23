@@ -17,22 +17,12 @@ class AppStatistics {
   /// 文件数量
   final int fileCount;
 
-  /// 总大小（字节）
-  final int totalSize;
-
-  /// 本周新增数量
-  ///
-  /// 注意：当前 UI 未使用此字段，保留供将来可能的趋势展示功能使用。
-  final int weeklyGrowth;
-
   /// 缓存时间
   final DateTime cachedAt;
 
   AppStatistics({
     this.version = currentVersion,
     required this.fileCount,
-    required this.totalSize,
-    required this.weeklyGrowth,
     required this.cachedAt,
   });
 
@@ -41,8 +31,6 @@ class AppStatistics {
     return AppStatistics(
       version: json['version'] as int? ?? 1, // 旧缓存默认为 v1
       fileCount: json['fileCount'] as int,
-      totalSize: json['totalSize'] as int,
-      weeklyGrowth: json['weeklyGrowth'] as int,
       cachedAt: DateTime.fromMillisecondsSinceEpoch(json['cachedAt'] as int),
     );
   }
@@ -52,8 +40,6 @@ class AppStatistics {
     return {
       'version': version,
       'fileCount': fileCount,
-      'totalSize': totalSize,
-      'weeklyGrowth': weeklyGrowth,
       'cachedAt': cachedAt.millisecondsSinceEpoch,
     };
   }
@@ -171,7 +157,7 @@ class AppStatisticsCache {
       }
 
       logger.d(
-          '统计缓存命中: $appKey (v${stats.version}, 文件数: ${stats.fileCount}, 大小: ${_formatSize(stats.totalSize)}, ${DateTime.now().difference(stats.cachedAt).inMinutes}分钟前)');
+          '统计缓存命中: $appKey (v${stats.version}, 文件数: ${stats.fileCount}, ${DateTime.now().difference(stats.cachedAt).inMinutes}分钟前)');
       return stats;
     } catch (e) {
       logger.e('读取统计缓存失败: $appKey, 错误: $e');
@@ -193,8 +179,7 @@ class AppStatisticsCache {
       final jsonStr = jsonEncode(stats.toJson());
       await _prefs!.setString(cacheKey, jsonStr);
 
-      logger.d(
-          '统计缓存已更新: $appKey (文件数: ${stats.fileCount}, 大小: ${_formatSize(stats.totalSize)}, 本周新增: ${stats.weeklyGrowth})');
+      logger.d('统计缓存已更新: $appKey (文件数: ${stats.fileCount})');
     } catch (e) {
       logger.e('保存统计缓存失败: $appKey, 错误: $e');
     }
@@ -266,15 +251,5 @@ class AppStatisticsCache {
       'expiredCacheCount': expiredCount,
       'cacheDurationHours': cacheDuration.inHours,
     };
-  }
-
-  /// 格式化文件大小
-  String _formatSize(int bytes) {
-    if (bytes < 1024) return '${bytes}B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
   }
 }

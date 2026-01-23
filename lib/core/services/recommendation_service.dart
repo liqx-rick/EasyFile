@@ -4,8 +4,6 @@ import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/services/mediastore_cache_service.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
 
 ///
 /// 核心设计：
@@ -30,16 +28,12 @@ import 'package:easyfile/core/services/app_statistics_cache.dart';
 /// final detectionService = AppDetectionService();
 /// await detectionService.initialize();
 ///
-/// final statisticsCache = AppStatisticsCache();
-/// await statisticsCache.initialize();
-///
 /// final scanner = UnifiedAppScanner(detectionService);
 ///
 /// // 2. 创建推荐服务
 /// final recommendationService = RecommendationService(
 ///   detectionService: detectionService,
 ///   scanner: scanner,
-///   statisticsCache: statisticsCache,
 /// );
 ///
 /// // 3. 获取推荐卡片（超快，<10ms）
@@ -55,20 +49,12 @@ class RecommendationService {
   /// 统一扫描器（必需）
   final UnifiedAppScanner _scanner;
 
-  /// 统计数据缓存服务（必需）
-  final AppStatisticsCache _statisticsCache;
-
-  /// 获取统计缓存服务（用于外部监听和清理）
-  AppStatisticsCache get statisticsCache => _statisticsCache;
-
   RecommendationService({
     required AppDetectionService detectionService,
     required UnifiedAppScanner scanner,
-    required AppStatisticsCache statisticsCache,
     List<RecommendationConfig>? configs,
   })  : _detectionService = detectionService,
         _scanner = scanner,
-        _statisticsCache = statisticsCache,
         configs = configs ?? defaultRecommendationConfigs;
 
   /// 获取推荐卡片列表（已过滤+排序，最多4个）
@@ -205,8 +191,6 @@ class RecommendationService {
       config,
       fileCount: 0, // 不显示统计数据
       appIcon: appIcon,
-      totalSize: null,
-      weeklyGrowth: null,
     );
   }
 
@@ -224,8 +208,6 @@ class RecommendationService {
     return RecommendationCard.fromConfig(
       config,
       fileCount: 0, // 不显示统计数据
-      totalSize: null,
-      weeklyGrowth: null,
     );
   }
 
@@ -236,32 +218,19 @@ class RecommendationService {
   /// - 应用安装/卸载后
   /// - 检测到数据不准确
   Future<List<RecommendationCard>> refreshRecommendations() async {
-    logger.i('刷新推荐卡片（清除所有缓存）');
+    logger.i('刷新推荐卡片（清除应用检测缓存）');
 
-    // 清除应用文件数量缓存
+    // 清除应用文件数量缓存（方案A优化：仅清理实际使用的缓存）
     await _scanner.clearFileCountCache();
 
-    // 清除统计数据缓存
-    await _statisticsCache.clearAll();
-    logger.i('✓ 统计数据缓存已清除');
-
-    // 清除 MediaStore 缓存
-    final mediastoreCacheService = MediaStoreCacheService();
-    await mediastoreCacheService.clearAllCache();
-    logger.i('✓ MediaStore 缓存已清除');
-
-    // 重新生成推荐，强制重新扫描
+    // 重新生成推荐
     return await getRecommendations(forceRefresh: true);
   }
 
   /// 获取缓存统计信息（调试用）
   Map<String, dynamic> getCacheStats() {
-    final mediastoreCacheService = MediaStoreCacheService();
-
     return {
       'detectionService': _detectionService.getCacheStats(),
-      'statisticsCache': _statisticsCache.getCacheStats(),
-      'mediastoreCache': mediastoreCacheService.getCacheStats(),
       'configCount': configs.length,
     };
   }

@@ -1024,23 +1024,6 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
   }
 
   /// 构建应用管理卡片
-  Widget _buildAppManagementCard(ThemeData theme, ColorScheme colorScheme) {
-    return _buildUnifiedCard(
-      theme: theme,
-      colorScheme: colorScheme,
-      icon: Icons.apps,
-      title: '应用管理',
-      description: '查看应用数量、占用空间和缓存大小',
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const AppManagementPage(),
-          ),
-        );
-      },
-    );
-  }
-
   /// 格式化扫描配置为简短描述
   String _formatScanConfig(LargeFileScanConfig config) {
     final types = config.fileTypes.map((t) => t.label).take(3).join('|');

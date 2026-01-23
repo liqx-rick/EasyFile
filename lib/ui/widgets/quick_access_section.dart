@@ -18,8 +18,6 @@ import 'package:easyfile/ui/widgets/storage_management_card.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
-import 'package:easyfile/core/services/file_change_listener_service.dart';
 import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
 import 'package:easyfile/ui/pages/archive_management_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
@@ -57,7 +55,7 @@ class QuickAccessSection extends StatefulWidget {
   final double categoryCardSize;
 
   /// 推荐服务（可选注入，如果不提供则使用默认实现）
-  final RecommendationService? recommendationService;
+  final RecommendationService recommendationService;
 
   /// 全局Key用于从外部触发刷新（私有）
   static final GlobalKey<_QuickAccessSectionState> _globalKey =
@@ -84,7 +82,7 @@ class QuickAccessSection extends StatefulWidget {
     required this.fileViewModel,
     required this.filePresenter,
     this.categoryCardSize = 0.0,
-    this.recommendationService,
+    required this.recommendationService,
   });
 
   @override
@@ -109,9 +107,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   // 分页控制
   late final PageController _pageController;
   int _currentPage = 0;
-
-  // 文件监听服务
-  FileChangeListenerService? _fileChangeListener;
 
   // 静态缓存：在App同一会话中共享
   static List<RecommendationCard>? _cachedCards;
@@ -237,7 +232,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     _pageController = PageController();
     _loadStorageInfo();
     _loadRecommendations(); // 后台异步加载/刷新
-    _initFileChangeListener(); // 初始化文件监听
     // 延迟加载避免在build期间触发setState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -247,34 +241,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   }
 
   void _initServices() {
-    // 使用注入的服务或创建默认实例（兼容旧代码）
-    _recommendationService =
-        widget.recommendationService ?? _createDefaultRecommendationService();
-  }
-
-  /// 创建默认推荐服务（降级方案）
-  ///
-  /// 注意：此方法仅用于向后兼容，正常情况下应通过构造函数注入已初始化的服务。
-  /// 当前应用已在 FileBrowserPage 的 initState 中初始化并注入服务。
-  RecommendationService _createDefaultRecommendationService() {
-    logger.w('使用默认推荐服务（降级方案），建议注入已初始化的服务');
-
-    // 创建未初始化的服务（会降低性能）
-    final detectionService = AppDetectionService();
-    final scanner = UnifiedAppScanner(detectionService);
-    final statisticsCache = AppStatisticsCache();
-
-    return RecommendationService(
-      detectionService: detectionService,
-      scanner: scanner,
-      statisticsCache: statisticsCache,
-    );
-  }
-
-  /// 初始化文件变化监听（方案A：已移除，卡片无统计数据无需监听）
-  Future<void> _initFileChangeListener() async {
-    // 方案A优化：卡片仅显示图标+名称，无需监听文件变化
-    logger.d('跳过文件变化监听初始化（方案A优化）');
+    // 直接使用注入的服务（已在 FileBrowserPage 中初始化）
+    _recommendationService = widget.recommendationService;
   }
 
   void _initAnimation() {
@@ -405,7 +373,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   @override
   void dispose() {
     _animationController.dispose();
-    _fileChangeListener?.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -921,7 +888,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     widget.fileViewModel.setCurrentTab(TabView.browse);
   }
 
-  void _navigateToRecommendation(RecommendationCard card) async {
+  void _navigateToRecommendation(RecommendationCard card) {
     logger.d('导航到推荐详情: ${card.title}');
 
     // 根据推荐卡片生成页面配置
@@ -938,8 +905,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       presenter: widget.filePresenter,
     );
 
-    // 跳转到统一的推荐聚合页面
-    await Navigator.push<bool>(
+    // 跳转到统一的推荐聚合页面（方案A：无需等待返回值）
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => RecommendAggregatePage(
