@@ -201,7 +201,7 @@ class AppInitializationService {
       );
 
       logger.i(
-          '[AppInitService] File system scan completed: ${scanResult.quickAccessFoldersFound} folders found, ${scanResult.totalFilesScanned} files scanned');
+          '[AppInitService] File system scan completed: ${scanResult.foldersFound} folders found, ${scanResult.filesScanned} files scanned');
     } catch (e) {
       logger.e('[AppInitService] File system scan failed: $e');
       // 即使扫描失败也标记为已初始化（前两个阶段已完成）

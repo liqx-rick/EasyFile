@@ -55,6 +55,7 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
     bool withIcon = false,
     bool useMediaStore = true,
     bool updateCache = true,
+    bool forceRefresh = false,
   }) async {
     return AppScanResult(
       appName: appKey,

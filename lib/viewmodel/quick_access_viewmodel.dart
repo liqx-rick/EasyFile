@@ -61,18 +61,6 @@ class QuickAccessViewModel extends ChangeNotifier {
     return filtered;
   }
 
-  /// @deprecated 改为 otherFolders
-  List<QuickAccessFolder> get appRootFolders => otherFolders;
-
-  /// @deprecated 改为 otherFolders
-  List<QuickAccessFolder> get appSubfolders => otherFolders;
-
-  /// @deprecated 改为 otherFolders
-  List<QuickAccessFolder> get userCustomFolders => otherFolders;
-
-  /// @deprecated 首页推荐已移除
-  List<QuickAccessFolder> get pinnedFolders => [];
-
   /// 设置文件夹列表
   void setFolders(List<QuickAccessFolder> folders) {
     _folders = folders;

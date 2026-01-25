@@ -119,6 +119,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
 
   // 构造时检查缓存（静态 + 持久化）
   _QuickAccessSectionState() {
+    logger.d('⏱️ [PERF] QuickAccessSection构造函数开始');
     // 1. 先检查静态缓存（最快）
     final hasValidStaticCache = _cachedCards != null &&
         _cacheTime != null &&

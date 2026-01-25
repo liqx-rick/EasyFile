@@ -47,6 +47,13 @@ class UnifiedAppScanner {
   /// 最大递归深度（避免深层目录遍历）
   static const int maxRecursionDepth = 5;
 
+  /// 扫描结果缓存（appKey -> ScanResultCache）
+  /// ⚠️ 使用静态变量确保跨实例共享缓存
+  static final Map<String, _ScanResultCache> _scanCache = {};
+
+  /// 缓存有效期（6小时）
+  static const Duration _cacheExpiration = Duration(hours: 6);
+
   UnifiedAppScanner(
     this._detectionService, {
     FileCountCache? fileCountCache,
@@ -59,12 +66,14 @@ class UnifiedAppScanner {
   /// [withIcon] 是否获取应用图标
   /// [useMediaStore] 是否使用 MediaStore 扫描（Android 11+）
   /// [updateCache] 是否更新文件数量缓存（默认 true）
+  /// [forceRefresh] 是否强制刷新，忽略缓存（默认 false）
   Future<AppScanResult> scanApp({
     required String appKey,
     List<String> additionalPaths = const [],
     bool withIcon = false,
     bool useMediaStore = true,
     bool updateCache = true,
+    bool forceRefresh = false,
   }) async {
     final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (config == null) {
@@ -75,6 +84,22 @@ class UnifiedAppScanner {
     }
 
     logger.i('========== 开始扫描应用: ${config.appName} ($appKey) ==========');
+
+    // 🚀 缓存检查：如果未强制刷新，先检查缓存
+    if (!forceRefresh && _scanCache.containsKey(appKey)) {
+      final cached = _scanCache[appKey]!;
+      final cacheAge = DateTime.now().difference(cached.timestamp);
+      
+      if (cacheAge < _cacheExpiration) {
+        logger.i('✅ 使用缓存结果 (缓存年龄: ${cacheAge.inMinutes}分钟, 有效期: ${_cacheExpiration.inHours}小时)');
+        logger.i('   文件数量: ${cached.result.allFiles.length}');
+        logger.i('========== 扫描完成: ${config.appName} ==========');
+        return cached.result;
+      } else {
+        logger.i('⏰ 缓存已过期 (${cacheAge.inMinutes}分钟 > ${_cacheExpiration.inHours}小时), 执行新扫描');
+        _scanCache.remove(appKey); // 清除过期缓存
+      }
+    }
 
     // 步骤1: 检测应用是否安装
     final detectionResult = await _detectionService.detectApp(config);
@@ -157,6 +182,27 @@ class UnifiedAppScanner {
     final duplicates = totalBeforeMerge - allFiles.length;
     logger.i(
         '总文件数: ${allFiles.length} (去重后), 去重前: $totalBeforeMerge, 重复: $duplicates 个');
+
+    // 步骤8: 构建扫描结果
+    final scanResult = AppScanResult(
+      appName: config.appName,
+      packageName: packageName,
+      isInstalled: true,
+      allFiles: allFiles,
+      mediaStoreFiles: mediaStoreResult.files,
+      pathScanFiles: pathScanResult.files,
+      differenceFiles: differenceFiles,
+      appIcon: appIcon,
+      mediaStoreDuration: mediaStoreResult.duration,
+      pathScanDuration: pathScanResult.duration,
+    );
+
+    // 步骤9: 更新缓存
+    _scanCache[appKey] = _ScanResultCache(
+      result: scanResult,
+      timestamp: DateTime.now(),
+    );
+    logger.i('💾 扫描结果已缓存 (有效期: ${_cacheExpiration.inHours}小时)');
 
     // 调试：检查PDF文件的路径格式
     if (appKey == 'wechat') {
@@ -486,4 +532,15 @@ class UnifiedAppScanner {
 
     return results;
   }
+}
+
+/// 扫描结果缓存（内部类）
+class _ScanResultCache {
+  final AppScanResult result;
+  final DateTime timestamp;
+
+  _ScanResultCache({
+    required this.result,
+    required this.timestamp,
+  });
 }

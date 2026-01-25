@@ -274,7 +274,7 @@ class QuickAccessPresenter {
   ///
   /// [scanCategoryFiles] 是一个可选的回调函数，用于扫描分类文件并返回统计结果
   /// [onProgress] 进度回调，参数为进度值 (0.0 - 1.0)，用于实时更新 UI
-  Future<ComprehensiveScanResult> performFirstTimeComprehensiveScan({
+  Future<ScanStats> performFirstTimeComprehensiveScan({
     Future<Map<FileCategory, int>> Function()? scanCategoryFiles,
     void Function(double progress)? onProgress,
   }) async {
@@ -328,22 +328,17 @@ class QuickAccessPresenter {
           await loadQuickAccessFolders();
           onProgress?.call(1.0);
 
-          return ComprehensiveScanResult(
-            quickAccessFoldersFound: detectedFolders.length,
-            systemFoldersCount: stats.systemCount,
-            otherFoldersCount: stats.otherCount,
+          return ScanStats(
+            foldersFound: detectedFolders.length,
             newlyAdded: stats.newlyAdded,
-            alreadyExists: stats.alreadyExists,
-            unhidden: stats.unhidden,
-            categoryFileCounts: categoryFileCounts,
-            totalFilesScanned: totalFilesScanned,
+            filesScanned: totalFilesScanned,
             success: true,
           );
         },
       );
     } catch (e, stackTrace) {
       logger.e('Error performing comprehensive scan: $e\n$stackTrace');
-      return ComprehensiveScanResult.error(e.toString());
+      return ScanStats.error(e.toString());
     }
   }
 

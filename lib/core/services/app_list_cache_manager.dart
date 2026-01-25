@@ -1,11 +1,43 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/app_info.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 应用列表缓存管理器
 ///
-/// 缓存完整的应用列表（包括图标），加快首次加载速度
+/// 缓存完整的应用列表（包括图标），加快应用管理页首次加载速度
+///
+/// 📦 缓存分层说明:
+/// ```
+/// 应用相关的三层缓存体系：
+///
+/// ┌─────────────────────────────────────────┐
+/// │ AppDetectionService                     │
+/// │ • 缓存: 应用安装状态                      │
+/// │ • 过期: 永不过期（持久化）                 │
+/// │ • 用途: 快速检测应用是否安装               │
+/// └─────────────────────────────────────────┘
+///              ↓
+/// ┌─────────────────────────────────────────┐
+/// │ AppListCacheManager (当前)              │
+/// │ • 缓存: 应用列表 + 图标                   │
+/// │ • 过期: 24小时                           │
+/// │ • 用途: 应用管理页快速加载                │
+/// └─────────────────────────────────────────┘
+///              ↓
+/// ┌─────────────────────────────────────────┐
+/// │ UnifiedAppScanner                       │
+/// │ • 缓存: 文件扫描结果                      │
+/// │ • 过期: 6小时                            │
+/// │ • 用途: 应用详情页文件统计                │
+/// └─────────────────────────────────────────┘
+/// ```
+///
+/// 职责分工:
+/// - AppDetectionService: 轻量级安装检测
+/// - AppListCacheManager: 完整列表+图标（重量级数据）
+/// - UnifiedAppScanner: 文件数量统计
 class AppListCacheManager {
   static const String _cacheKeyUserApps = 'app_list_cache_user';
   static const String _cacheKeyAllApps = 'app_list_cache_all';
@@ -28,8 +60,7 @@ class AppListCacheManager {
       final cachedTimeStr = prefs.getString(timeKey);
 
       if (cachedJson == null || cachedTimeStr == null) {
-        logger
-            .d('No cached app list found (includeSystem: $includeSystemApps)');
+        logger.d('No cached app list found (includeSystem: $includeSystemApps)');
         return null;
       }
 
@@ -40,12 +71,9 @@ class AppListCacheManager {
       }
 
       final jsonList = jsonDecode(cachedJson) as List;
-      final apps = jsonList
-          .map((json) => EasyFileAppInfo.fromJson(json as Map<String, dynamic>))
-          .toList();
+      final apps = jsonList.map((json) => EasyFileAppInfo.fromJson(json as Map<String, dynamic>)).toList();
 
-      logger.i(
-          'Loaded ${apps.length} apps from cache (includeSystem: $includeSystemApps)');
+      logger.i('Loaded ${apps.length} apps from cache (includeSystem: $includeSystemApps)');
       return apps;
     } catch (e) {
       logger.e('Error loading cached app list: $e');
@@ -70,8 +98,7 @@ class AppListCacheManager {
       await prefs.setString(cacheKey, jsonEncode(jsonList));
       await prefs.setString(timeKey, DateTime.now().toIso8601String());
 
-      logger.i(
-          'Cached ${apps.length} apps with icons (includeSystem: $includeSystemApps)');
+      logger.i('Cached ${apps.length} apps with icons (includeSystem: $includeSystemApps)');
     } catch (e) {
       logger.e('Error saving app list to cache: $e');
     }
