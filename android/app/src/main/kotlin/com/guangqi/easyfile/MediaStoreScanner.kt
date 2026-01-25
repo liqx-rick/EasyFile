@@ -43,7 +43,14 @@ class MediaStoreScanner(private val context: Context) {
                     
                     // 过滤隐藏文件
                     if (fileData != null && !isHiddenFile(fileData)) {
-                        results.add(fileData)
+                        // 对压缩包类型进行额外的扩展名验证
+                        if (type is MediaType.Archive) {
+                            if (isValidArchiveFile(fileData)) {
+                                results.add(fileData)
+                            }
+                        } else {
+                            results.add(fileData)
+                        }
                     }
                 }
             }
@@ -150,6 +157,18 @@ class MediaStoreScanner(private val context: Context) {
         if (path.contains("/.")) return true
         
         return false
+    }
+    
+    /**
+     * 验证是否为有效的压缩包文件
+     * 通过文件扩展名进行二次验证，解决 MIME 类型识别不准确的问题
+     */
+    private fun isValidArchiveFile(fileData: Map<String, Any>): Boolean {
+        val name = fileData["name"] as? String ?: return false
+        val extension = name.substringAfterLast('.', "").lowercase()
+        
+        // 检查扩展名是否在支持列表中
+        return MediaTypeConfig.ARCHIVE_EXTENSIONS.contains(extension)
     }
     
     /**

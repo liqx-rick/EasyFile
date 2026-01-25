@@ -1,0 +1,70 @@
+{
+   "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
+   },
+   "editor.formatOnSave": true,
+   "dart.lineLength": 120,
+   "dart.showTodos": true,
+   "[dart]": {
+      "editor.defaultFormatter": "Dart-Code.dart-code",
+      "editor.tabSize": 2
+   },
+   "todo-tree.highlights.enabled": true,
+   "todo-tree.highlights.defaultHighlight": {
+      "icon": "alert",
+      "type": "text",
+      "foreground": "#000000",
+      "background": "#ffff00",
+      "opacity": 50,
+      "iconColour": "#0000ff"
+   },
+   "todo-tree.highlights.customHighlight": {
+      "TODO": {
+         "icon": "check",
+         "foreground": "#000000",
+         "background": "#ffeb3b",
+         "iconColour": "#ffeb3b"
+      },
+      "FIXME": {
+         "icon": "alert",
+         "foreground": "#ffffff",
+         "background": "#f44336",
+         "iconColour": "#f44336"
+      },
+      "DEPRECATED": {
+         "icon": "alert",
+         "foreground": "#ffffff",
+         "background": "#ff9800",
+         "iconColour": "#ff9800"
+      },
+      "LEGACY": {
+         "icon": "history",
+         "foreground": "#000000",
+         "background": "#9e9e9e",
+         "iconColour": "#9e9e9e"
+      },
+      "CLEANUP": {
+         "icon": "trash",
+         "foreground": "#ffffff",
+         "background": "#673ab7",
+         "iconColour": "#673ab7"
+      }
+   },
+   "todo-tree.general.tags": [
+      "TODO",
+      "FIXME",
+      "DEPRECATED",
+      "LEGACY",
+      "CLEANUP",
+      "HACK",
+      "NOTE",
+      "BUG"
+   ],
+   "files.trimTrailingWhitespace": true,
+   "files.insertFinalNewline": true,
+   "editor.rulers": [
+      80,
+      120
+   ]
+}

@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/favorite_file_item.dart';
-import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/services/file_type_analyzer.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tab 视图类型
 enum TabView {
@@ -33,6 +32,24 @@ class FileViewModel extends ChangeNotifier {
   bool _isRecentFilesMode = false;
   String? _errorMessage; // 错误消息
 
+  /// 文件操作追踪字段
+  ///
+  /// 用途: 支持文件增删改后的UI更新和撤销操作
+  ///
+  /// 字段说明:
+  /// - lastUpdatedOldPath: 更新前的文件路径（5个页面使用，用于滚动定位）
+  /// - lastUpdatedNewFile: 更新后的文件对象
+  /// - lastDeletedFilePath: 已删除的文件路径（5个页面使用，支持撤销功能）
+  /// - lastAddedFilePath: 新增的文件路径（内部使用，防止重复添加）
+  /// - lastAddedFile: 新增的文件对象
+  ///
+  /// 使用页面:
+  /// - file_browser_page.dart
+  /// - archive_management_page.dart
+  /// - extracted_files_browser_page.dart
+  /// - large_files_page.dart
+  /// - category_file_page.dart
+
   // 文件更新跟踪（用于页面同步更新）
   String? _lastUpdatedOldPath;
   FileItem? _lastUpdatedNewFile;
@@ -59,6 +76,11 @@ class FileViewModel extends ChangeNotifier {
   TabView _currentTab = TabView.recent;
   ViewMode _viewMode = ViewMode.list;
   String? _lastBrowsePath; // 保存浏览模式下的最后路径
+
+  // 解压上下文信息（用于显示提示条）
+  String? _extractionSourceName; // 解压来源的压缩包名称
+  String? _extractionTargetPath; // 解压目标路径
+  bool _shouldHighlightExtraction = false; // 是否需要高亮显示解压的文件夹
 
   // SharedPreferences keys
   static const String _keyCurrentTab = 'current_tab';
@@ -109,8 +131,7 @@ class FileViewModel extends ChangeNotifier {
         await prefs.setString(_keyLastBrowsePath, _currentPath);
       }
 
-      logger.d(
-          'Saved current state: tab=$_currentTab, path=$_currentPath, theme=$_themeMode');
+      logger.d('Saved current state: tab=$_currentTab, path=$_currentPath, theme=$_themeMode');
     } catch (e) {
       logger.e('Error saving current state: $e');
     }
@@ -182,11 +203,13 @@ class FileViewModel extends ChangeNotifier {
   }
 
   void setFiles(List<FileItem> files) {
+    logger.d('⏱️ [PERF] setFiles开始: ${files.length}个文件');
     logger.d('Setting files list: ${files.length} items for tab: $_currentTab');
     if (files.isNotEmpty) {
       logger.d('First 3 files: ${files.take(3).map((f) => f.name).join(", ")}');
     }
     _allFiles = files;
+    logger.d('⏱️ [PERF] 准备调用_applyFilters...');
     _applyFilters();
   }
 
@@ -290,8 +313,7 @@ class FileViewModel extends ChangeNotifier {
     _lastUpdatedOldPath = null;
     _lastUpdatedNewFile = null;
 
-    logger.d(
-        'Added and sorted file in list, notifying listeners: ${newFile.path}');
+    logger.d('Added and sorted file in list, notifying listeners: ${newFile.path}');
     notifyListeners();
 
     // 通知完成后清除添加标记，避免重复处理
@@ -369,7 +391,9 @@ class FileViewModel extends ChangeNotifier {
     );
     logger.d(
         'After filters applied: ${_files.length} items (from ${_allFiles.length} total), shouldHideFolders: $shouldHideFolders');
+    logger.d('⏱️ [PERF] 准备notifyListeners - ${_files.length}个筛选后的文件');
     notifyListeners();
+    logger.d('⏱️ [PERF] notifyListeners完成，等待UI rebuild...');
   }
 
   /// 设置选中的文件类型分类
@@ -390,8 +414,7 @@ class FileViewModel extends ChangeNotifier {
   }
 
   /// 设置新文件列表
-  void setNewFiles(List<FileItem> files,
-      {int? retentionDays, Map<String, String>? sourceMap}) {
+  void setNewFiles(List<FileItem> files, {int? retentionDays, Map<String, String>? sourceMap}) {
     logger.d('Setting new files list: ${files.length} items');
     _newFiles = files;
     if (retentionDays != null && retentionDays != _newFilesRetentionDays) {
@@ -440,8 +463,7 @@ class FileViewModel extends ChangeNotifier {
   void setFavoriteFiles(List<FavoriteFileItem> favoriteFiles) {
     logger.d('Setting favorite files list: ${favoriteFiles.length} items');
     _favoriteFiles = _sortedFavoriteFiles(favoriteFiles);
-    logger.d(
-        'Favorite files after sorting: ${_favoriteFiles.map((f) => f.filePath).join(", ")}');
+    logger.d('Favorite files after sorting: ${_favoriteFiles.map((f) => f.filePath).join(", ")}');
     notifyListeners();
   }
 
@@ -469,8 +491,7 @@ class FileViewModel extends ChangeNotifier {
     }
     if (addedCount > 0) {
       _favoriteFiles = _sortedFavoriteFiles(_favoriteFiles);
-      logger.i(
-          'Batch added $addedCount favorite files. Total count: ${_favoriteFiles.length}');
+      logger.i('Batch added $addedCount favorite files. Total count: ${_favoriteFiles.length}');
       // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
@@ -499,8 +520,7 @@ class FileViewModel extends ChangeNotifier {
       }
     }
     if (removedCount > 0) {
-      logger.i(
-          'Batch removed $removedCount favorite files. Total count: ${_favoriteFiles.length}');
+      logger.i('Batch removed $removedCount favorite files. Total count: ${_favoriteFiles.length}');
       // 延迟通知，确保PopupMenu等UI组件有时间关闭，避免"deactivated widget's ancestor"错误
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
@@ -615,6 +635,48 @@ class FileViewModel extends ChangeNotifier {
     _viewMode = _viewMode == ViewMode.list ? ViewMode.grid : ViewMode.list;
     notifyListeners();
   }
+
+  // ==================== 解压上下文管理 ====================
+
+  /// 设置解压上下文信息（解压完成后调用）
+  void setExtractionContext({
+    required String sourceName,
+    required String targetPath,
+    bool shouldHighlight = false,
+  }) {
+    logger.d('Setting extraction context: $sourceName -> $targetPath');
+    _extractionSourceName = sourceName;
+    _extractionTargetPath = targetPath;
+    _shouldHighlightExtraction = shouldHighlight;
+    notifyListeners();
+  }
+
+  /// 清除解压上下文信息
+  void clearExtractionContext() {
+    logger.d('Clearing extraction context');
+    _extractionSourceName = null;
+    _extractionTargetPath = null;
+    _shouldHighlightExtraction = false;
+    notifyListeners();
+  }
+
+  /// 获取解压来源名称
+  String? get extractionSourceName => _extractionSourceName;
+
+  /// 获取解压目标路径
+  String? get extractionTargetPath => _extractionTargetPath;
+
+  /// 是否需要高亮显示解压的文件夹
+  bool get shouldHighlightExtraction => _shouldHighlightExtraction;
+
+  /// 检查当前路径是否是解压目标路径
+  bool get isExtractionTarget => _extractionTargetPath != null && _currentPath == _extractionTargetPath;
+
+  /// 检查当前路径是否是解压目标的父目录
+  bool get isExtractionParent =>
+      _extractionTargetPath != null &&
+      _extractionTargetPath!.startsWith(_currentPath) &&
+      _extractionTargetPath != _currentPath;
 
   /// Getter for last browse path (for restoring state)
   String? get lastBrowsePath => _lastBrowsePath;

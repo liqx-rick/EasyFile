@@ -9,16 +9,16 @@ import 'package:easyfile/viewmodel/file_viewmodel.dart';
 /// 分类导航栏组件
 ///
 /// 显示五类文件快捷入口：图片、文档、音乐、视频、下载
+/// 
+/// 性能优化：使用MediaQuery代替LayoutBuilder以减少layout延迟
 class CategoryNavBar extends StatelessWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
-  final Function(double)? onCardSizeCalculated;
 
   const CategoryNavBar({
     super.key,
     required this.presenter,
     required this.viewModel,
-    this.onCardSizeCalculated,
   });
 
   @override
@@ -29,64 +29,55 @@ class CategoryNavBar extends StatelessWidget {
     );
   }
 
-  /// 构建分类网格 - 适应屏幕宽度
+  /// 构建分类网格 - 适应屏幕宽度（使用MediaQuery代替LayoutBuilder）
   Widget _buildCategoryGrid(BuildContext context) {
     final categories = CategoryInfo.allCategories;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 根据屏幕宽度动态调整
-        final screenWidth = constraints.maxWidth;
-        final crossAxisCount = 5; // 固定5列
+    // 使用MediaQuery获取屏幕宽度，避免LayoutBuilder延迟
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = 5; // 固定5列
 
-        // 计算可用宽度和间距
-        final totalHorizontalPadding = 16; // 左右padding
-        final availableWidth = screenWidth - totalHorizontalPadding;
+    // 计算可用宽度和间距
+    final totalHorizontalPadding = 16 + 16; // Container padding + 左右边距
+    final availableWidth = screenWidth - totalHorizontalPadding;
 
-        // 动态计算间距，确保适配屏幕
-        final minSpacing = 10.0; // 最小间距增加到10
-        final maxSpacing = 50.0; // 最大间距
-        final totalSpacingWidth = (crossAxisCount - 1) * minSpacing;
-        final cardWidth = (availableWidth - totalSpacingWidth) / crossAxisCount;
+    // 动态计算间距，确保适配屏幕
+    final minSpacing = 10.0; // 最小间距增加到10
+    final maxSpacing = 50.0; // 最大间距
+    final totalSpacingWidth = (crossAxisCount - 1) * minSpacing;
+    final cardWidth = (availableWidth - totalSpacingWidth) / crossAxisCount;
 
-        // 根据卡片大小调整间距
-        final actualSpacing =
-            cardWidth < 60 ? minSpacing : (cardWidth < 70 ? 11.0 : maxSpacing);
+    // 根据卡片大小调整间距
+    final actualSpacing =
+        cardWidth < 60 ? minSpacing : (cardWidth < 70 ? 11.0 : maxSpacing);
 
-        final actualCardWidth =
-            (availableWidth - (crossAxisCount - 1) * actualSpacing) /
-                crossAxisCount;
-        final cardHeight = actualCardWidth;
+    final actualCardWidth =
+        (availableWidth - (crossAxisCount - 1) * actualSpacing) /
+            crossAxisCount;
+    final cardHeight = actualCardWidth;
 
-        // Notify parent of the calculated card size
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          onCardSizeCalculated?.call(cardHeight);
-        });
-
-        return SizedBox(
-          height: cardHeight + 4, // 卡片高度 + 额外padding
-          child: GridView.builder(
-            shrinkWrap: true, // 小数据量（<10）可以使用 shrinkWrap
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            // 性能优化：小数据量固定布局
-            addAutomaticKeepAlives: false,
-            addRepaintBoundaries: true,
-            addSemanticIndexes: false,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              mainAxisSpacing: actualSpacing,
-              crossAxisSpacing: actualSpacing,
-              childAspectRatio: actualCardWidth / cardHeight,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              return _buildCategoryCard(context, category, actualCardWidth);
-            },
-          ),
-        );
-      },
+    return SizedBox(
+      height: cardHeight + 4, // 卡片高度 + 额外padding
+      child: GridView.builder(
+        shrinkWrap: true, // 小数据量（<10）可以使用 shrinkWrap
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        // 性能优化：小数据量固定布局
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: true,
+        addSemanticIndexes: false,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: actualSpacing,
+          crossAxisSpacing: actualSpacing,
+          childAspectRatio: actualCardWidth / cardHeight,
+        ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          return _buildCategoryCard(context, category, actualCardWidth);
+        },
+      ),
     );
   }
 
@@ -203,93 +194,5 @@ class CategoryNavBar extends StatelessWidget {
     final hsl = HSLColor.fromColor(iconColor);
     // 使用低亮度和低饱和度的背景色
     return hsl.withLightness(0.15).withSaturation(0.3).toColor();
-  }
-}
-
-/// 备选方案：水平滚动布局（如果网格太挤）
-class CategoryNavBarHorizontal extends StatelessWidget {
-  final FilePresenter presenter;
-
-  const CategoryNavBarHorizontal({super.key, required this.presenter});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              '快速入口',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // 水平滚动列表
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: CategoryInfo.allCategories.length,
-              itemBuilder: (context, index) {
-                final category = CategoryInfo.allCategories[index];
-                return _buildHorizontalCard(context, category);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHorizontalCard(BuildContext context, CategoryInfo category) {
-    return Container(
-      width: 80,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        elevation: 2,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _onCategoryTap(context, category),
-          child: Container(
-            decoration: BoxDecoration(
-              color: category.backgroundColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(category.icon, size: 28, color: category.iconColor),
-                const SizedBox(height: 4),
-                Text(
-                  category.name,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: category.iconColor,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _onCategoryTap(BuildContext context, CategoryInfo category) {
-    // 与上面相同的逻辑
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('功能开发中：${category.name}分类')));
   }
 }

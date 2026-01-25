@@ -14,6 +14,7 @@ import 'package:easyfile/ui/widgets/background_audio_player_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/pages/archive_viewer_page.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:open_file/open_file.dart';
@@ -29,6 +30,8 @@ class FilePreviewPage extends StatefulWidget {
   final int? initialIndex; // 可选：初始索引
   final FileViewModel? viewModel; // 可选：如果不提供，功能按钮将被隐藏
   final FilePresenter? presenter; // 可选：如果不提供，功能按钮将被隐藏
+  final bool isReadOnly; // 只读模式（用于压缩包预览）
+  final String? archiveName; // 压缩包名称（只读模式时必传）
 
   const FilePreviewPage({
     super.key,
@@ -37,7 +40,9 @@ class FilePreviewPage extends StatefulWidget {
     this.initialIndex,
     this.viewModel,
     this.presenter,
-  });
+    this.isReadOnly = false,
+    this.archiveName,
+  }) : assert(!isReadOnly || archiveName != null, 'archiveName必须在isReadOnly为true时提供');
 
   @override
   State<FilePreviewPage> createState() => _FilePreviewPageState();
@@ -86,6 +91,13 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
 
     // 保存当前预览文件路径（用于后台恢复）
     _saveCurrentFilePath();
+
+    // 检查是否是压缩包文件，如果是则自动导航到压缩包查看器
+    if (!widget.isReadOnly && FileUtils.isArchiveFile(widget.file.name)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateToArchiveViewer();
+      });
+    }
   }
 
   /// 计划页码指示器淡出动画
@@ -185,6 +197,25 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
       logger.d('Saved current file path: ${currentFile.path}');
     } catch (e) {
       logger.e('Failed to save current file path: $e');
+    }
+  }
+
+  /// 导航到压缩包查看器
+  Future<void> _navigateToArchiveViewer() async {
+    logger.i('🗜️ Navigating to ArchiveViewerPage for: ${widget.file.name}');
+    
+    final needsRefresh = await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ArchiveViewerPage(
+          archiveFile: widget.file,
+          isReadOnly: true,  // 从预览入口进入，设置为只读模式
+        ),
+      ),
+    );
+    
+    // 如果压缩包查看器返回需要刷新，则通知父页面
+    if (needsRefresh == true && mounted) {
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -439,19 +470,23 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
             : (isDark ? Colors.black : theme.colorScheme.surface), // 其他文档跟随主题
         extendBodyBehindAppBar: true, // 内容延伸到AppBar下方
         appBar: _showUI ? _buildFloatingAppBar(context) : null,
-        body: _FilePreviewItem(
-          file: file,
-          fileList: widget.fileList,
-          onTap: _toggleUIVisibility, // 传递点击回调
-          onSetUIVisible: (show) {
-            _uiHideTimer?.cancel();
-            setState(() {
-              _showUI = show;
-            });
-            if (show) {
-              _scheduleUIHide();
-            }
-          },
+        body: Stack(
+          children: [
+            _FilePreviewItem(
+              file: file,
+              fileList: widget.fileList,
+              onTap: _toggleUIVisibility, // 传递点击回调
+              onSetUIVisible: (show) {
+                _uiHideTimer?.cancel();
+                setState(() {
+                  _showUI = show;
+                });
+                if (show) {
+                  _scheduleUIHide();
+                }
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -537,8 +572,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
       ),
       iconTheme: IconThemeData(color: iconColor),
       actions: [
-        // 打印按钮（只对支持打印的文件显示，且服务可用时）
-        if (!currentFile.isDirectory &&
+        // 打印按钮（只对支持打印的文件显示，且服务可用时，非只读模式）
+        if (!widget.isReadOnly &&
+            !currentFile.isDirectory &&
             _operationsService != null &&
             _canPrint(currentFile))
           IconButton(
@@ -546,22 +582,26 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
             onPressed: () => _printFile(currentFile),
             tooltip: '打印',
           ),
-        // 分享按钮（只对文件显示，且服务可用时）
-        if (!currentFile.isDirectory && _operationsService != null)
+        // 分享按钮（只对文件显示，且服务可用时，非只读模式）
+        if (!widget.isReadOnly && 
+            !currentFile.isDirectory && 
+            _operationsService != null)
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: () => _operationsService?.shareFile(currentFile),
             tooltip: '分享',
           ),
-        // 收藏/取消收藏按钮（只对文件显示，且服务可用时）
-        if (!currentFile.isDirectory && _operationsService != null)
+        // 收藏/取消收藏按钮（只对文件显示，且服务可用时，非只读模式）
+        if (!widget.isReadOnly && 
+            !currentFile.isDirectory && 
+            _operationsService != null)
           IconButton(
             icon: Icon(_isFavorite ? Icons.star : Icons.star_border),
             onPressed: () => _operationsService?.toggleFavorite(currentFile),
             tooltip: _isFavorite ? '取消收藏' : '添加到收藏',
           ),
-        // 三点菜单（只在服务可用时显示）
-        if (_operationsService != null)
+        // 三点菜单（只在服务可用且非只读模式时显示）
+        if (!widget.isReadOnly && _operationsService != null)
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: iconColor),
             tooltip: '更多操作',
@@ -1043,7 +1083,66 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         return;
       }
 
-      // 不支持的文件类型
+      // 未知类型文件：尝试作为文本文件打开
+      // 这样可以预览没有扩展名或扩展名未知的文本文件（如配置文件、脚本等）
+      logger.i('Unknown file type, attempting to load as text: ${widget.file.name}');
+      try {
+        final file = File(widget.file.path);
+        final bytes = await file.readAsBytes();
+        logger.i('📄 File type detection - Name: ${widget.file.name}, Size: ${bytes.length} bytes');
+        
+        // 检查文件是否过大（超过5MB不尝试作为文本打开）
+        if (bytes.length > 5 * 1024 * 1024) {
+          logger.w('❌ File too large for text detection: ${(bytes.length / 1024 / 1024).toStringAsFixed(2)} MB');
+          setState(() {
+            _error = '不支持预览此文件类型';
+            _isLoading = false;
+          });
+          return;
+        }
+
+        // 检查文件内容是否为文本（检查是否包含大量不可打印字符）
+        logger.i('🔍 Running text content detection...');
+        bool isLikelyText = _isLikelyTextContent(bytes);
+        logger.i('📊 Detection result: ${isLikelyText ? "✅ TEXT" : "❌ BINARY"}');
+        
+        if (isLikelyText) {
+          // 尝试作为文本文件解码
+          String? content;
+          
+          // 尝试 UTF-8
+          try {
+            content = utf8.decode(bytes, allowMalformed: false);
+          } catch (_) {
+            // UTF-8 失败，尝试 GBK
+            try {
+              content = await CharsetConverter.decode("GBK", bytes);
+            } catch (_) {
+              // GBK 失败，使用宽松的 UTF-8
+              content = utf8.decode(bytes, allowMalformed: true);
+            }
+          }
+          
+          logger.i('✅ Successfully loaded as text file (${content.length} characters)');
+          setState(() {
+            _fileContent = content;
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        logger.w('❌ Failed to load unknown file as text: $e');
+      }
+
+      // 检查是否是压缩包文件（在不支持之前检查）
+      if (FileUtils.isArchiveFile(widget.file.name)) {
+        logger.i('🗜️ Archive file detected, will navigate to ArchiveViewerPage');
+        // 不显示错误，导航逻辑在 initState 中处理
+        return;
+      }
+
+      // 确实不支持的文件类型
+      logger.w('❌ Unsupported file type: ${widget.file.name}');
       setState(() {
         _error = '不支持预览此文件类型';
         _isLoading = false;
@@ -1055,6 +1154,57 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         _isLoading = false;
       });
     }
+  }
+
+  /// 检测字节内容是否可能是文本文件
+  /// 
+  /// 检测策略：
+  /// 1. 检查是否有BOM（UTF-8/UTF-16）
+  /// 2. 统计不可打印字符的比例
+  /// 3. 如果不可打印字符 < 5%，判定为文本
+  bool _isLikelyTextContent(Uint8List bytes) {
+    if (bytes.isEmpty) return false;
+    
+    // 检查 BOM（如果有 BOM，肯定是文本）
+    if (bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
+      logger.i('   ✓ UTF-8 BOM detected');
+      return true; // UTF-8 BOM
+    }
+    if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
+      logger.i('   ✓ UTF-16 LE BOM detected');
+      return true; // UTF-16 LE BOM
+    }
+    if (bytes.length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
+      logger.i('   ✓ UTF-16 BE BOM detected');
+      return true; // UTF-16 BE BOM
+    }
+    
+    // 采样检测（检查前1000字节或全部）
+    final sampleSize = bytes.length > 1000 ? 1000 : bytes.length;
+    int nonPrintableCount = 0;
+    
+    for (int i = 0; i < sampleSize; i++) {
+      final byte = bytes[i];
+      
+      // 允许的字符：
+      // - 可打印 ASCII (32-126)
+      // - 常见控制字符：TAB(9), LF(10), CR(13)
+      // - UTF-8 多字节序列 (128-255)
+      if (byte == 0) {
+        // NULL 字符通常表示二进制文件
+        nonPrintableCount += 5; // 权重更高
+      } else if (byte < 32 && byte != 9 && byte != 10 && byte != 13) {
+        // 其他控制字符
+        nonPrintableCount++;
+      }
+    }
+    
+    // 如果不可打印字符比例 < 5%，认为是文本
+    final nonPrintableRatio = nonPrintableCount / sampleSize;
+    logger.i('   📈 Statistics: sampled $sampleSize bytes, non-printable: $nonPrintableCount (${(nonPrintableRatio * 100).toStringAsFixed(2)}%)');
+    final isText = nonPrintableRatio < 0.05;
+    logger.i('   ${isText ? "✓" : "✗"} Threshold check: ${(nonPrintableRatio * 100).toStringAsFixed(2)}% < 5.00%');
+    return isText;
   }
 
   Future<void> _loadPdfDocument() async {
@@ -1074,12 +1224,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
       logger.d('Opening PDF file: ${widget.file.path}');
 
-      // 使用 pdfx 加载 PDF
-      // 注意：pdfx 在某些设备上可能因平台通道问题而失败
-      // 失败时会通过 catch 块优雅降级，提示用户使用外部应用
-      final document = PdfDocument.openFile(widget.file.path);
+      // 先 await 打开 PDF 以捕获加密/损坏等错误
+      // 成功后用 Future.value() 包装传给 PdfController
+      final document = await PdfDocument.openFile(widget.file.path);
+      
       setState(() {
-        _pdfController = PdfController(document: document);
+        _pdfController = PdfController(document: Future.value(document));
         _isLoading = false;
       });
       logger.i('PDF document opened successfully');
@@ -1128,6 +1278,9 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
     }
 
     if (_error != null) {
+      // 判断是否是"不支持的文件类型"错误
+      final isUnsupportedType = _error!.contains('不支持预览此文件类型');
+      
       return GestureDetector(
         onTapUp: (details) {
           widget.onTap?.call();
@@ -1138,7 +1291,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error, size: 48, color: Colors.red),
+                // 如果是不支持的文件类型，显示灰色默认图标；否则显示红色错误图标
+                Icon(
+                  isUnsupportedType ? Icons.insert_drive_file : Icons.error,
+                  size: 48,
+                  color: isUnsupportedType ? Colors.grey : Colors.red,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   _error!,

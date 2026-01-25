@@ -7,6 +7,7 @@ import 'file_scan_config.dart';
 import 'file_types_config.dart';
 import 'app_scanner_config.dart';
 import 'duplicate_files_recommendation_config.dart';
+import 'cache_config.dart';
 
 /// 应用配置统一入口
 ///
@@ -68,6 +69,9 @@ class AppConfig {
   DuplicateFilesRecommendationConfig? _duplicateFilesRec;
   DuplicateFilesRecommendationConfig get duplicateFilesRec =>
       _duplicateFilesRec!;
+
+  /// 缓存配置（缓存大小限制、过期时间等）
+  late final CacheConfig cacheConfig = CacheConfig();
 
   // ==================== 存储实例 ====================
 

@@ -84,15 +84,6 @@ class RecommendationCard {
   /// 应用图标（应用类卡片，可选）
   final Uint8List? appIcon;
 
-  /// 总空间占用（字节）
-  final int? totalSize;
-
-  /// 本周新增文件数量
-  ///
-  /// 注意：当前 UI 未使用此字段，保留供将来可能的趋势展示功能使用。
-  /// 数据来源：MediaStore.DATE_MODIFIED 索引查询（最近7天）
-  final int? weeklyGrowth;
-
   const RecommendationCard({
     required this.type,
     required this.title,
@@ -101,8 +92,6 @@ class RecommendationCard {
     required this.fileCount,
     this.appKey,
     this.appIcon,
-    this.totalSize,
-    this.weeklyGrowth,
   });
 
   /// 从配置创建卡片实例
@@ -110,8 +99,6 @@ class RecommendationCard {
     RecommendationConfig config, {
     required int fileCount,
     Uint8List? appIcon,
-    int? totalSize,
-    int? weeklyGrowth,
   }) {
     return RecommendationCard(
       type: config.type,
@@ -121,8 +108,6 @@ class RecommendationCard {
       fileCount: fileCount,
       appKey: config.appKey,
       appIcon: appIcon,
-      totalSize: totalSize,
-      weeklyGrowth: weeklyGrowth,
     );
   }
 
@@ -136,8 +121,6 @@ class RecommendationCard {
       'fileCount': fileCount,
       'appKey': appKey,
       'appIcon': appIcon?.toList(), // Uint8List转List<int>
-      'totalSize': totalSize,
-      'weeklyGrowth': weeklyGrowth,
     };
   }
 
@@ -168,8 +151,6 @@ class RecommendationCard {
       appIcon: json['appIcon'] != null
           ? Uint8List.fromList(List<int>.from(json['appIcon']))
           : null,
-      totalSize: json['totalSize'] as int?,
-      weeklyGrowth: json['weeklyGrowth'] as int?,
     );
   }
 }

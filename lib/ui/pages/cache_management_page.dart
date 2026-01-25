@@ -357,6 +357,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.perm_media;
       case CacheType.junkScan:
         return Icons.cleaning_services;
+      case CacheType.archivePreview:
+        return Icons.folder_zip;
     }
   }
 

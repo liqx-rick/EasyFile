@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
 
-/// 固定头部的 Sliver 代理
+/// Sliver吸顶效果代理
 ///
-/// 用于在 CustomScrollView 中创建固定在顶部的头部区域
+/// 用于实现Tab切换时标题栏的固定显示效果
+/// 在 FileBrowserPage 中广泛使用（16处）
+///
+/// 使用场景：
+/// - 浏览Tab切换时的分类标题吸顶
+/// - 收藏Tab的标题栏固定
+/// - 新文件Tab的标题栏固定
+///
+/// 示例：
+/// ```dart
+/// SliverPersistentHeader(
+///   pinned: true,
+///   delegate: PinnedHeaderDelegate(
+///     child: Text('标题'),
+///     height: 48.0,
+///   ),
+/// )
+/// ```
 class PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   final double height;

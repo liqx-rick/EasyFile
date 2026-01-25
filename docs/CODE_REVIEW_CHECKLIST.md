@@ -50,6 +50,38 @@
 
 ---
 
+## 🔄 UI重构专项检查
+
+### 1. 删除前检查
+- [ ] 运行全局搜索确认无引用（使用 `grep_search` 或 VS Code 全局搜索）
+- [ ] 检查是否有 `@deprecated` 标记
+- [ ] 确认替代方案已实现并测试通过
+- [ ] 检查是否有相关文档需要更新
+- [ ] 确认删除不会影响现有功能
+
+### 2. 添加新组件前检查
+- [ ] 是否可复用现有组件（避免重复造轮子）
+- [ ] 是否会产生重复逻辑
+- [ ] 组件职责是否单一清晰
+- [ ] 添加足够的文档注释说明用途和使用场景
+- [ ] 提供使用示例（在注释中）
+
+### 3. 中间方案清理检查
+- [ ] 删除已废弃的过渡方案代码
+- [ ] 清理未使用的 Model 字段
+- [ ] 移除冗余的 ViewModel getter/setter
+- [ ] 检查是否有重复的缓存逻辑
+- [ ] 确认 Legacy 代码已添加 `@experimental` 或 `@Deprecated` 标记
+
+### 4. 提交前最终检查
+- [ ] 删除所有调试代码和 `print` 语句
+- [ ] 清理未使用的 import（配置 `organizeImports` 自动处理）
+- [ ] 运行 `flutter analyze` 无警告
+- [ ] 检查 TODO/FIXME 标记是否合理（使用 Todo Tree 插件）
+- [ ] 确认所有修改都有对应的测试覆盖
+
+---
+
 ## ✅ 错误检查
 
 ### 1. 编译错误
@@ -222,17 +254,17 @@ flutter test --coverage
 /// 用户配置服务，处理用户偏好设置的读写
 class UserPreferenceService {
   static const int MAX_CACHE_SIZE = 100;
-  
+
   final SharedPreferences _prefs;
-  
+
   UserPreferenceService(this._prefs);
-  
+
   /// 获取用户主题模式
   /// 返回 'light', 'dark' 或 'system'
   String getThemeMode() {
     return _prefs.getString('theme_mode') ?? 'system';
   }
-  
+
   @override
   void dispose() {
     // 释放资源
@@ -244,11 +276,11 @@ class UserPreferenceService {
 ```dart
 class service {  // ❌ 类名应大驼峰
   var x;  // ❌ 无意义的变量名
-  
+
   void doSomething() {
     print('debug');  // ❌ 调试代码
     // var oldCode = 1;  // ❌ 注释掉的代码
-    
+
     // TODO: fix this later  // ❌ 未处理的 TODO
   }
 }
@@ -264,4 +296,4 @@ class service {  // ❌ 类名应大驼峰
 
 ---
 
-**最后更新**：2025-12-15
+**最后更新**：2026-01-25

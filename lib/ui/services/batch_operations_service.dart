@@ -874,8 +874,12 @@ class BatchOperationsService {
 
             // 添加目录到 ViewModel（用于同步到其他页面）
             try {
+              // 等待文件系统同步
+              await Future.delayed(const Duration(milliseconds: 50));
+              
               final dir = Directory(targetPath);
-              final stat = dir.statSync();
+              // 使用异步stat()而不是statSync()
+              final stat = await dir.stat();
               final copiedDir = FileItem(
                 name: path.basename(targetPath),
                 path: targetPath,
@@ -884,17 +888,34 @@ class BatchOperationsService {
                 modified: stat.modified,
               );
               viewModel.addFileToList(copiedDir);
+              logger.d('Added copied directory to ViewModel: ${copiedDir.name}');
             } catch (e) {
               logger.w(
                   'Failed to add copied directory to ViewModel: $targetPath, $e');
             }
           } else if (entity == FileSystemEntityType.file) {
+            logger.d('Copying file: $sourcePath -> $targetPath');
             await File(sourcePath).copy(targetPath);
+            logger.d('File copied successfully, verifying...');
 
             // 添加文件到 ViewModel（用于同步到其他页面）
             try {
+              // 等待文件系统同步（确保文件完全写入）
+              await Future.delayed(const Duration(milliseconds: 100));
+              
               final file = File(targetPath);
-              final stat = file.statSync();
+              final exists = await file.exists();
+              logger.d('Target file exists: $exists');
+              
+              if (!exists) {
+                logger.e('Copied file does not exist: $targetPath');
+                continue;
+              }
+              
+              // 使用异步stat()而不是statSync()，更可靠
+              final stat = await file.stat();
+              logger.d('File stat: size=${stat.size}, modified=${stat.modified}, type=${stat.type}');
+              
               final copiedFile = FileItem(
                 name: path.basename(targetPath),
                 path: targetPath,
@@ -902,10 +923,12 @@ class BatchOperationsService {
                 size: stat.size,
                 modified: stat.modified,
               );
+              logger.d('Created FileItem: name=${copiedFile.name}, size=${copiedFile.size}, modified=${copiedFile.modified}');
+              
               viewModel.addFileToList(copiedFile);
-            } catch (e) {
-              logger
-                  .w('Failed to add copied file to ViewModel: $targetPath, $e');
+              logger.i('Added copied file to ViewModel: ${copiedFile.name}, size: ${copiedFile.size}, modified: ${copiedFile.modified}');
+            } catch (e, stackTrace) {
+              logger.e('Failed to add copied file to ViewModel: $targetPath\nError: $e\nStackTrace: $stackTrace');
             }
           }
 

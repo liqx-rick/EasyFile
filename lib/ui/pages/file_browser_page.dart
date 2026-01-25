@@ -13,7 +13,6 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
@@ -47,6 +46,8 @@ import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
 import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/extraction_source_banner.dart';
+import 'package:easyfile/ui/utils/card_size_calculator.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
@@ -79,7 +80,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   late FileViewModel viewModel;
   QuickAccessPresenter? quickAccessPresenter;
   QuickAccessViewModel? quickAccessViewModel;
-  double _categoryCardSize = 0.0; // 存储分类卡片尺寸
   bool _isInitializing = true; // 标记是否正在初始化
 
   // 推荐服务（全局实例，复用缓存）
@@ -391,18 +391,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final detectionService = AppDetectionService();
       await detectionService.initialize();
 
-      // 创建统计缓存并初始化
-      final statisticsCache = AppStatisticsCache();
-      await statisticsCache.initialize();
-
       // 创建扫描器
       final scanner = UnifiedAppScanner(detectionService);
 
-      // 创建推荐服务
+      // 创建推荐服务（方案A优化：无需statisticsCache）
       _recommendationService = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
-        statisticsCache: statisticsCache,
       );
 
       logger.d('推荐服务初始化完成');
@@ -554,6 +549,9 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 加载初始目录
       await _loadInitialDirectory();
 
+      // ⚡ 性能优化：后台预扫描新文件，避免首次点击Tab时延迟
+      _preloadNewFilesInBackground();
+
       logger.i('[FileBrowser] Orchestration completed successfully');
     } catch (e) {
       logger.e('[FileBrowser] Error during orchestration: $e');
@@ -569,6 +567,22 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 降级处理：仍然尝试加载初始目录
       await _loadInitialDirectory();
     }
+  }
+
+  /// 后台预加载新文件（避免首次点击Tab时的延迟）
+  void _preloadNewFilesInBackground() {
+    logger.i('[PERF] 开始后台预扫描新文件...');
+    
+    // 异步执行，不阻塞UI
+    Future.microtask(() async {
+      try {
+        // 使用Presenter的后台刷新方法（静默扫描+更新缓存）
+        presenter.refreshNewFilesInBackground();
+        logger.i('[PERF] 新文件后台预扫描已启动');
+      } catch (e) {
+        logger.e('[PERF] 新文件预扫描失败: $e');
+      }
+    });
   }
 
   /// 请求权限并重新初始化
@@ -910,7 +924,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     );
   }
 
-  /// 检查是否有快捷访问项（包括文件夹和已恢复文件）
+  /// 检查是否有快捷访问项
   bool _hasQuickAccessItems() {
     // 检查是否有快捷访问文件夹
     if (quickAccessViewModel != null &&
@@ -918,23 +932,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return true;
     }
 
-    // 检查是否有已恢复文件
-    return _hasRestoredFiles();
-  }
-
-  /// 检查是否有已恢复文件
-  bool _hasRestoredFiles() {
-    const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-    final restoredDir = Directory(restoredPath);
-
-    if (!restoredDir.existsSync()) return false;
-
-    try {
-      final files = restoredDir.listSync();
-      return files.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
+    return false;
   }
 
   /// 显示快捷访问菜单
@@ -976,7 +974,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     if (!mounted) return;
 
-    showMenu<QuickAccessFolder>(
+    final result = await showMenu<dynamic>(
       context: this.context,
       position: RelativeRect.fromLTRB(
         left,
@@ -989,20 +987,23 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         maxHeight: maxMenuHeight,
         maxWidth: menuWidth,
       ),
-    ).then((selectedFolder) {
-      if (selectedFolder != null && mounted) {
-        _onQuickAccessItemTap(selectedFolder);
+    );
+
+    if (result != null && mounted) {
+      if (result is QuickAccessFolder) {
+        // 文件夹点击
+        _onQuickAccessItemTap(result);
       }
-    });
+    }
   }
 
   /// 构建快捷访问菜单项
-  Future<List<PopupMenuEntry<QuickAccessFolder>>>
+  Future<List<PopupMenuEntry<dynamic>>>
       _buildQuickAccessMenuItemsAsync() async {
     if (quickAccessViewModel == null) return [];
 
     final allFolders = quickAccessViewModel!.folders;
-    final items = <PopupMenuEntry<QuickAccessFolder>>[];
+    final items = <PopupMenuEntry<dynamic>>[];
 
     // 获取所有已添加到快捷访问的文件夹
     final allAccessFolders =
@@ -1029,51 +1030,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 其他文件夹
     for (var folder in otherTypesFolders) {
       items.add(_buildFolderMenuItem(folder, Colors.orange));
-    }
-
-    // 已恢复文件（固定入口，移除分组标题）
-    if (_hasRestoredFiles()) {
-      if (items.isNotEmpty) {
-        items.add(const PopupMenuDivider());
-      }
-
-      const restoredPath = '/storage/emulated/0/EasyFile/Restored';
-
-      // 直接添加已恢复文件夹作为可点击项（移除分组标题和文件数量）
-      items.add(
-        PopupMenuItem<QuickAccessFolder>(
-          value: QuickAccessFolder(
-            id: 'restored_files',
-            originalName: '已恢复文件',
-            path: restoredPath,
-            type: QuickAccessFolderType.other,
-            createdAt: DateTime.now(),
-            isAddedToQuickAccess: true,
-            isHidden: false,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                Icons.restore_page,
-                size: 18,
-                color: Colors.purple,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '已恢复文件',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
     }
 
     return items;
@@ -1865,6 +1821,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 3. 用户排序：应用用户在浏览页设置的排序规则
   List<FileItem> _getSortedAndFilteredBrowseFiles(
       List<FileItem> files, String currentPath) {
+    logger.d('⏱️ [PERF] _getSortedAndFilteredBrowseFiles开始 - ${files.length}个文件');
+    
     // 特殊处理：已恢复文件文件夹固定按时间降序
     if (currentPath == '/storage/emulated/0/EasyFile/Restored') {
       return FileComparatorUtil.sortFiles(
@@ -1877,6 +1835,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 根据设置过滤空文件夹
     var displayFiles = files;
     if (_hideEmptyFolders) {
+      logger.d('⏱️ [PERF] 开始过滤空文件夹...');
+      final startTime = DateTime.now();
       final filteredFiles = <FileItem>[];
       for (var file in files) {
         if (!file.isDirectory) {
@@ -1889,19 +1849,22 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         }
       }
       displayFiles = filteredFiles;
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      logger.d('⏱️ [PERF] 空文件夹过滤完成 - 耗时${elapsed}ms, 过滤后${displayFiles.length}个文件');
     }
 
     // 应用用户设置的排序
     final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
     final ascending = PageSettingsService().getSortAscending(PageId.homeBrowse);
+    logger.d('⏱️ [PERF] _getSortedAndFilteredBrowseFiles完成');
     return FileComparatorUtil.sortFiles(displayFiles, sortType,
         ascending: ascending);
   }
   
-  /// 检查文件夹是否为空（递归检查所有子目录）
+  /// 检查文件夹是否为空（仅检查第一层，避免阻塞UI）
   /// 
-  /// 如果文件夹不包含任何可见文件（包括子目录中的文件），则视为空文件夹
-  /// 隐藏文件和隐藏目录中的文件不计入
+  /// 如果文件夹第一层不包含任何可见文件，则视为空文件夹
+  /// 注意：不递归检查子目录，以避免在复杂目录结构中阻塞UI线程
   bool _isFolderEmpty(String path) {
     try {
       final dir = Directory(path);
@@ -1909,26 +1872,26 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         return true;
       }
 
-      // 递归获取所有文件和子目录
-      final entities = dir.listSync(recursive: true);
+      // 只获取第一层文件和目录（不递归）
+      final entities = dir.listSync(recursive: false);
       
       if (entities.isEmpty) {
         return true;
       }
 
-      // 过滤：只保留非隐藏的文件（不包括目录）
-      final visibleFiles = entities.where((entity) {
+      // 检查是否有非隐藏的文件
+      final hasVisibleFiles = entities.any((entity) {
         if (entity is! File) {
           return false;
         }
         
-        final segments = entity.path.split(Platform.pathSeparator);
-        final isHidden = segments.any((segment) => 
-          segment.startsWith('.') && segment.length > 1);
+        // 检查文件名是否以.开头（隐藏文件）
+        final fileName = entity.path.split(Platform.pathSeparator).last;
+        final isHidden = fileName.startsWith('.') && fileName.length > 1;
         return !isHidden;
-      }).toList();
+      });
 
-      return visibleFiles.isEmpty;
+      return !hasVisibleFiles;
     } catch (e) {
       // 权限问题或其他错误时，保守处理：显示该文件夹
       logger.w('Error checking if folder is empty: $path, error: $e');
@@ -2781,6 +2744,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       );
     } else {
       // 列表模式
+      // 检查是否需要高亮（解压的文件夹）
+      final shouldHighlight = vm.shouldHighlightExtraction &&
+          vm.extractionTargetPath == item.path;
+
       return FileItemTile(
         file: item,
         showFullPath: false,
@@ -2795,6 +2762,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         isFavorite: vm.isFavoriteFile(item.path),
         isSelected: isSelected,
         showCheckbox: isEditMode,
+        isHighlighted: shouldHighlight,
         onFavoriteToggle: !item.isDirectory
             ? () async {
                 final messenger = ScaffoldMessenger.of(context);
@@ -3071,10 +3039,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           onRefresh: () async {
             await presenter.refreshCurrent();
           },
-          child: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              // CategoryNavBar 和 QuickAccessSection：可滚动查看（横竖屏都显示）
+          child: Builder(
+            builder: (context) {
+              logger.d('⏱️ [PERF] CustomScrollView开始构建slivers');
+              logger.d('⏱️ [PERF] 准备判断是否显示CategoryNavBar - currentTab=${vm.currentTab}, isSearchMode=${vm.isSearchMode}');
+              return CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  // CategoryNavBar 和 QuickAccessSection：可滚动查看（横竖屏都显示）
               if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
                   !(vm.currentTab == TabView.favorite && _favoriteSearchMode) &&
                   !(vm.currentTab == TabView.newFiles &&
@@ -3083,27 +3055,30 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   child: CategoryNavBar(
                     presenter: presenter,
                     viewModel: vm,
-                    onCardSizeCalculated: (size) {
-                      if (mounted && _categoryCardSize != size) {
-                        setState(() {
-                          _categoryCardSize = size;
-                        });
-                      }
-                    },
                   ),
                 ),
                 const SliverToBoxAdapter(
                   child: Divider(height: 1),
                 ),
                 SliverToBoxAdapter(
-                  child: QuickAccessSection(
-                    key: QuickAccessSection.globalKey,
-                    quickAccessViewModel: quickAccessViewModel!,
-                    quickAccessPresenter: quickAccessPresenter!,
-                    fileViewModel: vm,
-                    filePresenter: presenter,
-                    categoryCardSize: _categoryCardSize,
-                    recommendationService: _recommendationService,
+                  child: Builder(
+                    builder: (context) {
+                      logger.d('⏱️ [PERF] 准备构造QuickAccessSection...');
+                      // 使用MediaQuery代替LayoutBuilder以避免layout延迟
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final categoryCardSize = CardSizeCalculator.calculateCardHeight(
+                        screenWidth,
+                      );
+                      return QuickAccessSection(
+                        key: QuickAccessSection.globalKey,
+                        quickAccessViewModel: quickAccessViewModel!,
+                        quickAccessPresenter: quickAccessPresenter!,
+                        fileViewModel: vm,
+                        filePresenter: presenter,
+                        categoryCardSize: categoryCardSize,
+                        recommendationService: _recommendationService!,
+                      );
+                    },
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -3152,6 +3127,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     ),
                     height: 40.0,
                   ),
+                ),
+
+              // 解压来源提示条 - browse模式且有解压上下文时显示
+              if (vm.currentTab == TabView.browse &&
+                  vm.extractionSourceName != null)
+                const SliverToBoxAdapter(
+                  child: ExtractionSourceBanner(),
                 ),
 
               // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab）
@@ -3329,6 +3311,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               // 文件列表区域
               ..._buildFileListSlivers(vm),
             ],
+              );
+            },
           ),
         ),
 
@@ -3426,25 +3410,26 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                           CategoryNavBar(
                             presenter: presenter,
                             viewModel: vm,
-                            onCardSizeCalculated: (size) {
-                              if (mounted && _categoryCardSize != size) {
-                                setState(() {
-                                  _categoryCardSize = size;
-                                });
-                              }
-                            },
                           ),
                           const SizedBox(height: 2),
 
                           // QuickAccessSection（快捷访问推荐区）
-                          QuickAccessSection(
-                            key: QuickAccessSection.globalKey,
-                            quickAccessViewModel: quickAccessViewModel!,
-                            quickAccessPresenter: quickAccessPresenter!,
-                            fileViewModel: vm,
-                            filePresenter: presenter,
-                            categoryCardSize: _categoryCardSize,
-                            recommendationService: _recommendationService,
+                          Builder(
+                            builder: (context) {
+                              // 使用已计算的leftPaneWidth，避免LayoutBuilder延迟
+                              final categoryCardSize = CardSizeCalculator.calculateCardHeight(
+                                leftPaneWidth,
+                              );
+                              return QuickAccessSection(
+                                key: QuickAccessSection.globalKey,
+                                quickAccessViewModel: quickAccessViewModel!,
+                                quickAccessPresenter: quickAccessPresenter!,
+                                fileViewModel: vm,
+                                filePresenter: presenter,
+                                categoryCardSize: categoryCardSize,
+                                recommendationService: _recommendationService!,
+                              );
+                            },
                           ),
                           const SizedBox(height: 2),
 
@@ -3746,6 +3731,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   @override
   Widget build(BuildContext context) {
+    logger.d('⏱️ [PERF] FileBrowserPage.build开始');
     super.build(context);
 
     // 如果正在初始化依赖，显示加载中
@@ -3811,6 +3797,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       child:
           Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
         builder: (context, vm, quickVm, pageSettingsService, _) {
+          logger.d('⏱️ [PERF] Consumer3 builder执行 - currentPath: ${vm.currentPath}');
           if (vm.isLoading) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
@@ -3858,19 +3845,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               ),
                             ),
                             const PopupMenuDivider(),
-                            // 应用管理（根据功能配置显示）
-                            if (AppConfig
-                                .instance.feature.isAppManagementEnabled)
-                              const PopupMenuItem(
-                                value: 'app_management',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.apps),
-                                    SizedBox(width: 8),
-                                    Text('应用管理'),
-                                  ],
-                                ),
-                              ),
                             const PopupMenuItem(
                               value: 'manage_quick_access',
                               child: Row(
@@ -3881,18 +3855,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                 ],
                               ),
                             ),
-                            // 回收站（根据功能配置显示）
-                            if (AppConfig.instance.feature.isTrashEnabled)
-                              const PopupMenuItem(
-                                value: 'trash',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.delete_outline),
-                                    SizedBox(width: 8),
-                                    Text('回收站'),
-                                  ],
-                                ),
-                              ),
                             const PopupMenuDivider(),
                             const PopupMenuItem(
                               value: 'about',

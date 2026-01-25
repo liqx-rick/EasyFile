@@ -16,6 +16,8 @@ class PageSettingsService extends ChangeNotifier {
 
   static const String _userSettingsKey = 'page_user_settings';
   static const String _gridShowFileInfoKey = 'grid_show_file_info';
+  static const String _settingsVersionKey = 'page_settings_version';
+  static const int _currentSettingsVersion = 3; // 版本3: 强制重置压缩包页面排序
   bool _initialized = false;
 
   /// 用户自定义的设置（覆盖默认值）
@@ -37,6 +39,10 @@ class PageSettingsService extends ChangeNotifier {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // 检查设置版本
+      final savedVersion = prefs.getInt(_settingsVersionKey) ?? 1;
+      
       final jsonString = prefs.getString(_userSettingsKey);
 
       if (jsonString != null) {
@@ -47,6 +53,20 @@ class PageSettingsService extends ChangeNotifier {
             PageSettings.fromJson(value as Map<String, dynamic>),
           ),
         );
+      }
+      
+      
+      // 版本迁移：修复压缩包页面的默认排序
+      if (savedVersion < 3) {
+        debugPrint('[PageSettings] Migration: Upgrading from version $savedVersion to $_currentSettingsVersion');
+        debugPrint('[PageSettings] Migration: Force resetting archiveManagement to default sort');
+        // 强制设置压缩包页面为默认排序（按时间降序）
+        _userSettings.remove(PageId.archiveManagement);
+        await _saveUserSettings();
+        await prefs.setInt(_settingsVersionKey, _currentSettingsVersion);
+        debugPrint('[PageSettings] Migration: Completed, archiveManagement will use default: SortType.modifiedTime, ascending=false');
+      } else {
+        debugPrint('[PageSettings] Current version: $savedVersion (up to date)');
       }
 
       // 加载网格文件信息显示偏好

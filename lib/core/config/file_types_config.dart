@@ -89,6 +89,8 @@ class FileTypesConfig {
         'csv',
         'md',
         'log', // 日志文件（与 getTextExtensions() 保持一致）
+        'json', // JSON 配置文件
+        'xml', // XML 配置文件
       ]);
 
   /// 办公文档文件扩展名（Office套件文档）
@@ -109,6 +111,18 @@ class FileTypesConfig {
       ]);
 
   /// 压缩包文件扩展名
+  /// 
+  /// 支持的主流格式：
+  /// - zip: 最常见的压缩格式
+  /// - rar: Windows 流行格式
+  /// - 7z: 高压缩率格式
+  /// - tar/gz/bz2/xz: Linux/Unix 常见格式
+  /// - tgz/tbz2: tar 的压缩组合格式
+  /// 
+  /// 不支持的老旧格式（已移除）：
+  /// - cab: Windows 安装包专用，用户场景极少
+  /// - arj/lzh: 90年代格式，已过时
+  /// - z/lz/lzma: 被 xz 替代
   List<String> get archiveExtensions =>
       _getStringList('archive_extensions', defaultValue: [
         'zip',
@@ -118,9 +132,6 @@ class FileTypesConfig {
         'gz',
         'bz2',
         'xz',
-        'z',
-        'lz',
-        'lzma',
         'tgz',
         'tbz2',
       ]);
@@ -346,7 +357,7 @@ class FileTypesConfig {
   List<String> getPptExtensions() => ['ppt', 'pptx'];
 
   /// 获取文本文件扩展名
-  List<String> getTextExtensions() => ['txt', 'md', 'log', 'rtf'];
+  List<String> getTextExtensions() => ['txt', 'md', 'log', 'json', 'xml', 'rtf'];
 
   // ==================== MIME 类型映射 ====================
 

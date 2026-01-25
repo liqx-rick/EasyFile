@@ -33,11 +33,15 @@ import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 class FileBrowserRootPage extends StatefulWidget {
   final FilePresenter presenter;
   final FileViewModel viewModel;
+  final String? initialPath; // 可选的初始路径
+  final bool returnToSecondPage; // 返回时是否跳转到第二页
 
   const FileBrowserRootPage({
     super.key,
     required this.presenter,
     required this.viewModel,
+    this.initialPath,
+    this.returnToSecondPage = false,
   });
 
   @override
@@ -76,6 +80,37 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
 
   @override
   void navigateUp() => _navigateUp();
+
+  @override
+  void handlePopInvoked(bool didPop, dynamic result) {
+    if (didPop) return;
+
+    // Priority 1: Exit search mode
+    if (isSearchMode) {
+      exitSearchMode();
+      return;
+    }
+
+    // Priority 2: Exit edit mode
+    if (isEditMode) {
+      exitEditMode();
+      return;
+    }
+
+    // Priority 3: 如果从第二屏打开且在初始路径，直接返回第二屏
+    if (widget.returnToSecondPage && 
+        widget.initialPath != null && 
+        _currentPath == widget.initialPath) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    // Priority 4: Navigate up
+    if (canNavigateUp()) {
+      navigateUp();
+      return;
+    }
+  }
 
   // 搜索控制器
   final TextEditingController _searchController = TextEditingController();
@@ -265,9 +300,6 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
   void _navigateUp() {
     final parent = Directory(_currentPath).parent.path;
     _loadFilesInPath(parent);
-    setState(() {
-      _currentPath = parent;
-    });
   }
 
   // 递归搜索文件
@@ -477,7 +509,12 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     // 延迟加载，避免在 initState 中访问 ScaffoldMessenger
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadStorageFiles();
+        // 如果指定了初始路径，加载该路径；否则加载存储根目录
+        if (widget.initialPath != null) {
+          _loadFilesInPath(widget.initialPath!);
+        } else {
+          _loadStorageFiles();
+        }
       }
     });
   }
@@ -771,6 +808,21 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     try {
       final directory = Directory(path);
       if (directory.existsSync()) {
+        // 更新当前路径
+        setState(() {
+          _currentPath = path;
+          // 如果 _rootPath 未设置，设置为存储根路径（而不是当前路径）
+          if (_rootPath.isEmpty) {
+            if (Platform.isAndroid) {
+              _rootPath = '/storage/emulated/0';
+            } else if (Platform.isWindows) {
+              _rootPath = Platform.environment['USERPROFILE'] ?? 'C:\\';
+            } else {
+              _rootPath = Directory.current.path;
+            }
+          }
+        });
+        
         // 获取显示设置
         final displaySettings = FileDisplaySettingsService();
         final showHidden = await displaySettings.getShowHiddenFiles();
@@ -949,7 +1001,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 )
               : IconButton(
                   icon: const Icon(Icons.home),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pop(widget.returnToSecondPage),
                   tooltip: '返回主页',
                   padding: const EdgeInsets.all(4),
                   visualDensity: VisualDensity.compact,

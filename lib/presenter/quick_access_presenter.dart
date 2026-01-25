@@ -102,17 +102,75 @@ class QuickAccessPresenter {
     try {
       final detectedFolders = await _detectQuickAccessFolders();
 
-      // 添加到数据库并统计
-      final results = <AddFolderResult>[];
-      for (final folder in detectedFolders) {
-        final result = await _localSource.addFolderWithResult(folder);
-        results.add(result);
-      }
+      // 🔧 BUG FIX: 批量添加而非逐个添加，避免74次文件读写导致并发破坏
+      logger.i('Batch adding ${detectedFolders.length} folders to avoid file corruption');
+      final results = await _batchAddFoldersWithResult(detectedFolders);
 
       final stats = _countFolders(detectedFolders, results);
       return await operation(detectedFolders, stats);
     } finally {
       _viewModel.setScanning(false);
+    }
+  }
+
+  /// 批量添加文件夹并返回每个文件夹的添加结果
+  /// 避免逐个添加导致的大量文件I/O和潜在的并发问题
+  Future<List<AddFolderResult>> _batchAddFoldersWithResult(
+    List<QuickAccessFolder> newFolders,
+  ) async {
+    try {
+      // 一次性读取现有文件夹
+      final existingFolders = await _localSource.getAllFolders();
+      final existingPaths = <String, QuickAccessFolder>{};
+      for (final f in existingFolders) {
+        existingPaths[f.path] = f;
+      }
+
+      // 准备结果和待保存的文件夹列表
+      final results = <AddFolderResult>[];
+      final foldersToSave = List<QuickAccessFolder>.from(existingFolders);
+
+      // 处理每个新文件夹
+      for (final newFolder in newFolders) {
+        final existing = existingPaths[newFolder.path];
+
+        if (existing != null) {
+          // 已存在
+          if (existing.isHidden) {
+            // 恢复隐藏的文件夹
+            logger.d('Unhiding folder: ${newFolder.path}');
+            final index = foldersToSave.indexWhere((f) => f.path == newFolder.path);
+            if (index != -1) {
+              foldersToSave[index] = existing.copyWith(isHidden: false);
+              results.add(AddFolderResult.unhidden);
+            }
+          } else {
+            // 已存在且未隐藏
+            results.add(AddFolderResult.exists);
+          }
+        } else {
+          // 新文件夹
+          foldersToSave.add(newFolder);
+          results.add(AddFolderResult.added);
+        }
+      }
+
+      // 一次性保存所有文件夹
+      final success = await _localSource.saveFolders(foldersToSave);
+      if (!success) {
+        logger.e('Failed to save folders in batch operation');
+        // 如果保存失败，将所有未存在的结果改为error
+        return results.map((r) => 
+          r == AddFolderResult.added ? AddFolderResult.error : r
+        ).toList();
+      }
+
+      logger.i('Successfully saved ${foldersToSave.length} folders in one operation');
+      return results;
+    } catch (e, stackTrace) {
+      logger.e('Error in batch add operation: $e\n$stackTrace');
+      // 返回错误结果
+      return List.filled(newFolders.length, AddFolderResult.error);
     }
   }
 
@@ -216,7 +274,7 @@ class QuickAccessPresenter {
   ///
   /// [scanCategoryFiles] 是一个可选的回调函数，用于扫描分类文件并返回统计结果
   /// [onProgress] 进度回调，参数为进度值 (0.0 - 1.0)，用于实时更新 UI
-  Future<ComprehensiveScanResult> performFirstTimeComprehensiveScan({
+  Future<ScanStats> performFirstTimeComprehensiveScan({
     Future<Map<FileCategory, int>> Function()? scanCategoryFiles,
     void Function(double progress)? onProgress,
   }) async {
@@ -270,22 +328,17 @@ class QuickAccessPresenter {
           await loadQuickAccessFolders();
           onProgress?.call(1.0);
 
-          return ComprehensiveScanResult(
-            quickAccessFoldersFound: detectedFolders.length,
-            systemFoldersCount: stats.systemCount,
-            otherFoldersCount: stats.otherCount,
+          return ScanStats(
+            foldersFound: detectedFolders.length,
             newlyAdded: stats.newlyAdded,
-            alreadyExists: stats.alreadyExists,
-            unhidden: stats.unhidden,
-            categoryFileCounts: categoryFileCounts,
-            totalFilesScanned: totalFilesScanned,
+            filesScanned: totalFilesScanned,
             success: true,
           );
         },
       );
     } catch (e, stackTrace) {
       logger.e('Error performing comprehensive scan: $e\n$stackTrace');
-      return ComprehensiveScanResult.error(e.toString());
+      return ScanStats.error(e.toString());
     }
   }
 

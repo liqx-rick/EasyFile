@@ -57,14 +57,16 @@ class AppFilesDataSource implements FileListDataSource {
     // 2. 可选参数
     final fileTypes = params['fileTypes'] as List<String>?;
     final useMediaStore = params['useMediaStore'] as bool? ?? true;
+    final forceRefresh = params['forceRefresh'] as bool? ?? false;
 
     logger.i('$name.queryFiles - appKey: $appKey, fileTypes: $fileTypes');
 
-    // 3. 执行扫描
+    // 3. 执行扫描（默认使用缓存，除非forceRefresh=true）
     final scanResult = await scanner.scanApp(
       appKey: appKey,
       useMediaStore: useMediaStore,
-      updateCache: true, // 自动更新缓存
+      updateCache: true,     // 始终更新文件数量缓存
+      forceRefresh: forceRefresh, // 控制是否使用扫描结果缓存
     );
 
     // 4. 检查应用是否安装

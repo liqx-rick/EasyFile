@@ -2,7 +2,18 @@ import 'package:easyfile/data/models/file_category.dart';
 
 /// 文件夹统计信息
 ///
-/// 包含文件数量、大小、类型分布等统计数据
+/// ⚠️ 当前状态: 数据已生成但UI层未显示
+///
+/// 包含信息:
+/// - 文件总数、总大小
+/// - 按类型分布（图片、视频、文档等）
+/// - 最近修改时间
+///
+/// 生成位置: FolderAnalyzer.analyzeFolderQuick()
+/// 数据存储: QuickAccessFolder.stats
+/// UI显示: 无（预留字段）
+///
+/// @experimental 预留字段，未来可在快速访问管理页显示统计卡片
 class FolderStats {
   /// 总文件数
   final int totalFiles;
@@ -82,13 +93,11 @@ class FolderStats {
   bool get isPrimarilyAudio => audioCount > 0 && audioCount > totalFiles * 0.7;
 
   /// 是否主要包含文档
-  bool get isPrimarilyDocuments =>
-      documentCount > 0 && documentCount > totalFiles * 0.7;
+  bool get isPrimarilyDocuments => documentCount > 0 && documentCount > totalFiles * 0.7;
 
   /// 从 JSON 创建
   factory FolderStats.fromJson(Map<String, dynamic> json) {
-    final typeCountsJson =
-        json['fileTypeCounts'] as Map<String, dynamic>? ?? {};
+    final typeCountsJson = json['fileTypeCounts'] as Map<String, dynamic>? ?? {};
     final fileTypeCounts = <FileCategory, int>{};
 
     typeCountsJson.forEach((key, value) {
@@ -108,9 +117,7 @@ class FolderStats {
       totalFolders: (json['totalFolders'] as int?) ?? 0,
       fileTypeCounts: fileTypeCounts,
       totalSizeMB: (json['totalSizeMB'] as num?)?.toDouble() ?? 0.0,
-      lastModified: json['lastModified'] != null
-          ? DateTime.parse(json['lastModified'] as String)
-          : DateTime.now(),
+      lastModified: json['lastModified'] != null ? DateTime.parse(json['lastModified'] as String) : DateTime.now(),
     );
   }
 
@@ -157,6 +164,5 @@ class FolderStats {
   }
 
   @override
-  int get hashCode =>
-      totalFiles.hashCode ^ totalFolders.hashCode ^ totalSizeMB.hashCode;
+  int get hashCode => totalFiles.hashCode ^ totalFolders.hashCode ^ totalSizeMB.hashCode;
 }

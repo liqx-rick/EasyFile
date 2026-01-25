@@ -232,6 +232,28 @@ class SingleFileOperationsSheet extends StatelessWidget {
 
           const Divider(height: 1),
 
+          // 压缩包特定操作
+          if (FileUtils.isArchiveFile(file.name)) ...[
+            _buildOperationTile(
+              context,
+              icon: Icons.visibility,
+              label: '查看内容',
+              onTap: () async {
+                Navigator.pop(context);
+                await service.viewArchiveContents(file);
+              },
+            ),
+            _buildOperationTile(
+              context,
+              icon: Icons.folder_zip,
+              label: '解压',
+              onTap: () async {
+                Navigator.pop(context);
+                await service.extractArchive(file);
+              },
+            ),
+          ],
+
           // 对外操作
           _buildOperationTile(
             context,

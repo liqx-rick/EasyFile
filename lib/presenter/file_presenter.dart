@@ -94,6 +94,7 @@ class FilePresenter {
     logger.d(
       'ViewModel updated - currentPath: ${viewModel.currentPath}, filesCount: ${viewModel.files.length}, hasError: ${viewModel.errorMessage != null}',
     );
+    logger.d('⏱️ [PERF] loadFiles完成，等待UI rebuild...');
   }
 
   Future<void> navigateToFolder(String folderPath) async {

@@ -4,8 +4,6 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/file_change_listener_service.dart';
-import 'package:easyfile/core/services/app_statistics_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/data_sources/file_list_data_source.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
@@ -115,16 +113,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   /// 批量操作服务
   late final BatchOperationsService _batchOperationsService;
 
-  /// 文件变化监听服务
-  FileChangeListenerService? _fileChangeListener;
-
   @override
   void initState() {
     super.initState();
     _initDataSource();
     _initServices();
     _loadFilesAndInitTabs();
-    _initFileChangeListener();
 
     // 监听PageSettingsService变化
     PageSettingsService().addListener(_onPageSettingsChanged);
@@ -133,7 +127,6 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   @override
   void dispose() {
     PageSettingsService().removeListener(_onPageSettingsChanged);
-    _fileChangeListener?.stopListening();
     _tabController?.dispose();
     super.dispose();
   }
@@ -222,34 +215,6 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         }
       },
     );
-  }
-
-  /// 初始化文件变化监听
-  Future<void> _initFileChangeListener() async {
-    try {
-      // 创建统计缓存实例
-      final statisticsCache = AppStatisticsCache();
-
-      _fileChangeListener = FileChangeListenerService(
-        statisticsCache: statisticsCache,
-        onCacheCleared: () async {
-          // 缓存清除后自动刷新文件列表
-          logger.i('🔄 文件变化 -> 自动刷新应用文件列表');
-          if (mounted) {
-            // 延迟10秒后刷新，给用户足够的时间看到新文件
-            await Future.delayed(const Duration(seconds: 10));
-            if (mounted) {
-              _loadFiles(forceRefresh: true);
-            }
-          }
-        },
-      );
-      await _fileChangeListener!.startListening();
-
-      logger.i('✓ 应用文件列表页: 文件监听已启动');
-    } catch (e) {
-      logger.e('启动文件监听失败: $e');
-    }
   }
 
   /// 加载文件并初始化Tabs（仅首次调用）
