@@ -5,7 +5,6 @@ import 'package:crypto/crypto.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/privacy_config.dart';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
@@ -517,24 +516,6 @@ class PrivacyService {
     } catch (e) {
       logger.e('重置隐私空间失败: $e');
       rethrow;
-    }
-  }
-
-  /// 获取隐私配置
-  Future<PrivacyConfig> getConfig() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      return PrivacyConfig(
-        isInitialized: prefs.getBool(_keyInitialized) ?? false,
-        pinHash: prefs.getString(_keyPinHash),
-        biometricEnabled: prefs.getBool(_keyBiometricEnabled) ?? false,
-        lastAccessTime:
-            prefs.getString(_keyLastAccess) != null ? DateTime.parse(prefs.getString(_keyLastAccess)!) : null,
-      );
-    } catch (e) {
-      logger.e('获取隐私配置失败: $e');
-      return const PrivacyConfig();
     }
   }
 }

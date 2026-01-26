@@ -67,11 +67,6 @@ class QuickAccessSection extends StatefulWidget {
   /// 公共的 globalKey getter（返回非泛型类型以避免暴露私有状态类）
   static GlobalKey<State<StatefulWidget>> get globalKey => _globalKey;
 
-  /// 清除推荐卡片缓存（用于设置变更后强制重新加载）
-  static void clearRecommendationCache() {
-    _QuickAccessSectionState.clearCache();
-  }
-
   /// 刷新推荐卡片（重新加载UI）
   ///
   /// 注意：此方法仅刷新UI显示，不会重新扫描应用

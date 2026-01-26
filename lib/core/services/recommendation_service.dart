@@ -354,16 +354,6 @@ class RecommendationService {
     }
   }
 
-  /// 刷新推荐卡片（仅用于兼容性，实际调用 getRecommendations）
-  ///
-  /// 注意：在新策略下，此方法不会重新扫描，只会刷新UI
-  /// 如需重新扫描，请使用 resetRecommendations()
-  @Deprecated('使用 resetRecommendations() 代替')
-  Future<List<RecommendationCard>> refreshRecommendations() async {
-    logger.w('refreshRecommendations 已废弃，请使用 resetRecommendations()');
-    return await getRecommendations();
-  }
-
   /// 获取缓存统计信息（调试用）
   Map<String, dynamic> getCacheStats() {
     return {
