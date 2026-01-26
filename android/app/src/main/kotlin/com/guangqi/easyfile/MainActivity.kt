@@ -30,19 +30,20 @@ import android.content.IntentFilter
 import androidx.exifinterface.media.ExifInterface
 import com.ryanheise.audioservice.AudioServicePlugin
 import androidx.annotation.NonNull
+import com.guangqi.easyfile.helpers.ApkParserHelper
 
 class MainActivity : FlutterActivity() {
-    
+
     // Override to provide the shared FlutterEngine for audio_service
     override fun provideFlutterEngine(context: Context): FlutterEngine {
         return AudioServicePlugin.getFlutterEngine(context)
     }
-    
+
     // Override to get cached engine ID for audio_service
     override fun getCachedEngineId(): String {
         return AudioServicePlugin.getFlutterEngineId()
     }
-    
+
     // The engine is managed by AudioServicePlugin, should not be destroyed with activity
     override fun shouldDestroyEngineWithHost(): Boolean {
         return false
@@ -79,48 +80,27 @@ class MainActivity : FlutterActivity() {
     private val LOG_CONFIG_CHANNEL = "easyfile/log_config"
     // 音频通知栏启动通道
     private val AUDIO_NOTIFICATION_CHANNEL = "easyfile/audio_notification"
+    // APK解析通道
+    private val APK_PARSER_CHANNEL = "com.easyfile.apk_parser"
     private val TAG = "MainActivity"
-    
+
     private var isRestoringFromBackground = false
     private lateinit var trashHelper: MediaStoreTrashHelper
     private lateinit var storageStatsHelper: StorageStatsHelper
     private lateinit var mediaStoreScanner: MediaStoreScanner
     private lateinit var appFileScanner: AppFileScanner
     private lateinit var newFilesScanner: NewFilesNativeScanner
+    private lateinit var apkParserHelper: ApkParserHelper
     private var appEventSink: EventChannel.EventSink? = null
     private var fileChangeEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: android.database.ContentObserver? = null
-    
+
+    // APK包变化监听器（页面级）
+    private var packageChangeReceiver: com.guangqi.easyfile.receivers.PackageChangeReceiver? = null
+    private var isPackageListenerRegistered = false
+
     // 保存从通知栏启动的标记
     private var launchedFromNotification = false
-    
-    // 应用安装/卸载广播接收器
-    private val packageChangeReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                Intent.ACTION_PACKAGE_ADDED -> {
-                    val packageName = intent.data?.schemeSpecificPart
-                    LogHelper.i(TAG, "应用安装: $packageName")
-                    packageName?.let {
-                        appEventSink?.success(mapOf(
-                            "event" to "installed",
-                            "packageName" to it
-                        ))
-                    }
-                }
-                Intent.ACTION_PACKAGE_REMOVED -> {
-                    val packageName = intent.data?.schemeSpecificPart
-                    LogHelper.i(TAG, "应用卸载: $packageName")
-                    packageName?.let {
-                        appEventSink?.success(mapOf(
-                            "event" to "uninstalled",
-                            "packageName" to it
-                        ))
-                    }
-                }
-            }
-        }
-    }
 
     companion object {
         private var isFirstActivityCreate = true
@@ -128,45 +108,45 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 检查是否是从后台恢复
-        isRestoringFromBackground = savedInstanceState != null || 
+        isRestoringFromBackground = savedInstanceState != null ||
                                    (intent?.flags?.and(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) != 0)
-        
+
         // 检查是否从通知栏启动（audio_service通知栏点击会带来新的intent）
         val action = intent?.action
         val categories = intent?.categories
         val flags = intent?.flags
-        
+
         LogHelper.i(TAG, "onCreate - intent action: $action, categories: $categories, flags: $flags")
-        
+
         // audio_service的通知栏点击会带来特定的action
         launchedFromNotification = (action == "com.ryanheise.audioservice.NOTIFICATION_CLICK")
-        
+
         LogHelper.i(TAG, "onCreate - isRestoring: $isRestoringFromBackground, isFirst: $isFirstActivityCreate, fromNotification: $launchedFromNotification")
-        
+
         // Initialize FlutterEngine for audio_service BEFORE other operations
         AudioServicePlugin.getFlutterEngine(this)
-        
+
         // 初始化 MediaStoreTrashHelper
         trashHelper = MediaStoreTrashHelper(this)
-        
+
         // 初始化 StorageStatsHelper
         storageStatsHelper = StorageStatsHelper(this)
-        
+
         // 初始化 MediaStoreScanner (统一扫描器)
         mediaStoreScanner = MediaStoreScanner(this)
-        
+
         // 初始化 AppFileScanner
         appFileScanner = AppFileScanner(this)
-        
+
         // 初始化 NewFilesNativeScanner
         newFilesScanner = NewFilesNativeScanner(this)
-        
-        // 注册应用安装/卸载监听器
-        registerPackageChangeReceiver()
-        
+
+        // 初始化 ApkParserHelper
+        apkParserHelper = ApkParserHelper(this) // 设置Activity引用
+
         // 注册 MediaStore 监听器
         registerMediaStoreObserver()
-        
+
         // 决定是否显示 Native Splash
         if (isRestoringFromBackground) {
             setTheme(R.style.NormalTheme) // 跳过 Native Splash
@@ -174,20 +154,20 @@ class MainActivity : FlutterActivity() {
             setTheme(R.style.NormalTheme) // 非首次创建也跳过
         }
         // 否则使用默认 LaunchTheme（显示 Native Splash）
-        
+
         isFirstActivityCreate = false
         super.onCreate(savedInstanceState)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        
+
         val action = intent.action
         val categories = intent.categories
         val flags = intent.flags
-        
+
         LogHelper.i(TAG, "onNewIntent - action: $action, categories: $categories, flags: $flags")
-        
+
         // audio_service的通知栏点击会发送特定的action
         if (action == "com.ryanheise.audioservice.NOTIFICATION_CLICK") {
             launchedFromNotification = true
@@ -197,9 +177,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         val messenger = flutterEngine.dartExecutor.binaryMessenger
-        
+
         // 音频通知栏启动 Channel
         MethodChannel(messenger, AUDIO_NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -213,7 +193,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 日志配置 Channel（统一日志级别控制）
         MethodChannel(messenger, LOG_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -250,14 +230,14 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 分享功能 Channel
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "shareFile" -> {
                     val filePath = call.argument<String>("filePath")
                     val mimeType = call.argument<String>("mimeType") ?: "*/*"
-                    
+
                     if (filePath != null) {
                         try {
                             ShareHelper.shareFile(this, filePath, mimeType)
@@ -271,7 +251,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "shareMultipleFiles" -> {
                     val filePaths = call.argument<List<String>>("filePaths")
-                    
+
                     if (filePaths != null && filePaths.isNotEmpty()) {
                         try {
                             ShareHelper.shareMultipleFiles(this, filePaths)
@@ -286,7 +266,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 应用状态 Channel
         MethodChannel(messenger, STATE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -297,7 +277,114 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
+        // APK解析 Channel
+        MethodChannel(messenger, APK_PARSER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "parseApk" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val apkInfo = apkParserHelper.parseApk(filePath)
+                            result.success(apkInfo)
+                        } catch (e: Exception) {
+                            result.error("PARSE_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File path is required", null)
+                    }
+                }
+                "parseApkBatch" -> {
+                    val filePaths = call.argument<List<String>>("filePaths")
+                    if (filePaths != null) {
+                        try {
+                            val apkInfoList = apkParserHelper.parseApkBatch(filePaths)
+                            result.success(apkInfoList)
+                        } catch (e: Exception) {
+                            result.error("PARSE_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File paths are required", null)
+                    }
+                }
+                "checkInstallStatus" -> {
+                    val packageName = call.argument<String>("packageName")
+                    val versionCode = call.argument<Int>("versionCode")
+                    if (packageName != null && versionCode != null) {
+                        try {
+                            val status = apkParserHelper.checkInstallStatus(packageName, versionCode)
+                            result.success(status)
+                        } catch (e: Exception) {
+                            result.error("STATUS_CHECK_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Package name and version code are required", null)
+                    }
+                }
+                "checkInstallStatusBatch" -> {
+                    val apkInfoList = call.argument<List<Map<String, Any>>>("apkInfoList")
+                    if (apkInfoList != null) {
+                        try {
+                            val statusMap = apkParserHelper.checkInstallStatusBatch(apkInfoList)
+                            result.success(statusMap)
+                        } catch (e: Exception) {
+                            result.error("STATUS_CHECK_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "APK info list is required", null)
+                    }
+                }
+                "launchInstall" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val success = apkParserHelper.launchInstall(filePath)
+                            result.success(success)
+                        } catch (e: Exception) {
+                            result.error("LAUNCH_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File path is required", null)
+                    }
+                }
+                "launchAppSettings" -> {
+                    val packageName = call.argument<String>("packageName")
+                    if (packageName != null) {
+                        try {
+                            // 直接在MainActivity中启动（与SYSTEM_INTENT_CHANNEL相同）
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("LAUNCH_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Package name is required", null)
+                    }
+                }
+                "startPackageListener" -> {
+                    try {
+                        startPackageListener(messenger)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("LISTENER_ERROR", e.message, null)
+                    }
+                }
+                "stopPackageListener" -> {
+                    try {
+                        stopPackageListener()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("LISTENER_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         // MediaStore回收站 Channel
         MethodChannel(messenger, TRASH_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -357,7 +444,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 系统意图 Channel
         MethodChannel(messenger, SYSTEM_INTENT_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -394,7 +481,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 存储统计 Channel
         MethodChannel(messenger, STORAGE_STATS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -454,31 +541,31 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 使用统计 Channel
         MethodChannel(messenger, USAGE_STATS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAppUsageStats" -> {
                     val packageName = call.argument<String>("packageName")
                     val daysBack = call.argument<Int>("daysBack") ?: 7
-                    
+
                     if (packageName != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                             val endTime = System.currentTimeMillis()
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
-                            
+
                             // 使用 INTERVAL_BEST 获取最精确的数据
                             val usageStatsList = usageStatsManager.queryUsageStats(
                                 UsageStatsManager.INTERVAL_BEST,
                                 startTime,
                                 endTime
                             )
-                            
+
                             // 找到该应用的所有记录，取最新的一条
                             val appStatsList = usageStatsList.filter { it.packageName == packageName }
                             val latestStats = appStatsList.maxByOrNull { it.lastTimeUsed }
-                            
+
                             // 获取PackageInfo的lastUpdateTime（无论有无UsageStats都获取）
                             var lastUpdateTime: Long? = null
                             try {
@@ -487,7 +574,7 @@ class MainActivity : FlutterActivity() {
                             } catch (e: Exception) {
                                 LogHelper.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
                             }
-                            
+
                             // 如果有UsageStats或有lastUpdateTime，就返回数据
                             if (latestStats != null || lastUpdateTime != null) {
                                 val statsMap = mapOf(
@@ -513,37 +600,37 @@ class MainActivity : FlutterActivity() {
                 "batchGetUsageStats" -> {
                     val packageNames = call.argument<List<String>>("packageNames")
                     val daysBack = call.argument<Int>("daysBack") ?: 7
-                    
+
                     LogHelper.d(TAG, "========== batchGetUsageStats ==========")
                     LogHelper.d(TAG, "请求参数: packageNames=${packageNames?.size}, daysBack=$daysBack")
-                    
+
                     if (packageNames != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                             val endTime = System.currentTimeMillis()
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
-                            
+
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                             LogHelper.d(TAG, "查询时间范围:")
                             LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))} ($startTime)")
                             LogHelper.d(TAG, "  endTime:   ${dateFormat.format(Date(endTime))} ($endTime)")
-                            
+
                             // 使用 INTERVAL_BEST 获取最精确的数据
                             val usageStatsList = usageStatsManager.queryUsageStats(
                                 UsageStatsManager.INTERVAL_BEST,
                                 startTime,
                                 endTime
                             )
-                            
+
                             LogHelper.d(TAG, "系统返回 ${usageStatsList.size} 条使用记录")
-                            
+
                             // 按lastTimeUsed分组统计
                             var count0to7 = 0
                             var count8to30 = 0
                             var count31to180 = 0
                             var countOver180 = 0
                             var countZero = 0
-                            
+
                             for (stat in usageStatsList) {
                                 if (stat.lastTimeUsed == 0L) {
                                     countZero++
@@ -557,24 +644,24 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
                             }
-                            
+
                             LogHelper.d(TAG, "使用记录时间分布:")
                             LogHelper.d(TAG, "  0-7天: $count0to7")
                             LogHelper.d(TAG, "  8-30天: $count8to30")
                             LogHelper.d(TAG, "  31-180天: $count31to180")
                             LogHelper.d(TAG, "  >180天: $countOver180")
                             LogHelper.d(TAG, "  lastTimeUsed=0: $countZero")
-                            
+
                             // 为每个应用找到最新的使用记录
                             val statsMap = mutableMapOf<String, Map<String, Any?>>()
-                            
+
                             for (packageName in packageNames) {
                                 // 找到该应用的所有记录，取最新的一条
                                 val appStatsList = usageStatsList.filter { it.packageName == packageName }
-                                
+
                                 if (appStatsList.isNotEmpty()) {
                                     LogHelper.d(TAG, "[$packageName] 找到 ${appStatsList.size} 条记录")
-                                    
+
                                     // 打印所有记录的lastTimeUsed
                                     appStatsList.forEachIndexed { index, stat ->
                                         val daysAgo = if (stat.lastTimeUsed > 0) {
@@ -585,9 +672,9 @@ class MainActivity : FlutterActivity() {
                                         LogHelper.d(TAG, "  记录$index: lastTimeUsed=${stat.lastTimeUsed}, ${daysAgo}天前, totalTime=${stat.totalTimeInForeground}ms")
                                     }
                                 }
-                                
+
                                 val latestStats = appStatsList.maxByOrNull { it.lastTimeUsed }
-                                
+
                                 // 获取PackageInfo的lastUpdateTime（无论有无UsageStats都获取）
                                 var lastUpdateTime: Long? = null
                                 try {
@@ -597,12 +684,12 @@ class MainActivity : FlutterActivity() {
                                 } catch (e: Exception) {
                                     LogHelper.w(TAG, "[$packageName] 无法获取PackageInfo: ${e.message}")
                                 }
-                                
+
                                 // 如果有UsageStats或有lastUpdateTime，就返回数据
                                 if (latestStats != null || lastUpdateTime != null) {
                                     val lastTimeUsed = latestStats?.lastTimeUsed ?: 0L
                                     val totalTimeInForeground = latestStats?.totalTimeInForeground ?: 0L
-                                    
+
                                     if (latestStats != null) {
                                         val daysSinceUsed = if (lastTimeUsed > 0) {
                                             ((endTime - lastTimeUsed) / (24 * 60 * 60 * 1000)).toInt()
@@ -610,7 +697,7 @@ class MainActivity : FlutterActivity() {
                                             -1
                                         }
                                         LogHelper.d(TAG, "[$packageName] 最新记录: lastTimeUsed=${lastTimeUsed}, ${daysSinceUsed}天前")
-                                        
+
                                         // 特别标记超过30天的应用
                                         if (daysSinceUsed > 30) {
                                             LogHelper.w(TAG, "!!! [$packageName] 发现超过30天的使用记录: ${daysSinceUsed}天前 !!!")
@@ -618,7 +705,7 @@ class MainActivity : FlutterActivity() {
                                     } else {
                                         LogHelper.d(TAG, "[$packageName] 无UsageStats记录，仅使用lastUpdateTime")
                                     }
-                                    
+
                                     // 返回数据，让 Flutter 端决定如何显示
                                     statsMap[packageName] = mapOf(
                                         "packageName" to packageName,
@@ -629,7 +716,7 @@ class MainActivity : FlutterActivity() {
                                     )
                                 }
                             }
-                            
+
                             LogHelper.d(TAG, "========== 返回 ${statsMap.size} 个应用的统计数据 ==========")
                             result.success(statsMap)
                         } catch (e: Exception) {
@@ -643,15 +730,15 @@ class MainActivity : FlutterActivity() {
                 "testAllIntervals" -> {
                     val packageName = call.argument<String>("packageName")
                     val daysBack = call.argument<Int>("daysBack") ?: 90
-                    
+
                     if (packageName != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                             val endTime = System.currentTimeMillis()
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
-                            
+
                             val results = mutableMapOf<String, Map<String, Any?>>()
-                            
+
                             // 测试所有 INTERVAL 类型
                             val intervals = listOf(
                                 "BEST" to UsageStatsManager.INTERVAL_BEST,
@@ -660,17 +747,17 @@ class MainActivity : FlutterActivity() {
                                 "MONTHLY" to UsageStatsManager.INTERVAL_MONTHLY,
                                 "YEARLY" to UsageStatsManager.INTERVAL_YEARLY
                             )
-                            
+
                             for ((name, intervalType) in intervals) {
                                 val usageStatsList = usageStatsManager.queryUsageStats(
                                     intervalType,
                                     startTime,
                                     endTime
                                 )
-                                
+
                                 val appStatsList = usageStatsList.filter { it.packageName == packageName }
                                 val latestStats = appStatsList.maxByOrNull { it.lastTimeUsed }
-                                
+
                                 if (latestStats != null) {
                                     results[name] = mapOf(
                                         "lastTimeUsed" to latestStats.lastTimeUsed,
@@ -687,7 +774,7 @@ class MainActivity : FlutterActivity() {
                                     LogHelper.d(TAG, "[$name] No data found")
                                 }
                             }
-                            
+
                             result.success(results)
                         } catch (e: Exception) {
                             LogHelper.e(TAG, "Error testing intervals: ${e.message}")
@@ -702,43 +789,43 @@ class MainActivity : FlutterActivity() {
                     val year = call.argument<Int>("year")
                     val month = call.argument<Int>("month")  // 1-12
                     val day = call.argument<Int>("day")
-                    
+
                     if (packageName != null && year != null && month != null && day != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                            
+
                             // 设置查询的起始时间（当天 00:00:00）
                             val calendar = Calendar.getInstance()
                             calendar.set(year, month - 1, day, 0, 0, 0)  // month是0-based
                             calendar.set(Calendar.MILLISECOND, 0)
                             val startTime = calendar.timeInMillis
-                            
+
                             // 设置查询的结束时间（当天 23:59:59）
                             calendar.set(year, month - 1, day, 23, 59, 59)
                             calendar.set(Calendar.MILLISECOND, 999)
                             val endTime = calendar.timeInMillis
-                            
+
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                             LogHelper.d(TAG, "查询特定日期: $year-$month-$day")
                             LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
                             LogHelper.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
-                            
+
                             // 使用 INTERVAL_DAILY 查询当天数据
                             val usageStatsList = usageStatsManager.queryUsageStats(
                                 UsageStatsManager.INTERVAL_DAILY,
                                 startTime,
                                 endTime
                             )
-                            
+
                             LogHelper.d(TAG, "系统返回 ${usageStatsList.size} 条记录")
-                            
+
                             // 找到该应用的记录
                             val appStatsList = usageStatsList.filter { it.packageName == packageName }
                             LogHelper.d(TAG, "找到 ${appStatsList.size} 条 $packageName 的记录")
-                            
+
                             if (appStatsList.isNotEmpty()) {
                                 val latestStats = appStatsList.maxByOrNull { it.lastTimeUsed }
-                                
+
                                 if (latestStats != null) {
                                     val resultMap = mapOf(
                                         "packageName" to latestStats.packageName,
@@ -748,7 +835,7 @@ class MainActivity : FlutterActivity() {
                                         "lastTimeStamp" to latestStats.lastTimeStamp,
                                         "recordCount" to appStatsList.size
                                     )
-                                    
+
                                     LogHelper.d(TAG, "查询结果: lastTimeUsed=${latestStats.lastTimeUsed}, totalTime=${latestStats.totalTimeInForeground}ms")
                                     result.success(resultMap)
                                 } else {
@@ -768,37 +855,37 @@ class MainActivity : FlutterActivity() {
                 "getAppFullInfo" -> {
                     val packageName = call.argument<String>("packageName")
                     val daysBack = call.argument<Int>("daysBack") ?: 365
-                    
+
                     if (packageName != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                             val endTime = System.currentTimeMillis()
                             val startTime = endTime - (daysBack * 24 * 60 * 60 * 1000L)
-                            
+
                             LogHelper.d(TAG, "获取应用完整信息（使用UsageEvents）: $packageName (最近${daysBack}天)")
-                            
+
                             val fullInfo = mutableMapOf<String, Any?>()
                             fullInfo["packageName"] = packageName
-                            
+
                             // 使用 UsageEvents 获取详细事件
                             val events = usageStatsManager.queryEvents(startTime, endTime)
-                            
+
                             var eventCount = 0
                             var firstEventTime: Long? = null
                             var lastEventTime: Long? = null
                             var totalForegroundTime = 0L
                             var lastResumeTime: Long? = null
-                            
+
                             val usedDates = mutableSetOf<String>()
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                            
+
                             while (events.hasNextEvent()) {
                                 val event = android.app.usage.UsageEvents.Event()
                                 events.getNextEvent(event)
-                                
+
                                 if (event.packageName == packageName) {
                                     eventCount++
-                                    
+
                                     // 记录第一次和最后一次事件
                                     if (firstEventTime == null || event.timeStamp < firstEventTime) {
                                         firstEventTime = event.timeStamp
@@ -806,10 +893,10 @@ class MainActivity : FlutterActivity() {
                                     if (lastEventTime == null || event.timeStamp > lastEventTime) {
                                         lastEventTime = event.timeStamp
                                     }
-                                    
+
                                     // 记录使用日期
                                     usedDates.add(dateFormat.format(Date(event.timeStamp)))
-                                    
+
                                     // 计算前台时长
                                     when (event.eventType) {
                                         1 -> { // ACTIVITY_RESUMED
@@ -824,21 +911,21 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
                             }
-                            
+
                             // 如果应用当前仍在前台，计算到现在的时间
                             if (lastResumeTime != null) {
                                 totalForegroundTime += (endTime - lastResumeTime)
                             }
-                            
+
                             LogHelper.d(TAG, "找到 $eventCount 个事件，使用天数: ${usedDates.size}")
-                            
+
                             if (eventCount > 0) {
                                 fullInfo["eventCount"] = eventCount
                                 fullInfo["firstEventTime"] = firstEventTime
                                 fullInfo["lastEventTime"] = lastEventTime
                                 fullInfo["totalForegroundTime"] = totalForegroundTime
                                 fullInfo["usedDaysCount"] = usedDates.size
-                                
+
                                 result.success(fullInfo)
                             } else {
                                 LogHelper.d(TAG, "未找到使用记录")
@@ -858,35 +945,35 @@ class MainActivity : FlutterActivity() {
                     val year = call.argument<Int>("year")
                     val month = call.argument<Int>("month")
                     val day = call.argument<Int>("day")
-                    
+
                     if (packageName != null && year != null && month != null && day != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                            
+
                             // 设置查询时间范围（当天）
                             val calendar = Calendar.getInstance()
                             calendar.set(year, month - 1, day, 0, 0, 0)
                             calendar.set(Calendar.MILLISECOND, 0)
                             val startTime = calendar.timeInMillis
-                            
+
                             calendar.set(year, month - 1, day, 23, 59, 59)
                             calendar.set(Calendar.MILLISECOND, 999)
                             val endTime = calendar.timeInMillis
-                            
+
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                             LogHelper.d(TAG, "查询UsageEvents: $year-$month-$day")
                             LogHelper.d(TAG, "  startTime: ${dateFormat.format(Date(startTime))}")
                             LogHelper.d(TAG, "  endTime: ${dateFormat.format(Date(endTime))}")
-                            
+
                             // 使用 queryEvents 获取详细事件
                             val events = usageStatsManager.queryEvents(startTime, endTime)
                             val eventsList = mutableListOf<Map<String, Any?>>()
-                            
+
                             var count = 0
                             while (events.hasNextEvent()) {
                                 val event = android.app.usage.UsageEvents.Event()
                                 events.getNextEvent(event)
-                                
+
                                 // 只保存目标应用的事件
                                 if (event.packageName == packageName) {
                                     val eventMap = mutableMapOf<String, Any?>()
@@ -894,27 +981,27 @@ class MainActivity : FlutterActivity() {
                                     eventMap["timeStamp"] = event.timeStamp
                                     eventMap["eventType"] = event.eventType
                                     eventMap["eventTypeName"] = getEventTypeName(event.eventType)
-                                    
+
                                     // 如果有类名
                                     if (event.className != null) {
                                         eventMap["className"] = event.className
                                     }
-                                    
+
                                     eventsList.add(eventMap)
                                     count++
-                                    
+
                                     LogHelper.d(TAG, "Event #$count: ${dateFormat.format(Date(event.timeStamp))} - ${getEventTypeName(event.eventType)}")
                                 }
                             }
-                            
+
                             LogHelper.d(TAG, "找到 $count 个事件")
-                            
+
                             val resultMap = mapOf(
                                 "packageName" to packageName,
                                 "eventCount" to count,
                                 "events" to eventsList
                             )
-                            
+
                             result.success(resultMap)
                         } catch (e: Exception) {
                             LogHelper.e(TAG, "Error querying usage events: ${e.message}")
@@ -933,38 +1020,38 @@ class MainActivity : FlutterActivity() {
                     val endYear = call.argument<Int>("endYear")
                     val endMonth = call.argument<Int>("endMonth")
                     val endDay = call.argument<Int>("endDay")
-                    
+
                     if (packageName != null && startYear != null && startMonth != null && startDay != null
                         && endYear != null && endMonth != null && endDay != null) {
                         try {
                             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                            
+
                             // 设置开始时间
                             val startCalendar = Calendar.getInstance()
                             startCalendar.set(startYear, startMonth - 1, startDay, 0, 0, 0)
                             startCalendar.set(Calendar.MILLISECOND, 0)
                             val startTime = startCalendar.timeInMillis
-                            
+
                             // 设置结束时间
                             val endCalendar = Calendar.getInstance()
                             endCalendar.set(endYear, endMonth - 1, endDay, 23, 59, 59)
                             endCalendar.set(Calendar.MILLISECOND, 999)
                             val endTime = endCalendar.timeInMillis
-                            
+
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                             LogHelper.d(TAG, "查询日期范围: $packageName")
                             LogHelper.d(TAG, "  从: ${dateFormat.format(Date(startTime))}")
                             LogHelper.d(TAG, "  到: ${dateFormat.format(Date(endTime))}")
-                            
+
                             // 使用 queryEvents 获取详细事件
                             val events = usageStatsManager.queryEvents(startTime, endTime)
                             val eventsList = mutableListOf<Map<String, Any?>>()
-                            
+
                             var count = 0
                             while (events.hasNextEvent()) {
                                 val event = android.app.usage.UsageEvents.Event()
                                 events.getNextEvent(event)
-                                
+
                                 // 只保存目标应用的事件
                                 if (event.packageName == packageName) {
                                     val eventMap = mutableMapOf<String, Any?>()
@@ -972,19 +1059,19 @@ class MainActivity : FlutterActivity() {
                                     eventMap["timeStamp"] = event.timeStamp
                                     eventMap["eventType"] = event.eventType
                                     eventMap["eventTypeName"] = getEventTypeName(event.eventType)
-                                    
+
                                     // 如果有类名
                                     if (event.className != null) {
                                         eventMap["className"] = event.className
                                     }
-                                    
+
                                     eventsList.add(eventMap)
                                     count++
                                 }
                             }
-                            
+
                             LogHelper.d(TAG, "找到 $count 个事件")
-                            
+
                             val resultMap = mapOf(
                                 "packageName" to packageName,
                                 "startDate" to dateFormat.format(Date(startTime)),
@@ -992,7 +1079,7 @@ class MainActivity : FlutterActivity() {
                                 "eventCount" to count,
                                 "events" to eventsList
                             )
-                            
+
                             result.success(resultMap)
                         } catch (e: Exception) {
                             LogHelper.e(TAG, "Error querying date range: ${e.message}")
@@ -1006,7 +1093,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 权限检查 Channel
         MethodChannel(messenger, PERMISSION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1016,7 +1103,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 应用信息 Channel
         MethodChannel(messenger, "com.easyfile/app_info").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1040,7 +1127,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 文件统计信息 Channel（获取文件创建时间等）
         MethodChannel(messenger, FILE_STATS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1084,7 +1171,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // MediaStore 统一扫描 Channel
         MethodChannel(messenger, MEDIASTORE_SCANNER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1109,7 +1196,7 @@ class MainActivity : FlutterActivity() {
                                     return@launch
                                 }
                             }
-                            
+
                             val files = mediaStoreScanner.scan(mediaType)
                             withContext(Dispatchers.Main) {
                                 result.success(files)
@@ -1143,7 +1230,7 @@ class MainActivity : FlutterActivity() {
                                     return@launch
                                 }
                             }
-                            
+
                             val stats = mediaStoreScanner.getStats(mediaType)
                             withContext(Dispatchers.Main) {
                                 result.success(stats)
@@ -1171,9 +1258,9 @@ class MainActivity : FlutterActivity() {
 
                             // 计算时间戳（N天前）
                             val daysAgo = System.currentTimeMillis() / 1000 - (days * 24 * 60 * 60)
-                            
+
                             val fileList = mutableListOf<Map<String, Any>>()
-                            
+
                             // 查询条件：OWNER_PACKAGE_NAME = ? AND DATE_MODIFIED > ?
                             val selection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                 "${MediaStore.Files.FileColumns.OWNER_PACKAGE_NAME} = ? AND ${MediaStore.Files.FileColumns.DATE_MODIFIED} > ?"
@@ -1184,7 +1271,7 @@ class MainActivity : FlutterActivity() {
                                 }
                                 return@launch
                             }
-                            
+
                             val selectionArgs = arrayOf(packageName, daysAgo.toString())
                             val projection = arrayOf(
                                 MediaStore.Files.FileColumns._ID,
@@ -1226,7 +1313,7 @@ class MainActivity : FlutterActivity() {
                             withContext(Dispatchers.Main) {
                                 result.success(fileList)
                             }
-                            
+
                         } catch (e: Exception) {
                             LogHelper.e(TAG, "扫描最近修改的应用文件失败: ${e.message}", e)
                             withContext(Dispatchers.Main) {
@@ -1238,7 +1325,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 应用文件扫描测试 Channel
         MethodChannel(messenger, APP_FILE_SCANNER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1325,7 +1412,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 本机相机照片测试 Channel
         MethodChannel(messenger, NATIVE_CAMERA_TEST_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -1389,7 +1476,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        
+
         // 应用安装/卸载事件通道
         EventChannel(messenger, APP_EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
@@ -1397,14 +1484,14 @@ class MainActivity : FlutterActivity() {
                     LogHelper.i(TAG, "应用事件监听已启动")
                     appEventSink = events
                 }
-                
+
                 override fun onCancel(arguments: Any?) {
                     LogHelper.i(TAG, "应用事件监听已取消")
                     appEventSink = null
                 }
             }
         )
-        
+
         // 文件变化事件通道（MediaStore监听）
         EventChannel(messenger, FILE_CHANGE_EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
@@ -1412,27 +1499,27 @@ class MainActivity : FlutterActivity() {
                     LogHelper.i(TAG, "文件变化监听已启动")
                     fileChangeEventSink = events
                 }
-                
+
                 override fun onCancel(arguments: Any?) {
                     LogHelper.i(TAG, "文件变化监听已取消")
                     fileChangeEventSink = null
                 }
             }
         )
-        
+
         // 新文件扫描通道（性能优化版）
         MethodChannel(messenger, NEW_FILES_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "scanRecentFiles" -> {
                     val days = call.argument<Int>("days") ?: 7
-                    
+
                     LogHelper.i(TAG, "开始扫描最近 $days 天的新文件（原生优化）")
-                    
+
                     // 使用协程异步执行，避免阻塞UI
                     lifecycleScope.launch(Dispatchers.IO) {
                         try {
                             val files = newFilesScanner.scanRecentFiles(days)
-                            
+
                             withContext(Dispatchers.Main) {
                                 LogHelper.i(TAG, "新文件扫描完成: ${files.size} 个文件")
                                 result.success(files)
@@ -1449,34 +1536,21 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
-    
-    /**
-     * 注册应用安装/卸载广播接收器
-     */
-    private fun registerPackageChangeReceiver() {
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_PACKAGE_ADDED)
-            addAction(Intent.ACTION_PACKAGE_REMOVED)
-            addDataScheme("package")
-        }
-        registerReceiver(packageChangeReceiver, filter)
-        LogHelper.i(TAG, "应用安装/卸载监听器已注册")
-    }
-    
+
     /**
      * 注册 MediaStore ContentObserver 监听文件变化
      */
     private fun registerMediaStoreObserver() {
         try {
             val handler = android.os.Handler(android.os.Looper.getMainLooper())
-            
+
             mediaStoreObserver = object : android.database.ContentObserver(handler) {
                 override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
                     super.onChange(selfChange, uri)
-                    
+
                     uri?.let {
                         LogHelper.d(TAG, "MediaStore changed: $it")
-                        
+
                         // 发送事件到 Flutter
                         fileChangeEventSink?.success(mapOf(
                             "event" to "file_changed",
@@ -1486,26 +1560,26 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
-            
+
             // 注册监听各种媒体类型
             contentResolver.registerContentObserver(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 true,
                 mediaStoreObserver!!
             )
-            
+
             contentResolver.registerContentObserver(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 true,
                 mediaStoreObserver!!
             )
-            
+
             contentResolver.registerContentObserver(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 true,
                 mediaStoreObserver!!
             )
-            
+
             // Android 10+ 支持监听下载文件
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentResolver.registerContentObserver(
@@ -1514,13 +1588,13 @@ class MainActivity : FlutterActivity() {
                     mediaStoreObserver!!
                 )
             }
-            
+
             LogHelper.i(TAG, "MediaStore 监听已注册")
         } catch (e: Exception) {
             LogHelper.e(TAG, "注册 MediaStore 监听失败: ${e.message}")
         }
     }
-    
+
     /**
      * 取消注册 MediaStore 监听
      */
@@ -1535,48 +1609,102 @@ class MainActivity : FlutterActivity() {
             LogHelper.e(TAG, "取消 MediaStore 监听失败: ${e.message}")
         }
     }
-    
+
+    /**
+     * 启动APK包监听（页面级）
+     */
+    private fun startPackageListener(messenger: io.flutter.plugin.common.BinaryMessenger) {
+        if (isPackageListenerRegistered) {
+            LogHelper.i(TAG, "APK包监听已经在运行")
+            return
+        }
+
+        try {
+            val channel = MethodChannel(messenger, APK_PARSER_CHANNEL)
+            packageChangeReceiver = com.guangqi.easyfile.receivers.PackageChangeReceiver(channel)
+
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_REPLACED)
+                addDataScheme("package")
+            }
+
+            registerReceiver(packageChangeReceiver, filter)
+            isPackageListenerRegistered = true
+            LogHelper.i(TAG, "APK包监听已启动（页面级）")
+        } catch (e: Exception) {
+            LogHelper.e(TAG, "启动APK包监听失败: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * 停止APK包监听
+     */
+    private fun stopPackageListener() {
+        if (!isPackageListenerRegistered) {
+            LogHelper.i(TAG, "APK包监听未运行")
+            return
+        }
+
+        try {
+            packageChangeReceiver?.let {
+                unregisterReceiver(it)
+                packageChangeReceiver = null
+                isPackageListenerRegistered = false
+                LogHelper.i(TAG, "APK包监听已停止")
+            }
+        } catch (e: Exception) {
+            LogHelper.e(TAG, "停止APK包监听失败: ${e.message}")
+            throw e
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterMediaStoreObserver()
-        unregisterReceiver(packageChangeReceiver)
+        // 停止APK包监听（如果还在运行）
+        if (isPackageListenerRegistered) {
+            stopPackageListener()
+        }
     }
-    
+
     /**
      * 扫描并分析本机相机拍摄的照片
      * 通过读取 EXIF 信息判断是否为本机拍摄
      */
     private fun scanNativeCameraPhotos(): List<Map<String, Any>> {
         LogHelper.i(TAG, "开始扫描设备所有图片...")
-        
+
         val deviceMake = android.os.Build.MANUFACTURER
         val deviceModel = android.os.Build.MODEL
-        
+
         LogHelper.i(TAG, "设备信息: $deviceMake $deviceModel")
-        
+
         val results = mutableListOf<Map<String, Any>>()
-        
+
         // 扫描所有图片（不加过滤）
         val allPhotos = mediaStoreScanner.scan(MediaType.Image)
-        
+
         LogHelper.i(TAG, "找到 ${allPhotos.size} 张图片，开始分析 EXIF...")
-        
+
         for (photo in allPhotos) {
             try {
                 val path = photo["path"] as? String ?: continue
                 val name = photo["name"] as? String ?: ""
                 val size = (photo["size"] as? Number)?.toLong() ?: 0L
                 val bucket = photo["bucket"] as? String ?: ""
-                
+
                 // 读取 EXIF 信息
                 val exif = ExifInterface(path)
                 val make = exif.getAttribute(ExifInterface.TAG_MAKE)
                 val model = exif.getAttribute(ExifInterface.TAG_MODEL)
                 val date = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
-                
+
                 // 判断是否为本机拍摄
                 val isNative = isNativePhoto(make, model, deviceMake, deviceModel)
-                
+
                 results.add(mapOf(
                     "path" to path,
                     "name" to name,
@@ -1591,13 +1719,13 @@ class MainActivity : FlutterActivity() {
                 LogHelper.w(TAG, "读取 EXIF 失败: ${photo["path"]}, ${e.message}")
             }
         }
-        
+
         val nativeCount = results.count { it["isNative"] as Boolean }
         LogHelper.i(TAG, "扫描完成: 总数 ${results.size}, 本机拍摄 $nativeCount")
-        
+
         return results
     }
-    
+
     /**
      * 判断照片是否为本机拍摄
      * 通过比较 EXIF 中的品牌和型号与设备信息
@@ -1611,34 +1739,34 @@ class MainActivity : FlutterActivity() {
         if (exifMake == null || exifModel == null) {
             return false
         }
-        
+
         // 品牌匹配（不区分大小写）
         val makeMatches = exifMake.equals(deviceMake, ignoreCase = true)
-        
+
         // 型号匹配（不区分大小写，支持部分匹配）
         val modelMatches = exifModel.equals(deviceModel, ignoreCase = true) ||
                           exifModel.contains(deviceModel, ignoreCase = true) ||
                           deviceModel.contains(exifModel, ignoreCase = true)
-        
+
         return makeMatches && modelMatches
     }
-    
+
     /**
      * 通过系统相机包名扫描照片
      * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的图片
      */
     private fun scanCameraPackagePhotos(): List<Map<String, Any>> {
         LogHelper.i(TAG, "开始扫描系统相机包名创建的图片...")
-        
+
         // 获取系统相机包名
         val cameraPackageName = getCameraPackageName()
         LogHelper.i(TAG, "系统相机包名: $cameraPackageName")
-        
+
         if (cameraPackageName.isEmpty()) {
             LogHelper.w(TAG, "无法获取系统相机包名")
             return emptyList()
         }
-        
+
         val results = mutableListOf<Map<String, Any>>()
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
@@ -1652,12 +1780,12 @@ class MainActivity : FlutterActivity() {
             MediaStore.Images.Media.HEIGHT,
             "owner_package_name"  // OWNER_PACKAGE_NAME
         )
-        
+
         // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
         val selection = "owner_package_name = ?"
         val selectionArgs = arrayOf(cameraPackageName)
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
-        
+
         try {
             contentResolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -1675,9 +1803,9 @@ class MainActivity : FlutterActivity() {
                 val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
                 val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
                 val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
-                
+
                 LogHelper.i(TAG, "找到 ${cursor.count} 张系统相机照片")
-                
+
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
                     val name = cursor.getString(nameColumn) ?: ""
@@ -1688,7 +1816,7 @@ class MainActivity : FlutterActivity() {
                     val bucket = cursor.getString(bucketColumn) ?: ""
                     val width = cursor.getInt(widthColumn)
                     val height = cursor.getInt(heightColumn)
-                    
+
                     results.add(mapOf(
                         "id" to id,
                         "name" to name,
@@ -1706,11 +1834,11 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             LogHelper.e(TAG, "扫描系统相机照片失败: ${e.message}", e)
         }
-        
+
         LogHelper.i(TAG, "扫描完成: ${results.size} 张系统相机照片")
         return results
     }
-    
+
     /**
      * 获取系统相机应用的包名
      */
@@ -1724,23 +1852,23 @@ class MainActivity : FlutterActivity() {
             ""
         }
     }
-    
+
     /**
      * 通过系统相机包名扫描视频
      * 使用 OWNER_PACKAGE_NAME 字段过滤系统相机创建的视频
      */
     private fun scanCameraPackageVideos(): List<Map<String, Any>> {
         LogHelper.i(TAG, "开始扫描系统相机包名创建的视频...")
-        
+
         // 获取系统相机包名
         val cameraPackageName = getCameraPackageName()
         LogHelper.i(TAG, "系统相机包名: $cameraPackageName")
-        
+
         if (cameraPackageName.isEmpty()) {
             LogHelper.w(TAG, "无法获取系统相机包名")
             return emptyList()
         }
-        
+
         val results = mutableListOf<Map<String, Any>>()
         val projection = arrayOf(
             MediaStore.Video.Media._ID,
@@ -1755,12 +1883,12 @@ class MainActivity : FlutterActivity() {
             MediaStore.Video.Media.DURATION,
             "owner_package_name"  // OWNER_PACKAGE_NAME
         )
-        
+
         // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
         val selection = "owner_package_name = ?"
         val selectionArgs = arrayOf(cameraPackageName)
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
-        
+
         try {
             contentResolver.query(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
@@ -1779,9 +1907,9 @@ class MainActivity : FlutterActivity() {
                 val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
                 val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
                 val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
-                
+
                 LogHelper.i(TAG, "找到 ${cursor.count} 个系统相机视频")
-                
+
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
                     val name = cursor.getString(nameColumn) ?: ""
@@ -1793,7 +1921,7 @@ class MainActivity : FlutterActivity() {
                     val width = cursor.getInt(widthColumn)
                     val height = cursor.getInt(heightColumn)
                     val duration = cursor.getLong(durationColumn)
-                    
+
                     results.add(mapOf(
                         "id" to id,
                         "name" to name,
@@ -1812,11 +1940,11 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             LogHelper.e(TAG, "扫描系统相机视频失败: ${e.message}", e)
         }
-        
+
         LogHelper.i(TAG, "扫描完成: ${results.size} 个系统相机视频")
         return results
     }
-    
+
     /**
      * 检查是否有 PACKAGE_USAGE_STATS 权限
      */
@@ -1843,7 +1971,7 @@ class MainActivity : FlutterActivity() {
             false
         }
     }
-    
+
     /**
      * 获取事件类型的名称
      */

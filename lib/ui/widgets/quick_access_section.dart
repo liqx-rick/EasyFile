@@ -2,29 +2,29 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:disk_space_plus/disk_space_plus.dart';
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/data_sources/data_source_factory.dart';
+import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
-import 'package:easyfile/presenter/quick_access_presenter.dart';
-import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/presenter/quick_access_presenter.dart';
+import 'package:easyfile/ui/pages/apk_management_page.dart';
+import 'package:easyfile/ui/pages/app_management_page.dart';
+import 'package:easyfile/ui/pages/archive_management_page.dart';
+import 'package:easyfile/ui/pages/file_browser_root_page.dart';
+import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
+import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/widgets/files_browse_card.dart';
 import 'package:easyfile/ui/widgets/storage_management_card.dart';
-import 'package:easyfile/core/services/recommendation_service.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
-import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
-import 'package:easyfile/ui/pages/archive_management_page.dart';
-import 'package:easyfile/ui/pages/app_management_page.dart';
-import 'package:easyfile/ui/pages/trash_page.dart';
-import 'package:easyfile/ui/pages/file_browser_root_page.dart';
-import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
-import 'package:easyfile/core/data_sources/data_source_factory.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // 简单数据载体，供第二屏功能卡使用
 class _QuickAction {
@@ -58,8 +58,7 @@ class QuickAccessSection extends StatefulWidget {
   final RecommendationService recommendationService;
 
   /// 全局Key用于从外部触发刷新（私有）
-  static final GlobalKey<_QuickAccessSectionState> _globalKey =
-      GlobalKey<_QuickAccessSectionState>();
+  static final GlobalKey<_QuickAccessSectionState> _globalKey = GlobalKey<_QuickAccessSectionState>();
 
   /// 公共的 globalKey getter（返回非泛型类型以避免暴露私有状态类）
   static GlobalKey<State<StatefulWidget>> get globalKey => _globalKey;
@@ -89,8 +88,7 @@ class QuickAccessSection extends StatefulWidget {
   State<QuickAccessSection> createState() => _QuickAccessSectionState();
 }
 
-class _QuickAccessSectionState extends State<QuickAccessSection>
-    with SingleTickerProviderStateMixin {
+class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTickerProviderStateMixin {
   // 动画控制器
   late AnimationController _animationController;
 
@@ -121,9 +119,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
   _QuickAccessSectionState() {
     logger.d('⏱️ [PERF] QuickAccessSection构造函数开始');
     // 1. 先检查静态缓存（最快）
-    final hasValidStaticCache = _cachedCards != null &&
-        _cacheTime != null &&
-        DateTime.now().difference(_cacheTime!) < _cacheValidDuration;
+    final hasValidStaticCache =
+        _cachedCards != null && _cacheTime != null && DateTime.now().difference(_cacheTime!) < _cacheValidDuration;
 
     if (hasValidStaticCache) {
       _recommendationCards = _cachedCards!;
@@ -168,9 +165,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
 
         if (cacheAge < _cacheValidDuration) {
           final List<dynamic> jsonList = jsonDecode(cacheJson);
-          final cards = jsonList
-              .map((json) => RecommendationCard.fromJson(json))
-              .toList();
+          final cards = jsonList.map((json) => RecommendationCard.fromJson(json)).toList();
 
           if (mounted) {
             setState(() {
@@ -321,8 +316,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final cacheAge = hasCache ? now.difference(_cacheTime!) : null;
     final cacheValid = hasCache && cacheAge! < _cacheValidDuration;
 
-    logger.d(
-        '📊 后台检查缓存: 有缓存=$hasCache, 缓存年龄=${cacheAge?.inSeconds}秒, 有效=$cacheValid');
+    logger.d('📊 后台检查缓存: 有缓存=$hasCache, 缓存年龄=${cacheAge?.inSeconds}秒, 有效=$cacheValid');
 
     if (cacheValid) {
       // 缓存有效，如果UI已使用缓存则无需操作
@@ -412,10 +406,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                     }
                   },
                   children: [
-                    _buildFirstPage(
-                        context, availableWidth, isSmallScreen, spacing),
-                    _buildSecondPage(
-                        context, availableWidth, isSmallScreen, spacing),
+                    _buildFirstPage(context, availableWidth, isSmallScreen, spacing),
+                    _buildSecondPage(context, availableWidth, isSmallScreen, spacing),
                   ],
                 ),
                 Positioned(
@@ -432,10 +424,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                           shape: BoxShape.circle,
                           color: isActive
                               ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant
-                                  .withValues(alpha: 0.35),
+                              : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
                         ),
                       );
                     }),
@@ -473,11 +462,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           Row(
             children: [
               SizedBox(width: spacing),
-              _buildRecommendationCard(
-                  context, cardWidth, cardHeight, 0, isSmallScreen),
+              _buildRecommendationCard(context, cardWidth, cardHeight, 0, isSmallScreen),
               SizedBox(width: spacing),
-              _buildRecommendationCard(
-                  context, cardWidth, cardHeight, 1, isSmallScreen),
+              _buildRecommendationCard(context, cardWidth, cardHeight, 1, isSmallScreen),
               SizedBox(width: spacing),
               _buildFunctionCard(
                 context,
@@ -493,11 +480,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           Row(
             children: [
               SizedBox(width: spacing),
-              _buildRecommendationCard(
-                  context, cardWidth, cardHeight, 2, isSmallScreen),
+              _buildRecommendationCard(context, cardWidth, cardHeight, 2, isSmallScreen),
               SizedBox(width: spacing),
-              _buildRecommendationCard(
-                  context, cardWidth, cardHeight, 3, isSmallScreen),
+              _buildRecommendationCard(context, cardWidth, cardHeight, 3, isSmallScreen),
               SizedBox(width: spacing),
               _buildFunctionCard(
                 context,
@@ -591,10 +576,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? [
-                    Colors.white.withValues(alpha: 0.12),
-                    Colors.white.withValues(alpha: 0.06)
-                  ]
+                ? [Colors.white.withValues(alpha: 0.12), Colors.white.withValues(alpha: 0.06)]
                 : [Colors.white, const Color(0xFFF8F9FA)],
           ),
           borderRadius: BorderRadius.circular(12),
@@ -629,10 +611,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? [
-                    Colors.white.withValues(alpha: 0.08),
-                    Colors.white.withValues(alpha: 0.04)
-                  ]
+                ? [Colors.white.withValues(alpha: 0.08), Colors.white.withValues(alpha: 0.04)]
                 : [const Color(0xFFF8F9FA), const Color(0xFFF0F0F0)],
           ),
           borderRadius: BorderRadius.circular(12),
@@ -671,10 +650,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? [
-                  Colors.white.withValues(alpha: 0.12),
-                  Colors.white.withValues(alpha: 0.06)
-                ]
+              ? [Colors.white.withValues(alpha: 0.12), Colors.white.withValues(alpha: 0.06)]
               : [Colors.white, const Color(0xFFF8F9FA)],
         ),
         borderRadius: BorderRadius.circular(12),
@@ -794,10 +770,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
     final fontSize = (cardHeight * 0.20).clamp(12.0, 20.0);
 
     final colors = isDark
-        ? [
-            Colors.white.withValues(alpha: 0.12),
-            Colors.white.withValues(alpha: 0.06)
-          ]
+        ? [Colors.white.withValues(alpha: 0.12), Colors.white.withValues(alpha: 0.06)]
         : [Colors.white, const Color(0xFFF8F9FA)];
 
     return Opacity(
@@ -982,7 +955,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
                     ),
                   ),
                 );
-                
+
                 // 如果返回时标记要跳转到第二页，则切换到第二页
                 if (shouldReturnToSecondPage == true && mounted) {
                   _pageController.animateToPage(
@@ -1012,9 +985,15 @@ class _QuickAccessSectionState extends State<QuickAccessSection>
       _QuickAction(
         label: '安装包管理',
         icon: Icons.file_download_done,
-        enabled: false,
+        enabled: true,
         color: Colors.deepPurple,
-        onTap: null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ApkManagementPage(),
+            ),
+          );
+        },
       ),
       _QuickAction(
         label: '敬请期待',
