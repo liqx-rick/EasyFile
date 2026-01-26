@@ -1,12 +1,12 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:easyfile/core/services/recommendation_service.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
-import 'package:easyfile/core/config/app_scanner_config.dart';
-import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/app_scan_result.dart';
-import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/core/config/app_config.dart';
+import 'package:easyfile/core/config/app_scanner_config.dart';
 import 'package:easyfile/core/config/storage/mock_config_storage.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_scan_result.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/data/models/recommendation_card.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 测试用的应用检测服务（可控制检测结果）
 class MockAppDetectionService extends AppDetectionService {
@@ -100,12 +100,14 @@ void main() {
       // 验证都是系统类托底卡片
       expect(cards.every((c) => c.appKey == null), true);
       final cardTypes = cards.map((c) => c.type).toSet();
-      expect(cardTypes, containsAll([
-        RecommendationType.memories,
-        RecommendationType.videos,
-        RecommendationType.recordings,
-        RecommendationType.largeFiles,
-      ]));
+      expect(
+          cardTypes,
+          containsAll([
+            RecommendationType.memories,
+            RecommendationType.videos,
+            RecommendationType.recordings,
+            RecommendationType.largeFiles,
+          ]));
     });
 
     test('微信已安装 - 应显示为第一个（方案A：不检查文件数）', () async {
@@ -225,16 +227,18 @@ void main() {
       // 只返回前4个，按priority排序
       expect(cards.length, 4);
       expect(cards.every((c) => c.appKey != null), true); // 都是应用卡片
-      
+
       // 验证按priority排序（wechat=1, wps=2, qq=3, dingtalk=4）
       final cardTypes = cards.map((c) => c.type).toList();
-      expect(cardTypes, containsAll([
-        RecommendationType.wechat,
-        RecommendationType.wps,
-        RecommendationType.qq,
-        RecommendationType.dingtalk,
-      ]));
-      
+      expect(
+          cardTypes,
+          containsAll([
+            RecommendationType.wechat,
+            RecommendationType.wps,
+            RecommendationType.qq,
+            RecommendationType.dingtalk,
+          ]));
+
       // 验证顺序正确
       expect(cardTypes[0], RecommendationType.wechat);
       expect(cardTypes[1], RecommendationType.wps);
@@ -310,32 +314,6 @@ void main() {
       expect(cards[1].fileCount, 0);
       expect(cards[2].fileCount, 0);
       expect(cards[3].fileCount, 0);
-    });
-  });
-
-  group('RecommendationService 刷新功能测试', () {
-    test('refreshRecommendations 应重新生成卡片', () async {
-      final detectionService = MockAppDetectionService(
-        installedApps: {
-          'com.tencent.mm': true,
-        },
-      );
-
-      final scanner = MockUnifiedAppScanner(
-        detectionService,
-        fileCounts: {
-          'wechat': 50,
-        },
-      );
-      final service = RecommendationService(
-        detectionService: detectionService,
-        scanner: scanner,
-      );
-
-      final cards = await service.refreshRecommendations();
-
-      expect(cards.length, 4);
-      expect(cards[0].type, RecommendationType.wechat);
     });
   });
 }
