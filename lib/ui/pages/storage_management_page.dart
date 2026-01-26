@@ -1,30 +1,29 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+
 import 'package:disk_space_plus/disk_space_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
-import 'package:easyfile/ui/pages/category_file_page.dart'
-    hide FileTypeFilter;
-import 'package:easyfile/ui/pages/duplicate_files_page.dart';
-import 'package:easyfile/ui/pages/large_files_page.dart';
-import 'package:easyfile/ui/pages/junk_files_page.dart';
-import 'package:easyfile/ui/pages/app_management_page.dart';
-
-import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/ui/pages/app_management_page.dart';
+import 'package:easyfile/ui/pages/category_file_page.dart' hide FileTypeFilter;
+import 'package:easyfile/ui/pages/duplicate_files_page.dart';
+import 'package:easyfile/ui/pages/junk_files_page.dart';
+import 'package:easyfile/ui/pages/large_files_page.dart';
+import 'package:easyfile/ui/widgets/large_file_scan_config_dialog.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 存储管理页面
 /// 用于管理应用缓存和临时文件
@@ -267,8 +266,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                     MaterialPageRoute(
                       builder: (context) => LargeFilesPage(
                         largeFileService: largeFileService,
-                        initialConfig: LargeFileScanConfig.fromFileScanConfig(
-                            AppConfig.instance.fileScan),
+                        initialConfig: LargeFileScanConfig.fromFileScanConfig(AppConfig.instance.fileScan),
                       ),
                     ),
                   );
@@ -291,11 +289,11 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   final cacheManager = LargeFileCacheManager();
                   final cache = await cacheManager.loadCache();
                   if (!mounted) return;
-                  
-                  final currentConfig = cache?.config ??
-                      LargeFileScanConfig.fromFileScanConfig(
-                          AppConfig.instance.fileScan);
-                  
+
+                  final currentConfig =
+                      cache?.config ?? LargeFileScanConfig.fromFileScanConfig(AppConfig.instance.fileScan);
+
+                  if (!mounted) return;
                   // ignore: use_build_context_synchronously
                   final newConfig = await LargeFileScanConfigDialog.show(
                     context,
@@ -307,6 +305,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                     });
                     final presenter = locator<FilePresenter>();
                     final largeFileService = LargeFileService(presenter);
+                    if (!mounted) return;
+                    // ignore: use_build_context_synchronously
                     navigator.push(
                       MaterialPageRoute(
                         builder: (context) => LargeFilesPage(
@@ -341,10 +341,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                   );
                   final presenter = locator<FilePresenter>();
                   final duplicateFileService = DuplicateFileService(presenter);
-                  final enhancedScanService =
-                      EnhancedDuplicateFileScanService(duplicateFileService);
-                  CacheManagerService()
-                      .setDuplicateFileScanService(enhancedScanService);
+                  final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
+                  CacheManagerService().setDuplicateFileScanService(enhancedScanService);
                   if (mounted) {
                     navigator.push(
                       MaterialPageRoute(
@@ -464,13 +462,10 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isLandscape = MediaQuery.of(context).size.width >
-            MediaQuery.of(context).size.height;
+        final isLandscape = MediaQuery.of(context).size.width > MediaQuery.of(context).size.height;
 
         return Row(
-          mainAxisAlignment: isLandscape
-              ? MainAxisAlignment.center
-              : MainAxisAlignment.spaceAround,
+          mainAxisAlignment: isLandscape ? MainAxisAlignment.center : MainAxisAlignment.spaceAround,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // 圆环图
@@ -615,8 +610,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
     int otherSize = 0;
     if (_totalSpace != null && _freeSpace != null) {
       final usedBytes = ((_totalSpace! - _freeSpace!) * 1024 * 1024).toInt();
-      final categorizedSize =
-          _categorySizes.values.fold<int>(0, (sum, size) => sum + size);
+      final categorizedSize = _categorySizes.values.fold<int>(0, (sum, size) => sum + size);
       otherSize = (usedBytes - categorizedSize).clamp(0, usedBytes);
     }
 
@@ -630,8 +624,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📷',
               label: '图片',
-              size: FileSizeFormatter.formatBytes(
-                  _categorySizes[CategoryType.images] ?? 0),
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.images] ?? 0),
               color: const Color(0xFF2196F3),
               categoryType: CategoryType.images,
               width: itemWidth,
@@ -642,8 +635,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📹',
               label: '视频',
-              size: FileSizeFormatter.formatBytes(
-                  _categorySizes[CategoryType.video] ?? 0),
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.video] ?? 0),
               color: const Color(0xFF9C27B0),
               categoryType: CategoryType.video,
               width: itemWidth,
@@ -654,8 +646,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '📄',
               label: '文档',
-              size: FileSizeFormatter.formatBytes(
-                  _categorySizes[CategoryType.documents] ?? 0),
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.documents] ?? 0),
               color: const Color(0xFF4CAF50),
               categoryType: CategoryType.documents,
               width: itemWidth,
@@ -666,8 +657,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
             _buildCategoryCard(
               icon: '🎵',
               label: '音乐',
-              size: FileSizeFormatter.formatBytes(
-                  _categorySizes[CategoryType.music] ?? 0),
+              size: FileSizeFormatter.formatBytes(_categorySizes[CategoryType.music] ?? 0),
               color: const Color(0xFFFF9800),
               categoryType: CategoryType.music,
               width: itemWidth,
@@ -767,8 +757,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                             Text(
                               '计算中',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurface
-                                    .withValues(alpha: 0.5),
+                                color: colorScheme.onSurface.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -879,9 +868,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Theme.of(dialogContext)
-                                .colorScheme
-                                .primaryContainer,
+                            color: Theme.of(dialogContext).colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -889,9 +876,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                               Icon(
                                 Icons.lightbulb_outline,
                                 size: 20,
-                                color: Theme.of(dialogContext)
-                                    .colorScheme
-                                    .onPrimaryContainer,
+                                color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -899,9 +884,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                                   '可以在"大文件查找"功能中按大小查看这些文件',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Theme.of(dialogContext)
-                                        .colorScheme
-                                        .onPrimaryContainer,
+                                    color: Theme.of(dialogContext).colorScheme.onPrimaryContainer,
                                   ),
                                 ),
                               ),
@@ -928,8 +911,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                         icon: const Icon(Icons.apps, size: 16),
                         label: const Text('应用', style: TextStyle(fontSize: 13)),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -955,8 +937,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                           );
 
                           if (config != null && mounted) {
-                            final largeFileService =
-                                LargeFileService(presenterRef);
+                            final largeFileService = LargeFileService(presenterRef);
                             navigator.push(
                               MaterialPageRoute(
                                 builder: (context) => LargeFilesPage(
@@ -970,8 +951,7 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
                         icon: const Icon(Icons.search, size: 16),
                         label: const Text('查找', style: TextStyle(fontSize: 13)),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
                       ),
                     ],
@@ -1224,11 +1204,9 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
                     final presenter = locator<FilePresenter>();
                     final duplicateFileService = DuplicateFileService(presenter);
-                    final enhancedScanService =
-                        EnhancedDuplicateFileScanService(duplicateFileService);
+                    final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
 
-                    CacheManagerService()
-                        .setDuplicateFileScanService(enhancedScanService);
+                    CacheManagerService().setDuplicateFileScanService(enhancedScanService);
 
                     navigator.push(
                       MaterialPageRoute(

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/services/file_type_analyzer.dart';
-import 'package:easyfile/core/logger.dart';
+import 'package:flutter/material.dart';
 
 /// 文件类型筛选Tab栏
 class FileCategoryTabBar extends StatelessWidget {
@@ -9,11 +9,19 @@ class FileCategoryTabBar extends StatelessWidget {
   final FileCategory selectedCategory;
   final ValueChanged<FileCategory> onCategoryChanged;
 
+  /// 是否显示图标（默认false，仅隐私空间为true）
+  final bool showIcon;
+
+  /// 是否显示数字统计（默认true）
+  final bool showCount;
+
   const FileCategoryTabBar({
     super.key,
     required this.stats,
     required this.selectedCategory,
     required this.onCategoryChanged,
+    this.showIcon = false,
+    this.showCount = true,
   });
 
   @override
@@ -38,7 +46,7 @@ class FileCategoryTabBar extends StatelessWidget {
     }
 
     return Container(
-      height: 35,
+      height: showIcon ? 56 : 35,
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
@@ -67,28 +75,51 @@ class FileCategoryTabBar extends StatelessWidget {
     bool isSelected,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textColor = isSelected
-        ? colorScheme.primary
-        : colorScheme.onSurface.withValues(alpha: 0.6);
+    final iconColor = isSelected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.6);
+    final textColor = isSelected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.6);
 
     return GestureDetector(
       onTap: () => onCategoryChanged(category),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        margin: EdgeInsets.symmetric(
+          horizontal: showIcon ? 4 : 3,
+          vertical: 2,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: showIcon ? 10 : 8,
+          vertical: 0,
+        ),
         decoration: BoxDecoration(
-          border: isSelected
-              ? Border(bottom: BorderSide(color: colorScheme.primary, width: 2))
-              : null,
+          border: isSelected ? Border(bottom: BorderSide(color: colorScheme.primary, width: 2)) : null,
         ),
-        child: Text(
-          '${category.displayName} ($count)',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: textColor,
-          ),
-        ),
+        child: showIcon
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    category.icon,
+                    size: 20,
+                    color: iconColor,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    category.displayName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                showCount ? '${category.displayName} ($count)' : category.displayName,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: textColor,
+                ),
+              ),
       ),
     );
   }

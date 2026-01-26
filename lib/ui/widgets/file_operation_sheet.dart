@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:flutter/material.dart';
 
 class FileOperationSheet extends StatelessWidget {
   final FileItem file;
@@ -58,9 +58,7 @@ class FileOperationSheet extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        file.isDirectory
-                            ? '文件夹'
-                            : FileUtils.formatFileSize(file.size),
+                        file.isDirectory ? '文件夹' : FileUtils.formatFileSize(file.size),
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -94,6 +92,16 @@ class FileOperationSheet extends StatelessWidget {
             subtitle: '修改文件名',
             onTap: () => _handleOperation(context, FileOperation.rename),
           ),
+          // 移入隐私空间（仅文件支持）
+          if (!file.isDirectory)
+            _buildOperationTile(
+              context,
+              icon: Icons.lock,
+              title: '移入隐私空间',
+              subtitle: '需要PIN验证',
+              color: Colors.purple,
+              onTap: () => _handleOperation(context, FileOperation.moveToPrivacy),
+            ),
           _buildOperationTile(
             context,
             icon: Icons.delete,
@@ -145,4 +153,4 @@ class FileOperationSheet extends StatelessWidget {
   }
 }
 
-enum FileOperation { copy, move, rename, delete }
+enum FileOperation { copy, move, rename, delete, moveToPrivacy }

@@ -25,13 +25,13 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
+
         // NDK 配置 - 只打包真实Android设备需要的ARM架构
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
     }
-    
+
     // CMake 外部构建配置 - FFI Native 层
     externalNativeBuild {
         cmake {
@@ -39,7 +39,7 @@ android {
             version = "3.22.1"
         }
     }
-    
+
     // 限制CMake只编译指定的ABI
     defaultConfig.externalNativeBuild {
         cmake {

@@ -7,6 +7,7 @@ import 'package:easyfile/core/data_sources/data_source_factory.dart';
 import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/privacy_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
@@ -17,6 +18,9 @@ import 'package:easyfile/ui/pages/apk_management_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/archive_management_page.dart';
 import 'package:easyfile/ui/pages/file_browser_root_page.dart';
+import 'package:easyfile/ui/pages/privacy_auth_page.dart';
+import 'package:easyfile/ui/pages/privacy_setup_page.dart';
+import 'package:easyfile/ui/pages/privacy_space_page.dart';
 import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
 import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/widgets/files_browse_card.dart';
@@ -68,7 +72,10 @@ class QuickAccessSection extends StatefulWidget {
     _QuickAccessSectionState.clearCache();
   }
 
-  /// 刷新推荐卡片（清除缓存并重新加载）
+  /// 刷新推荐卡片（重新加载UI）
+  ///
+  /// 注意：此方法仅刷新UI显示，不会重新扫描应用
+  /// 如需重新扫描，请在设置页面使用 resetRecommendations()
   static Future<void> refreshRecommendations() async {
     _QuickAccessSectionState.clearCache();
     await _globalKey.currentState?.refreshRecommendations();
@@ -276,8 +283,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   }
 
   /// 公开的刷新方法（供外部调用）
+  ///
+  /// 重新加载推荐卡片（不重新扫描应用）
   Future<void> refreshRecommendations() async {
-    logger.i('🔄 手动刷新推荐卡片...');
+    logger.i('🔄 刷新推荐卡片显示...');
     if (mounted) {
       setState(() {
         _loadingRecommendations = true;
@@ -285,8 +294,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     }
 
     try {
-      // 调用 refreshRecommendations 强制重新扫描
-      final cards = await _recommendationService.refreshRecommendations();
+      // 重新加载推荐卡片（不强制刷新）
+      final cards = await _recommendationService.getRecommendations();
       if (mounted) {
         setState(() {
           _recommendationCards = cards;
@@ -386,9 +395,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
           final availableWidth = constraints.maxWidth;
           final isSmallScreen = availableWidth < 360;
 
-          // 固定高度：分类图片高度 × 2 + 行间距
+          // 固定高度：QuickAccessSection自己的2行卡片 + 行间距 + 指示器
           final spacing = isSmallScreen ? 3.0 : 4.0;
           const indicatorHeight = 14.0;
+          // QuickAccessSection显示2行推荐卡片，使用categoryCardSize作为单个卡片高度
           final totalHeight = widget.categoryCardSize * 2 + spacing + indicatorHeight;
 
           return SizedBox(
@@ -766,8 +776,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final iconSize = (cardHeight * 0.60).clamp(30.0, 60.0);
-    final fontSize = (cardHeight * 0.20).clamp(12.0, 20.0);
+    // 竖向布局：图标占30%，文字占15%，间距5%
+    final iconSize = (cardHeight * 0.30).clamp(20.0, 40.0);
+    final fontSize = (cardHeight * 0.15).clamp(11.0, 16.0);
 
     final colors = isDark
         ? [Colors.white.withValues(alpha: 0.12), Colors.white.withValues(alpha: 0.06)]
@@ -801,26 +812,34 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Row(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 左侧：图标
-                  Icon(
-                    action.icon,
-                    size: iconSize,
-                    color: action.color,
+                  // 上方：图标
+                  Container(
+                    padding: EdgeInsets.all(iconSize * 0.25),
+                    decoration: BoxDecoration(
+                      color: action.color.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      action.icon,
+                      size: iconSize,
+                      color: action.color,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  // 右侧：文字标签
-                  Expanded(
-                    child: Text(
-                      action.label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? fontSize - 1 : fontSize,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                      ),
+                  SizedBox(height: cardHeight * 0.05),
+                  // 下方：文字标签
+                  Text(
+                    action.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? fontSize - 1 : fontSize,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
+                      color: action.color,
                     ),
                   ),
                 ],
@@ -996,12 +1015,61 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
         },
       ),
       _QuickAction(
-        label: '敬请期待',
-        icon: Icons.more_horiz,
-        enabled: false,
-        color: Colors.grey,
-        onTap: null,
+        label: '隐私空间',
+        icon: Icons.lock,
+        enabled: true,
+        color: Colors.deepPurple.shade700,
+        onTap: () => _navigateToPrivacySpace(context),
       ),
     ];
+  }
+
+  /// 导航到隐私空间（带身份验证）
+  Future<void> _navigateToPrivacySpace(BuildContext context) async {
+    final privacyService = PrivacyService();
+
+    try {
+      // 检查是否已初始化
+      final isInitialized = await privacyService.isInitialized();
+      logger.d('🔐 隐私空间初始化状态: $isInitialized');
+
+      if (!isInitialized) {
+        // 首次进入，显示设置页面
+        if (!context.mounted) return;
+        logger.d('📝 首次进入，打开 PrivacySetupPage');
+        final result = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (context) => const PrivacySetupPage(),
+          ),
+        );
+
+        logger.d('📝 PrivacySetupPage 返回结果: $result');
+        // 如果设置成功，直接进入隐私空间（已在 PrivacySetupPage 中激活会话）
+        if (result == true && context.mounted) {
+          logger.d('✅ 设置成功，直接进入 PrivacySpacePage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const PrivacySpacePage(),
+            ),
+          );
+        }
+      } else {
+        // 已初始化，显示验证页面
+        if (!context.mounted) return;
+        logger.d('🔒 已初始化，打开 PrivacyAuthPage');
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const PrivacyAuthPage(),
+          ),
+        );
+      }
+    } catch (e) {
+      logger.e('导航到隐私空间失败: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('打开隐私空间失败：$e')),
+        );
+      }
+    }
   }
 }

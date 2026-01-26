@@ -245,32 +245,38 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
 
     if (_hasError) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('扫描失败: $_errorMessage'),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _loadApkFiles,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('扫描失败: $_errorMessage'),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _loadApkFiles,
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (_apkList.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('未发现APK文件', style: TextStyle(color: Colors.grey)),
-          ],
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.inbox, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text('未发现APK文件', style: TextStyle(color: Colors.grey)),
+            ],
+          ),
         ),
       );
     }

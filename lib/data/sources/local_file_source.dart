@@ -1,19 +1,25 @@
 import 'dart:io';
+
+import 'package:easyfile/core/di/locator.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/privacy_service.dart';
+import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/repositories/file_repository.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/utils/path_security.dart';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:path/path.dart' as path;
-import 'package:easyfile/utils/path_security.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
-import 'package:easyfile/core/services/app_trash_manager.dart';
-import 'package:easyfile/core/settings/app_trash_settings.dart';
-import 'package:easyfile/core/di/locator.dart';
 
 class LocalFileRepository implements FileRepository {
   final _displaySettings = FileDisplaySettingsService();
+  final _privacyService = PrivacyService();
+
+  // 缓存私有目录路径，避免重复I/O
+  String? _privateDirectoryPath;
 
   @override
   Future<List<FileItem>> getFiles(String path) async {
@@ -40,8 +46,10 @@ class LocalFileRepository implements FileRepository {
       // 获取显示设置
       final showHidden = await _displaySettings.getShowHiddenFiles();
       final showSystem = await _displaySettings.getShowSystemFiles();
-      logger.d(
-          'Display settings - showHidden: $showHidden, showSystem: $showSystem');
+      logger.d('Display settings - showHidden: $showHidden, showSystem: $showSystem');
+
+      // 获取私有目录路径（用于过滤）
+      _privateDirectoryPath ??= await _privacyService.getPrivateDirectory();
 
       // 尝试读取目录内容，捕获权限拒绝错误
       List<FileSystemEntity> entities;
@@ -50,8 +58,7 @@ class LocalFileRepository implements FileRepository {
           final fileName = entity.path.split(Platform.pathSeparator).last;
 
           // 过滤隐藏文件（以.开头）
-          if (!showHidden &&
-              FileDisplaySettingsService.isHiddenFile(fileName)) {
+          if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
             return false;
           }
 
@@ -68,12 +75,16 @@ class LocalFileRepository implements FileRepository {
             }
           }
 
+          // 过滤隐私目录内的文件（核心功能）
+          if (_isUnderPrivateDirectory(entity.path)) {
+            return false;
+          }
+
           return true;
         }).toList();
       } catch (e) {
         // 捕获权限拒绝错误（如 Android/data 目录）
-        if (e.toString().contains('Permission denied') ||
-            e.toString().contains('errno = 13')) {
+        if (e.toString().contains('Permission denied') || e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $path');
           logger.w('This directory is protected by Android system security');
           // 返回空列表，让UI显示"此目录受系统保护"的提示
@@ -220,18 +231,13 @@ class LocalFileRepository implements FileRepository {
         // 查找可用的文件名
         do {
           if (file.isDirectory) {
-            newFileName =
-                '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}';
+            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}';
           } else {
-            newFileName =
-                '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}$extension';
+            newFileName = '$nameWithoutExt - 副本${copyNumber > 1 ? copyNumber : ''}$extension';
           }
           fullDestinationPath = path.join(destinationPath, newFileName);
           copyNumber++;
-        } while ((file.isDirectory
-                ? Directory(fullDestinationPath)
-                : File(fullDestinationPath))
-            .existsSync());
+        } while ((file.isDirectory ? Directory(fullDestinationPath) : File(fullDestinationPath)).existsSync());
 
         logger.i('Using new name: $newFileName');
 
@@ -244,9 +250,7 @@ class LocalFileRepository implements FileRepository {
         }
 
         if (success) {
-          final copiedEntity = file.isDirectory
-              ? Directory(fullDestinationPath)
-              : File(fullDestinationPath);
+          final copiedEntity = file.isDirectory ? Directory(fullDestinationPath) : File(fullDestinationPath);
           final stat = await copiedEntity.stat();
 
           return FileItem(
@@ -272,9 +276,7 @@ class LocalFileRepository implements FileRepository {
 
       if (success) {
         // 获取复制后的文件信息
-        final copiedEntity = file.isDirectory
-            ? Directory(fullDestinationPath)
-            : File(fullDestinationPath);
+        final copiedEntity = file.isDirectory ? Directory(fullDestinationPath) : File(fullDestinationPath);
         final stat = await copiedEntity.stat();
 
         return FileItem(
@@ -327,8 +329,7 @@ class LocalFileRepository implements FileRepository {
 
     // 验证目标路径的安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
-    if (targetRiskLevel == PathRiskLevel.forbidden ||
-        targetRiskLevel == PathRiskLevel.danger) {
+    if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
       PathSecurity.logOperation(
         operation: 'MOVE',
         path: '${file.path} -> $destinationPath',
@@ -462,8 +463,7 @@ class LocalFileRepository implements FileRepository {
 
       // 验证目标路径的安全性
       final targetRiskLevel = PathSecurity.getPathRiskLevel(newPath);
-      if (targetRiskLevel == PathRiskLevel.forbidden ||
-          targetRiskLevel == PathRiskLevel.danger) {
+      if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
         PathSecurity.logOperation(
           operation: 'RENAME',
           path: '${file.path} -> $newPath',
@@ -587,18 +587,15 @@ class LocalFileRepository implements FileRepository {
 
       final queryLower = query.toLowerCase();
       final matchingEntities = allEntities.where((entity) {
-        final fileName =
-            entity.path.split(Platform.pathSeparator).last.toLowerCase();
+        final fileName = entity.path.split(Platform.pathSeparator).last.toLowerCase();
         final fileExtension = FileUtils.getExtension(fileName);
 
         // 搜索文件名或扩展名
-        return fileName.contains(queryLower) ||
-            fileExtension.contains(queryLower);
+        return fileName.contains(queryLower) || fileExtension.contains(queryLower);
       }).toList();
 
       logger.d('Found ${matchingEntities.length} matching entities');
-      final files =
-          matchingEntities.map((e) => FileItem.fromEntity(e)).toList();
+      final files = matchingEntities.map((e) => FileItem.fromEntity(e)).toList();
 
       // 按类型排序：文件夹在前，文件在后，然后按名称排序
       files.sort((a, b) {
@@ -628,13 +625,16 @@ class LocalFileRepository implements FileRepository {
     }
 
     try {
-      final entities = dir
-          .listSync()
-          .where(
-            (entity) =>
-                !entity.path.split(Platform.pathSeparator).last.startsWith('.'),
-          )
-          .toList();
+      final entities = dir.listSync().where(
+        (entity) {
+          final name = entity.path.split(Platform.pathSeparator).last;
+          // 过滤隐藏文件
+          if (name.startsWith('.')) return false;
+          // 过滤隐私目录
+          if (_isUnderPrivateDirectory(entity.path)) return false;
+          return true;
+        },
+      ).toList();
 
       for (final entity in entities) {
         allEntities.add(entity);
@@ -658,5 +658,11 @@ class LocalFileRepository implements FileRepository {
     }
 
     return allEntities;
+  }
+
+  /// 判断路径是否在隐私目录下
+  bool _isUnderPrivateDirectory(String path) {
+    if (_privateDirectoryPath == null) return false;
+    return path.startsWith(_privateDirectoryPath!);
   }
 }

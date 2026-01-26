@@ -1,65 +1,65 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/services/permission_service.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
-import 'package:easyfile/core/services/recommendation_service.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
-import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
-import 'package:easyfile/core/services/startup/app_initialization_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
-import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/permission_service.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/startup/app_initialization_service.dart';
+import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
-import 'package:easyfile/ui/pages/settings_page.dart';
+import 'package:easyfile/ui/mixins/background_restoration_mixin.dart';
+import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
+import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/pages/about_page.dart';
-import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
+import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
+import 'package:easyfile/ui/pages/settings_page.dart';
 import 'package:easyfile/ui/pages/trash_page.dart';
-import 'package:easyfile/ui/widgets/category_nav_bar.dart';
-import 'package:easyfile/ui/widgets/quick_access_section.dart';
-import 'package:easyfile/ui/widgets/new_folder_notification.dart';
-import 'package:easyfile/ui/widgets/file_category_tab_bar.dart';
-import 'package:easyfile/ui/widgets/pinned_header_delegate.dart';
-import 'package:easyfile/ui/widgets/file_toolbar.dart';
-import 'package:easyfile/ui/widgets/file_search_bar.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/unified_grid_item.dart';
-import 'package:easyfile/ui/widgets/unified_view_config.dart';
-import 'package:easyfile/ui/widgets/file_item_tile.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
-import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
-import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
-import 'package:easyfile/ui/widgets/extraction_source_banner.dart';
-import 'package:easyfile/ui/utils/card_size_calculator.dart';
-import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
-import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
-import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
-import 'package:easyfile/ui/mixins/background_restoration_mixin.dart';
-import 'package:easyfile/utils/file_comparator_util.dart';
-import 'package:easyfile/ui/widgets/permission_banner.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/utils/card_size_calculator.dart';
+import 'package:easyfile/ui/widgets/category_nav_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/extraction_source_banner.dart';
+import 'package:easyfile/ui/widgets/file_category_tab_bar.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/file_item_tile.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/first_scan_card_overlay.dart';
+import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
+import 'package:easyfile/ui/widgets/new_folder_notification.dart';
+import 'package:easyfile/ui/widgets/permission_banner.dart';
+import 'package:easyfile/ui/widgets/pinned_header_delegate.dart';
+import 'package:easyfile/ui/widgets/quick_access_section.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/ui/widgets/unified_grid_item.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class FileBrowserPage extends StatefulWidget {
   const FileBrowserPage({super.key});
@@ -94,6 +94,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   // 文件显示设置缓存
   bool _hideEmptyFolders = true; // 默认隐藏空文件夹
+
+  // 空文件夹检查缓存（避免重复检查）
+  final Map<String, bool> _emptyFolderCache = {};
+  String? _lastEmptyCheckPath; // 记录上次检查的路径
 
   // 批量操作相关（SelectionController 内部管理 isSelectionMode 状态）
   Set<String> _selectedItems = {}; // 存储选中的文件/文件夹路径
@@ -133,8 +137,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
 
     // 优先级4: 不在顶部 → 不允许pop（需要先滚动到顶部）
-    final currentOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
     final isAtTop = currentOffset < _scrollThreshold;
     if (!isAtTop) {
       return false;
@@ -185,8 +188,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 优先级2: 编辑模式的返回处理（复杂滚动逻辑）
     if (isEditMode) {
       final enteredFromTop = _editModeEnterScrollOffset < _scrollThreshold;
-      final currentOffset =
-          _scrollController.hasClients ? _scrollController.offset : 0.0;
+      final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
       final isAtTop = currentOffset < _scrollThreshold;
 
       if (enteredFromTop) {
@@ -220,8 +222,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
 
     // 优先级4: 所有Tab - 不在顶部时滚动到顶部
-    final currentOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final currentOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
     final isAtTop = currentOffset < _scrollThreshold;
 
     if (!isAtTop) {
@@ -245,8 +246,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   double _editModeEnterScrollOffset = 0.0; // 记录进入编辑模式时的滚动位置
   static const double _scrollThreshold = 50.0; // 判断是否在顶部的阈值（50像素）
   final ScrollController _scrollController = ScrollController(); // 主滚动控制器
-  final ScrollController _landscapeRightScrollController =
-      ScrollController(); // 横屏右侧面板滚动控制器
+  final ScrollController _landscapeRightScrollController = ScrollController(); // 横屏右侧面板滚动控制器
 
   // 搜索相关状态
   final TextEditingController _searchController = TextEditingController();
@@ -258,15 +258,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   // 收藏Tab的搜索和过滤状态
   bool _favoriteSearchMode = false;
   String _favoriteSearchQuery = '';
-  final TextEditingController _favoriteSearchController =
-      TextEditingController();
+  final TextEditingController _favoriteSearchController = TextEditingController();
   final FocusNode _favoriteSearchFocusNode = FocusNode();
 
   // 新文件Tab的搜索状态
   bool _newFilesSearchMode = false;
   String _newFilesSearchQuery = '';
-  final TextEditingController _newFilesSearchController =
-      TextEditingController();
+  final TextEditingController _newFilesSearchController = TextEditingController();
   final FocusNode _newFilesSearchFocusNode = FocusNode();
 
   @override
@@ -336,8 +334,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               final updatedFileDir = Directory(updatedPath).parent.path;
               if (updatedFileDir != viewModel.currentPath) {
                 // 文件已移到其他目录，从列表移除
-                logger.d(
-                    'File moved to another directory, removing from list: $updatedPath');
+                logger.d('File moved to another directory, removing from list: $updatedPath');
                 viewModel.removeFileFromList(updatedPath);
               }
             }
@@ -441,8 +438,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   @override
   void onEnterEditMode() {
     // 记录进入编辑模式时的滚动位置
-    _editModeEnterScrollOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
+    _editModeEnterScrollOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
   }
 
   @override
@@ -572,7 +568,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 后台预加载新文件（避免首次点击Tab时的延迟）
   void _preloadNewFilesInBackground() {
     logger.i('[PERF] 开始后台预扫描新文件...');
-    
+
     // 异步执行，不阻塞UI
     Future.microtask(() async {
       try {
@@ -648,9 +644,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       } else {
         testPaths = [
           Directory.current.path,
-          Platform.environment['HOME'] ??
-              Platform.environment['USERPROFILE'] ??
-              '/',
+          Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '/',
         ];
       }
 
@@ -691,15 +685,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     logger.d('Previewing file: ${file.path}');
 
     // 判断是否是图片或视频文件
-    final isImageOrVideo =
-        FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
+    final isImageOrVideo = FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
 
     // 如果是图片、视频或音频，传递文件列表以支持滑动切换
     if (isImageOrVideo || FileUtils.isAudioFile(file.name)) {
       // 根据当前Tab获取正确的文件列表
-      final sourceFiles = viewModel.currentTab == TabView.newFiles
-          ? viewModel.newFiles
-          : viewModel.files;
+      final sourceFiles = viewModel.currentTab == TabView.newFiles ? viewModel.newFiles : viewModel.files;
 
       // 根据当前文件类型只过滤同类型文件
       final mediaFiles = sourceFiles.where((f) {
@@ -779,13 +770,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         currentPath.lastIndexOf(Platform.pathSeparator),
       );
       // 如果上一级是 /storage/emulated/0 或 /storage/emulated/0/ ，不显示返回按钮
-      if (parentPath == '/storage/emulated/0' ||
-          parentPath == '/storage/emulated/0/') {
+      if (parentPath == '/storage/emulated/0' || parentPath == '/storage/emulated/0/') {
         return false;
       }
       // 如果当前就是系统根目录，不显示返回按钮
-      if (currentPath == '/storage/emulated/0' ||
-          currentPath == '/storage/emulated/0/') {
+      if (currentPath == '/storage/emulated/0' || currentPath == '/storage/emulated/0/') {
         return false;
       }
     }
@@ -874,8 +863,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 获取当前页面是否为网格视图
   /// 获取当前页面是否启用分组
   bool _isGroupEnabledForCurrentTab() {
-    final currentTab =
-        Provider.of<FileViewModel>(context, listen: false).currentTab;
+    final currentTab = Provider.of<FileViewModel>(context, listen: false).currentTab;
 
     // 新文件Tab：固定启用时间分组
     if (currentTab == TabView.newFiles) return true;
@@ -896,9 +884,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 从设置页面返回后，重新加载设置并刷新当前视图
     await _loadFileDisplaySettings();
-    
-    if (viewModel.currentTab == TabView.browse &&
-        viewModel.currentPath.isNotEmpty) {
+
+    if (viewModel.currentTab == TabView.browse && viewModel.currentPath.isNotEmpty) {
       await presenter.loadFiles(viewModel.currentPath);
     } else if (viewModel.currentTab == TabView.recent) {
       await presenter.loadRecentFiles();
@@ -927,8 +914,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 检查是否有快捷访问项
   bool _hasQuickAccessItems() {
     // 检查是否有快捷访问文件夹
-    if (quickAccessViewModel != null &&
-        quickAccessViewModel!.folders.any((f) => f.isAddedToQuickAccess)) {
+    if (quickAccessViewModel != null && quickAccessViewModel!.folders.any((f) => f.isAddedToQuickAccess)) {
       return true;
     }
 
@@ -940,12 +926,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     if (quickAccessViewModel == null) return;
 
     // 获取快捷访问按钮的位置
-    final RenderBox? buttonBox =
-        _quickAccessButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? buttonBox = _quickAccessButtonKey.currentContext?.findRenderObject() as RenderBox?;
     if (buttonBox == null) return;
 
-    final RenderBox overlay =
-        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final Offset buttonPosition = buttonBox.localToGlobal(
       Offset.zero,
       ancestor: overlay,
@@ -998,24 +982,18 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   /// 构建快捷访问菜单项
-  Future<List<PopupMenuEntry<dynamic>>>
-      _buildQuickAccessMenuItemsAsync() async {
+  Future<List<PopupMenuEntry<dynamic>>> _buildQuickAccessMenuItemsAsync() async {
     if (quickAccessViewModel == null) return [];
 
     final allFolders = quickAccessViewModel!.folders;
     final items = <PopupMenuEntry<dynamic>>[];
 
     // 获取所有已添加到快捷访问的文件夹
-    final allAccessFolders =
-        allFolders.where((f) => f.isAddedToQuickAccess).toList();
+    final allAccessFolders = allFolders.where((f) => f.isAddedToQuickAccess).toList();
 
     // 按类型分组：系统文件夹 和 其他文件夹
-    final systemFolders = allAccessFolders
-        .where((f) => f.type == QuickAccessFolderType.system)
-        .toList();
-    final otherTypesFolders = allAccessFolders
-        .where((f) => f.type == QuickAccessFolderType.other)
-        .toList();
+    final systemFolders = allAccessFolders.where((f) => f.type == QuickAccessFolderType.system).toList();
+    final otherTypesFolders = allAccessFolders.where((f) => f.type == QuickAccessFolderType.other).toList();
 
     // 系统文件夹
     for (var folder in systemFolders) {
@@ -1226,9 +1204,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
-            color: isSelected
-                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.8)
-                : Colors.transparent,
+            color: isSelected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.8) : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -1241,9 +1217,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   // 使用填充图标样式增强视觉效果
                   weight: useColoredIcon ? 600 : 400,
                   fill: useColoredIcon ? 1.0 : 0.0,
-                  color: useColoredIcon
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
+                  color: useColoredIcon ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 3),
               ],
@@ -1254,11 +1228,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: fontSize,
-                    fontWeight:
-                        useColoredIcon ? FontWeight.w600 : FontWeight.normal,
-                    color: useColoredIcon
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: useColoredIcon ? FontWeight.w600 : FontWeight.normal,
+                    color: useColoredIcon ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -1378,8 +1349,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     // 加载新文件（MediaStore快速扫描）
                     await presenter.loadNewFiles();
                   },
-                  useColoredIcon:
-                      vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
+                  useColoredIcon: vm.currentTab == TabView.newFiles, // 当前Tab时显示彩色
                   fontSize: 12,
                 ),
               ),
@@ -1476,8 +1446,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   showSearchButton: true,
                   onSearchPressed: () => presenter.toggleSearch(),
                   isSearchMode: vm.isSearchMode,
-                  showSortButton: vm.currentPath !=
-                      '/storage/emulated/0/EasyFile/Restored', // 已恢复文件固定时间排序
+                  showSortButton: vm.currentPath != '/storage/emulated/0/EasyFile/Restored', // 已恢复文件固定时间排序
                   onSortPressed: _showBrowseSortOptions,
                   showGroupButton: true,
                   onGroupToggle: () => setState(() {}),
@@ -1755,9 +1724,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           if (vm.currentPath == folder.path) {
             // 使用动态计算的maxLength
             final displayName = folder.displayName;
-            final truncatedName = displayName.length > maxLength
-                ? '${displayName.substring(0, maxLength - 3)}...'
-                : displayName;
+            final truncatedName =
+                displayName.length > maxLength ? '${displayName.substring(0, maxLength - 3)}...' : displayName;
             return truncatedName;
           }
         }
@@ -1767,24 +1735,20 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 特殊处理：回收站恢复目录
       if (vm.currentPath == '/storage/emulated/0/EasyFile/Restored') {
         const displayName = '已恢复文件';
-        final truncatedName = displayName.length > maxLength
-            ? '${displayName.substring(0, maxLength - 3)}...'
-            : displayName;
+        final truncatedName =
+            displayName.length > maxLength ? '${displayName.substring(0, maxLength - 3)}...' : displayName;
         return truncatedName;
       }
 
       final pathSegments = vm.currentPath.split(Platform.pathSeparator);
       final folderName = pathSegments.last.isEmpty
-          ? (pathSegments.length > 1
-              ? pathSegments[pathSegments.length - 2]
-              : '')
+          ? (pathSegments.length > 1 ? pathSegments[pathSegments.length - 2] : '')
           : pathSegments.last;
 
       if (folderName.isNotEmpty) {
         // 使用动态计算的maxLength
-        final truncatedName = folderName.length > maxLength
-            ? '${folderName.substring(0, maxLength - 3)}...'
-            : folderName;
+        final truncatedName =
+            folderName.length > maxLength ? '${folderName.substring(0, maxLength - 3)}...' : folderName;
         return truncatedName;
       }
     }
@@ -1798,31 +1762,27 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 应用搜索过滤
     if (_favoriteSearchMode && _favoriteSearchQuery.isNotEmpty) {
       result = files.where((file) {
-        return file.name
-            .toLowerCase()
-            .contains(_favoriteSearchQuery.toLowerCase());
+        return file.name.toLowerCase().contains(_favoriteSearchQuery.toLowerCase());
       }).toList();
     }
 
     // 应用页面级排序
     final sortType = PageSettingsService().getSortType(PageId.homeFavorite);
-    final ascending =
-        PageSettingsService().getSortAscending(PageId.homeFavorite);
+    final ascending = PageSettingsService().getSortAscending(PageId.homeFavorite);
     FileComparatorUtil.sortFilesInPlace(result, sortType, ascending: ascending);
 
     return result;
   }
 
   /// 获取排序和过滤后的浏览文件列表
-  /// 
+  ///
   /// 应用以下处理：
   /// 1. 已恢复文件夹：固定按修改时间降序排列
-  /// 2. 空文件夹过滤：根据设置隐藏不包含任何文件的文件夹
+  /// 2. 空文件夹过滤：根据设置隐藏不包含任何文件的文件夹（带缓存）
   /// 3. 用户排序：应用用户在浏览页设置的排序规则
-  List<FileItem> _getSortedAndFilteredBrowseFiles(
-      List<FileItem> files, String currentPath) {
+  List<FileItem> _getSortedAndFilteredBrowseFiles(List<FileItem> files, String currentPath) {
     logger.d('⏱️ [PERF] _getSortedAndFilteredBrowseFiles开始 - ${files.length}个文件');
-    
+
     // 特殊处理：已恢复文件文件夹固定按时间降序
     if (currentPath == '/storage/emulated/0/EasyFile/Restored') {
       return FileComparatorUtil.sortFiles(
@@ -1832,37 +1792,58 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       );
     }
 
+    // 清理缓存：如果路径变了，清空上次的缓存
+    if (_lastEmptyCheckPath != currentPath) {
+      _emptyFolderCache.clear();
+      _lastEmptyCheckPath = currentPath;
+      logger.d('⏱️ [PERF] 路径变更，清空缓存');
+    }
+
     // 根据设置过滤空文件夹
     var displayFiles = files;
     if (_hideEmptyFolders) {
       logger.d('⏱️ [PERF] 开始过滤空文件夹...');
       final startTime = DateTime.now();
       final filteredFiles = <FileItem>[];
+      int cacheHits = 0;
+      int cacheMisses = 0;
+
       for (var file in files) {
         if (!file.isDirectory) {
           filteredFiles.add(file);
           continue;
         }
 
-        if (!_isFolderEmpty(file.path)) {
+        // 使用缓存
+        final cachedResult = _emptyFolderCache[file.path];
+        final bool isEmpty;
+        if (cachedResult != null) {
+          isEmpty = cachedResult;
+          cacheHits++;
+        } else {
+          isEmpty = _isFolderEmpty(file.path);
+          _emptyFolderCache[file.path] = isEmpty;
+          cacheMisses++;
+        }
+
+        if (!isEmpty) {
           filteredFiles.add(file);
         }
       }
       displayFiles = filteredFiles;
       final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-      logger.d('⏱️ [PERF] 空文件夹过滤完成 - 耗时${elapsed}ms, 过滤后${displayFiles.length}个文件');
+      logger.d('⏱️ [PERF] 空文件夹过滤完成 - 耗时${elapsed}ms, 过滤后${displayFiles.length}个文件 (缓存命中:$cacheHits, 未命中:$cacheMisses)');
     }
 
     // 应用用户设置的排序
     final sortType = PageSettingsService().getSortType(PageId.homeBrowse);
     final ascending = PageSettingsService().getSortAscending(PageId.homeBrowse);
     logger.d('⏱️ [PERF] _getSortedAndFilteredBrowseFiles完成');
-    return FileComparatorUtil.sortFiles(displayFiles, sortType,
-        ascending: ascending);
+    return FileComparatorUtil.sortFiles(displayFiles, sortType, ascending: ascending);
   }
-  
+
   /// 检查文件夹是否为空（仅检查第一层，避免阻塞UI）
-  /// 
+  ///
   /// 如果文件夹第一层不包含任何可见文件，则视为空文件夹
   /// 注意：不递归检查子目录，以避免在复杂目录结构中阻塞UI线程
   bool _isFolderEmpty(String path) {
@@ -1874,7 +1855,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
       // 只获取第一层文件和目录（不递归）
       final entities = dir.listSync(recursive: false);
-      
+
       if (entities.isEmpty) {
         return true;
       }
@@ -1884,7 +1865,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         if (entity is! File) {
           return false;
         }
-        
+
         // 检查文件名是否以.开头（隐藏文件）
         final fileName = entity.path.split(Platform.pathSeparator).last;
         final isHidden = fileName.startsWith('.') && fileName.length > 1;
@@ -1903,12 +1884,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Map<String, List<FileItem>> _groupFavoriteFilesByDate(List<FileItem> files) {
     final groups = FileGroupingUtil.groupByAddedDate(files, removeEmpty: false);
     // 调试日志：查看分组情况
-    logger.d(
-        'Favorite files grouping: ${groups.map((key, value) => MapEntry(key, value.length))}');
+    logger.d('Favorite files grouping: ${groups.map((key, value) => MapEntry(key, value.length))}');
     groups.forEach((key, files) {
       if (files.isNotEmpty) {
-        logger.d(
-            'Group "$key": ${files.length} files, first file addedTime: ${files.first.addedTime}');
+        logger.d('Group "$key": ${files.length} files, first file addedTime: ${files.first.addedTime}');
       }
     });
     return groups;
@@ -1936,10 +1915,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   }
 
   void _showFavoriteSortOptions() {
-    final currentSortType =
-        PageSettingsService().getSortType(PageId.homeFavorite);
-    final currentAscending =
-        PageSettingsService().getSortAscending(PageId.homeFavorite);
+    final currentSortType = PageSettingsService().getSortType(PageId.homeFavorite);
+    final currentAscending = PageSettingsService().getSortAscending(PageId.homeFavorite);
 
     showModalBottomSheet(
       context: context,
@@ -1952,17 +1929,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeFavorite, SortType.name);
+                    await PageSettingsService().setSortType(PageId.homeFavorite, SortType.name);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -1971,17 +1945,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
                   } else {
-                    await PageSettingsService().setSortType(
-                        PageId.homeFavorite, SortType.modifiedTime);
+                    await PageSettingsService().setSortType(PageId.homeFavorite, SortType.modifiedTime);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -1990,17 +1961,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeFavorite, SortType.size);
+                    await PageSettingsService().setSortType(PageId.homeFavorite, SortType.size);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2009,17 +1977,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeFavorite);
+                    await PageSettingsService().toggleSortDirection(PageId.homeFavorite);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeFavorite, SortType.fileType);
+                    await PageSettingsService().setSortType(PageId.homeFavorite, SortType.fileType);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2033,10 +1998,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 显示排序选项（浏览Tab）
   void _showBrowseSortOptions() {
-    final currentSortType =
-        PageSettingsService().getSortType(PageId.homeBrowse);
-    final currentAscending =
-        PageSettingsService().getSortAscending(PageId.homeBrowse);
+    final currentSortType = PageSettingsService().getSortType(PageId.homeBrowse);
+    final currentAscending = PageSettingsService().getSortAscending(PageId.homeBrowse);
 
     showModalBottomSheet(
       context: context,
@@ -2049,17 +2012,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeBrowse, SortType.name);
+                    await PageSettingsService().setSortType(PageId.homeBrowse, SortType.name);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2068,17 +2028,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeBrowse, SortType.modifiedTime);
+                    await PageSettingsService().setSortType(PageId.homeBrowse, SortType.modifiedTime);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2087,17 +2044,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeBrowse, SortType.size);
+                    await PageSettingsService().setSortType(PageId.homeBrowse, SortType.size);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2106,17 +2060,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.homeBrowse);
+                    await PageSettingsService().toggleSortDirection(PageId.homeBrowse);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.homeBrowse, SortType.fileType);
+                    await PageSettingsService().setSortType(PageId.homeBrowse, SortType.fileType);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -2130,8 +2081,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 构建空状态UI
   Widget _buildEmptyState(TabView tab, bool isSearchMode, FileViewModel vm) {
-    logger.d(
-        '_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
+    logger.d('_buildEmptyState - tab: $tab, isSearchMode: $isSearchMode, errorMessage: ${vm.errorMessage}');
 
     IconData icon;
     String title;
@@ -2154,13 +2104,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           onPressed: () async {
             // 跳转到浏览Tab并选择首页推荐区显示的第一个文件夹
             viewModel.setCurrentTab(TabView.browse);
-            if (quickAccessViewModel != null &&
-                quickAccessViewModel!.folders.isNotEmpty) {
+            if (quickAccessViewModel != null && quickAccessViewModel!.folders.isNotEmpty) {
               // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
               final folders = quickAccessViewModel!.folders;
-              final userCustomizedHomeFolders = folders
-                  .where((f) => f.isAddedToQuickAccess && !f.isHidden)
-                  .toList();
+              final userCustomizedHomeFolders = folders.where((f) => f.isAddedToQuickAccess && !f.isHidden).toList();
 
               QuickAccessFolder? firstFolder;
               if (userCustomizedHomeFolders.isNotEmpty) {
@@ -2168,9 +2115,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                 firstFolder = userCustomizedHomeFolders.first;
               } else {
                 // 用户未定制，从系统目录中按优先级选择第一个
-                final systemFolders = folders
-                    .where((f) => f.type == QuickAccessFolderType.system)
-                    .toList();
+                final systemFolders = folders.where((f) => f.type == QuickAccessFolderType.system).toList();
                 if (systemFolders.isNotEmpty) {
                   systemFolders.sort((a, b) {
                     int getPriority(QuickAccessFolder folder) {
@@ -2192,9 +2137,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                     return getPriority(a).compareTo(getPriority(b));
                   });
-                  firstFolder = systemFolders
-                      .where((f) => !f.path.toLowerCase().contains('download'))
-                      .firstOrNull;
+                  firstFolder = systemFolders.where((f) => !f.path.toLowerCase().contains('download')).firstOrNull;
                 }
               }
 
@@ -2287,13 +2230,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             onPressed: () async {
               // 跳转到浏览Tab并选择首页推荐区显示的第一个文件夹
               viewModel.setCurrentTab(TabView.browse);
-              if (quickAccessViewModel != null &&
-                  quickAccessViewModel!.folders.isNotEmpty) {
+              if (quickAccessViewModel != null && quickAccessViewModel!.folders.isNotEmpty) {
                 // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
                 final folders = quickAccessViewModel!.folders;
-                final userCustomizedHomeFolders = folders
-                    .where((f) => f.isAddedToQuickAccess && !f.isHidden)
-                    .toList();
+                final userCustomizedHomeFolders = folders.where((f) => f.isAddedToQuickAccess && !f.isHidden).toList();
 
                 QuickAccessFolder? firstFolder;
                 if (userCustomizedHomeFolders.isNotEmpty) {
@@ -2301,17 +2241,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   firstFolder = userCustomizedHomeFolders.first;
                 } else {
                   // 用户未定制，从系统目录中按优先级选择第一个
-                  final systemFolders = folders
-                      .where((f) => f.type == QuickAccessFolderType.system)
-                      .toList();
+                  final systemFolders = folders.where((f) => f.type == QuickAccessFolderType.system).toList();
                   if (systemFolders.isNotEmpty) {
                     systemFolders.sort((a, b) {
                       int getPriority(QuickAccessFolder folder) {
                         final path = folder.path.toLowerCase();
                         if (path.contains('download')) return 99;
                         if (path.contains('document')) return 1;
-                        if (path.contains('picture') ||
-                            path.contains('photo')) {
+                        if (path.contains('picture') || path.contains('photo')) {
                           return 2;
                         }
                         if (path.contains('music')) return 3;
@@ -2326,10 +2263,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
                       return getPriority(a).compareTo(getPriority(b));
                     });
-                    firstFolder = systemFolders
-                        .where(
-                            (f) => !f.path.toLowerCase().contains('download'))
-                        .firstOrNull;
+                    firstFolder = systemFolders.where((f) => !f.path.toLowerCase().contains('download')).firstOrNull;
                   }
                 }
 
@@ -2489,16 +2423,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 构建文件列表的Sliver组件列表（用于CustomScrollView）
   List<Widget> _buildFileListSlivers(FileViewModel vm) {
     // 根据不同Tab检查对应的列表是否为空
-    final isEmpty = vm.currentTab == TabView.newFiles
-        ? vm.newFiles.isEmpty
-        : vm.files.isEmpty;
+    final isEmpty = vm.currentTab == TabView.newFiles ? vm.newFiles.isEmpty : vm.files.isEmpty;
 
     if (isEmpty) {
       // 空状态
-      final isSearchMode =
-          (vm.currentTab == TabView.browse && vm.isSearchMode) ||
-              (vm.currentTab == TabView.favorite && _favoriteSearchMode) ||
-              (vm.currentTab == TabView.newFiles && _newFilesSearchMode);
+      final isSearchMode = (vm.currentTab == TabView.browse && vm.isSearchMode) ||
+          (vm.currentTab == TabView.favorite && _favoriteSearchMode) ||
+          (vm.currentTab == TabView.newFiles && _newFilesSearchMode);
       return [
         SliverFillRemaining(
           child: _buildEmptyState(vm.currentTab, isSearchMode, vm),
@@ -2531,23 +2462,19 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   /// 构建文件视图的Sliver组件（列表/网格/分组）
   List<Widget> _buildFileViewSlivers(FileViewModel vm) {
     final pageId = _getPageIdForCurrentTab(vm.currentTab);
-    final isGridView =
-        PageSettingsService().getViewMode(pageId) == ViewMode.grid;
+    final isGridView = PageSettingsService().getViewMode(pageId) == ViewMode.grid;
     final isGroupEnabled = _isGroupEnabledForCurrentTab();
 
     // 为图片/视频构建视图配置（简洁模式支持）
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
     if (isGridView) {
       viewConfigBuilder = (file) {
-        final shouldUseCompactMode = !file.isDirectory &&
-            (file.category == FileCategory.image ||
-                file.category == FileCategory.video);
+        final shouldUseCompactMode =
+            !file.isDirectory && (file.category == FileCategory.image || file.category == FileCategory.video);
         if (shouldUseCompactMode) {
-          final showFileInfo =
-              PageSettingsService().getGridShowFileInfo(pageId);
+          final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
           return UnifiedViewConfig.fromContext(context,
-              compactMode: !showFileInfo,
-              showCreationTime: vm.currentTab == TabView.newFiles);
+              compactMode: !showFileInfo, showCreationTime: vm.currentTab == TabView.newFiles);
         }
         return null;
       };
@@ -2577,9 +2504,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 应用搜索过滤
       if (_newFilesSearchMode && _newFilesSearchQuery.isNotEmpty) {
         displayFiles = displayFiles.where((file) {
-          return file.name
-              .toLowerCase()
-              .contains(_newFilesSearchQuery.toLowerCase());
+          return file.name.toLowerCase().contains(_newFilesSearchQuery.toLowerCase());
         }).toList();
       }
     }
@@ -2587,27 +2512,21 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     // 收藏Tab、浏览Tab、新文件Tab启用分组时使用分组视图
     if (isGroupEnabled) {
       if (vm.currentTab == TabView.favorite) {
-        return _buildFavoriteGroupedViewSlivers(
-            displayFiles, viewConfigBuilder);
+        return _buildFavoriteGroupedViewSlivers(displayFiles, viewConfigBuilder);
       } else if (vm.currentTab == TabView.browse) {
         return _buildBrowseGroupedViewSlivers(displayFiles, viewConfigBuilder);
       } else if (vm.currentTab == TabView.newFiles) {
-        return _buildNewFilesGroupedViewSlivers(
-            displayFiles, viewConfigBuilder);
+        return _buildNewFilesGroupedViewSlivers(displayFiles, viewConfigBuilder);
       }
     }
 
     // 非分组视图：列表或网格
-    return _buildSimpleFileViewSlivers(
-        displayFiles, isGridView, pageId, viewConfigBuilder);
+    return _buildSimpleFileViewSlivers(displayFiles, isGridView, pageId, viewConfigBuilder);
   }
 
   /// 构建简单列表/网格的Sliver组件
   List<Widget> _buildSimpleFileViewSlivers(
-      List<FileItem> files,
-      bool isGridView,
-      PageId pageId,
-      UnifiedViewConfig? Function(FileItem)? viewConfigBuilder) {
+      List<FileItem> files, bool isGridView, PageId pageId, UnifiedViewConfig? Function(FileItem)? viewConfigBuilder) {
     if (isGridView) {
       // 网格视图 - 根据屏幕方向计算可用宽度
       final screenWidth = MediaQuery.of(context).size.width;
@@ -2679,8 +2598,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     const horizontalPadding = 16.0;
     final effectiveWidth = availableWidth - horizontalPadding;
 
-    int crossAxisCount =
-        ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
+    int crossAxisCount = ((effectiveWidth + spacing) / (minCardWidth + spacing)).floor();
 
     // 动态调整上限：给横屏右侧区域更多列数
     final maxColumns = effectiveWidth < 500 ? 4 : 6;
@@ -2698,8 +2616,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     // 网格模式且使用统一组件
     final pageId = _getPageIdForCurrentTab(vm.currentTab);
-    final isGridView =
-        PageSettingsService().getViewMode(pageId) == ViewMode.grid;
+    final isGridView = PageSettingsService().getViewMode(pageId) == ViewMode.grid;
 
     if (isGridView) {
       // 优先使用传入的 viewConfigBuilder
@@ -2745,8 +2662,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     } else {
       // 列表模式
       // 检查是否需要高亮（解压的文件夹）
-      final shouldHighlight = vm.shouldHighlightExtraction &&
-          vm.extractionTargetPath == item.path;
+      final shouldHighlight = vm.shouldHighlightExtraction && vm.extractionTargetPath == item.path;
 
       return FileItemTile(
         file: item,
@@ -2756,9 +2672,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         showCreationTime: vm.currentTab == TabView.newFiles,
         creationTime: vm.currentTab == TabView.newFiles ? item.modified : null,
         showSource: vm.currentTab == TabView.newFiles,
-        sourceText: vm.currentTab == TabView.newFiles
-            ? vm.getNewFileSource(item.path)
-            : null,
+        sourceText: vm.currentTab == TabView.newFiles ? vm.getNewFileSource(item.path) : null,
         isFavorite: vm.isFavoriteFile(item.path),
         isSelected: isSelected,
         showCheckbox: isEditMode,
@@ -2816,8 +2730,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     List<FileItem> files,
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
   ) {
-    final isGridView =
-        PageSettingsService().getViewMode(PageId.homeNewFiles) == ViewMode.grid;
+    final isGridView = PageSettingsService().getViewMode(PageId.homeNewFiles) == ViewMode.grid;
 
     // 从 viewModel 获取 retentionDays 设置
     final retentionDays = viewModel.newFilesRetentionDays;
@@ -2870,8 +2783,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         if (isGridView) {
           slivers.add(
             SliverPadding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
@@ -2896,8 +2808,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           slivers.add(
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildFileItemWrapper(groups[key]![index],
-                    viewConfigBuilder: viewConfigBuilder),
+                (context, index) => _buildFileItemWrapper(groups[key]![index], viewConfigBuilder: viewConfigBuilder),
                 childCount: groups[key]!.length,
                 addAutomaticKeepAlives: false,
                 addRepaintBoundaries: true,
@@ -2913,8 +2824,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
   /// 将文件按日期分组（用于新文件Tab）- 根据保留天数动态分组
   /// 分组规则：今天 → 昨天 → 近N天
-  Map<String, List<FileItem>> _groupFilesByDateWithRetention(
-      List<FileItem> files, int retentionDays) {
+  Map<String, List<FileItem>> _groupFilesByDateWithRetention(List<FileItem> files, int retentionDays) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -2927,8 +2837,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
 
     for (final file in files) {
       final modifiedDate = file.modified;
-      final fileDate =
-          DateTime(modifiedDate.year, modifiedDate.month, modifiedDate.day);
+      final fileDate = DateTime(modifiedDate.year, modifiedDate.month, modifiedDate.day);
 
       if (fileDate.isAtSameMomentAs(today)) {
         groups['今天']!.add(file);
@@ -2952,8 +2861,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     List<FileItem> files,
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
   ) {
-    final isGridView =
-        PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
+    final isGridView = PageSettingsService().getViewMode(PageId.homeFavorite) == ViewMode.grid;
     final groups = _groupFavoriteFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
 
@@ -2978,8 +2886,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     List<FileItem> files,
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder,
   ) {
-    final isGridView =
-        PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
+    final isGridView = PageSettingsService().getViewMode(PageId.homeBrowse) == ViewMode.grid;
     final groups = _groupBrowseFilesByDate(files);
     final groupKeys = ['今天', '昨天', '本周', '本月', '更早'];
 
@@ -3042,283 +2949,265 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           child: Builder(
             builder: (context) {
               logger.d('⏱️ [PERF] CustomScrollView开始构建slivers');
-              logger.d('⏱️ [PERF] 准备判断是否显示CategoryNavBar - currentTab=${vm.currentTab}, isSearchMode=${vm.isSearchMode}');
+              logger
+                  .d('⏱️ [PERF] 准备判断是否显示CategoryNavBar - currentTab=${vm.currentTab}, isSearchMode=${vm.isSearchMode}');
               return CustomScrollView(
                 controller: _scrollController,
                 slivers: [
                   // CategoryNavBar 和 QuickAccessSection：可滚动查看（横竖屏都显示）
-              if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
-                  !(vm.currentTab == TabView.favorite && _favoriteSearchMode) &&
-                  !(vm.currentTab == TabView.newFiles &&
-                      _newFilesSearchMode)) ...[
-                SliverToBoxAdapter(
-                  child: CategoryNavBar(
-                    presenter: presenter,
-                    viewModel: vm,
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: Divider(height: 1),
-                ),
-                SliverToBoxAdapter(
-                  child: Builder(
-                    builder: (context) {
-                      logger.d('⏱️ [PERF] 准备构造QuickAccessSection...');
-                      // 使用MediaQuery代替LayoutBuilder以避免layout延迟
-                      final screenWidth = MediaQuery.of(context).size.width;
-                      final categoryCardSize = CardSizeCalculator.calculateCardHeight(
-                        screenWidth,
-                      );
-                      return QuickAccessSection(
-                        key: QuickAccessSection.globalKey,
-                        quickAccessViewModel: quickAccessViewModel!,
-                        quickAccessPresenter: quickAccessPresenter!,
-                        fileViewModel: vm,
-                        filePresenter: presenter,
-                        categoryCardSize: categoryCardSize,
-                        recommendationService: _recommendationService!,
-                      );
-                    },
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: Divider(height: 1),
-                ),
-              ],
-
-              // 快捷访问栏（导航功能栏）- 可滚动隐藏
-              if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
-                  !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
-                SliverToBoxAdapter(
-                  child: _buildQuickAccessBar(context, vm),
-                ),
-
-              // 最近Tab工具栏 - recent模式固定显示
-              if (vm.currentTab == TabView.recent)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: _buildRecentToolBar(context, vm),
-                    height: 40.0,
-                  ),
-                ),
-
-              // 编辑模式提示 - 显示在编辑按钮下一行（Recent Tab）
-              if (vm.currentTab == TabView.recent &&
-                  isEditMode &&
-                  showEditModeHint)
-                const SliverToBoxAdapter(
-                  child: EditModeHintBar(),
-                ),
-
-              // 浏览控制栏（文件夹名+工具栏）- browse模式固定显示（包括搜索模式）
-              if (vm.currentTab == TabView.browse)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: LayoutBuilder(
-                      builder: (context, localConstraints) {
-                        return _buildBrowseControlBar(
-                          context,
-                          vm,
-                          localConstraints.maxWidth,
-                        );
-                      },
+                  if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
+                      !(vm.currentTab == TabView.favorite && _favoriteSearchMode) &&
+                      !(vm.currentTab == TabView.newFiles && _newFilesSearchMode)) ...[
+                    SliverToBoxAdapter(
+                      child: CategoryNavBar(
+                        presenter: presenter,
+                        viewModel: vm,
+                      ),
                     ),
-                    height: 40.0,
-                  ),
-                ),
-
-              // 解压来源提示条 - browse模式且有解压上下文时显示
-              if (vm.currentTab == TabView.browse &&
-                  vm.extractionSourceName != null)
-                const SliverToBoxAdapter(
-                  child: ExtractionSourceBanner(),
-                ),
-
-              // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab）
-              if (vm.currentTab == TabView.browse &&
-                  isEditMode &&
-                  showEditModeHint &&
-                  !vm.isSearchMode)
-                const SliverToBoxAdapter(
-                  child: EditModeHintBar(),
-                ),
-
-              // 收藏Tab工具栏 - favorite模式固定显示（包括搜索模式）
-              if (vm.currentTab == TabView.favorite)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: _buildFavoriteToolBar(context, vm),
-                    height: 40.0,
-                  ),
-                ),
-
-              // 新文件Tab工具栏
-              if (vm.currentTab == TabView.newFiles)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: _buildNewFilesToolBar(context, vm),
-                    height: 40.0,
-                  ),
-                ),
-
-              // 编辑模式提示 - 显示在编辑按钮下一行（新文件Tab，搜索时隐藏）
-              if (vm.currentTab == TabView.newFiles &&
-                  isEditMode &&
-                  showEditModeHint &&
-                  !_newFilesSearchMode)
-                const SliverToBoxAdapter(
-                  child: EditModeHintBar(),
-                ),
-
-              // 编辑模式提示 - 显示在编辑按钮下一行（收藏Tab，搜索时隐藏）
-              if (vm.currentTab == TabView.favorite &&
-                  isEditMode &&
-                  showEditModeHint &&
-                  !_favoriteSearchMode)
-                const SliverToBoxAdapter(
-                  child: EditModeHintBar(),
-                ),
-
-              // 浏览Tab的搜索栏
-              if (vm.currentTab == TabView.browse && vm.isSearchMode)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: FileSearchBar(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      hintText: '搜索文件...',
-                      onSearch: (query) async {
-                        if (query.isNotEmpty) {
-                          presenter.searchFiles(query);
-                        }
-                      },
-                      onClose: () {
-                        _searchController.clear();
-                        presenter.clearSearch();
-                      },
+                    const SliverToBoxAdapter(
+                      child: Divider(height: 1),
                     ),
-                    height: 56.0,
-                  ),
-                ),
-
-              // 收藏Tab的搜索栏
-              if (vm.currentTab == TabView.favorite && _favoriteSearchMode)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: FileSearchBar(
-                      controller: _favoriteSearchController,
-                      focusNode: _favoriteSearchFocusNode,
-                      hintText: '搜索收藏的文件...',
-                      onSearch: (query) async {
-                        setState(() {
-                          _favoriteSearchQuery = query;
-                        });
-                      },
-                      onClose: () {
-                        setState(() {
-                          _favoriteSearchQuery = '';
-                          _favoriteSearchController.clear();
-                          _favoriteSearchMode = false;
-                        });
-                      },
-                      onChanged: (query) {
-                        setState(() {
-                          _favoriteSearchQuery = query;
-                        });
-                      },
+                    SliverToBoxAdapter(
+                      child: Builder(
+                        builder: (context) {
+                          logger.d('⏱️ [PERF] 准备构造QuickAccessSection...');
+                          // 使用MediaQuery代替LayoutBuilder以避免layout延迟
+                          final screenWidth = MediaQuery.of(context).size.width;
+                          final categoryCardSize = CardSizeCalculator.calculateCardHeight(
+                            screenWidth,
+                          );
+                          return QuickAccessSection(
+                            key: QuickAccessSection.globalKey,
+                            quickAccessViewModel: quickAccessViewModel!,
+                            quickAccessPresenter: quickAccessPresenter!,
+                            fileViewModel: vm,
+                            filePresenter: presenter,
+                            categoryCardSize: categoryCardSize,
+                            recommendationService: _recommendationService!,
+                          );
+                        },
+                      ),
                     ),
-                    height: 56.0,
-                  ),
-                ),
-
-              // 新文件Tab的搜索栏
-              if (vm.currentTab == TabView.newFiles && _newFilesSearchMode)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: FileSearchBar(
-                      controller: _newFilesSearchController,
-                      focusNode: _newFilesSearchFocusNode,
-                      hintText: '搜索新文件...',
-                      onSearch: (query) async {
-                        setState(() {
-                          _newFilesSearchQuery = query;
-                        });
-                      },
-                      onClose: () {
-                        setState(() {
-                          _newFilesSearchQuery = '';
-                          _newFilesSearchController.clear();
-                          _newFilesSearchMode = false;
-                        });
-                      },
-                      onChanged: (query) {
-                        setState(() {
-                          _newFilesSearchQuery = query;
-                        });
-                      },
+                    const SliverToBoxAdapter(
+                      child: Divider(height: 1),
                     ),
-                    height: 56.0,
-                  ),
-                ),
+                  ],
 
-              // 新建文件夹按钮 - 仅在 Browse Tab 编辑模式下显示
-              if (vm.currentTab == TabView.browse &&
-                  isEditMode &&
-                  !vm.isSearchMode)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: FilledButton.icon(
-                      onPressed: showCreateFolderDialog,
-                      icon: const Icon(Icons.create_new_folder),
-                      label: const Text('新建文件夹'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  // 快捷访问栏（导航功能栏）- 可滚动隐藏
+                  if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
+                      !(vm.currentTab == TabView.favorite && _favoriteSearchMode))
+                    SliverToBoxAdapter(
+                      child: _buildQuickAccessBar(context, vm),
+                    ),
+
+                  // 最近Tab工具栏 - recent模式固定显示
+                  if (vm.currentTab == TabView.recent)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: _buildRecentToolBar(context, vm),
+                        height: 40.0,
+                      ),
+                    ),
+
+                  // 编辑模式提示 - 显示在编辑按钮下一行（Recent Tab）
+                  if (vm.currentTab == TabView.recent && isEditMode && showEditModeHint)
+                    const SliverToBoxAdapter(
+                      child: EditModeHintBar(),
+                    ),
+
+                  // 浏览控制栏（文件夹名+工具栏）- browse模式固定显示（包括搜索模式）
+                  if (vm.currentTab == TabView.browse)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: LayoutBuilder(
+                          builder: (context, localConstraints) {
+                            return _buildBrowseControlBar(
+                              context,
+                              vm,
+                              localConstraints.maxWidth,
+                            );
+                          },
+                        ),
+                        height: 40.0,
+                      ),
+                    ),
+
+                  // 解压来源提示条 - browse模式且有解压上下文时显示
+                  if (vm.currentTab == TabView.browse && vm.extractionSourceName != null)
+                    const SliverToBoxAdapter(
+                      child: ExtractionSourceBanner(),
+                    ),
+
+                  // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab）
+                  if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !vm.isSearchMode)
+                    const SliverToBoxAdapter(
+                      child: EditModeHintBar(),
+                    ),
+
+                  // 收藏Tab工具栏 - favorite模式固定显示（包括搜索模式）
+                  if (vm.currentTab == TabView.favorite)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: _buildFavoriteToolBar(context, vm),
+                        height: 40.0,
+                      ),
+                    ),
+
+                  // 新文件Tab工具栏
+                  if (vm.currentTab == TabView.newFiles)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: _buildNewFilesToolBar(context, vm),
+                        height: 40.0,
+                      ),
+                    ),
+
+                  // 编辑模式提示 - 显示在编辑按钮下一行（新文件Tab，搜索时隐藏）
+                  if (vm.currentTab == TabView.newFiles && isEditMode && showEditModeHint && !_newFilesSearchMode)
+                    const SliverToBoxAdapter(
+                      child: EditModeHintBar(),
+                    ),
+
+                  // 编辑模式提示 - 显示在编辑按钮下一行（收藏Tab，搜索时隐藏）
+                  if (vm.currentTab == TabView.favorite && isEditMode && showEditModeHint && !_favoriteSearchMode)
+                    const SliverToBoxAdapter(
+                      child: EditModeHintBar(),
+                    ),
+
+                  // 浏览Tab的搜索栏
+                  if (vm.currentTab == TabView.browse && vm.isSearchMode)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: FileSearchBar(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          hintText: '搜索文件...',
+                          onSearch: (query) async {
+                            if (query.isNotEmpty) {
+                              presenter.searchFiles(query);
+                            }
+                          },
+                          onClose: () {
+                            _searchController.clear();
+                            presenter.clearSearch();
+                          },
+                        ),
+                        height: 56.0,
+                      ),
+                    ),
+
+                  // 收藏Tab的搜索栏
+                  if (vm.currentTab == TabView.favorite && _favoriteSearchMode)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: FileSearchBar(
+                          controller: _favoriteSearchController,
+                          focusNode: _favoriteSearchFocusNode,
+                          hintText: '搜索收藏的文件...',
+                          onSearch: (query) async {
+                            setState(() {
+                              _favoriteSearchQuery = query;
+                            });
+                          },
+                          onClose: () {
+                            setState(() {
+                              _favoriteSearchQuery = '';
+                              _favoriteSearchController.clear();
+                              _favoriteSearchMode = false;
+                            });
+                          },
+                          onChanged: (query) {
+                            setState(() {
+                              _favoriteSearchQuery = query;
+                            });
+                          },
+                        ),
+                        height: 56.0,
+                      ),
+                    ),
+
+                  // 新文件Tab的搜索栏
+                  if (vm.currentTab == TabView.newFiles && _newFilesSearchMode)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: FileSearchBar(
+                          controller: _newFilesSearchController,
+                          focusNode: _newFilesSearchFocusNode,
+                          hintText: '搜索新文件...',
+                          onSearch: (query) async {
+                            setState(() {
+                              _newFilesSearchQuery = query;
+                            });
+                          },
+                          onClose: () {
+                            setState(() {
+                              _newFilesSearchQuery = '';
+                              _newFilesSearchController.clear();
+                              _newFilesSearchMode = false;
+                            });
+                          },
+                          onChanged: (query) {
+                            setState(() {
+                              _newFilesSearchQuery = query;
+                            });
+                          },
+                        ),
+                        height: 56.0,
+                      ),
+                    ),
+
+                  // 新建文件夹按钮 - 仅在 Browse Tab 编辑模式下显示
+                  if (vm.currentTab == TabView.browse && isEditMode && !vm.isSearchMode)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: FilledButton.icon(
+                          onPressed: showCreateFolderDialog,
+                          icon: const Icon(Icons.create_new_folder),
+                          label: const Text('新建文件夹'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
 
-              // 文件类型筛选Tab栏（browse模式固定显示）
-              if (vm.currentTab == TabView.browse && !vm.isSearchMode)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedHeaderDelegate(
-                    child: FileCategoryTabBar(
-                      stats: vm.fileTypeStats,
-                      selectedCategory: vm.selectedCategory,
-                      onCategoryChanged: (category) {
-                        vm.setSelectedCategory(category);
-                      },
+                  // 文件类型筛选Tab栏（browse模式固定显示）
+                  if (vm.currentTab == TabView.browse && !vm.isSearchMode)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: PinnedHeaderDelegate(
+                        child: FileCategoryTabBar(
+                          stats: vm.fileTypeStats,
+                          selectedCategory: vm.selectedCategory,
+                          onCategoryChanged: (category) {
+                            vm.setSelectedCategory(category);
+                          },
+                        ),
+                        height: (vm.fileTypeStats.hasMultipleTypes || vm.fileTypeStats.totalFileCount > 0) ? 35.0 : 0.0,
+                      ),
                     ),
-                    height: (vm.fileTypeStats.hasMultipleTypes ||
-                            vm.fileTypeStats.totalFileCount > 0)
-                        ? 35.0
-                        : 0.0,
-                  ),
-                ),
 
-              // 文件列表区域
-              ..._buildFileListSlivers(vm),
-            ],
+                  // 文件列表区域
+                  ..._buildFileListSlivers(vm),
+                ],
               );
             },
           ),
         ),
 
         // 权限提示横幅（在顶部显示）
-        if (_permissionState == PermissionState.denied ||
-            _permissionState == PermissionState.permanentlyDenied)
+        if (_permissionState == PermissionState.denied || _permissionState == PermissionState.permanentlyDenied)
           Positioned(
             top: 0,
             left: 0,
@@ -3403,10 +3292,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // CategoryNavBar（分类导航栏）
-                        if (!(vm.currentTab == TabView.browse &&
-                                vm.isSearchMode) &&
-                            !(vm.currentTab == TabView.favorite &&
-                                _favoriteSearchMode)) ...[
+                        if (!(vm.currentTab == TabView.browse && vm.isSearchMode) &&
+                            !(vm.currentTab == TabView.favorite && _favoriteSearchMode)) ...[
                           CategoryNavBar(
                             presenter: presenter,
                             viewModel: vm,
@@ -3493,10 +3380,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
 
                     // 编辑模式提示 - 显示在编辑按钮下一行（Browse Tab 横屏）
-                    if (vm.currentTab == TabView.browse &&
-                        isEditMode &&
-                        showEditModeHint &&
-                        !vm.isSearchMode)
+                    if (vm.currentTab == TabView.browse && isEditMode && showEditModeHint && !vm.isSearchMode)
                       const SliverToBoxAdapter(
                         child: EditModeHintBar(),
                       ),
@@ -3565,8 +3449,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
 
                     // 收藏Tab的搜索栏
-                    if (vm.currentTab == TabView.favorite &&
-                        _favoriteSearchMode)
+                    if (vm.currentTab == TabView.favorite && _favoriteSearchMode)
                       SliverPersistentHeader(
                         pinned: true,
                         delegate: PinnedHeaderDelegate(
@@ -3597,8 +3480,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
 
                     // 新文件Tab的搜索栏 - 横屏模式
-                    if (vm.currentTab == TabView.newFiles &&
-                        _newFilesSearchMode)
+                    if (vm.currentTab == TabView.newFiles && _newFilesSearchMode)
                       SliverPersistentHeader(
                         pinned: true,
                         delegate: PinnedHeaderDelegate(
@@ -3640,17 +3522,13 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                               vm.setSelectedCategory(category);
                             },
                           ),
-                          height: (vm.fileTypeStats.hasMultipleTypes ||
-                                  vm.fileTypeStats.totalFileCount > 0)
-                              ? 35.0
-                              : 0.0,
+                          height:
+                              (vm.fileTypeStats.hasMultipleTypes || vm.fileTypeStats.totalFileCount > 0) ? 35.0 : 0.0,
                         ),
                       ),
 
                     // 新建文件夹按钮 - 仅在 Browse Tab 编辑模式下显示
-                    if (vm.currentTab == TabView.browse &&
-                        isEditMode &&
-                        !vm.isSearchMode)
+                    if (vm.currentTab == TabView.browse && isEditMode && !vm.isSearchMode)
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -3678,8 +3556,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         ),
 
         // 权限提示横幅（在顶部显示）
-        if (_permissionState == PermissionState.denied ||
-            _permissionState == PermissionState.permanentlyDenied)
+        if (_permissionState == PermissionState.denied || _permissionState == PermissionState.permanentlyDenied)
           Positioned(
             top: 0,
             left: 0,
@@ -3794,8 +3671,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           value: locator<NewFolderNotificationService>(),
         ),
       ],
-      child:
-          Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
+      child: Consumer3<FileViewModel, QuickAccessViewModel, PageSettingsService>(
         builder: (context, vm, quickVm, pageSettingsService, _) {
           logger.d('⏱️ [PERF] Consumer3 builder执行 - currentPath: ${vm.currentPath}');
           if (vm.isLoading) {
@@ -3808,8 +3684,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
             child: LayoutBuilder(
               builder: (context, constraints) {
                 // 判断是否为横屏模式
-                final isLandscape =
-                    constraints.maxWidth > constraints.maxHeight;
+                final isLandscape = constraints.maxWidth > constraints.maxHeight;
                 // 横屏使用较小的 AppBar 高度
                 final appBarHeight = isLandscape ? 28.0 : 56.0;
 
@@ -3874,22 +3749,16 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                   body: LayoutBuilder(
                     builder: (context, constraints) {
                       // 判断是否为横屏模式
-                      final isLandscape =
-                          constraints.maxWidth > constraints.maxHeight;
+                      final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
                       // 计算左侧面板宽度（与 _buildLandscapeLayout 中的逻辑一致）
-                      final portraitWidth =
-                          math.min(constraints.maxWidth, constraints.maxHeight);
-                      final leftPaneWidth = isLandscape
-                          ? math.max(portraitWidth, constraints.maxWidth * 0.45)
-                          : 0.0;
+                      final portraitWidth = math.min(constraints.maxWidth, constraints.maxHeight);
+                      final leftPaneWidth = isLandscape ? math.max(portraitWidth, constraints.maxWidth * 0.45) : 0.0;
 
                       // 根据屏幕方向选择不同的布局
                       return Stack(
                         children: [
-                          isLandscape
-                              ? _buildLandscapeLayout(viewModel, constraints)
-                              : _buildPortraitLayout(viewModel),
+                          isLandscape ? _buildLandscapeLayout(viewModel, constraints) : _buildPortraitLayout(viewModel),
 
                           // 批量操作底部工具栏 - 横屏时只显示在右侧区域
                           if (isEditMode)

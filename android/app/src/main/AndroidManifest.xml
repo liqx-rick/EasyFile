@@ -31,6 +31,10 @@
     <!-- APK安装权限 (Android 8.0+) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- 生物识别权限（隐私空间） -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
     <application
         android:label="EasyFile"
         android:name="${applicationName}"

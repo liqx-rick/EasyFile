@@ -1,23 +1,27 @@
-import 'dart:io';
 import 'dart:convert';
-
-import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart' as pw_pdf;
-import 'package:pdf/widgets.dart' as pw;
+import 'dart:io';
 
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/privacy_service.dart';
+import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
-import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
-import 'package:easyfile/ui/utils/file_details_helper.dart';
-import 'package:easyfile/utils/path_security.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/ui/dialogs/extract_archive_dialog.dart';
 import 'package:easyfile/ui/pages/archive_viewer_page.dart';
+import 'package:easyfile/ui/pages/privacy_setup_page.dart';
+import 'package:easyfile/ui/utils/file_details_helper.dart';
+import 'package:easyfile/ui/widgets/enhanced_delete_dialog.dart';
+import 'package:easyfile/ui/widgets/folder_picker_dialog.dart';
+import 'package:easyfile/ui/widgets/privacy_auth_dialog.dart';
+import 'package:easyfile/ui/widgets/progress_dialog.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/utils/path_security.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart' as pw_pdf;
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 /// 单文件操作服务
 ///
@@ -58,8 +62,7 @@ class SingleFileOperationsService {
     }
   }
 
-  void _showSnackBar(String message,
-      {Duration? duration, ScaffoldMessengerState? messenger}) {
+  void _showSnackBar(String message, {Duration? duration, ScaffoldMessengerState? messenger}) {
     if (!_isMounted) return;
     final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
@@ -70,8 +73,7 @@ class SingleFileOperationsService {
     );
   }
 
-  void _showErrorSnackBar(String message,
-      [Color? backgroundColor, ScaffoldMessengerState? messenger]) {
+  void _showErrorSnackBar(String message, [Color? backgroundColor, ScaffoldMessengerState? messenger]) {
     if (!_isMounted) return;
     final scaffoldMessenger = messenger ?? ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
@@ -101,8 +103,7 @@ class SingleFileOperationsService {
       final operationSucceeded = (newFavoriteState != wasOriginallyFavorite);
 
       if (operationSucceeded) {
-        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏',
-            messenger: messenger);
+        _showSnackBar(newFavoriteState ? '已添加到收藏' : '已取消收藏', messenger: messenger);
         // 收藏操作通过 viewModel.addFavoriteFile/removeFavoriteFile 自动触发 notifyListeners()
         // Consumer 会自动重建 UI，无需手动调用 onUIUpdate
       } else {
@@ -144,7 +145,7 @@ class SingleFileOperationsService {
   }
 
   /// 解压压缩包
-  /// 
+  ///
   /// 显示解压对话框，允许用户选择解压目录
   Future<void> extractArchive(FileItem file) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -172,7 +173,7 @@ class SingleFileOperationsService {
   }
 
   /// 查看压缩包内容
-  /// 
+  ///
   /// 显示压缩包内的文件列表，不实际解压
   Future<void> viewArchiveContents(FileItem file) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -210,8 +211,7 @@ class SingleFileOperationsService {
 
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar(
         PathSecurity.getOperationDeniedMessage(file.path, '重命名'),
         null,
@@ -256,9 +256,8 @@ class SingleFileOperationsService {
         return false;
       }
 
-      final newName = isLandscape
-          ? await _showRenameBottomSheet(controller, file)
-          : await _showRenameDialog(controller, file);
+      final newName =
+          isLandscape ? await _showRenameBottomSheet(controller, file) : await _showRenameDialog(controller, file);
 
       if (newName == null || newName.trim().isEmpty || !_isMounted) {
         controller.dispose();
@@ -358,8 +357,7 @@ class SingleFileOperationsService {
 
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
       await showDialog(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -479,8 +477,7 @@ class SingleFileOperationsService {
 
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar('无法移动 "${file.name}"：这是受保护的系统目录', null, messenger);
       logger.w('Move blocked: ${file.path} (Risk: ${riskLevel.name})');
       return false;
@@ -528,15 +525,13 @@ class SingleFileOperationsService {
 
     // 检查是否移动到相同目录
     if (currentPath == destinationPath) {
-      _showSnackBar('无法移动：目标位置与源位置相同',
-          duration: const Duration(seconds: 2), messenger: messenger);
+      _showSnackBar('无法移动：目标位置与源位置相同', duration: const Duration(seconds: 2), messenger: messenger);
       return false;
     }
 
     // 🔒 验证目标路径安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
-    if (targetRiskLevel == PathRiskLevel.forbidden ||
-        targetRiskLevel == PathRiskLevel.danger) {
+    if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar('目标位置不安全，无法移动文件', null, messenger);
       logger.w('Move blocked: target path $destinationPath is protected');
       return false;
@@ -544,8 +539,7 @@ class SingleFileOperationsService {
 
     // 检查是否要移动到子目录（会造成循环）
     if (file.isDirectory) {
-      if (destinationPath.startsWith(file.path + Platform.pathSeparator) ||
-          destinationPath == file.path) {
+      if (destinationPath.startsWith(file.path + Platform.pathSeparator) || destinationPath == file.path) {
         _showErrorSnackBar('不能将文件夹移动到自己的子目录中', null, messenger);
         return false;
       }
@@ -620,8 +614,7 @@ class SingleFileOperationsService {
 
     // 🔒 安全检查
     final riskLevel = PathSecurity.getPathRiskLevel(file.path);
-    if (riskLevel == PathRiskLevel.forbidden ||
-        riskLevel == PathRiskLevel.danger) {
+    if (riskLevel == PathRiskLevel.forbidden || riskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar('无法复制 "${file.name}"：这是受保护的系统目录', null, messenger);
       logger.w('Copy blocked: ${file.path} (Risk: ${riskLevel.name})');
       return false;
@@ -647,8 +640,7 @@ class SingleFileOperationsService {
 
     // 🔒 验证目标路径安全性
     final targetRiskLevel = PathSecurity.getPathRiskLevel(destinationPath);
-    if (targetRiskLevel == PathRiskLevel.forbidden ||
-        targetRiskLevel == PathRiskLevel.danger) {
+    if (targetRiskLevel == PathRiskLevel.forbidden || targetRiskLevel == PathRiskLevel.danger) {
       _showErrorSnackBar('目标位置不安全，无法复制文件', null, messenger);
       logger.w('Copy blocked: target path $destinationPath is protected');
       return false;
@@ -713,9 +705,7 @@ class SingleFileOperationsService {
   /// - 文本文件（TXT等）
   bool canPrint(FileItem file) {
     if (file.isDirectory) return false;
-    return FileUtils.isImageFile(file.name) ||
-        FileUtils.isPdfFile(file.name) ||
-        FileUtils.isTextFile(file.name);
+    return FileUtils.isImageFile(file.name) || FileUtils.isPdfFile(file.name) || FileUtils.isTextFile(file.name);
   }
 
   /// 打印文件
@@ -821,8 +811,7 @@ class SingleFileOperationsService {
 
       // 限制内容长度，避免生成过大的 PDF
       if (content.length > _maxPrintTextLength) {
-        content =
-            '${content.substring(0, _maxPrintTextLength)}\n\n... (内容过长，已截断) ...';
+        content = '${content.substring(0, _maxPrintTextLength)}\n\n... (内容过长，已截断) ...';
       }
 
       await Printing.layoutPdf(
@@ -866,8 +855,7 @@ class SingleFileOperationsService {
   /// [useBottomSheet] 是否使用底部面板
   /// - true: 使用 BottomSheet（适合从操作菜单进入，视觉连贯）
   /// - false: 使用 AlertDialog（适合预览页面直接查看，默认行为）
-  Future<void> showFileDetails(FileItem file,
-      {bool useBottomSheet = false}) async {
+  Future<void> showFileDetails(FileItem file, {bool useBottomSheet = false}) async {
     if (useBottomSheet) {
       // 使用底部面板（从操作菜单进入时，视觉更连贯）
       FileDetailsHelper.showFileDetailsBottomSheet(context, file);
@@ -884,11 +872,9 @@ class SingleFileOperationsService {
               children: [
                 _buildDetailRow('名称', file.name),
                 const Divider(),
-                _buildDetailRow(
-                    '类型', file.isDirectory ? '文件夹' : _getFileType(file.name)),
+                _buildDetailRow('类型', file.isDirectory ? '文件夹' : _getFileType(file.name)),
                 const Divider(),
-                _buildDetailRow(
-                    '大小', FileSizeFormatter.formatBytesWithSpace(file.size)),
+                _buildDetailRow('大小', FileSizeFormatter.formatBytesWithSpace(file.size)),
                 const Divider(),
                 _buildDetailRow('路径', file.path),
                 const Divider(),
@@ -936,9 +922,7 @@ class SingleFileOperationsService {
   }
 
   String _getFileType(String fileName) {
-    final ext = fileName.contains('.')
-        ? fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase()
-        : '未知';
+    final ext = fileName.contains('.') ? fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase() : '未知';
     return '$ext 文件';
   }
 
@@ -1057,5 +1041,149 @@ class SingleFileOperationsService {
         ),
       ),
     );
+  }
+
+  /// 移入隐私空间
+  ///
+  /// 将文件移动到App私有目录
+  /// 首次需要PIN验证，验证成功后创建会话，5分钟内批量操作无需重复验证
+  Future<void> moveToPrivacySpace(FileItem file) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final privacyService = PrivacyService();
+    final sessionManager = PrivacySessionManager();
+
+    try {
+      // 1. 检查隐私空间是否已初始化
+      final isInitialized = await privacyService.isInitialized();
+
+      if (!isInitialized) {
+        if (!_isMounted) return;
+
+        // 引导用户设置隐私空间
+        if (!context.mounted) return;
+
+        final shouldSetup = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.lock_outline, color: Colors.purple),
+                SizedBox(width: 8),
+                Text('设置隐私空间'),
+              ],
+            ),
+            content: const Text(
+              '隐私空间可以保护您的私密文件。\n\n'
+              '使用前需要设置PIN码，建议启用生物识别以便快速访问。\n\n'
+              '是否现在设置？',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => navigator.pop(false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => navigator.pop(true),
+                child: const Text('去设置'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldSetup == true && _isMounted) {
+          final setupResult = await navigator.push<bool>(
+            MaterialPageRoute(
+              builder: (context) => const PrivacySetupPage(),
+            ),
+          );
+
+          if (setupResult != true) {
+            return; // 用户取消了设置
+          }
+        } else {
+          return;
+        }
+      }
+
+      if (!_isMounted) return;
+
+      // 2. 智能验证：优先使用会话
+      if (!context.mounted) return;
+
+      bool verified = false;
+
+      if (sessionManager.isSessionValid()) {
+        // 会话有效，跳过验证
+        logger.i('✅ 会话有效，跳过PIN验证');
+        verified = true;
+      } else {
+        // 会话无效，需要验证PIN（支持生物识别）
+        final pinVerified = await showDialog<bool>(
+          context: context,
+          builder: (context) => const PrivacyAuthDialog(),
+        );
+
+        if (pinVerified == true) {
+          // 验证成功，激活会话
+          sessionManager.markVerified();
+          verified = true;
+        }
+      }
+
+      if (!verified || !_isMounted) return;
+
+      // 3. 执行移动操作
+      if (!_isMounted) return;
+
+      if (!context.mounted) return;
+
+      ProgressDialog.show(
+        context,
+        title: '移入隐私空间',
+        message: '正在移动 "${file.name}"...',
+      );
+
+      final success = await privacyService.moveToPrivate(file);
+
+      if (!_isMounted) return;
+
+      if (!context.mounted) return;
+
+      ProgressDialog.hide(context);
+
+      if (success) {
+        logger.i('✅ 文件已移入隐私空间: ${file.name}');
+
+        // 刷新文件列表
+        onRefresh?.call();
+
+        _showSnackBar(
+          '✅ "${file.name}" 已移入隐私空间',
+          messenger: messenger,
+        );
+      } else {
+        logger.e('❌ 移入隐私空间失败: ${file.name}');
+
+        // 检查文件是否仍然存在
+        final sourceExists = File(file.path).existsSync();
+
+        _showErrorSnackBar(
+          sourceExists ? '移动失败，请检查存储权限' : '文件不存在或已被删除',
+          null,
+          messenger,
+        );
+      }
+    } catch (e) {
+      logger.e('移入隐私空间异常: $e');
+      if (_isMounted && context.mounted) {
+        ProgressDialog.hide(context);
+        _showErrorSnackBar(
+          '操作失败：$e',
+          null,
+          messenger,
+        );
+      }
+    }
   }
 }

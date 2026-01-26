@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:flutter/material.dart';
 
 /// 文件分类类型枚举
 enum CategoryType {
@@ -72,77 +72,80 @@ class CategoryInfo {
     }
   }
 
-  /// 获取所有支持的分类
-  static List<CategoryInfo> get allCategories => [
-        // 图片
-        const CategoryInfo(
-          type: CategoryType.images,
-          name: '图片',
-          icon: Icons.image,
-          backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
-          iconColor: Color(0xFF1976D2), // 蓝色
-        ),
+  /// 所有分类的完整定义（供内部功能使用）
+  static const List<CategoryInfo> _allCategoryDefinitions = [
+    // 图片
+    CategoryInfo(
+      type: CategoryType.images,
+      name: '图片',
+      icon: Icons.image,
+      backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
+      iconColor: Color(0xFF1976D2), // 蓝色
+    ),
 
-        // 文档
-        const CategoryInfo(
-          type: CategoryType.documents,
-          name: '文档',
-          icon: Icons.description,
-          backgroundColor: Color(0xFFF3E5F5), // 淡紫色
-          iconColor: Color(0xFF7B1FA2), // 紫色
-        ),
+    // 文档
+    CategoryInfo(
+      type: CategoryType.documents,
+      name: '文档',
+      icon: Icons.description,
+      backgroundColor: Color(0xFFF3E5F5), // 淡紫色
+      iconColor: Color(0xFF7B1FA2), // 紫色
+    ),
 
-        // 音乐
-        const CategoryInfo(
-          type: CategoryType.music,
-          name: '音乐',
-          icon: Icons.music_note,
-          backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
-          iconColor: Color(0xFF1976D2), // 蓝色 (接近primaryColor)
-        ),
+    // 音乐
+    CategoryInfo(
+      type: CategoryType.music,
+      name: '音乐',
+      icon: Icons.music_note,
+      backgroundColor: Color(0xFFE3F2FD), // 淡蓝色
+      iconColor: Color(0xFF1976D2), // 蓝色 (接近primaryColor)
+    ),
 
-        // 视频
-        const CategoryInfo(
-          type: CategoryType.video,
-          name: '视频',
-          icon: Icons.video_library,
-          backgroundColor: Color(0xFFFFF3E0), // 淡橙色
-          iconColor: Color(0xFFF57C00), // 橙色
-        ),
+    // 视频
+    CategoryInfo(
+      type: CategoryType.video,
+      name: '视频',
+      icon: Icons.video_library,
+      backgroundColor: Color(0xFFFFF3E0), // 淡橙色
+      iconColor: Color(0xFFF57C00), // 橙色
+    ),
 
-        // 下载
-        const CategoryInfo(
-          type: CategoryType.downloads,
-          name: '下载',
-          icon: Icons.download,
-          backgroundColor: Color(0xFFE1F5FE), // 淡青色
-          iconColor: Color(0xFF0277BD), // 深蓝色
-        ),
+    // 下载
+    CategoryInfo(
+      type: CategoryType.downloads,
+      name: '下载',
+      icon: Icons.download,
+      backgroundColor: Color(0xFFE1F5FE), // 淡青色
+      iconColor: Color(0xFF0277BD), // 深蓝色
+    ),
 
-        // APK
-        const CategoryInfo(
-          type: CategoryType.apk,
-          name: 'APK',
-          icon: Icons.android,
-          backgroundColor: Color(0xFFE8F5E9), // 淡绿色
-          iconColor: Color(0xFF4CAF50), // 绿色
-        ),
+    // APK
+    CategoryInfo(
+      type: CategoryType.apk,
+      name: 'APK',
+      icon: Icons.android,
+      backgroundColor: Color(0xFFE8F5E9), // 淡绿色
+      iconColor: Color(0xFF4CAF50), // 绿色
+    ),
 
-        // 压缩包
-        const CategoryInfo(
-          type: CategoryType.archive,
-          name: '压缩包',
-          icon: Icons.archive,
-          backgroundColor: Color(0xFFFFF9C4), // 淡黄色
-          iconColor: Color(0xFFFBC02D), // 黄色
-        ),
-      ];
+    // 压缩包
+    CategoryInfo(
+      type: CategoryType.archive,
+      name: '压缩包',
+      icon: Icons.archive,
+      backgroundColor: Color(0xFFFFF9C4), // 淡黄色
+      iconColor: Color(0xFFFBC02D), // 黄色
+    ),
+  ];
+
+  /// 获取首页导航显示的分类（仅前5个）
+  static List<CategoryInfo> get allCategories => _allCategoryDefinitions.sublist(0, 5);
 
   /// 根据文件扩展名获取分类
   static CategoryType? getCategoryByExtension(String extension) {
     final lowerExtension = extension.toLowerCase();
 
-    for (final category in allCategories) {
+    for (final category in _allCategoryDefinitions) {
       if (category.getExtensions().contains(lowerExtension)) {
         return category.type;
       }
@@ -153,7 +156,7 @@ class CategoryInfo {
 
   /// 根据分类类型获取分类信息
   static CategoryInfo? getInfoByType(CategoryType type) {
-    for (final category in allCategories) {
+    for (final category in _allCategoryDefinitions) {
       if (category.type == type) {
         return category;
       }

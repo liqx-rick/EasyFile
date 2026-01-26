@@ -1,25 +1,77 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/services/permission_service.dart';
-import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/permission_service.dart';
+import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
+import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/ui/pages/file_browser_page.dart';
 import 'package:easyfile/ui/pages/splash_page.dart';
 import 'package:easyfile/ui/theme/app_theme.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/splash_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class EasyFileApp extends StatelessWidget {
+class EasyFileApp extends StatefulWidget {
   const EasyFileApp({super.key});
+
+  @override
+  State<EasyFileApp> createState() => _EasyFileAppState();
+}
+
+class _EasyFileAppState extends State<EasyFileApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    // 注册应用生命周期监听器
+    WidgetsBinding.instance.addObserver(this);
+    logger.i('📱 应用生命周期监听器已注册');
+  }
+
+  @override
+  void dispose() {
+    // 移除应用生命周期监听器
+    WidgetsBinding.instance.removeObserver(this);
+    logger.i('📱 应用生命周期监听器已移除');
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    final sessionManager = PrivacySessionManager();
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // 应用返回前台
+        sessionManager.onAppResumed();
+        break;
+      case AppLifecycleState.inactive:
+        // 应用进入非活动状态（例如接听电话、系统对话框）
+        // 暂不处理，等待真正进入后台
+        logger.d('📱 应用进入非活动状态');
+        break;
+      case AppLifecycleState.paused:
+        // 应用进入后台
+        sessionManager.onAppPaused();
+        break;
+      case AppLifecycleState.detached:
+        // 应用即将被销毁
+        logger.i('📱 应用即将被销毁');
+        break;
+      case AppLifecycleState.hidden:
+        // 应用在后台但仍在运行
+        logger.d('📱 应用在后台运行');
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,8 +144,7 @@ class AppNavigator extends StatefulWidget {
   State<AppNavigator> createState() => _AppNavigatorState();
 }
 
-class _AppNavigatorState extends State<AppNavigator>
-    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   bool _hasCompletedSplash = false;
   bool _isLoadingState = true;
 
@@ -135,11 +186,8 @@ class _AppNavigatorState extends State<AppNavigator>
       bool isRestoringFromBackground = false;
       try {
         logger.i('_initializeApp: Checking background restore state...');
-        isRestoringFromBackground =
-            await platform.invokeMethod<bool>('isRestoringFromBackground') ??
-                false;
-        logger.i(
-            '_initializeApp: isRestoringFromBackground = $isRestoringFromBackground');
+        isRestoringFromBackground = await platform.invokeMethod<bool>('isRestoringFromBackground') ?? false;
+        logger.i('_initializeApp: isRestoringFromBackground = $isRestoringFromBackground');
       } catch (e) {
         logger.w('_initializeApp: Platform method failed (using default): $e');
         isRestoringFromBackground = false;
@@ -216,8 +264,7 @@ class _AppNavigatorState extends State<AppNavigator>
     super.didChangeAppLifecycleState(state);
 
     if (_processStartTime != null) {
-      final timeSinceStart =
-          DateTime.now().difference(_processStartTime!).inSeconds;
+      final timeSinceStart = DateTime.now().difference(_processStartTime!).inSeconds;
       logger.i('App lifecycle: $state (${timeSinceStart}s since start)');
     }
 
@@ -247,8 +294,6 @@ class _AppNavigatorState extends State<AppNavigator>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return _hasCompletedSplash
-        ? const FileBrowserPage()
-        : SplashPage(onComplete: _onSplashComplete);
+    return _hasCompletedSplash ? const FileBrowserPage() : SplashPage(onComplete: _onSplashComplete);
   }
 }

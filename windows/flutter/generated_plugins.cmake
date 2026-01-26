@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   charset_converter
   gal
+  local_auth_windows
   pdfx
   permission_handler_windows
   printing

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// 文件类型分类枚举
 enum FileCategory {
   all, // 全部
@@ -53,6 +55,28 @@ extension FileCategoryExtension on FileCategory {
         return 'apk';
       case FileCategory.other:
         return 'file';
+    }
+  }
+
+  /// 获取分类图标
+  IconData get icon {
+    switch (this) {
+      case FileCategory.all:
+        return Icons.folder_open;
+      case FileCategory.image:
+        return Icons.image;
+      case FileCategory.video:
+        return Icons.video_library;
+      case FileCategory.audio:
+        return Icons.music_note;
+      case FileCategory.document:
+        return Icons.description;
+      case FileCategory.archive:
+        return Icons.folder_zip;
+      case FileCategory.apk:
+        return Icons.android;
+      case FileCategory.other:
+        return Icons.insert_drive_file;
     }
   }
 }

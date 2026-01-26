@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../data/models/app_trash_item.dart';
-import '../../core/services/app_trash_manager.dart';
-import '../../core/logger.dart';
+
 import '../../core/di/locator.dart';
+import '../../core/logger.dart';
+import '../../core/services/app_trash_manager.dart';
+import '../../data/models/app_trash_item.dart';
 import '../widgets/file_list_item_builder.dart';
 
 /// 回收站页面 - 极简版
@@ -53,12 +54,30 @@ class _TrashPageState extends State<TrashPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildStatisticsCard(),
-                Expanded(
-                  child: _items.isEmpty ? _buildEmptyState() : _buildFileList(),
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _buildStatisticsCard(),
                 ),
+                _items.isEmpty
+                    ? SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _buildEmptyState(),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final item = _items[index];
+                            return Column(
+                              children: [
+                                _buildFileItem(item),
+                                if (index < _items.length - 1) const Divider(height: 1),
+                              ],
+                            );
+                          },
+                          childCount: _items.length,
+                        ),
+                      ),
               ],
             ),
     );
@@ -66,7 +85,8 @@ class _TrashPageState extends State<TrashPage> {
 
   /// 空状态
   Widget _buildEmptyState() {
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -178,19 +198,6 @@ class _TrashPageState extends State<TrashPage> {
     );
   }
 
-  /// 文件列表
-  Widget _buildFileList() {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final item = _items[index];
-        return _buildFileItem(item);
-      },
-    );
-  }
-
   /// 文件列表项
   Widget _buildFileItem(AppTrashItem item) {
     return InkWell(
@@ -259,8 +266,7 @@ class _TrashPageState extends State<TrashPage> {
                         onPressed: () => _restoreFile(item),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                           minimumSize: const Size(48, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -276,8 +282,7 @@ class _TrashPageState extends State<TrashPage> {
                         onPressed: () => _confirmDeleteFile(item),
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                           minimumSize: const Size(48, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),

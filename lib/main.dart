@@ -1,24 +1,34 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:easyfile/app.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
-import 'package:easyfile/core/services/app_trash_manager.dart';
-import 'package:easyfile/core/services/mediastore_cache_service.dart';
+import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
 
   // 保持 native splash 显示，直到 Flutter 应用完全准备好
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
+  // 全局允许所有屏幕方向（支持平板横屏）
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  logger.i('✓ Screen orientations: all enabled');
 
   // 配置图片缓存，限制内存使用
   PaintingBinding.instance.imageCache.maximumSize = 100;
@@ -67,8 +77,7 @@ Future<void> main() async {
     await cacheManager.init();
     final diagnosis = await cacheManager.diagnoseCache();
 
-    if (diagnosis['initialized'] == false ||
-        diagnosis['cacheDirNull'] == true) {
+    if (diagnosis['initialized'] == false || diagnosis['cacheDirNull'] == true) {
       final success = await cacheManager.forceReinitialize();
       if (!success) {
         logger.w('Thumbnail cache initialization failed');

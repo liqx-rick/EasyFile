@@ -17,7 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.Calendar
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
@@ -32,7 +32,7 @@ import com.ryanheise.audioservice.AudioServicePlugin
 import androidx.annotation.NonNull
 import com.guangqi.easyfile.helpers.ApkParserHelper
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     // Override to provide the shared FlutterEngine for audio_service
     override fun provideFlutterEngine(context: Context): FlutterEngine {

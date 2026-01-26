@@ -1,35 +1,36 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:easyfile/data/models/file_item.dart';
+
+import 'package:easyfile/core/di/locator.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/extraction_notification_manager.dart';
+import 'package:easyfile/core/services/extraction_record_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/extraction_record.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
-import 'package:easyfile/core/services/extraction_record_service.dart';
-import 'package:easyfile/core/services/extraction_notification_manager.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/di/locator.dart';
-import 'package:easyfile/core/models/page_settings.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/ui/services/single_file_operations_service.dart';
-import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/unified_view_config.dart';
-import 'package:easyfile/ui/widgets/archive_list_item.dart';
-import 'package:easyfile/ui/widgets/file_search_bar.dart';
-import 'package:easyfile/ui/widgets/file_toolbar.dart';
-import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/widgets/extraction_notification_banner.dart';
+import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/mixins/batch_operations_mixin.dart';
 import 'package:easyfile/ui/mixins/category_like_page_mixin.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
-import 'package:easyfile/ui/mixins/batch_operations_mixin.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/ui/pages/archive_viewer_page.dart';
 import 'package:easyfile/ui/pages/extracted_files_browser_page.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/archive_list_item.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/extraction_notification_banner.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 压缩包管理页面
 ///
@@ -57,24 +58,23 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         WidgetsBindingObserver {
   // TabController
   late final TabController _tabController;
-  
+
   // 解压记录服务
   final ExtractionRecordService _recordService = ExtractionRecordService();
   int _recordCount = 0;
-  
+
   // 使用 getter 获取单例通知管理器
-  ExtractionNotificationManager get _notificationManager =>
-      ExtractionNotificationManager();
-  
+  ExtractionNotificationManager get _notificationManager => ExtractionNotificationManager();
+
   // 解压记录列表数据
   List<ExtractionRecord> _extractionRecords = [];
   Map<String, bool> _recordFolderExistsMap = {};
   bool _isLoadingRecords = true;
-  
+
   // 已解压压缩包标记（用于显示角标）
   Set<String> _extractedArchives = {};
   static const String _extractedArchivesKey = 'extracted_archives';
-  
+
   // 数据源和依赖
   late final FilePresenter _presenter;
   late final FileViewModel _viewModel;
@@ -98,7 +98,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
   // 单文件操作服务（修复问题1、2、3）- 延迟创建以便访问context
   SingleFileOperationsService? _singleFileOperationsService;
-  
+
   SingleFileOperationsService get singleFileOperationsService {
     _singleFileOperationsService ??= SingleFileOperationsService(
       context: context,
@@ -114,7 +114,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     );
     return _singleFileOperationsService!;
   }
-  
+
   /// 操作完成后强制刷新（修复问题2、3）
   Future<void> _forceRefreshAfterOperation() async {
     // 延迟一点确保文件系统操作完成
@@ -251,7 +251,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
     // 监听ViewModel变化（修复问题2、3：实时更新文件信息）
     _viewModel.addListener(_handleViewModelUpdate);
-    
+
     // 监听PageSettingsService变化（响应设置重置）
     _pageSettingsService.addListener(_handleSettingsUpdate);
 
@@ -332,7 +332,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       await _recordService.deleteAllRecords();
       await _loadRecordCount();
       await _loadExtractionRecords();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('已清空所有记录')),
@@ -346,7 +346,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     setState(() => _isLoadingRecords = true);
 
     final records = await _recordService.getAllRecords();
-    
+
     // 批量检查文件夹是否存在
     final paths = records.map((r) => r.targetPath).toList();
     final existsMap = await _recordService.batchCheckFoldersExist(paths);
@@ -365,7 +365,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     await _recordService.deleteRecord(record.id);
     await _loadRecordCount();
     await _loadExtractionRecords();
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已删除记录')),
@@ -430,8 +430,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         _sortAscending = ascending;
       });
 
-      logger.d(
-          'Loaded archive page preferences: $sortType, ascending=$ascending');
+      logger.d('Loaded archive page preferences: $sortType, ascending=$ascending');
     } catch (e) {
       logger.w('Failed to load sort preferences: $e');
       // 使用默认值
@@ -472,18 +471,17 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     try {
       // 保存当前最近添加的文件（避免被扫描结果覆盖）
       final recentlyAddedFile = _viewModel.lastAddedFile;
-      
+
       // 直接使用 presenter 的分类扫描能力（复用现有逻辑）
       final scannedFiles = await _presenter.scanFilesByCategory(CategoryType.archive);
-      
+
       // 修复MediaStore返回不完整数据的问题
       await _fixIncompleteFileMetadata(scannedFiles);
-      
+
       // 如果有最近添加的文件，确保它在列表中（修复批量复制后显示错误的问题）
-      if (recentlyAddedFile != null && 
-          FileUtils.isArchiveFile(recentlyAddedFile.name)) {
+      if (recentlyAddedFile != null && FileUtils.isArchiveFile(recentlyAddedFile.name)) {
         logger.d('Preserving recently added file: ${recentlyAddedFile.path}');
-        
+
         // 如果扫描结果中不包含这个文件，或者包含但数据不完整，使用 ViewModel 中的版本
         final existingIndex = scannedFiles.indexWhere((f) => f.path == recentlyAddedFile.path);
         if (existingIndex == -1) {
@@ -501,7 +499,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           }
         }
       }
-      
+
       allFiles = scannedFiles;
 
       // 应用排序
@@ -527,29 +525,28 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   }
 
   /// 修复MediaStore返回的不完整文件元数据
-  /// 
+  ///
   /// MediaStore可能返回size=0或date=1970的文件（缓存问题），
   /// 通过File.stat()重新获取正确的元数据
   Future<void> _fixIncompleteFileMetadata(List<FileItem> files) async {
     int fixedCount = 0;
-    
+
     for (int i = 0; i < files.length; i++) {
       final file = files[i];
-      
+
       // 检查是否有不完整的元数据
       if (file.size == 0 || file.modified.year == 1970) {
         try {
           final ioFile = File(file.path);
           if (await ioFile.exists()) {
             final stat = await ioFile.stat();
-            
+
             // 只在数据确实有问题时才修复
-            if ((file.size == 0 && stat.size > 0) || 
-                (file.modified.year == 1970 && stat.modified.year > 1970)) {
+            if ((file.size == 0 && stat.size > 0) || (file.modified.year == 1970 && stat.modified.year > 1970)) {
               logger.w('Fixing incomplete metadata for: ${file.name}');
               logger.d('  Old: size=${file.size}, modified=${file.modified}');
               logger.d('  New: size=${stat.size}, modified=${stat.modified}');
-              
+
               // 创建新的FileItem替换旧的
               files[i] = FileItem(
                 name: file.name,
@@ -566,7 +563,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         }
       }
     }
-    
+
     if (fixedCount > 0) {
       logger.i('Fixed $fixedCount file(s) with incomplete metadata');
     }
@@ -579,7 +576,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       final sortType = _getSortType();
       logger.d('Applying sort: type=$sortType, ascending=$_sortAscending, files=${allFiles.length}');
       applySorting(allFiles, sortType, ascending: _sortAscending);
-      
+
       // 记录排序后的前几个文件（用于调试）
       if (allFiles.isNotEmpty) {
         logger.d('First 3 files after sorting:');
@@ -597,10 +594,10 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       case 'size':
         return SortType.size;
       case 'time':
-      case 'modifiedtime':  // 兼容 SortType.modifiedTime.name.toLowerCase()
+      case 'modifiedtime': // 兼容 SortType.modifiedTime.name.toLowerCase()
         return SortType.modifiedTime;
       default:
-        return SortType.modifiedTime;  // 默认按时间排序
+        return SortType.modifiedTime; // 默认按时间排序
     }
   }
 
@@ -613,7 +610,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         _sortAscending = true;
       }
       _applySorting();
-      
+
       // 用户手动更改排序时才保存设置
       final sortType = _getSortType();
       final pageId = PageId.archiveManagement;
@@ -633,11 +630,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           children: [
             ListTile(
               leading: Icon(
-                _sortBy == 'name'
-                    ? (_sortAscending
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward)
-                    : Icons.sort_by_alpha,
+                _sortBy == 'name' ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward) : Icons.sort_by_alpha,
               ),
               title: const Text('按名称'),
               onTap: () {
@@ -647,11 +640,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
             ),
             ListTile(
               leading: Icon(
-                _sortBy == 'size'
-                    ? (_sortAscending
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward)
-                    : Icons.data_usage,
+                _sortBy == 'size' ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward) : Icons.data_usage,
               ),
               title: const Text('按大小'),
               onTap: () {
@@ -661,11 +650,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
             ),
             ListTile(
               leading: Icon(
-                _sortBy == 'time'
-                    ? (_sortAscending
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward)
-                    : Icons.access_time,
+                _sortBy == 'time' ? (_sortAscending ? Icons.arrow_upward : Icons.arrow_downward) : Icons.access_time,
               ),
               title: const Text('按时间'),
               onTap: () {
@@ -688,7 +673,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       canPop: !isEditMode && !_isSearchMode && _tabController.index == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        
+
         // 优先级1: Tab切换
         if (_tabController.index == 1) {
           setState(() {
@@ -696,7 +681,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           });
           return;
         }
-        
+
         // 优先级2: 退出搜索模式
         if (_isSearchMode) {
           setState(() {
@@ -705,7 +690,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           });
           return;
         }
-        
+
         // 优先级3: 退出编辑模式
         if (isEditMode) {
           exitEditMode();
@@ -714,104 +699,104 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       },
       child: Scaffold(
         appBar: AppBar(
-        leading: isEditMode && _tabController.index == 0
-            ? SelectAllButton(
-                selectedCount: _selectionController.selected.length,
-                totalCount: filteredFiles.length,
-                onPressed: () {
-                  setState(() {
-                    if (_selectionController.selected.length == filteredFiles.length) {
-                      _selectionController.clear();
-                    } else {
-                      _selectionController.selectAll(
-                        filteredFiles.map((f) => f.path).toList(),
-                      );
-                    }
-                  });
-                },
-              )
-            : null,
-        title: const Text('压缩包管理', style: TextStyle(fontSize: 18)),
-        actions: _tabController.index == 0
-            ? [
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 使用 FileToolbar 统一工具栏
-                      FileToolbar(
-                        pageId: PageId.archiveManagement,
-                        showBackButton: false,
-                        showSearchButton: true,
-                        onSearchPressed: () {
-                          setState(() {
-                            _isSearchMode = !_isSearchMode;
-                            if (!_isSearchMode) {
-                              _searchController.clear();
-                            }
-                          });
-                        },
-                        isSearchMode: _isSearchMode,
-                        showSortButton: true,
-                        onSortPressed: _showSortOptions,
-                        showGroupButton: false,
-                        showViewModeToggle: false,
-                        iconSize: 22,
-                      ),
-                      // 编辑模式按钮
-                      if (isEditMode)
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 24, weight: 700),
-                          color: theme.colorScheme.primary,
-                          onPressed: exitEditMode,
-                          tooltip: '退出编辑',
-                        )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: enterEditMode,
-                          tooltip: '编辑',
+          leading: isEditMode && _tabController.index == 0
+              ? SelectAllButton(
+                  selectedCount: _selectionController.selected.length,
+                  totalCount: filteredFiles.length,
+                  onPressed: () {
+                    setState(() {
+                      if (_selectionController.selected.length == filteredFiles.length) {
+                        _selectionController.clear();
+                      } else {
+                        _selectionController.selectAll(
+                          filteredFiles.map((f) => f.path).toList(),
+                        );
+                      }
+                    });
+                  },
+                )
+              : null,
+          title: const Text('压缩包管理', style: TextStyle(fontSize: 18)),
+          actions: _tabController.index == 0
+              ? [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 使用 FileToolbar 统一工具栏
+                        FileToolbar(
+                          pageId: PageId.archiveManagement,
+                          showBackButton: false,
+                          showSearchButton: true,
+                          onSearchPressed: () {
+                            setState(() {
+                              _isSearchMode = !_isSearchMode;
+                              if (!_isSearchMode) {
+                                _searchController.clear();
+                              }
+                            });
+                          },
+                          isSearchMode: _isSearchMode,
+                          showSortButton: true,
+                          onSortPressed: _showSortOptions,
+                          showGroupButton: false,
+                          showViewModeToggle: false,
+                          iconSize: 22,
                         ),
-                    ],
-                  ),
-                ),
-              ]
-            : _tabController.index == 1 && _recordCount > 0
-                ? [
-                    IconButton(
-                      icon: const Icon(Icons.delete_sweep),
-                      tooltip: '清空所有记录',
-                      onPressed: _deleteAllExtractionRecords,
+                        // 编辑模式按钮
+                        if (isEditMode)
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 24, weight: 700),
+                            color: theme.colorScheme.primary,
+                            onPressed: exitEditMode,
+                            tooltip: '退出编辑',
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: enterEditMode,
+                            tooltip: '编辑',
+                          ),
+                      ],
                     ),
-                  ]
-                : null,
-        bottom: _NotificationAndTabBar(
-          notificationManager: _notificationManager,
-          tabController: _tabController,
-          isScanning: _isScanning,
-          filteredFilesLength: filteredFiles.length,
-          recordCount: _recordCount,
-        ),
-      ),
-      body: Column(
-        children: [
-          // 解压完成通知横幅（在 TabBar 正下方）
-          ExtractionNotificationBanner(manager: _notificationManager),
-          // TabBarView
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // Tab 1: 压缩包列表
-                _buildArchiveListTab(theme),
-                // Tab 2: 解压记录
-                _buildRecordsTab(theme),
-              ],
-            ),
+                  ),
+                ]
+              : _tabController.index == 1 && _recordCount > 0
+                  ? [
+                      IconButton(
+                        icon: const Icon(Icons.delete_sweep),
+                        tooltip: '清空所有记录',
+                        onPressed: _deleteAllExtractionRecords,
+                      ),
+                    ]
+                  : null,
+          bottom: _NotificationAndTabBar(
+            notificationManager: _notificationManager,
+            tabController: _tabController,
+            isScanning: _isScanning,
+            filteredFilesLength: filteredFiles.length,
+            recordCount: _recordCount,
           ),
-        ],
-      ),
+        ),
+        body: Column(
+          children: [
+            // 解压完成通知横幅（在 TabBar 正下方）
+            ExtractionNotificationBanner(manager: _notificationManager),
+            // TabBarView
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Tab 1: 压缩包列表
+                  _buildArchiveListTab(theme),
+                  // Tab 2: 解压记录
+                  _buildRecordsTab(theme),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -846,7 +831,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         ),
       ],
     );
-    
+
     // 如果在编辑模式，包装底部导航栏
     if (isEditMode) {
       return Column(
@@ -856,7 +841,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         ],
       );
     }
-    
+
     return body;
   }
 
@@ -1012,29 +997,32 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
   Widget _buildEmptyState(ThemeData theme) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.folder_zip_outlined,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '未找到压缩包',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.folder_zip_outlined,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '支持 ZIP、RAR、7Z、TAR、GZ 等格式',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            const SizedBox(height: 16),
+            Text(
+              '未找到压缩包',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              '支持 ZIP、RAR、7Z、TAR、GZ 等格式',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1099,29 +1087,32 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   /// 构建解压记录空状态
   Widget _buildRecordsEmptyState(ThemeData theme) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '暂无解压记录',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.history,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '解压压缩包后会显示在这里',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 16),
+            Text(
+              '暂无解压记录',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              '解压压缩包后会显示在这里',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1134,9 +1125,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   ) {
     final colorScheme = theme.colorScheme;
     final isDeleted = !folderExists;
-    final textColor = isDeleted
-        ? colorScheme.onSurfaceVariant.withOpacity(0.5)
-        : colorScheme.onSurface;
+    final textColor = isDeleted ? colorScheme.onSurfaceVariant.withOpacity(0.5) : colorScheme.onSurface;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1163,7 +1152,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           ],
         ),
         const SizedBox(height: 8),
-        
+
         // 解压文件夹信息
         Row(
           children: [
@@ -1296,8 +1285,7 @@ class _NotificationAndTabBar extends StatelessWidget implements PreferredSizeWid
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('压缩包'),
-              if (!isScanning)
-                Text(' ($filteredFilesLength)'),
+              if (!isScanning) Text(' ($filteredFilesLength)'),
             ],
           ),
         ),

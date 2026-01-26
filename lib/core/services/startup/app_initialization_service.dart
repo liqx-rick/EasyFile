@@ -1,12 +1,17 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/category_info.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
-import 'first_install_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'cache_service.dart';
+import 'first_install_service.dart';
 
 /// 应用初始化服务
 ///
@@ -136,12 +141,13 @@ class AppInitializationService {
 
       int totalFiles = 0;
 
+      // P1.1: 分类统计扫描（占用 0.20-0.28 的进度）
       for (int i = 0; i < categoriesToScan.length; i++) {
         final categoryType = categoriesToScan[i];
 
         try {
-          // 更新进度（P1 阶段的进度范围是 0.20-0.30）
-          final categoryProgress = 0.20 + (i / categoriesToScan.length) * 0.1;
+          // 更新进度（P1.1 阶段的进度范围是 0.20-0.28）
+          final categoryProgress = 0.20 + (i / categoriesToScan.length) * 0.08;
           _reportProgress(categoryProgress);
 
           final files = await filePresenter.scanFilesByCategory(categoryType);
@@ -152,8 +158,7 @@ class AppInitializationService {
           counts[fileCategory] = count;
           totalFiles += count;
 
-          logger.i(
-              '[AppInitService] Category statistics: ${categoryType.name} = $count files');
+          logger.i('[AppInitService] Category statistics: ${categoryType.name} = $count files');
         } catch (e) {
           logger.e('[AppInitService] Error scanning $categoryType: $e');
           // 某个分类扫描失败，使用该分类的零值继续
@@ -164,12 +169,48 @@ class AppInitializationService {
       counts[FileCategory.all] = totalFiles;
       await _cacheCategoryCounts(counts);
 
-      logger.i(
-          '[AppInitService] Category statistics cache: Total files = $totalFiles, cached successfully');
+      logger.i('[AppInitService] Category statistics cache: Total files = $totalFiles, cached successfully');
+
+      // P1.2: 首页推荐应用扫描（占用 0.28-0.30 的进度）
+      _reportProgress(0.28);
+      await _scanRecommendedApps();
+      _reportProgress(0.30);
     } catch (e) {
       logger.e('[AppInitService] Category statistics loading failed: $e');
       // 分类统计加载失败时使用零值继续
       logger.w('[AppInitService] Using zero values for category statistics');
+    }
+  }
+
+  /// 扫描推荐应用（P1.2 阶段）
+  ///
+  /// 在首次启动时预扫描推荐应用，避免用户进入主页后看到loading状态
+  /// 耗时约100ms
+  Future<void> _scanRecommendedApps() async {
+    try {
+      logger.i('[AppInitService] P1.2: Starting recommended apps scan...');
+
+      // 创建应用检测服务
+      final appDetectionService = AppDetectionService();
+      await appDetectionService.initialize();
+
+      // 创建统一扫描器
+      final scanner = UnifiedAppScanner(appDetectionService);
+
+      // 创建推荐服务并执行扫描
+      final recommendationService = RecommendationService(
+        detectionService: appDetectionService,
+        scanner: scanner,
+      );
+
+      // 调用getRecommendations触发初始化扫描（如果需要）
+      await recommendationService.getRecommendations();
+
+      logger.i('[AppInitService] P1.2: Recommended apps scan completed');
+    } catch (e) {
+      logger.e('[AppInitService] Error scanning recommended apps: $e');
+      // 推荐应用扫描失败不影响整体初始化流程
+      logger.w('[AppInitService] Continuing initialization despite recommendation scan failure');
     }
   }
 
@@ -190,8 +231,7 @@ class AppInitializationService {
       // 2. 扫描分类文件（使用我们提供的 scanCategoryFiles 回调）
       // 3. 缓存分类统计数据
 
-      final scanResult =
-          await quickAccessPresenter.performFirstTimeComprehensiveScan(
+      final scanResult = await quickAccessPresenter.performFirstTimeComprehensiveScan(
         onProgress: (progress) {
           // 将 quickAccessPresenter 的进度 (0.35-1.0) 映射到我们的进度范围
           final mappedProgress = 0.35 + (progress * 0.6);
@@ -205,8 +245,7 @@ class AppInitializationService {
     } catch (e) {
       logger.e('[AppInitService] File system scan failed: $e');
       // 即使扫描失败也标记为已初始化（前两个阶段已完成）
-      logger.w(
-          '[AppInitService] Scan failed but marking as initialized (previous stages complete)');
+      logger.w('[AppInitService] Scan failed but marking as initialized (previous stages complete)');
     }
   }
 
@@ -250,8 +289,7 @@ class AppInitializationService {
           counts[fileCategory] = count;
           totalFiles += count;
 
-          logger.i(
-              '[AppInitService] Category scan: ${categoryType.name} = $count files');
+          logger.i('[AppInitService] Category scan: ${categoryType.name} = $count files');
         } catch (e) {
           logger.e('[AppInitService] Error scanning $categoryType: $e');
           // 某个分类扫描失败，使用该分类的零值继续
@@ -261,8 +299,7 @@ class AppInitializationService {
       // 设置总文件数
       counts[FileCategory.all] = totalFiles;
 
-      logger.i(
-          '[AppInitService] Complete category scan finished: $totalFiles total files');
+      logger.i('[AppInitService] Complete category scan finished: $totalFiles total files');
 
       return counts;
     } catch (e) {

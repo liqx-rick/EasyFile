@@ -1,23 +1,26 @@
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
-import 'package:easyfile/core/services/cache_manager_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/category_info.dart';
-import 'package:easyfile/ui/pages/trash_config_page.dart';
-import 'package:easyfile/ui/pages/new_files_settings_page.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
+import 'package:easyfile/ui/pages/new_files_settings_page.dart';
+import 'package:easyfile/ui/pages/trash_config_page.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
-import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// 设置页面
 class SettingsPage extends StatefulWidget {
@@ -34,6 +37,12 @@ class _SettingsPageState extends State<SettingsPage> {
   int _minFileSize = FileDisplaySettingsService.defaultMinFileSize;
   int _recommendationThreshold = 5; // 将从AppConfig加载
 
+  // 推荐选择信息
+  bool _hasRecommendationSelection = false;
+  int _selectedRecommendationCount = 0;
+  DateTime? _recommendationSelectionTime;
+  int? _savedSelectionThreshold;
+
   @override
   void initState() {
     super.initState();
@@ -41,8 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
     // 初始化重复文件扫描服务：注入依赖到CacheManagerService，供缓存清理页面使用
     final presenter = locator<FilePresenter>();
     final duplicateFileService = DuplicateFileService(presenter);
-    final enhancedScanService =
-        EnhancedDuplicateFileScanService(duplicateFileService);
+    final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
     CacheManagerService().setDuplicateFileScanService(enhancedScanService);
 
     // 初始化系统回收站服务：注入依赖到CacheManagerService
@@ -57,21 +65,54 @@ class _SettingsPageState extends State<SettingsPage> {
       final trashFileService = await locator.getAsync<TrashFileService>();
       CacheManagerService().setTrashFileService(trashFileService);
     } catch (e) {
-      logger
-          .e('Failed to initialize TrashFileService for cache management: $e');
+      logger.e('Failed to initialize TrashFileService for cache management: $e');
     }
   }
 
   /// 加载设置
   Future<void> _loadSettings() async {
     final minSize = await _displaySettings.getMinFileSize();
-    final recThreshold =
-        AppConfig.instance.fileScan.recommendationFileCountThreshold;
+    final recThreshold = AppConfig.instance.fileScan.recommendationFileCountThreshold;
+
+    // 加载推荐选择信息
+    await _loadRecommendationSelectionInfo();
 
     setState(() {
       _minFileSize = minSize;
       _recommendationThreshold = recThreshold;
     });
+  }
+
+  /// 加载推荐选择信息
+  Future<void> _loadRecommendationSelectionInfo() async {
+    try {
+      final detectionService = AppDetectionService();
+      final scanner = UnifiedAppScanner(detectionService);
+      final recommendationService = RecommendationService(
+        detectionService: detectionService,
+        scanner: scanner,
+      );
+
+      final info = await recommendationService.getSelectionInfo();
+
+      logger.d('📊 加载推荐选择信息:');
+      logger.d('  hasSelection: ${info['hasSelection']}');
+      logger.d('  selectedCount: ${info['selectedCount']}');
+      logger.d('  selectionTime: ${info['selectionTime']}');
+      logger.d('  selectionThreshold: ${info['selectionThreshold']}');
+      logger.d('  selectedAppKeys: ${info['selectedAppKeys']}');
+
+      if (mounted) {
+        setState(() {
+          _hasRecommendationSelection = info['hasSelection'] as bool;
+          _selectedRecommendationCount = info['selectedCount'] as int;
+          _recommendationSelectionTime = info['selectionTime'] as DateTime?;
+          _savedSelectionThreshold = info['selectionThreshold'] as int?;
+        });
+      }
+    } catch (e) {
+      logger.e('加载推荐选择信息失败: $e');
+    }
   }
 
   @override
@@ -120,10 +161,8 @@ class _SettingsPageState extends State<SettingsPage> {
             const Divider(height: 1, indent: 56),
             _buildDuplicateScanSettingTile(context),
             const Divider(height: 1, indent: 56),
-            _buildScanTestTile(
-                context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
-            _buildScanTestTile(
-                context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
+            _buildScanTestTile(context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
+            _buildScanTestTile(context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
             const Divider(height: 32),
           ],
 
@@ -327,9 +366,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           title: const Text('隐藏空文件夹'),
           subtitle: Text(
-            hideEmpty
-                ? '快速访问菜单中不显示空目录'
-                : '快速访问菜单中显示所有目录',
+            hideEmpty ? '快速访问菜单中不显示空目录' : '快速访问菜单中显示所有目录',
             style: const TextStyle(fontSize: 13),
           ),
           value: hideEmpty,
@@ -423,8 +460,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   min: FileDisplaySettingsService.minFileSizeMin.toDouble(),
                   max: FileDisplaySettingsService.minFileSizeMax.toDouble(),
                   divisions: 99, // 100 steps from 10KB to 10MB
-                  label:
-                      FileDisplaySettingsService.formatFileSize(_minFileSize),
+                  label: FileDisplaySettingsService.formatFileSize(_minFileSize),
                   onChanged: (value) {
                     setState(() {
                       _minFileSize = value.toInt();
@@ -541,76 +577,282 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildRecommendationThresholdTile(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return ListTile(
-      leading: Icon(Icons.filter_list, color: colorScheme.primary),
-      title: const Text('首页推荐应用文件数量阈值'),
-      subtitle: Text('当前阈值：$_recommendationThreshold 个文件'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () async {
-        final selected = await showDialog<int>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('选择文件数量阈值'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('应用文件数量大于此阈值时才会显示在首页推荐'),
-                  const SizedBox(height: 16),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: RadioGroup<int>(
-                        groupValue: _recommendationThreshold,
-                        onChanged: (value) {
-                          Navigator.of(context).pop(value);
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: AppConfig
-                              .instance.fileScan.recommendationThresholdOptions
-                              .map((threshold) {
-                            return RadioListTile<int>(
-                              title: Text('$threshold 个文件'),
-                              value: threshold,
-                            );
-                          }).toList(),
+    // 检查阈值是否与保存的选择阈值不同
+    final thresholdChanged = _hasRecommendationSelection &&
+        _savedSelectionThreshold != null &&
+        _savedSelectionThreshold != _recommendationThreshold;
+
+    // 调试日志
+    logger.d('🔍 推荐阈值调试信息:');
+    logger.d('  _hasRecommendationSelection: $_hasRecommendationSelection');
+    logger.d('  _savedSelectionThreshold: $_savedSelectionThreshold');
+    logger.d('  _recommendationThreshold: $_recommendationThreshold');
+    logger.d('  _selectedRecommendationCount: $_selectedRecommendationCount');
+    logger.d('  _recommendationSelectionTime: $_recommendationSelectionTime');
+    logger.d('  thresholdChanged: $thresholdChanged');
+
+    return Column(
+      children: [
+        ListTile(
+          leading: Icon(Icons.filter_list, color: colorScheme.primary),
+          title: const Text('首页推荐应用文件数量阈值'),
+          subtitle: Text(_hasRecommendationSelection
+              ? '当前阈值：$_recommendationThreshold 个文件\n已选定 $_selectedRecommendationCount 个应用'
+              : '当前阈值：$_recommendationThreshold 个文件\n将在首次打开首页时生效'),
+          isThreeLine: true,
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            final selected = await showDialog<int>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('选择文件数量阈值'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _hasRecommendationSelection ? '修改阈值后需要点击"重置推荐"才能重新选择应用' : '应用文件数量大于此阈值时才会显示在首页推荐',
+                        style: TextStyle(
+                          color: _hasRecommendationSelection ? Colors.orange : null,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: RadioGroup<int>(
+                            groupValue: _recommendationThreshold,
+                            onChanged: (value) {
+                              Navigator.of(context).pop(value);
+                            },
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: AppConfig.instance.fileScan.recommendationThresholdOptions.map((threshold) {
+                                return RadioListTile<int>(
+                                  title: Text('$threshold 个文件'),
+                                  value: threshold,
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
                   ),
                 ],
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
+            );
+
+            if (selected != null) {
+              // 保存设置到AppConfig
+              await AppConfig.instance.fileScan.setRecommendationFileCountThreshold(selected);
+
+              logger.i('📌 开发者选项：阈值已修改为 $selected');
+
+              // 重新加载推荐选择信息（以便检测阈值变化）
+              await _loadRecommendationSelectionInfo();
+
+              setState(() {
+                _recommendationThreshold = selected;
+              });
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('文件数量阈值已设置为 $selected'),
+                    action: _hasRecommendationSelection
+                        ? SnackBarAction(
+                            label: '重置推荐',
+                            onPressed: () => _resetRecommendations(),
+                          )
+                        : null,
+                  ),
+                );
+              }
+            }
+          },
+        ),
+        // 如果阈值已更改且有已选定列表，显示提示卡片
+        if (thresholdChanged)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Card(
+              color: Colors.orange.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '阈值已更改',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '需要重置推荐才能应用新阈值（$_savedSelectionThreshold → $_recommendationThreshold）',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => _resetRecommendations(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: const Text('重置'),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
+          ),
+        // 重置推荐按钮（仅在有已选定列表时显示）
+        if (_hasRecommendationSelection)
+          ListTile(
+            leading: Icon(Icons.refresh, color: colorScheme.secondary),
+            title: const Text('重置首页推荐'),
+            subtitle: Text(
+              _recommendationSelectionTime != null
+                  ? '上次选择：${_formatDateTime(_recommendationSelectionTime!)}'
+                  : '清除已选定应用，重新扫描',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _resetRecommendations(),
+          ),
+      ],
+    );
+  }
+
+  /// 重置推荐
+  Future<void> _resetRecommendations() async {
+    // 显示确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认重置推荐'),
+        content: const Text(
+          '这将清除当前已选定的应用推荐，并根据当前阈值重新扫描所有应用。\n\n'
+          '此操作可能需要几秒钟时间。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('确认重置'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    // 显示加载提示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('正在重新扫描应用...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // 执行重置
+      final detectionService = AppDetectionService();
+      final scanner = UnifiedAppScanner(detectionService);
+      final recommendationService = RecommendationService(
+        detectionService: detectionService,
+        scanner: scanner,
+      );
+
+      await recommendationService.resetRecommendations();
+
+      // 刷新UI中的推荐卡片
+      await QuickAccessSection.refreshRecommendations();
+
+      // 重新加载选择信息
+      await _loadRecommendationSelectionInfo();
+
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 推荐已重置'),
+            backgroundColor: Colors.green,
           ),
         );
+      }
+    } catch (e) {
+      logger.e('重置推荐失败: $e');
 
-        if (selected != null) {
-          setState(() {
-            _recommendationThreshold = selected;
-          });
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
 
-          // 保存设置到AppConfig
-          await AppConfig.instance.fileScan
-              .setRecommendationFileCountThreshold(selected);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ 重置失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
-          // 刷新推荐卡片（清除缓存并重新加载）
-          logger.i('📌 开发者选项：阈值已修改为 $selected，刷新推荐卡片');
-          await QuickAccessSection.refreshRecommendations();
+  /// 格式化日期时间
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final diff = now.difference(dateTime);
 
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('文件数量阈值已设置为 $selected')),
-            );
-          }
-        }
-      },
-    );
+    if (diff.inDays == 0) {
+      if (diff.inHours == 0) {
+        return '${diff.inMinutes} 分钟前';
+      }
+      return '${diff.inHours} 小时前';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} 天前';
+    } else {
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+    }
   }
 }

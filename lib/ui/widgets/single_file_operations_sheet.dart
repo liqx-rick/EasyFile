@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:flutter/material.dart';
 
 /// 单文件操作菜单组件
 ///
@@ -227,6 +227,20 @@ class SingleFileOperationsSheet extends StatelessWidget {
             onTap: () => _handleOperation(
               context,
               () => service.copyFile(file),
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // 隐私保护操作
+          _buildOperationTile(
+            context,
+            icon: Icons.lock,
+            label: '移入隐私空间',
+            color: Colors.purple,
+            onTap: () => _handleOperation(
+              context,
+              () => service.moveToPrivacySpace(file),
             ),
           ),
 
