@@ -57,7 +57,7 @@ class SystemTrashDiagnostics {
 
       // 显示诊断结果
       if (!context.mounted) return;
-      
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -113,10 +113,10 @@ class SystemTrashDiagnostics {
               onPressed: () async {
                 final navigator = Navigator.of(context);
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
-                
+
                 await SystemTrashPreferences.resetAll();
                 navigator.pop();
-                
+
                 scaffoldMessenger.showSnackBar(
                   const SnackBar(
                     content: Text('已清除所有抑制状态'),
@@ -137,8 +137,7 @@ class SystemTrashDiagnostics {
       if (!context.mounted) return;
 
       if (!context.mounted) return;
-      
-      
+
       Navigator.of(context).pop(); // 关闭加载对话框
       showDialog(
         context: context,

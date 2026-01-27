@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:easyfile/core/config/app_config.dart';
@@ -17,7 +16,7 @@ import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/ui/pages/apk_management_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/archive_management_page.dart';
-import 'package:easyfile/ui/pages/file_browser_root_page.dart';
+import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/privacy_auth_page.dart';
 import 'package:easyfile/ui/pages/privacy_setup_page.dart';
 import 'package:easyfile/ui/pages/privacy_space_page.dart';
@@ -911,16 +910,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   }
 
   List<_QuickAction> _buildSecondPageActions() {
-    const restoredPath = '/storage/emulated/0/EasyFile/Restored';
     final feature = AppConfig.instance.feature;
-
-    bool restoredExists = false;
-    try {
-      final dir = Directory(restoredPath);
-      restoredExists = dir.existsSync() && dir.listSync().isNotEmpty;
-    } catch (_) {
-      restoredExists = false;
-    }
 
     return [
       _QuickAction(
@@ -952,34 +942,31 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
             : null,
       ),
       _QuickAction(
-        label: '文件恢复区',
-        icon: Icons.restore_page,
-        enabled: restoredExists,
-        color: Colors.green,
-        onTap: restoredExists
-            ? () async {
-                // 打开文件浏览器页面并指定初始路径
-                final shouldReturnToSecondPage = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (context) => FileBrowserRootPage(
-                      presenter: widget.filePresenter,
-                      viewModel: widget.fileViewModel,
-                      initialPath: restoredPath,
-                      returnToSecondPage: true,
-                    ),
-                  ),
-                );
-
-                // 如果返回时标记要跳转到第二页，则切换到第二页
-                if (shouldReturnToSecondPage == true && mounted) {
-                  _pageController.animateToPage(
-                    1,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                }
-              }
-            : null,
+        label: '垃圾文件清理',
+        icon: Icons.delete_sweep,
+        enabled: true,
+        color: Colors.orange,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const JunkFilesPage(),
+            ),
+          );
+        },
+      ),
+      _QuickAction(
+        label: '安装包管理',
+        icon: Icons.file_download_done,
+        enabled: true,
+        color: Colors.deepPurple,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ApkManagementPage(),
+            ),
+          );
+        },
       ),
       _QuickAction(
         label: '应用管理',
@@ -997,23 +984,10 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
             : null,
       ),
       _QuickAction(
-        label: '安装包管理',
-        icon: Icons.file_download_done,
-        enabled: true,
-        color: Colors.deepPurple,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const ApkManagementPage(),
-            ),
-          );
-        },
-      ),
-      _QuickAction(
         label: '隐私空间',
         icon: Icons.lock,
         enabled: true,
-        color: Colors.deepPurple.shade700,
+        color: const Color.fromARGB(255, 31, 2, 250),
         onTap: () => _navigateToPrivacySpace(context),
       ),
     ];

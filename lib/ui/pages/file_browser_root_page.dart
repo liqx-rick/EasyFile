@@ -1,34 +1,35 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:path/path.dart' as path;
-import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
+
+import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/ui/pages/file_preview_page.dart';
-import 'package:easyfile/ui/widgets/file_toolbar.dart';
-import 'package:easyfile/ui/widgets/file_search_bar.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/models/file_category.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/unified_view_config.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
-import 'package:easyfile/ui/services/batch_operations_service.dart';
-import 'package:easyfile/utils/file_grouping_util.dart';
-import 'package:easyfile/utils/file_comparator_util.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
-import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/create_folder_mixin.dart';
+import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
+import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
 import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/folder_navigation_bar.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:provider/provider.dart';
 
 class FileBrowserRootPage extends StatefulWidget {
   final FilePresenter presenter;
@@ -146,8 +147,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
   /// 显示排序选项菜单
   void _showSortOptions() {
     final currentSortType = PageSettingsService().getSortType(PageId.storage);
-    final currentAscending =
-        PageSettingsService().getSortAscending(PageId.storage);
+    final currentAscending = PageSettingsService().getSortAscending(PageId.storage);
 
     showModalBottomSheet(
       context: context,
@@ -160,17 +160,14 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.name) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.storage);
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.storage, SortType.name);
+                    await PageSettingsService().setSortType(PageId.storage, SortType.name);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -179,17 +176,14 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.storage);
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.storage, SortType.modifiedTime);
+                    await PageSettingsService().setSortType(PageId.storage, SortType.modifiedTime);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -198,17 +192,14 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.storage);
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.storage, SortType.size);
+                    await PageSettingsService().setSortType(PageId.storage, SortType.size);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -217,17 +208,14 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
-                    await PageSettingsService()
-                        .toggleSortDirection(PageId.storage);
+                    await PageSettingsService().toggleSortDirection(PageId.storage);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(PageId.storage, SortType.fileType);
+                    await PageSettingsService().setSortType(PageId.storage, SortType.fileType);
                   }
                   setState(() {}); // 刷新列表
                 },
@@ -248,9 +236,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     }
 
     // 仅在当前文件夹搜索
-    final filtered = _files
-        .where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
+    final filtered = _files.where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
     return _getSortedFiles(filtered);
   }
 
@@ -314,8 +300,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
         entities = directory.listSync();
       } catch (e) {
         // 捕获权限拒绝错误，跳过该目录
-        if (e.toString().contains('Permission denied') ||
-            e.toString().contains('errno = 13')) {
+        if (e.toString().contains('Permission denied') || e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $path');
           return results;
         }
@@ -370,14 +355,8 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       return '根目录';
     }
 
-    final parts = _currentPath
-        .split(Platform.pathSeparator)
-        .where((p) => p.isNotEmpty)
-        .toList();
-    final rootParts = _rootPath
-        .split(Platform.pathSeparator)
-        .where((p) => p.isNotEmpty)
-        .toList();
+    final parts = _currentPath.split(Platform.pathSeparator).where((p) => p.isNotEmpty).toList();
+    final rootParts = _rootPath.split(Platform.pathSeparator).where((p) => p.isNotEmpty).toList();
 
     // 移除根路径部分
     final relativeParts = parts.sublist(rootParts.length);
@@ -412,10 +391,8 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     if (_currentPath == _rootPath) return;
 
     final separator = Platform.pathSeparator;
-    final parts =
-        _currentPath.split(separator).where((p) => p.isNotEmpty).toList();
-    final rootParts =
-        _rootPath.split(separator).where((p) => p.isNotEmpty).toList();
+    final parts = _currentPath.split(separator).where((p) => p.isNotEmpty).toList();
+    final rootParts = _rootPath.split(separator).where((p) => p.isNotEmpty).toList();
 
     // 如果在根目录，不显示菜单
     if (parts.length <= rootParts.length) return;
@@ -533,8 +510,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
         _files.removeWhere((f) => f.path == deletedPath);
         final removed = initialLength - _files.length;
         if (removed > 0) {
-          logger.d(
-              'Storage page: Removed $removed file(s). Remaining: ${_files.length}');
+          logger.d('Storage page: Removed $removed file(s). Remaining: ${_files.length}');
         }
       });
       return;
@@ -555,13 +531,11 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
           if (newFileDir == _currentPath) {
             // 在当前目录内重命名/移动 → 更新路径
             _files[index] = newFile;
-            logger
-                .d('Updated file in storage page: $oldPath -> ${newFile.path}');
+            logger.d('Updated file in storage page: $oldPath -> ${newFile.path}');
           } else {
             // 移动到其他目录 → 从列表中移除
             _files.removeAt(index);
-            logger.d(
-                'File moved to different directory, removed from list: $oldPath');
+            logger.d('File moved to different directory, removed from list: $oldPath');
           }
         }
       });
@@ -580,12 +554,9 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
             _files.add(addedFile);
             // 重新排序
             final sortType = PageSettingsService().getSortType(PageId.storage);
-            final ascending =
-                PageSettingsService().getSortAscending(PageId.storage);
-            FileComparatorUtil.sortFilesInPlace(_files, sortType,
-                ascending: ascending);
-            logger.d(
-                'Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
+            final ascending = PageSettingsService().getSortAscending(PageId.storage);
+            FileComparatorUtil.sortFilesInPlace(_files, sortType, ascending: ascending);
+            logger.d('Storage page: Added file ${addedFile.path}. Total: ${_files.length}');
           }
         });
       }
@@ -621,8 +592,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       displaySettings.getShowSystemFiles().then((showSystem) {
         // 检查设置是否变化
         if (_cachedShowHidden != null && _cachedShowSystem != null) {
-          if (_cachedShowHidden != showHidden ||
-              _cachedShowSystem != showSystem) {
+          if (_cachedShowHidden != showHidden || _cachedShowSystem != showSystem) {
             // 设置已变化，更新缓存并刷新
             _cachedShowHidden = showHidden;
             _cachedShowSystem = showSystem;
@@ -680,8 +650,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
             final fileName = entity.path.split(Platform.pathSeparator).last;
 
             // 过滤隐藏文件
-            if (!showHidden &&
-                FileDisplaySettingsService.isHiddenFile(fileName)) {
+            if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
               return false;
             }
 
@@ -702,8 +671,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
           }).toList();
         } catch (e) {
           // 捕获权限拒绝错误（如 Android/data 目录）
-          if (e.toString().contains('Permission denied') ||
-              e.toString().contains('errno = 13')) {
+          if (e.toString().contains('Permission denied') || e.toString().contains('errno = 13')) {
             logger.w('Permission denied for directory: $rootPath');
             // 返回空列表，不显示错误 SnackBar
             entities = [];
@@ -717,10 +685,8 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
 
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final ascending =
-            PageSettingsService().getSortAscending(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType,
-            ascending: ascending);
+        final ascending = PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
 
         setState(() {
           _files = files;
@@ -758,9 +724,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       // 添加到最近访问记录
       widget.presenter.addToRecentFiles(file);
       // 对于图片/视频/音频文件，支持左右滑动浏览相邻文件
-      if (FileUtils.isImageFile(file.name) ||
-          FileUtils.isVideoFile(file.name) ||
-          FileUtils.isAudioFile(file.name)) {
+      if (FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name)) {
         // 根据当前文件类型只筛选同类型文件
         final mediaFiles = _files.where((f) {
           if (f.isDirectory) return false;
@@ -824,7 +788,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
             }
           }
         });
-        
+
         // 获取显示设置
         final displaySettings = FileDisplaySettingsService();
         final showHidden = await displaySettings.getShowHiddenFiles();
@@ -840,8 +804,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
             final fileName = entity.path.split(Platform.pathSeparator).last;
 
             // 过滤隐藏文件
-            if (!showHidden &&
-                FileDisplaySettingsService.isHiddenFile(fileName)) {
+            if (!showHidden && FileDisplaySettingsService.isHiddenFile(fileName)) {
               return false;
             }
 
@@ -862,8 +825,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
           }).toList();
         } catch (e) {
           // 捕获权限拒绝错误（如 Android/data 目录）
-          if (e.toString().contains('Permission denied') ||
-              e.toString().contains('errno = 13')) {
+          if (e.toString().contains('Permission denied') || e.toString().contains('errno = 13')) {
             logger.w('Permission denied for directory: $path');
             // 返回空列表，不显示错误 SnackBar
             entities = [];
@@ -875,10 +837,8 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
         final files = entities.map((e) => FileItem.fromEntity(e)).toList();
         // 使用页面级排序设置
         final sortType = PageSettingsService().getSortType(PageId.storage);
-        final ascending =
-            PageSettingsService().getSortAscending(PageId.storage);
-        FileComparatorUtil.sortFilesInPlace(files, sortType,
-            ascending: ascending);
+        final ascending = PageSettingsService().getSortAscending(PageId.storage);
+        FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
         setState(() {
           _files = files;
           _isLoading = false;
@@ -902,23 +862,18 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
 
   /// 构建文件列表/网格视图（使用FileCollectionView）
   Widget _buildFileView() {
-    final isGridView =
-        PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
-    final isGroupEnabled =
-        PageSettingsService().getGroupEnabled(PageId.storage);
+    final isGridView = PageSettingsService().getViewMode(PageId.storage) == ViewMode.grid;
+    final isGroupEnabled = PageSettingsService().getGroupEnabled(PageId.storage);
 
     // 获取视图配置：对图片/视频文件应用简洁模式
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
     if (isGridView) {
       viewConfigBuilder = (file) {
-        final shouldUseCompactMode = !file.isDirectory &&
-            (file.category == FileCategory.image ||
-                file.category == FileCategory.video);
+        final shouldUseCompactMode =
+            !file.isDirectory && (file.category == FileCategory.image || file.category == FileCategory.video);
         if (shouldUseCompactMode) {
-          final showFileInfo =
-              PageSettingsService().getGridShowFileInfo(PageId.storage);
-          return UnifiedViewConfig.fromContext(context,
-              compactMode: !showFileInfo);
+          final showFileInfo = PageSettingsService().getGridShowFileInfo(PageId.storage);
+          return UnifiedViewConfig.fromContext(context, compactMode: !showFileInfo);
         }
         return null;
       };
@@ -939,9 +894,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       return FileCollectionView(
         groups: groups,
         gridMode: isGridView,
-        padding: isGridView
-            ? const EdgeInsets.all(8)
-            : const EdgeInsets.symmetric(vertical: 0),
+        padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
         selectionController: _selectionController,
         showCheckbox: isEditMode,
         showFullPath: false, // 搜索模式下不显示路径文本
@@ -963,9 +916,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     return FileCollectionView(
       items: _filteredFiles,
       gridMode: isGridView,
-      padding: isGridView
-          ? const EdgeInsets.all(8)
-          : const EdgeInsets.symmetric(vertical: 0),
+      padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
       selectionController: _selectionController,
       showCheckbox: isEditMode,
       // 列表模式显示选项
@@ -1106,8 +1057,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                 : Column(
                     children: [
                       // 编辑提示条（3秒自动隐藏）
-                      if (isEditMode && showEditModeHint)
-                        const EditModeHintBar(),
+                      if (isEditMode && showEditModeHint) const EditModeHintBar(),
 
                       // 搜索栏（使用统一的FileSearchBar组件）
                       if (_isSearchMode)
@@ -1156,8 +1106,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                       // 搜索范围选择器
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
-                        height:
-                            _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
+                        height: _isSearchMode && _searchQuery.isNotEmpty ? 48 : 0,
                         child: _isSearchMode && _searchQuery.isNotEmpty
                             ? Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1175,10 +1124,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                                         fontSize: 13,
                                         color: Theme.of(
                                           context,
-                                        )
-                                            .colorScheme
-                                            .onSurface
-                                            .withValues(alpha: 0.7),
+                                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -1254,9 +1200,7 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
                             ),
 
                             // 底部文件夹导航栏（子文件夹中显示）
-                            if (!_selectionController.isSelectionMode &&
-                                !_isSearchMode &&
-                                _canNavigateUp(_currentPath))
+                            if (!_selectionController.isSelectionMode && !_isSearchMode && _canNavigateUp(_currentPath))
                               FolderNavigationBar(
                                 currentPath: _currentPath,
                                 onBackPressed: _navigateUp,
