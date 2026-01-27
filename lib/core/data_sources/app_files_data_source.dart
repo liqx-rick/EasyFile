@@ -65,7 +65,7 @@ class AppFilesDataSource implements FileListDataSource {
     final scanResult = await scanner.scanApp(
       appKey: appKey,
       useMediaStore: useMediaStore,
-      updateCache: true,     // 始终更新文件数量缓存
+      updateCache: true, // 始终更新文件数量缓存
       forceRefresh: forceRefresh, // 控制是否使用扫描结果缓存
     );
 
@@ -82,8 +82,7 @@ class AppFilesDataSource implements FileListDataSource {
     files = DataSourceHelpers.filterBySupportedTypes(files);
     final filteredBySupport = originalCount - files.length;
     if (filteredBySupport > 0) {
-      logger.d(
-          '$name - FileTypesConfig 过滤: $originalCount -> ${files.length} (过滤 $filteredBySupport 个不支持的文件)');
+      logger.d('$name - FileTypesConfig 过滤: $originalCount -> ${files.length} (过滤 $filteredBySupport 个不支持的文件)');
     }
 
     // 6. Tab 文件类型过滤（如果指定了具体的文件类型）
@@ -114,7 +113,7 @@ class AppFilesDataSource implements FileListDataSource {
   bool get supportsCaching => true;
 
   @override
-  int get cacheExpiration => 6 * 3600; // 6小时（与 UnifiedAppScanner 缓存一致）
+  int get cacheExpiration => 24 * 3600; // 24小时（与 UnifiedAppScanner 缓存一致）
 
   @override
   Map<String, dynamic> getMetadata(Map<String, dynamic> params) {

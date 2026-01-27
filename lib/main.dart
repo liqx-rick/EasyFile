@@ -4,13 +4,12 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
+import 'package:easyfile/core/services/cache_prewarm_coordinator.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -71,37 +70,20 @@ Future<void> main() async {
   await trashManager.initialize();
   await trashManager.startAutoCleanup();
 
-  // 初始化缩略图缓存
-  try {
-    final cacheManager = ThumbnailCacheManager();
-    await cacheManager.init();
-    final diagnosis = await cacheManager.diagnoseCache();
+  // 🚀 统一缓存预热协调器
+  // 阶段1（同步）：缩略图缓存初始化
+  // 阶段2（延迟3秒）：MediaStore 缓存预热
+  // 阶段3（延迟5秒）：应用文件缓存预热
+  await CachePrewarmCoordinator.instance.initialize();
+  CachePrewarmCoordinator.instance.startPrewarming();
 
-    if (diagnosis['initialized'] == false || diagnosis['cacheDirNull'] == true) {
-      final success = await cacheManager.forceReinitialize();
-      if (!success) {
-        logger.w('Thumbnail cache initialization failed');
-      }
+  // 可选：监听预热进度
+  CachePrewarmCoordinator.instance.progressStream.listen((progress) {
+    logger.d('预热进度: ${progress.taskName} - ${progress.progressPercent}%');
+    if (progress.isFailed) {
+      logger.e('预热失败: ${progress.error}');
     }
-  } catch (e) {
-    logger.e('Failed to initialize thumbnail cache: $e');
-  }
-
-  // 初始化 MediaStore 缓存服务
-  try {
-    final mediastoreCacheService = MediaStoreCacheService();
-    await mediastoreCacheService.initialize();
-    logger.i('✓ MediaStore 缓存服务已初始化');
-
-    // 后台预热缓存（不阻塞UI启动）
-    mediastoreCacheService.warmUp().then((_) {
-      logger.i('✓ MediaStore 缓存预热完成');
-    }).catchError((e) {
-      logger.e('MediaStore 缓存预热失败: $e');
-    });
-  } catch (e) {
-    logger.e('Failed to initialize MediaStore cache service: $e');
-  }
+  });
 
   runApp(const EasyFileApp());
 }

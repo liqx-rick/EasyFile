@@ -1,39 +1,39 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/category_file_cache_service.dart';
-import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/core/services/category_file_cache_service.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/pages/file_preview_page.dart';
-import 'package:easyfile/ui/widgets/file_toolbar.dart';
-import 'package:easyfile/ui/widgets/file_search_bar.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/unified_view_config.dart';
-import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
-import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/services/batch_operations_service.dart';
 import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
+import 'package:easyfile/utils/file_comparator_util.dart';
 import 'package:easyfile/utils/file_grouping_util.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
-import 'package:easyfile/utils/file_comparator_util.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 文件类型筛选接口
 abstract class FileTypeFilter {
@@ -90,25 +90,13 @@ enum DocumentFileType implements FileTypeFilter {
     switch (this) {
       case DocumentFileType.text:
         // 使用 FileTypesConfig 的定义（包含 txt, md, log, rtf）
-        return config
-            .getTextExtensions()
-            .map((e) => e.toUpperCase())
-            .contains(ext);
+        return config.getTextExtensions().map((e) => e.toUpperCase()).contains(ext);
       case DocumentFileType.word:
-        return config
-            .getWordExtensions()
-            .map((e) => e.toUpperCase())
-            .contains(ext);
+        return config.getWordExtensions().map((e) => e.toUpperCase()).contains(ext);
       case DocumentFileType.excel:
-        return config
-            .getExcelExtensions()
-            .map((e) => e.toUpperCase())
-            .contains(ext);
+        return config.getExcelExtensions().map((e) => e.toUpperCase()).contains(ext);
       case DocumentFileType.ppt:
-        return config
-            .getPptExtensions()
-            .map((e) => e.toUpperCase())
-            .contains(ext);
+        return config.getPptExtensions().map((e) => e.toUpperCase()).contains(ext);
       case DocumentFileType.pdf:
         return config.isPdfFile(filename);
       case DocumentFileType.other:
@@ -222,8 +210,7 @@ class CategoryFilePage extends StatefulWidget {
   State<CategoryFilePage> createState() => _CategoryFilePageState();
 }
 
-class _CategoryFilePageState extends State<CategoryFilePage>
-    with EditModeMixin, PopScopeHandlerMixin {
+class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin, PopScopeHandlerMixin {
   late CategoryInfo categoryInfo;
   bool _isLoading = true;
   bool _isRefreshing = false; // 后台刷新状态（不影响列表显示）
@@ -275,14 +262,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
     var result = _files;
 
     // 按文件类型筛选
-    if (widget.categoryType == CategoryType.documents &&
-        _documentTypeFilter != DocumentFileType.all) {
-      result =
-          result.where((f) => _documentTypeFilter.matches(f.name)).toList();
-    } else if (widget.categoryType == CategoryType.downloads &&
-        _downloadTypeFilter != DownloadFileType.all) {
-      result =
-          result.where((f) => _downloadTypeFilter.matches(f.name)).toList();
+    if (widget.categoryType == CategoryType.documents && _documentTypeFilter != DocumentFileType.all) {
+      result = result.where((f) => _documentTypeFilter.matches(f.name)).toList();
+    } else if (widget.categoryType == CategoryType.downloads && _downloadTypeFilter != DownloadFileType.all) {
+      result = result.where((f) => _downloadTypeFilter.matches(f.name)).toList();
     }
 
     // 按搜索关键词筛选
@@ -365,13 +348,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         _files.removeWhere((f) => f.path == deletedPath);
         final removed = initialLength - _files.length;
         if (removed > 0) {
-          logger.i(
-              'CategoryFilePage: Removed $removed file(s) from local list. Remaining: ${_files.length}');
+          logger.i('CategoryFilePage: Removed $removed file(s) from local list. Remaining: ${_files.length}');
           // 立即更新缓存，避免重新进入页面时显示已删除的文件
           _saveToCache(_files);
         } else {
-          logger.w(
-              'CategoryFilePage: Deleted file not found in local list: $deletedPath');
+          logger.w('CategoryFilePage: Deleted file not found in local list: $deletedPath');
         }
       });
       return; // 删除和更新是互斥的，处理完删除就返回
@@ -387,25 +368,20 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         final index = _files.indexWhere((f) => f.path == oldPath);
         if (index != -1) {
           _files[index] = newFile;
-          logger
-              .d('Updated file in category page: $oldPath -> ${newFile.path}');
+          logger.d('Updated file in category page: $oldPath -> ${newFile.path}');
           // 立即更新缓存，保存文件的新路径
           _saveToCache(_files);
         } else {
           // 如果找不到旧路径，尝试查找文件名相同的文件（可能是不同副本）
-          final nameIndex = _files.indexWhere((f) =>
-              f.name == newFile.name &&
-              f.size == newFile.size &&
-              f.modified == newFile.modified);
+          final nameIndex = _files
+              .indexWhere((f) => f.name == newFile.name && f.size == newFile.size && f.modified == newFile.modified);
           if (nameIndex != -1) {
             _files[nameIndex] = newFile;
-            logger.d(
-                'Updated file by matching name/size/time: ${_files[nameIndex].path} -> ${newFile.path}');
+            logger.d('Updated file by matching name/size/time: ${_files[nameIndex].path} -> ${newFile.path}');
             // 立即更新缓存
             _saveToCache(_files);
           } else {
-            logger
-                .w('File not found in category page list for update: $oldPath');
+            logger.w('File not found in category page list for update: $oldPath');
           }
         }
       });
@@ -422,13 +398,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
           _files.add(addedFile);
           // 重新排序
           _applySorting();
-          logger.i(
-              'CategoryFilePage: Added file to local list. Total: ${_files.length}');
+          logger.i('CategoryFilePage: Added file to local list. Total: ${_files.length}');
           // 立即更新缓存
           _saveToCache(_files);
         } else {
-          logger.w(
-              'CategoryFilePage: Added file already exists in list: ${addedFile.path}');
+          logger.w('CategoryFilePage: Added file already exists in list: ${addedFile.path}');
         }
       });
     }
@@ -654,9 +628,8 @@ class _CategoryFilePageState extends State<CategoryFilePage>
   UnifiedViewConfig _getViewConfig(BuildContext context) {
     final pageId = _getPageIdForCategory();
     // 仅图片和视频分类使用简洁模式设置（纯图片/纯视频页面）
-    final shouldUseCompactMode = (widget.categoryType == CategoryType.images ||
-            widget.categoryType == CategoryType.video) &&
-        _isGridView;
+    final shouldUseCompactMode =
+        (widget.categoryType == CategoryType.images || widget.categoryType == CategoryType.video) && _isGridView;
 
     if (shouldUseCompactMode) {
       // 从设置服务获取是否显示文件信息
@@ -756,8 +729,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
           // 在UI上显示友好提示
           if (mounted) {
             setState(() {
-              _loadingProgress =
-                  '已发现 $categoryCount 个${categoryInfo.name}，正在加载...';
+              _loadingProgress = '已发现 $categoryCount 个${categoryInfo.name}，正在加载...';
             });
           }
         }
@@ -771,14 +743,9 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       if (cached.isNotEmpty) {
         // 应用页面级排序（临时模式强制按大小排序）
         final pageId = _getPageIdForCategory();
-        final sortType = _isTemporaryMode
-            ? SortType.size
-            : PageSettingsService().getSortType(pageId);
-        final ascending = _isTemporaryMode
-            ? false
-            : PageSettingsService().getSortAscending(pageId);
-        FileComparatorUtil.sortFilesInPlace(cached, sortType,
-            ascending: ascending);
+        final sortType = _isTemporaryMode ? SortType.size : PageSettingsService().getSortType(pageId);
+        final ascending = _isTemporaryMode ? false : PageSettingsService().getSortAscending(pageId);
+        FileComparatorUtil.sortFilesInPlace(cached, sortType, ascending: ascending);
 
         setState(() {
           _files = cached;
@@ -810,9 +777,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       // 显示扫描进度
       if (_isLoading || _isRefreshing) {
         setState(() {
-          _loadingProgress = _isRefreshing
-              ? '正在为您刷新页面列表，请稍等...'
-              : '正在扫描${categoryInfo.name}文件...';
+          _loadingProgress = _isRefreshing ? '正在为您刷新页面列表，请稍等...' : '正在扫描${categoryInfo.name}文件...';
         });
       }
 
@@ -823,14 +788,9 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       // Step 3: 更新UI和缓存
       // 应用页面级排序（临时模式强制按大小排序）
       final pageId = _getPageIdForCategory();
-      final sortType = _isTemporaryMode
-          ? SortType.size
-          : PageSettingsService().getSortType(pageId);
-      final ascending = _isTemporaryMode
-          ? false
-          : PageSettingsService().getSortAscending(pageId);
-      FileComparatorUtil.sortFilesInPlace(files, sortType,
-          ascending: ascending);
+      final sortType = _isTemporaryMode ? SortType.size : PageSettingsService().getSortType(pageId);
+      final ascending = _isTemporaryMode ? false : PageSettingsService().getSortAscending(pageId);
+      FileComparatorUtil.sortFilesInPlace(files, sortType, ascending: ascending);
 
       // 计算总大小
       int totalSize = 0;
@@ -845,8 +805,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         _files = files;
         _isLoading = false;
         _isRefreshing = false;
-        _loadingProgress =
-            '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
+        _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
       });
 
       // 保存到缓存
@@ -858,14 +817,12 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         final currentCounts = await cacheService.getCategoryCounts() ?? {};
 
         // 更新当前分类的文件数
-        currentCounts[_getCategoryEnumFromType(widget.categoryType)] =
-            files.length;
+        currentCounts[_getCategoryEnumFromType(widget.categoryType)] = files.length;
 
         // 保存更新后的统计数据
         await cacheService.saveCategoryCounts(currentCounts);
 
-        logger.d(
-            'Updated category count cache: ${categoryInfo.name} = ${files.length}');
+        logger.d('Updated category count cache: ${categoryInfo.name} = ${files.length}');
       } catch (e) {
         logger.w('Failed to update category count cache: $e');
       }
@@ -899,8 +856,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                         totalCount: _filteredFiles.length,
                         onPressed: () {
                           setState(() {
-                            if (_selectionController.selected.length ==
-                                _filteredFiles.length) {
+                            if (_selectionController.selected.length == _filteredFiles.length) {
                               _selectionController.clear();
                             } else {
                               _selectionController.selectAll(
@@ -917,8 +873,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                       ),
                 title: Builder(
                   builder: (context) {
-                    final isDark =
-                        Theme.of(context).brightness == Brightness.dark;
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -926,8 +881,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             color: isDark
-                                ? categoryInfo.iconColor
-                                    .withValues(alpha: 0.2) // 深色模式：20%主题色透明度
+                                ? categoryInfo.iconColor.withValues(alpha: 0.2) // 深色模式：20%主题色透明度
                                 : categoryInfo.backgroundColor, // 浅色模式：原背景色
                             borderRadius: BorderRadius.circular(6),
                           ),
@@ -935,8 +889,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                             categoryInfo.icon,
                             size: 20,
                             color: isDark
-                                ? categoryInfo
-                                    .backgroundColor // 深色模式：使用原背景色（更浅）
+                                ? categoryInfo.backgroundColor // 深色模式：使用原背景色（更浅）
                                 : categoryInfo.iconColor, // 浅色模式：原图标色
                           ),
                         ),
@@ -976,8 +929,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                         if (isEditMode)
                           // 编辑模式：退出编辑按钮
                           IconButton(
-                            icon:
-                                const Icon(Icons.close, size: 24, weight: 700),
+                            icon: const Icon(Icons.close, size: 24, weight: 700),
                             color: Theme.of(context).colorScheme.primary,
                             onPressed: exitEditMode,
                             tooltip: '退出编辑',
@@ -1000,8 +952,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                   if (_isTemporaryMode) _buildTemporaryModeBanner(),
 
                   // 编辑模式提示条（搜索时隐藏）
-                  if (isEditMode && showEditModeHint && !_isSearchMode)
-                    const EditModeHintBar(),
+                  if (isEditMode && showEditModeHint && !_isSearchMode) const EditModeHintBar(),
 
                   // 搜索框（使用统一的FileSearchBar组件）
                   if (_isSearchMode)
@@ -1035,8 +986,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 ],
               ),
               // 批量操作底部工具栏
-              bottomNavigationBar:
-                  isEditMode ? _buildSelectionBottomBar() : null,
+              bottomNavigationBar: isEditMode ? _buildSelectionBottomBar() : null,
             ),
           );
         },
@@ -1143,13 +1093,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(categoryInfo.iconColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(categoryInfo.iconColor),
                   ),
                 ),
               ] else
-                Icon(categoryInfo.icon,
-                    size: 16, color: categoryInfo.iconColor),
+                Icon(categoryInfo.icon, size: 16, color: categoryInfo.iconColor),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1179,8 +1127,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
 
         // 文件类型筛选标签（仅文档和下载分类显示，搜索模式下隐藏）
         if (!_isSearchMode &&
-            (widget.categoryType == CategoryType.documents ||
-                widget.categoryType == CategoryType.downloads))
+            (widget.categoryType == CategoryType.documents || widget.categoryType == CategoryType.downloads))
           _buildFileTypeChips(),
 
         // 文件列表或网格（已迁移到 FileCollectionView）
@@ -1202,8 +1149,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 final availableTypes = _getAvailableDocumentTypes();
                 if (availableTypes.length <= 1) return;
 
-                final currentIndex =
-                    availableTypes.indexOf(_documentTypeFilter);
+                final currentIndex = availableTypes.indexOf(_documentTypeFilter);
                 if (currentIndex == -1) return;
 
                 if (isSwipeLeft && currentIndex < availableTypes.length - 1) {
@@ -1225,8 +1171,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 final availableTypes = _getAvailableDownloadTypes();
                 if (availableTypes.length <= 1) return;
 
-                final currentIndex =
-                    availableTypes.indexOf(_downloadTypeFilter);
+                final currentIndex = availableTypes.indexOf(_downloadTypeFilter);
                 if (currentIndex == -1) return;
 
                 if (isSwipeLeft && currentIndex < availableTypes.length - 1) {
@@ -1262,12 +1207,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
     final storagePath = '/storage/emulated/0';
     return SelectionBottomBar(
       selectedPaths: _selectionController.selected,
-      isAllFavorite:
-          batchService.isAllSelectedFavorite(_selectionController.selected),
+      isAllFavorite: batchService.isAllSelectedFavorite(_selectionController.selected),
       onCopy: () {
         if (!mounted) return;
-        batchService.batchCopy(
-            context, _selectionController.selected, storagePath);
+        batchService.batchCopy(context, _selectionController.selected, storagePath);
       },
       onRename: () {
         if (!mounted) return;
@@ -1288,8 +1231,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       },
       onToggleFavorite: () {
         if (!mounted) return;
-        batchService.batchToggleFavorite(
-            context, _selectionController.selected);
+        batchService.batchToggleFavorite(context, _selectionController.selected);
       },
       onDelete: () {
         if (!mounted) return;
@@ -1328,9 +1270,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       typeCounts[type] = count;
     }
 
-    return DocumentFileType.values
-        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
-        .toList();
+    return DocumentFileType.values.where((type) => type.isAll || (typeCounts[type] ?? 0) > 0).toList();
   }
 
   /// 获取可用的下载类型列表（过滤掉没有文件的类型）
@@ -1341,9 +1281,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       typeCounts[type] = count;
     }
 
-    return DownloadFileType.values
-        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
-        .toList();
+    return DownloadFileType.values.where((type) => type.isAll || (typeCounts[type] ?? 0) > 0).toList();
   }
 
   /// 构建文件类型筛选标签
@@ -1388,9 +1326,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
     }
 
     // 过滤掉没有文件的类型（除了"全部"）
-    final availableTypes = types
-        .where((type) => type.isAll || (typeCounts[type] ?? 0) > 0)
-        .toList();
+    final availableTypes = types.where((type) => type.isAll || (typeCounts[type] ?? 0) > 0).toList();
 
     // 如果只有"全部"一个选项，则不显示筛选栏
     if (availableTypes.length <= 1) {
@@ -1430,9 +1366,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
               context,
             ).colorScheme.surfaceContainerHighest,
             side: BorderSide(
-              color: isSelected
-                  ? categoryInfo.iconColor
-                  : Theme.of(context).dividerColor,
+              color: isSelected ? categoryInfo.iconColor : Theme.of(context).dividerColor,
               width: isSelected ? 1.5 : 1,
             ),
             onSelected: (selected) {
@@ -1460,12 +1394,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       final pageId = _getPageIdForCategory();
       final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
       viewConfigBuilder = (file) {
-        final shouldUseCompactMode = !file.isDirectory &&
-            (file.category == FileCategory.image ||
-                file.category == FileCategory.video);
+        final shouldUseCompactMode =
+            !file.isDirectory && (file.category == FileCategory.image || file.category == FileCategory.video);
         // 返回对应的配置：图片/视频使用简洁模式，其他文件使用普通模式
-        return UnifiedViewConfig.fromContext(context,
-            compactMode: shouldUseCompactMode && !showFileInfo);
+        return UnifiedViewConfig.fromContext(context, compactMode: shouldUseCompactMode && !showFileInfo);
       };
     } else {
       // 图片/视频分类：纯图片或纯视频，使用全局配置
@@ -1477,9 +1409,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       gridMode: _isGridView,
       config: config,
       viewConfigBuilder: viewConfigBuilder,
-      padding: _isGridView
-          ? const EdgeInsets.all(8)
-          : const EdgeInsets.symmetric(vertical: 0),
+      padding: _isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
       // 增加预构建范围以改善滚动体验
       cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
@@ -1520,8 +1450,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
     final groupKeys = FileGroupingUtil.dateGroupKeys;
 
     // 构建 FileGroup 列表
-    final fileGroups =
-        groupKeys.where((key) => groups.containsKey(key)).map((key) {
+    final fileGroups = groupKeys.where((key) => groups.containsKey(key)).map((key) {
       return FileGroup(
         key: key,
         title: '$key（${groups[key]!.length}个文件）',
@@ -1543,12 +1472,10 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       final pageId = _getPageIdForCategory();
       final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
       viewConfigBuilder = (file) {
-        final shouldUseCompactMode = !file.isDirectory &&
-            (file.category == FileCategory.image ||
-                file.category == FileCategory.video);
+        final shouldUseCompactMode =
+            !file.isDirectory && (file.category == FileCategory.image || file.category == FileCategory.video);
         // 返回对应的配置：图片/视频使用简洁模式，其他文件使用普通模式
-        return UnifiedViewConfig.fromContext(context,
-            compactMode: shouldUseCompactMode && !showFileInfo);
+        return UnifiedViewConfig.fromContext(context, compactMode: shouldUseCompactMode && !showFileInfo);
       };
     } else {
       // 图片/视频分类：纯图片或纯视频，使用全局配置
@@ -1560,9 +1487,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       gridMode: _isGridView,
       config: config, // 图片/视频分类使用全局配置
       viewConfigBuilder: viewConfigBuilder, // 下载分类使用动态配置
-      padding: _isGridView
-          ? const EdgeInsets.symmetric(vertical: 4)
-          : const EdgeInsets.symmetric(vertical: 0),
+      padding: _isGridView ? const EdgeInsets.symmetric(vertical: 4) : const EdgeInsets.symmetric(vertical: 0),
       // 增加预构建范围以改善滚动体验
       cacheExtent: _isGridView ? 1000.0 : 600.0,
       selectionController: _selectionController,
@@ -1634,8 +1559,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 leading: const Icon(Icons.sort_by_alpha),
                 title: const Text('按名称排序'),
                 trailing: currentSortType == SortType.name
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.name, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.name, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
@@ -1644,8 +1568,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                     await PageSettingsService().toggleSortDirection(pageId);
                   } else {
                     // 切换到新的排序类型
-                    await PageSettingsService()
-                        .setSortType(pageId, SortType.name);
+                    await PageSettingsService().setSortType(pageId, SortType.name);
                   }
                   _applySorting();
                 },
@@ -1654,16 +1577,14 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 leading: const Icon(Icons.access_time),
                 title: const Text('按修改时间排序'),
                 trailing: currentSortType == SortType.modifiedTime
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.modifiedTime, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.modifiedTime, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.modifiedTime) {
                     await PageSettingsService().toggleSortDirection(pageId);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(pageId, SortType.modifiedTime);
+                    await PageSettingsService().setSortType(pageId, SortType.modifiedTime);
                   }
                   _applySorting();
                 },
@@ -1672,16 +1593,14 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 leading: const Icon(Icons.storage),
                 title: const Text('按文件大小排序'),
                 trailing: currentSortType == SortType.size
-                    ? Icon(
-                        _getSortDirectionIcon(SortType.size, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.size, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.size) {
                     await PageSettingsService().toggleSortDirection(pageId);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(pageId, SortType.size);
+                    await PageSettingsService().setSortType(pageId, SortType.size);
                   }
                   _applySorting();
                 },
@@ -1690,16 +1609,14 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 leading: const Icon(Icons.category),
                 title: const Text('按文件类型排序'),
                 trailing: currentSortType == SortType.fileType
-                    ? Icon(_getSortDirectionIcon(
-                        SortType.fileType, currentAscending))
+                    ? Icon(_getSortDirectionIcon(SortType.fileType, currentAscending))
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
                   if (currentSortType == SortType.fileType) {
                     await PageSettingsService().toggleSortDirection(pageId);
                   } else {
-                    await PageSettingsService()
-                        .setSortType(pageId, SortType.fileType);
+                    await PageSettingsService().setSortType(pageId, SortType.fileType);
                   }
                   _applySorting();
                 },
@@ -1717,8 +1634,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       final pageId = _getPageIdForCategory();
       final sortType = PageSettingsService().getSortType(pageId);
       final ascending = PageSettingsService().getSortAscending(pageId);
-      FileComparatorUtil.sortFilesInPlace(_files, sortType,
-          ascending: ascending);
+      FileComparatorUtil.sortFilesInPlace(_files, sortType, ascending: ascending);
     });
   }
 
@@ -1752,9 +1668,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         await _loadCategoryFiles(forceRefresh: true);
       }
     } else if (widget.categoryType == CategoryType.downloads &&
-        (FileUtils.isImageFile(file.name) ||
-            FileUtils.isVideoFile(file.name) ||
-            FileUtils.isAudioFile(file.name))) {
+        (FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name))) {
       // 下载分类：根据当前文件类型只过滤同类型文件
       final mediaFiles = _filteredFiles.where((f) {
         if (FileUtils.isImageFile(file.name)) {
@@ -1841,9 +1755,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
     super.initState();
     _currentPath = widget.currentPath.isNotEmpty
         ? widget.currentPath
-        : (Platform.isWindows
-            ? Platform.environment['USERPROFILE'] ?? 'C:\\'
-            : Platform.environment['HOME'] ?? '/');
+        : (Platform.isWindows ? Platform.environment['USERPROFILE'] ?? 'C:\\' : Platform.environment['HOME'] ?? '/');
     _loadFolders();
   }
 
@@ -1865,8 +1777,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
             .toList();
       } catch (e) {
         // 捕获权限拒绝错误（如 Android/data 目录）
-        if (e.toString().contains('Permission denied') ||
-            e.toString().contains('errno = 13')) {
+        if (e.toString().contains('Permission denied') || e.toString().contains('errno = 13')) {
           logger.w('Permission denied for directory: $_currentPath');
           // 返回空列表，不显示 SnackBar
           entities = [];
@@ -1887,8 +1798,7 @@ class _FolderPickerDialogState extends State<_FolderPickerDialog> {
       setState(() => _isLoading = false);
       if (mounted) {
         // 只有非权限错误才显示 SnackBar
-        if (!e.toString().contains('Permission denied') &&
-            !e.toString().contains('errno = 13')) {
+        if (!e.toString().contains('Permission denied') && !e.toString().contains('errno = 13')) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('加载文件夹失败：$e')));

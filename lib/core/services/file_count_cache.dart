@@ -1,5 +1,5 @@
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 文件数量缓存服务
 ///
@@ -28,8 +28,8 @@ class FileCountCache {
   /// 缓存时间戳键前缀（应用Key -> 时间戳）
   static const _timeKeyPrefix = 'file_count_time_';
 
-  /// 缓存有效期（6小时）
-  static const _cacheDuration = Duration(hours: 6);
+  /// 缓存有效期（24小时）
+  static const _cacheDuration = Duration(hours: 24);
 
   /// 是否已初始化
   bool _initialized = false;
@@ -80,15 +80,13 @@ class FileCountCache {
 
     final cacheAge = DateTime.now().millisecondsSinceEpoch - cachedTime;
     if (cacheAge > _cacheDuration.inMilliseconds) {
-      logger
-          .d('缓存已过期: $appKey (${Duration(milliseconds: cacheAge).inHours}小时)');
+      logger.d('缓存已过期: $appKey (${Duration(milliseconds: cacheAge).inHours}小时)');
       return null;
     }
 
     // 返回缓存值
     final count = _prefs!.getInt(countKey);
-    logger.d(
-        '使用缓存: $appKey = $count 个文件 (${Duration(milliseconds: cacheAge).inMinutes}分钟前)');
+    logger.d('使用缓存: $appKey = $count 个文件 (${Duration(milliseconds: cacheAge).inMinutes}分钟前)');
     return count;
   }
 
