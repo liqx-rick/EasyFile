@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -8,11 +7,12 @@ import 'package:easyfile/core/services/junk_file_service.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
 import 'package:easyfile/data/models/junk_file_item.dart';
 import 'package:easyfile/ui/pages/trash_files_page.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
-import 'package:easyfile/ui/widgets/sliver_category_filter_delegate.dart';
-import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
 import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
+import 'package:easyfile/ui/widgets/sliver_category_filter_delegate.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:flutter/material.dart';
 
 /// 垃圾文件清理页面
 class JunkFilesPage extends StatefulWidget {
@@ -79,15 +79,17 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   /// 检查是否应该显示系统回收站提示
   ///
   /// 检查条件：
-  /// - 扫描缓存未超过36小时
-  /// - 不在用户忽略期内（7天）
-  /// - 不在清理抑制期内（7天）
+  /// - 扫描缓存未超过配置的小时数
+  /// - 不在用户忍略期内
+  /// - 不在清理抑制期内
   Future<bool> _shouldShowSystemTrashPrompt() async {
-    // 检查上次扫描时间（36小时缓存策略）
+    final config = AppConfig.instance.fileScan;
+
+    // 检查上次扫描时间（使用配置的缓存时长）
     if (!await SystemTrashPreferences.isLastScanOlderThan(
-      const Duration(hours: 36),
+      Duration(hours: config.systemTrashScanCacheHours),
     )) {
-      logger.d('距离上次扫描未超过36小时，跳过本次扫描');
+      logger.d('距离上次扫描未超过${config.systemTrashScanCacheHours}小时，跳过本次扫描');
       return false;
     }
 
@@ -106,37 +108,41 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
 
   /// 加载或扫描系统回收站统计数据
   ///
+  /// [forceRefresh] 是否强制刷新，忽略缓存和抑制检查
+  ///
   /// 流程：
-  /// 1. 检查是否应该显示提示（抑制期检查）
+  /// 1. 检查是否应该显示提示（抑制期检查，forceRefresh时跳过）
   /// 2. 如果不应该显示，直接返回
-  /// 3. 尝试加载统计数据（优先使用缓存）
-  /// 4. 如果数据>=100MB，显示提示卡片并更新扫描时间
-  Future<void> _loadOrScanSystemTrash() async {
+  /// 3. 尝试加载统计数据（forceRefresh时强制重新扫描）
+  /// 4. 如果数据>=阈值，显示提示卡片并更新扫描时间
+  Future<void> _loadOrScanSystemTrash({bool forceRefresh = false}) async {
     if (!mounted) return;
 
+    final config = AppConfig.instance.fileScan;
+
     try {
-      // 1. 检查是否应该显示提示
-      if (!await _shouldShowSystemTrashPrompt()) {
+      // 1. 检查是否应该显示提示（forceRefresh时跳过）
+      if (!forceRefresh && !await _shouldShowSystemTrashPrompt()) {
         logger.d('系统回收站提示：不满足显示条件（在抑制期内）');
         return;
       }
 
-      // 2. 加载统计数据（优先使用缓存）
+      // 2. 加载统计数据（forceRefresh时强制重新扫描）
       final service = await locator.getAsync<TrashFileService>();
       await service.initialize();
 
       final stats = await service.getOldFilesStatistics(
-        months: 3,
-        forceRefresh: false,
+        months: config.systemTrashOldFileMonths,
+        forceRefresh: forceRefresh,
       );
 
       final sizeMB = stats['sizeMB'] as int;
 
-      // 3. 记录扫描时间（无论是否显示提示，实现36小时缓存策略）
+      // 3. 记录扫描时间（无论是否显示提示，实现缓存策略）
       await SystemTrashPreferences.setLastScanTimeNow();
 
-      // 4. 检查是否满足显示阈值（>=100MB）
-      if (sizeMB >= 100) {
+      // 4. 检查是否满足显示阈值
+      if (sizeMB >= config.systemTrashScanThresholdMB) {
         if (mounted) {
           setState(() {
             _systemTrashStats = stats;
@@ -145,7 +151,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           logger.i('显示系统回收站提示卡片（${sizeMB}MB）');
         }
       } else {
-        logger.d('系统回收站旧文件少于100MB（${sizeMB}MB），不显示提示（已记录扫描时间）');
+        logger.d('系统回收站旧文件少于${config.systemTrashScanThresholdMB}MB（${sizeMB}MB），不显示提示（已记录扫描时间）');
       }
     } catch (e) {
       logger.e('加载系统回收站统计数据失败: $e');
@@ -190,8 +196,10 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           _isScanning = false;
         });
 
-        // 注意：系统回收站扫描现在在 initState 时独立触发
-        // 不再依赖垃圾文件扫描完成
+        // 刷新时也重新扫描系统回收站（强制刷新）
+        if (forceRefresh) {
+          await _loadOrScanSystemTrash(forceRefresh: true);
+        }
       }
     } catch (e) {
       logger.e('扫描垃圾文件失败: $e');
@@ -218,8 +226,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
     final confirmed = await _showDeleteConfirmDialog();
     if (confirmed != true || !mounted) return;
 
-    final toDelete =
-        _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
+    final toDelete = _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
 
     // 显示加载对话框
     if (!mounted) return;
@@ -255,9 +262,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
 
   /// 显示删除确认对话框
   Future<bool?> _showDeleteConfirmDialog() {
-    final totalSize = _allFiles
-        .where((f) => _selectedPaths.contains(f.path))
-        .fold<int>(0, (sum, f) => sum + f.size);
+    final totalSize = _allFiles.where((f) => _selectedPaths.contains(f.path)).fold<int>(0, (sum, f) => sum + f.size);
 
     return showDialog<bool>(
       context: context,
@@ -325,14 +330,11 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           // 全选/取消全选
           if (!_isScanning && _filteredFiles.isNotEmpty)
             SelectAllButton(
-              selectedCount: _filteredFiles
-                  .where((f) => _selectedPaths.contains(f.path))
-                  .length,
+              selectedCount: _filteredFiles.where((f) => _selectedPaths.contains(f.path)).length,
               totalCount: _filteredFiles.length,
               onPressed: () {
                 setState(() {
-                  final filteredPaths =
-                      _filteredFiles.map((f) => f.path).toSet();
+                  final filteredPaths = _filteredFiles.map((f) => f.path).toSet();
                   if (_selectedPaths.containsAll(filteredPaths)) {
                     // 取消选择当前过滤的文件
                     _selectedPaths.removeAll(filteredPaths);
@@ -375,8 +377,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             final file = _filteredFiles[index];
-                            final isSelected =
-                                _selectedPaths.contains(file.path);
+                            final isSelected = _selectedPaths.contains(file.path);
 
                             return _buildFileListItem(file, isSelected);
                           },
@@ -421,9 +422,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   Widget _buildSummaryCard() {
     final totalSize = _filteredFiles.fold<int>(0, (sum, f) => sum + f.size);
     final totalCount = _filteredFiles.length;
-    final selectedSize = _allFiles
-        .where((f) => _selectedPaths.contains(f.path))
-        .fold<int>(0, (sum, f) => sum + f.size);
+    final selectedSize = _allFiles.where((f) => _selectedPaths.contains(f.path)).fold<int>(0, (sum, f) => sum + f.size);
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -475,8 +474,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           ),
 
           // 下部：系统回收站提示（如果有）
-          if (_showSystemTrashPrompt && _systemTrashStats != null)
-            _buildSystemTrashSection(),
+          if (_showSystemTrashPrompt && _systemTrashStats != null) _buildSystemTrashSection(),
         ],
       ),
     );
@@ -541,9 +539,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       child: Row(
         children: types.entries.map((entry) {
           final isSelected = _selectedType == entry.key;
-          final count = entry.key == null
-              ? _allFiles.length
-              : _allFiles.where((f) => f.type == entry.key).length;
+          final count = entry.key == null ? _allFiles.length : _allFiles.where((f) => f.type == entry.key).length;
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -673,8 +669,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   /// 构建文件列表项
   Widget _buildFileListItem(JunkFileItem file, bool isSelected) {
     return InkWell(
-      onLongPress: () =>
-          FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file),
+      onLongPress: () => FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file),
       onTap: () {
         setState(() {
           if (isSelected) {
@@ -711,8 +706,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          FileListItemBuilder.truncateFileName(file.name,
-                              maxLength: 35),
+                          FileListItemBuilder.truncateFileName(file.name, maxLength: 35),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
@@ -737,8 +731,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                               }
                             });
                           },
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
@@ -772,8 +765,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                       final offset = textPainter.width;
 
                       if (details.localPosition.dx >= offset) {
-                        FileDetailsHelper.showJunkFileDetailsBottomSheet(
-                            context, file);
+                        FileDetailsHelper.showJunkFileDetailsBottomSheet(context, file);
                       }
                     },
                     child: RichText(
@@ -849,8 +841,7 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       }
 
       // 添加实际日期
-      final dateStr =
-          '${oldestFileDate.year}年${oldestFileDate.month}月${oldestFileDate.day}日';
+      final dateStr = '${oldestFileDate.year}年${oldestFileDate.month}月${oldestFileDate.day}日';
       oldestTimeDisplay = '$oldestTimeDisplay ($dateStr)';
     }
 
@@ -872,15 +863,12 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                 // 折叠图标
                 InkWell(
                   onTap: () {
-                    setState(() =>
-                        _expandSystemTrashDetails = !_expandSystemTrashDetails);
+                    setState(() => _expandSystemTrashDetails = !_expandSystemTrashDetails);
                   },
                   child: Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Icon(
-                      _expandSystemTrashDetails
-                          ? Icons.keyboard_arrow_down
-                          : Icons.keyboard_arrow_right,
+                      _expandSystemTrashDetails ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
                       color: Colors.blue.shade700,
                       size: 20,
                     ),
@@ -895,12 +883,10 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                       // 文案（可点击展开）
                       GestureDetector(
                         onTap: () {
-                          setState(() => _expandSystemTrashDetails =
-                              !_expandSystemTrashDetails);
+                          setState(() => _expandSystemTrashDetails = !_expandSystemTrashDetails);
                         },
                         child: Padding(
-                          padding:
-                              const EdgeInsets.only(bottom: 18), // 为下方按钮留出空间
+                          padding: const EdgeInsets.only(bottom: 18), // 为下方按钮留出空间
                           child: Text(
                             '检测到系统回收站中存在长期未清理的文件',
                             style: TextStyle(
@@ -927,17 +913,14 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.cleaning_services,
-                                  color: Color.fromARGB(255, 140, 141, 141),
-                                  size: 16),
+                              Icon(Icons.cleaning_services, color: Color.fromARGB(255, 140, 141, 141), size: 16),
                               const SizedBox(width: 4),
                               Text(
                                 '前往清理',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color:
-                                      const Color.fromARGB(255, 140, 141, 141),
+                                  color: const Color.fromARGB(255, 140, 141, 141),
                                 ),
                               ),
                             ],
@@ -976,29 +959,29 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                   const SizedBox(height: 6),
                   _buildStatRow('⏰ 最久时间', oldestTimeDisplay),
                   const SizedBox(height: 8),
-                  // 一周内不再提示（移到折叠内容末尾）
+                  // 不再提示（天数从配置获取）
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () async {
+                        final days = AppConfig.instance.fileScan.systemTrashUserDismissDays;
                         await SystemTrashPreferences.setUserDismissedPeriod(
-                          const Duration(days: 7),
+                          Duration(days: days),
                         );
 
                         setState(() => _showSystemTrashPrompt = false);
 
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('已设置一周内不再提示')),
+                            SnackBar(content: Text('已设置$days天内不再提示')),
                           );
                         }
                       },
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       ),
                       child: Text(
-                        '一周内不再提示',
+                        '${AppConfig.instance.fileScan.systemTrashUserDismissDays}天内不再提示',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
@@ -1019,10 +1002,8 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-        Text(value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       ],
     );
   }

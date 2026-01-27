@@ -1,11 +1,11 @@
 import 'dart:io';
+
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/platform/mediastore_trash_channel.dart';
 import 'package:easyfile/core/services/trash_file_cache_manager.dart';
-import 'package:easyfile/data/models/trash_file_item.dart';
 import 'package:easyfile/data/models/trash_bin.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/data/models/trash_file_item.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 
 /// 回收站扫描结果
@@ -24,13 +24,10 @@ class TrashScanResult {
 
 /// 回收站文件扫描服务
 class TrashFileService {
-  final FilePresenter _filePresenter;
   final TrashFileCacheManager _cacheManager = TrashFileCacheManager();
   bool _useMediaStore = false;
 
-  TrashFileService({
-    required FilePresenter filePresenter,
-  }) : _filePresenter = filePresenter;
+  TrashFileService();
 
   /// 初始化服务，检查MediaStore支持
   Future<void> initialize() async {
@@ -42,8 +39,7 @@ class TrashFileService {
   ///
   /// [keepSuppressionPeriods] 是否保留抑制期设置（清理后不想立即重新扫描时使用）
   Future<void> clearCache({bool keepSuppressionPeriods = false}) async {
-    await _cacheManager.clearCache(
-        keepSuppressionPeriods: keepSuppressionPeriods);
+    await _cacheManager.clearCache(keepSuppressionPeriods: keepSuppressionPeriods);
   }
 
   /// 获取缓存信息（调试用）
@@ -182,8 +178,7 @@ class TrashFileService {
       try {
         // 使用异步流式API代替同步listSync，避免阻塞UI
         int processedCount = 0;
-        await for (final entity
-            in searchDir.list(recursive: true, followLinks: false)) {
+        await for (final entity in searchDir.list(recursive: true, followLinks: false)) {
           if (entity is! Directory) continue;
 
           // 每处理100个条目让出控制权，让UI有机会更新
@@ -269,14 +264,12 @@ class TrashFileService {
         logger.w('回收站 [${trashBin.name}] 检测到 $duplicateCount 个重复文件（已去重）');
       }
 
-      logger.i(
-          '回收站 [${trashBin.name}]: ${files.length} 个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+      logger.i('回收站 [${trashBin.name}]: ${files.length} 个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
     }
 
     logger.i('========================================');
     logger.i('扫描完成: 发现 ${trashBins.length} 个回收站, 共 ${allFiles.length} 个文件');
-    logger.i(
-        '总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
+    logger.i('总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
     logger.i('========================================');
 
     final result = TrashScanResult(
@@ -290,140 +283,8 @@ class TrashFileService {
     return result;
   }
 
-  /// 扫描回收站文件（内部方法）
-  ///
-  /// 注意：此方法为内部实现，UI层应使用 [scanTrashBinsWithFiles] 获取带缓存的结果
-  ///
-  /// [onProgress] 进度回调 (当前进度, 总数, 当前路径)
-  Future<List<TrashFileItem>> _scanTrashFiles({
-    void Function(int current, int total, String path)? onProgress,
-  }) async {
-    logger.i('开始扫描回收站文件');
-
-    // 优先使用MediaStore（Android 11+）
-    if (_useMediaStore) {
-      try {
-        logger.i('使用MediaStore扫描系统回收站');
-        final files = await MediaStoreTrashChannel.queryTrashedFiles();
-
-        // 如果MediaStore找到文件，直接返回
-        if (files.isNotEmpty) {
-          final totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
-          logger.i(
-              'MediaStore回收站扫描完成: ${files.length} 个文件, 总大小: ${FileSizeFormatter.formatBytes(totalSize)}');
-          return files;
-        } else {
-          logger.i('MediaStore未找到回收站文件，降级到文件系统扫描');
-        }
-      } catch (e) {
-        logger.e('MediaStore扫描失败，降级到文件系统扫描: $e');
-        // 继续使用文件系统扫描
-      }
-    }
-
-    // 降级方案：扫描.Trash文件夹
-    logger.i('使用文件系统扫描回收站文件夹');
-    final trashFiles = <TrashFileItem>[];
-
-    // 直接扫描存储根目录下的回收站（各厂商实现）
-    final storageRoot = '/storage/emulated/0';
-    final rootTrashPaths = [
-      // 华为/荣耀
-      '$storageRoot/.RecycleBinHW',
-      '$storageRoot/.\$Trash\$',
-      '$storageRoot/.File_Recycle',
-
-      // 小米/MIUI
-      '$storageRoot/.trashcan',
-      '$storageRoot/MIUI/.recycle',
-
-      // OPPO/ColorOS
-      '$storageRoot/.com.coloros.filemanager/.Trash',
-      '$storageRoot/.FileRecycleBin',
-
-      // vivo/OriginOS
-      '$storageRoot/.vivo_filemanager_recycle',
-
-      // 三星/OneUI
-      '$storageRoot/.Trash',
-      '$storageRoot/.recycle',
-
-      // 通用
-      '$storageRoot/.RecyclerBin',
-      '$storageRoot/.recycleBin',
-    ];
-
-    logger.d('扫描存储根目录回收站: ${rootTrashPaths.length} 个已知位置');
-    int foundCount = 0;
-    for (final trashPath in rootTrashPaths) {
-      final dir = Directory(trashPath);
-      if (dir.existsSync()) {
-        logger.i('✓ 找到回收站目录: $trashPath');
-        foundCount++;
-        onProgress?.call(0, 1, trashPath);
-        await _scanTrashDirectory(dir, results: trashFiles);
-      }
-    }
-
-    // 特别处理：荣耀/华为相册回收站
-    // 结构: Pictures/.Gallery2/recycle/bins/0/xxx.hndgp
-    final galleryRecycleBins = '$storageRoot/Pictures/.Gallery2/recycle/bins';
-    final galleryBinsDir = Directory(galleryRecycleBins);
-    if (galleryBinsDir.existsSync()) {
-      logger.i('✓ 找到相册回收站: $galleryRecycleBins');
-      foundCount++;
-      try {
-        // 扫描所有数字子目录（0, 1, 2, 3...）
-        final subDirs = galleryBinsDir.listSync(recursive: false);
-        for (final subDir in subDirs) {
-          if (subDir is Directory) {
-            logger.d('  扫描相册回收站子目录: ${subDir.path}');
-            await _scanTrashDirectory(subDir, results: trashFiles);
-          }
-        }
-      } catch (e) {
-        logger.e('扫描相册回收站失败: $e');
-      }
-    }
-
-    if (foundCount == 0) {
-      logger.w('未找到任何已知的回收站目录，可能需要添加新的厂商支持');
-    } else {
-      logger.i('找到 $foundCount 个回收站目录');
-    }
-
-    // 扫描每个路径下的标准回收站（Linux风格）
-    final scanPaths = await _filePresenter.getCommonScanPaths();
-    logger.d('扫描子目录回收站: ${scanPaths.length} 个路径');
-
-    int processedPaths = 0;
-    for (final basePath in scanPaths) {
-      onProgress?.call(processedPaths++, scanPaths.length, basePath);
-
-      // 检查标准回收站路径
-      final trashPaths = [
-        '$basePath/.Trash',
-        '$basePath/.Trash-1000', // 常见的用户ID
-        '$basePath/.Trash-0',
-      ];
-
-      for (final trashPath in trashPaths) {
-        await _scanTrashDirectory(
-          Directory(trashPath),
-          results: trashFiles,
-        );
-      }
-    }
-
-    // 按大小排序
-    trashFiles.sort((a, b) => b.size.compareTo(a.size));
-
-    final totalSize = trashFiles.fold<int>(0, (sum, f) => sum + f.size);
-    logger.i(
-        '文件系统回收站扫描完成: ${trashFiles.length} 个文件, 总大小: ${FileSizeFormatter.formatBytes(totalSize)}');
-
-    return trashFiles;
-  }
+  // _scanTrashFiles() 方法已删除（旧方案残留）
+  // 请使用 scanTrashBinsWithFiles() 代替
 
   /// 判断文件是否需要进行文件头检测
   bool _shouldDetectMimeType(String fileName) {
@@ -449,9 +310,7 @@ class TrashFileService {
 
     // 3. 长字符串文件名（可能是加密/哈希命名）
     // 例如：f20040d3a88f40d16eb35276395c19c2
-    final namePart = fileName.contains('.')
-        ? fileName.substring(0, fileName.lastIndexOf('.'))
-        : fileName;
+    final namePart = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
 
     // 如果文件名是32位或40位十六进制字符串（可能是MD5/SHA1哈希）
     if (namePart.length >= 32 && RegExp(r'^[a-f0-9]+$').hasMatch(namePart)) {
@@ -471,37 +330,22 @@ class TrashFileService {
       final bytes = await file.openRead(0, 32).first;
 
       // JPEG: FF D8 FF
-      if (bytes.length >= 3 &&
-          bytes[0] == 0xFF &&
-          bytes[1] == 0xD8 &&
-          bytes[2] == 0xFF) {
+      if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
         return 'image/jpeg';
       }
 
       // PNG: 89 50 4E 47
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x89 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x4E &&
-          bytes[3] == 0x47) {
+      if (bytes.length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
         return 'image/png';
       }
 
       // GIF: GIF8
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x47 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x38) {
+      if (bytes.length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38) {
         return 'image/gif';
       }
 
       // WebP: RIFF....WEBP
-      if (bytes.length >= 12 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x46) {
+      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 12));
         if (format == 'WEBP') {
           return 'image/webp';
@@ -509,20 +353,12 @@ class TrashFileService {
       }
 
       // MP4/MOV: ....ftyp
-      if (bytes.length >= 8 &&
-          bytes[4] == 0x66 &&
-          bytes[5] == 0x74 &&
-          bytes[6] == 0x79 &&
-          bytes[7] == 0x70) {
+      if (bytes.length >= 8 && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
         return 'video/mp4';
       }
 
       // AVI: RIFF....AVI
-      if (bytes.length >= 12 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x46) {
+      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 11));
         if (format == 'AVI') {
           return 'video/x-msvideo';
@@ -530,11 +366,7 @@ class TrashFileService {
       }
 
       // PDF: %PDF
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x25 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x44 &&
-          bytes[3] == 0x46) {
+      if (bytes.length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
         return 'application/pdf';
       }
 
@@ -546,11 +378,7 @@ class TrashFileService {
       }
 
       // RAR: Rar!
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x61 &&
-          bytes[2] == 0x72 &&
-          bytes[3] == 0x21) {
+      if (bytes.length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x61 && bytes[2] == 0x72 && bytes[3] == 0x21) {
         return 'application/x-rar';
       }
 
@@ -570,18 +398,13 @@ class TrashFileService {
         if (bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33) {
           return 'audio/mpeg'; // ID3 tag
         }
-        if (bytes[0] == 0xFF &&
-            (bytes[1] == 0xFB || bytes[1] == 0xF3 || bytes[1] == 0xF2)) {
+        if (bytes[0] == 0xFF && (bytes[1] == 0xFB || bytes[1] == 0xF3 || bytes[1] == 0xF2)) {
           return 'audio/mpeg'; // MPEG frame
         }
       }
 
       // WAV: RIFF....WAVE
-      if (bytes.length >= 12 &&
-          bytes[0] == 0x52 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46 &&
-          bytes[3] == 0x46) {
+      if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
         final format = String.fromCharCodes(bytes.sublist(8, 12));
         if (format == 'WAVE') {
           return 'audio/wav';
@@ -589,20 +412,12 @@ class TrashFileService {
       }
 
       // OGG: OggS
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x4F &&
-          bytes[1] == 0x67 &&
-          bytes[2] == 0x67 &&
-          bytes[3] == 0x53) {
+      if (bytes.length >= 4 && bytes[0] == 0x4F && bytes[1] == 0x67 && bytes[2] == 0x67 && bytes[3] == 0x53) {
         return 'audio/ogg';
       }
 
       // FLAC: fLaC
-      if (bytes.length >= 4 &&
-          bytes[0] == 0x66 &&
-          bytes[1] == 0x4C &&
-          bytes[2] == 0x61 &&
-          bytes[3] == 0x43) {
+      if (bytes.length >= 4 && bytes[0] == 0x66 && bytes[1] == 0x4C && bytes[2] == 0x61 && bytes[3] == 0x43) {
         return 'audio/flac';
       }
 
@@ -686,8 +501,7 @@ class TrashFileService {
       // 优先使用MediaStore删除（如果有mediaStoreId）
       if (item.mediaStoreId != null) {
         logger.i('使用MediaStore删除文件, ID: ${item.mediaStoreId}');
-        final success =
-            await MediaStoreTrashChannel.deleteTrashedFile(item.mediaStoreId!);
+        final success = await MediaStoreTrashChannel.deleteTrashedFile(item.mediaStoreId!);
         if (success) {
           logger.i('MediaStore删除成功');
           return true;
@@ -719,10 +533,8 @@ class TrashFileService {
   /// 批量删除
   Future<Map<String, dynamic>> deleteMultiple(List<TrashFileItem> items) async {
     // 分离MediaStore文件和普通文件
-    final mediaStoreItems =
-        items.where((item) => item.mediaStoreId != null).toList();
-    final fileSystemItems =
-        items.where((item) => item.mediaStoreId == null).toList();
+    final mediaStoreItems = items.where((item) => item.mediaStoreId != null).toList();
+    final fileSystemItems = items.where((item) => item.mediaStoreId == null).toList();
 
     int success = 0;
     int failed = 0;
@@ -732,15 +544,11 @@ class TrashFileService {
     if (mediaStoreItems.isNotEmpty) {
       try {
         final ids = mediaStoreItems.map((item) => item.mediaStoreId!).toList();
-        final result =
-            await MediaStoreTrashChannel.deleteMultipleTrashedFiles(ids);
+        final result = await MediaStoreTrashChannel.deleteMultipleTrashedFiles(ids);
         success += result['success'] as int;
         failed += result['failed'] as int;
-        totalSize += mediaStoreItems
-            .take(result['success'] as int)
-            .fold<int>(0, (sum, item) => sum + item.size);
-        logger
-            .i('MediaStore批量删除: 成功${result['success']}, 失败${result['failed']}');
+        totalSize += mediaStoreItems.take(result['success'] as int).fold<int>(0, (sum, item) => sum + item.size);
+        logger.i('MediaStore批量删除: 成功${result['success']}, 失败${result['failed']}');
       } catch (e) {
         logger.e('MediaStore批量删除失败: $e');
         failed += mediaStoreItems.length;
@@ -777,10 +585,8 @@ class TrashFileService {
     logger.i('开始清空 ${trashBinIds.length} 个回收站');
 
     // 过滤出属于指定回收站的文件
-    final filesToDelete = allFiles
-        .where((file) =>
-            file.trashBinId != null && trashBinIds.contains(file.trashBinId))
-        .toList();
+    final filesToDelete =
+        allFiles.where((file) => file.trashBinId != null && trashBinIds.contains(file.trashBinId)).toList();
 
     if (filesToDelete.isEmpty) {
       logger.i('选中的回收站为空，无需清空');
@@ -805,8 +611,7 @@ class TrashFileService {
       try {
         logger.i('使用MediaStore清空回收站');
         final result = await MediaStoreTrashChannel.emptyTrash();
-        logger.i(
-            'MediaStore清空回收站完成: 成功${result['success']}, 失败${result['failed']}');
+        logger.i('MediaStore清空回收站完成: 成功${result['success']}, 失败${result['failed']}');
         return result;
       } catch (e) {
         logger.e('MediaStore清空失败，降级到文件系统清空: $e');
@@ -816,7 +621,8 @@ class TrashFileService {
 
     // 文件系统清空
     logger.i('使用文件系统清空回收站');
-    final allTrashFiles = await _scanTrashFiles();
+    final scanResult = await scanTrashBinsWithFiles();
+    final allTrashFiles = scanResult.allFiles;
 
     if (allTrashFiles.isEmpty) {
       logger.i('回收站为空，无需清空');
@@ -890,8 +696,7 @@ class TrashFileService {
   /// 批量恢复文件
   ///
   /// [items] 要恢复的文件列表
-  Future<Map<String, dynamic>> restoreMultiple(
-      List<TrashFileItem> items) async {
+  Future<Map<String, dynamic>> restoreMultiple(List<TrashFileItem> items) async {
     logger.i('开始批量恢复 ${items.length} 个文件');
 
     int success = 0;
@@ -953,8 +758,7 @@ class TrashFileService {
 
     // 使用删除时间或修改时间生成时间戳
     final time = item.trashedTime ?? item.modified;
-    final timestamp =
-        '${time.year}${time.month.toString().padLeft(2, '0')}${time.day.toString().padLeft(2, '0')}_'
+    final timestamp = '${time.year}${time.month.toString().padLeft(2, '0')}${time.day.toString().padLeft(2, '0')}_'
         '${time.hour.toString().padLeft(2, '0')}${time.minute.toString().padLeft(2, '0')}${time.second.toString().padLeft(2, '0')}';
 
     // 根据文件类型生成前缀
@@ -984,9 +788,7 @@ class TrashFileService {
     }
 
     // 文件名（去除扩展名）
-    final nameWithoutExt = fileName.contains('.')
-        ? fileName.substring(0, fileName.lastIndexOf('.'))
-        : fileName;
+    final nameWithoutExt = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
 
     // 2. 十六进制哈希命名（MD5=32位, SHA1=40位, 华为回收站常见）
     // 例如: 3e7264548eaf463bbe6e01d6bb1b161e, f20040d3a88f40d16eb35276395c19c2
@@ -997,10 +799,7 @@ class TrashFileService {
 
     // 3. 文件名超过40个字符且主要是大写字母，可能是编码的
     if (nameWithoutExt.length > 40) {
-      final upperCount = nameWithoutExt
-          .split('')
-          .where((c) => c == c.toUpperCase() && c != c.toLowerCase())
-          .length;
+      final upperCount = nameWithoutExt.split('').where((c) => c == c.toUpperCase() && c != c.toLowerCase()).length;
       if (upperCount > nameWithoutExt.length * 0.8) {
         return true; // 80%以上是大写字母，判定为编码
       }
@@ -1062,13 +861,15 @@ class TrashFileService {
   /// 获取旧文件统计（复用缓存）
   ///
   /// 统计指定月份前的文件
-  /// [months] 月份数，默认3个月
+  /// [months] 月份数，如果不传则从配置文件读取 FileScanConfig.systemTrashOldFileMonths
   /// [forceRefresh] 强制刷新，忽略缓存
   Future<Map<String, dynamic>> getOldFilesStatistics({
-    int months = 3,
+    int? months,
     bool forceRefresh = false,
   }) async {
-    logger.i('开始统计$months个月前的系统回收站文件');
+    // 从配置读取默认值，确保与配置保持一致
+    final effectiveMonths = months ?? AppConfig.instance.fileScan.systemTrashOldFileMonths;
+    logger.i('开始统计$effectiveMonths个月前的系统回收站文件');
 
     // 先尝试从缓存获取扫描结果
     TrashScanResult result;
@@ -1081,7 +882,7 @@ class TrashFileService {
       result = await scanTrashBinsWithFiles(forceRefresh: forceRefresh);
     }
 
-    final cutoffDate = DateTime.now().subtract(Duration(days: months * 30));
+    final cutoffDate = DateTime.now().subtract(Duration(days: effectiveMonths * 30));
 
     final oldFiles = result.allFiles.where((file) {
       final fileDate = file.trashedTime ?? file.modified;
@@ -1102,8 +903,7 @@ class TrashFileService {
       }
     }
 
-    logger.i(
-        '统计完成: ${oldFiles.length}个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+    logger.i('统计完成: ${oldFiles.length}个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
 
     return {
       'count': oldFiles.length,

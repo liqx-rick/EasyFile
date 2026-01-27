@@ -1,21 +1,26 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/preferences/system_trash_preferences.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
-import 'package:easyfile/data/models/trash_file_item.dart';
-import 'package:easyfile/data/models/trash_bin.dart';
 import 'package:easyfile/data/models/file_category.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
-import 'package:easyfile/ui/widgets/video_player_widget.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
+import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/models/trash_bin.dart';
+import 'package:easyfile/data/models/trash_file_item.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/pages/file_browser_root_page.dart';
+import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/utils/file_details_helper.dart';
 import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/file_list_item_builder.dart';
+import 'package:easyfile/ui/widgets/video_player_widget.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
 
 /// 文件类型分类统计
 class FileTypeCategory {
@@ -60,9 +65,8 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   // 当前选中的分类
   String _currentCategory = 'all'; // all, images, videos, others
 
-  // 时间过滤器：默认只显示3个月以上的文件
+  // 时间过滤器：默认只显示配置的月份以上的文件
   bool _showOldFilesOnly = true;
-  static const int _oldFilesMonths = 3;
 
   @override
   void initState() {
@@ -148,9 +152,10 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       return _allFiles;
     }
 
-    // 只统计3个月以上的文件
+    // 只统计配置月份以上的文件
+    final months = AppConfig.instance.fileScan.systemTrashOldFileMonths;
     final cutoffDate = DateTime.now().subtract(
-      Duration(days: _oldFilesMonths * 30),
+      Duration(days: months * 30),
     );
 
     return _allFiles.where((f) {
@@ -182,12 +187,10 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         imageSize += file.size;
         imageCount++;
-      } else if (mimeType.startsWith('video/') ||
-          config.isVideoFile(file.name)) {
+      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
         videoSize += file.size;
         videoCount++;
-      } else if (mimeType.startsWith('audio/') ||
-          config.isAudioFile(file.name)) {
+      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
         audioSize += file.size;
         audioCount++;
       } else if (config.isDocumentFile(file.name)) {
@@ -298,10 +301,11 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       }).toList();
     }
 
-    // 3. 根据时间过滤 - 默认只显示3个月以上的文件
+    // 3. 根据时间过滤 - 默认只显示配置月份以上的文件
     if (_showOldFilesOnly) {
+      final months = AppConfig.instance.fileScan.systemTrashOldFileMonths;
       final cutoffDate = DateTime.now().subtract(
-        Duration(days: _oldFilesMonths * 30),
+        Duration(days: months * 30),
       );
       files = files.where((f) {
         final fileDate = f.trashedTime ?? f.modified;
@@ -398,8 +402,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       // 清除缓存并设置抑制期
       // 注：清空操作无论是清空3个月前还是全部，都总是设置抑制期
       if (result['success'] > 0) {
+        final days = AppConfig.instance.fileScan.systemTrashCleanSuppressionDays;
         await SystemTrashPreferences.setCleanedSuppressionPeriod(
-          const Duration(days: 7),
+          Duration(days: days),
         );
 
         // 清除缓存（保留抑制期设置）
@@ -423,8 +428,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     final confirmed = await _showDeleteConfirmDialog();
     if (confirmed != true || !mounted) return;
 
-    final toDelete =
-        _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
+    final toDelete = _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
 
     // 显示加载对话框
     if (!mounted) return;
@@ -459,8 +463,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
           const Duration(days: 3 * 30),
         );
 
-        final remainingOldFiles =
-            _allFiles.where((f) => !_selectedPaths.contains(f.path)).where((f) {
+        final remainingOldFiles = _allFiles.where((f) => !_selectedPaths.contains(f.path)).where((f) {
           final fileDate = f.trashedTime ?? f.modified;
           return fileDate.isBefore(cutoffDate);
         }).toList();
@@ -471,10 +474,11 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
         );
         final remainingOldSizeMB = remainingOldSize / (1024 * 1024);
 
-        // 智能判断：只有当剩余的3个月前文件很少时才设置抑制期
-        if (remainingOldFiles.length < 10 && remainingOldSizeMB < 100) {
+        // 智能判断：只有当剩余的旧文件很少时才设置抑制期
+        final config = AppConfig.instance.fileScan;
+        if (remainingOldFiles.length < 10 && remainingOldSizeMB < config.systemTrashScanThresholdMB) {
           await SystemTrashPreferences.setCleanedSuppressionPeriod(
-            const Duration(days: 7),
+            Duration(days: config.systemTrashCleanSuppressionDays),
           );
           logger.i(
             '清理较彻底（剩余3个月前文件：${remainingOldFiles.length}个/'
@@ -510,7 +514,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
         title: const Text('确认恢复'),
         content: Text(
           '确定要恢复选中的 ${_selectedPaths.length} 个文件吗？\n\n'
-          '文件将恢复到原位置或默认目录',
+          '文件将恢复到应用指定的默认目录',
         ),
         actions: [
           TextButton(
@@ -544,8 +548,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     );
 
     try {
-      final toRestore =
-          _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
+      final toRestore = _allFiles.where((f) => _selectedPaths.contains(f.path)).toList();
 
       final result = await _service!.restoreMultiple(toRestore);
 
@@ -610,51 +613,86 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                     const SizedBox(height: 16),
                     const Text(
                       '恢复的文件：',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                     const SizedBox(height: 8),
                     ...restoredFileNames.map((name) => Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Text(
                             name,
-                            style: TextStyle(
-                                fontSize: 13, color: Colors.grey[700]),
+                            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                           ),
                         )),
-                    const SizedBox(height: 16),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: '请移步至快捷访问菜单的 '),
-                          const TextSpan(
-                            text: '"已恢复文件"',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const TextSpan(text: ' 查看。'),
-                        ],
-                      ),
-                    ),
                     if (failed > 0) ...[
                       const SizedBox(height: 12),
                       const Divider(),
                       const SizedBox(height: 8),
                       Text(
                         '失败 $failed 个文件',
-                        style: const TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       ...errors.map((e) => Text(
                             '• $e',
-                            style: TextStyle(
-                                fontSize: 13, color: Colors.grey[700]),
+                            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                           )),
                     ],
                   ],
                 ),
               ),
               actions: [
+                // 打开按钮（总是显示）
+                TextButton(
+                  onPressed: () async {
+                    if (restoredPaths.length == 1) {
+                      // 单个文件：打开文件预览
+                      Navigator.pop(context); // 关闭对话框
+
+                      final targetPath = restoredPaths[0]['targetPath'] as String;
+                      final file = File(targetPath);
+
+                      // 构建 FileItem 并打开预览
+                      final stat = file.statSync();
+                      final fileItem = FileItem(
+                        name: file.uri.pathSegments.last,
+                        path: targetPath,
+                        size: stat.size,
+                        modified: stat.modified,
+                        isDirectory: false,
+                      );
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FilePreviewPage(
+                            file: fileItem,
+                            isReadOnly: false,
+                          ),
+                        ),
+                      );
+                    } else {
+                      // 多个文件：跳转到文件恢复区
+                      Navigator.pop(context); // 关闭对话框
+
+                      // 打开文件恢复区（使用FileBrowserRootPage）
+                      final presenter = locator.get<FilePresenter>();
+                      final viewModel = locator.get<FileViewModel>();
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FileBrowserRootPage(
+                            presenter: presenter,
+                            viewModel: viewModel,
+                            initialPath: '/storage/emulated/0/EasyFile/Restored',
+                            returnToSecondPage: false,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('打开'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('确定'),
@@ -714,9 +752,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
   /// 显示删除确认对话框
   Future<bool?> _showDeleteConfirmDialog() {
-    final totalSize = _allFiles
-        .where((f) => _selectedPaths.contains(f.path))
-        .fold<int>(0, (sum, f) => sum + f.size);
+    final totalSize = _allFiles.where((f) => _selectedPaths.contains(f.path)).fold<int>(0, (sum, f) => sum + f.size);
 
     return showDialog<bool>(
       context: context,
@@ -794,16 +830,13 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                 onPressed: () => _startScan(forceRefresh: true),
               ),
             // 全选/取消全选
-            if (!_isScanning && _filteredFiles.isNotEmpty)
+            if (!_isScanning && _getDisplayedFiles().isNotEmpty)
               SelectAllButton(
-                selectedCount: _filteredFiles
-                    .where((f) => _selectedPaths.contains(f.path))
-                    .length,
-                totalCount: _filteredFiles.length,
+                selectedCount: _getDisplayedFiles().where((f) => _selectedPaths.contains(f.path)).length,
+                totalCount: _getDisplayedFiles().length,
                 onPressed: () {
                   setState(() {
-                    final filteredPaths =
-                        _filteredFiles.map((f) => f.path).toSet();
+                    final filteredPaths = _getDisplayedFiles().map((f) => f.path).toSet();
                     if (_selectedPaths.containsAll(filteredPaths)) {
                       // 取消选择当前过滤的文件
                       _selectedPaths.removeAll(filteredPaths);
@@ -847,13 +880,11 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                             (context, index) {
                               final files = _getDisplayedFiles();
                               final file = files[index];
-                              final isSelected =
-                                  _selectedPaths.contains(file.path);
+                              final isSelected = _selectedPaths.contains(file.path);
 
                               return InkWell(
                                 onLongPress: () {
-                                  FileDetailsHelper
-                                      .showTrashFileDetailsBottomSheet(
+                                  FileDetailsHelper.showTrashFileDetailsBottomSheet(
                                     context,
                                     file,
                                     trashBinName: _getTrashBinName(file),
@@ -870,18 +901,14 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                                   });
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                   child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       // 左侧图标或缩略图
                                       Padding(
-                                        padding: const EdgeInsets.only(
-                                            right: 12, top: 4),
-                                        child: FileListItemBuilder
-                                            .buildFileThumbnail(
+                                        padding: const EdgeInsets.only(right: 12, top: 4),
+                                        child: FileListItemBuilder.buildFileThumbnail(
                                           filePath: file.path,
                                           mimeType: file.mimeType,
                                           fileName: file.name,
@@ -892,28 +919,21 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                                       // 中间内容区域
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             // 第一行：文件名 + 勾选框
                                             Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    FileListItemBuilder
-                                                        .truncateFileName(
-                                                            file.name,
-                                                            maxLength: 35),
+                                                    FileListItemBuilder.truncateFileName(file.name, maxLength: 35),
                                                     style: const TextStyle(
                                                       fontSize: 15,
-                                                      fontWeight:
-                                                          FontWeight.w500,
+                                                      fontWeight: FontWeight.w500,
                                                     ),
                                                     maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -926,19 +946,14 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                                                     onChanged: (checked) {
                                                       setState(() {
                                                         if (checked == true) {
-                                                          _selectedPaths
-                                                              .add(file.path);
+                                                          _selectedPaths.add(file.path);
                                                         } else {
-                                                          _selectedPaths.remove(
-                                                              file.path);
+                                                          _selectedPaths.remove(file.path);
                                                         }
                                                       });
                                                     },
-                                                    materialTapTargetSize:
-                                                        MaterialTapTargetSize
-                                                            .shrinkWrap,
-                                                    visualDensity:
-                                                        VisualDensity.compact,
+                                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                    visualDensity: VisualDensity.compact,
                                                   ),
                                                 ),
                                               ],
@@ -956,8 +971,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                                             // 第三行：回收站位置 · 删除时间 · 详情
                                             GestureDetector(
                                               onTapUp: (details) {
-                                                final trashBinName =
-                                                    _getTrashBinName(file);
+                                                final trashBinName = _getTrashBinName(file);
                                                 final textPainter = TextPainter(
                                                   text: TextSpan(
                                                     text:
@@ -967,23 +981,17 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                                                       color: Color(0xFF757575),
                                                     ),
                                                   ),
-                                                  textDirection:
-                                                      TextDirection.ltr,
+                                                  textDirection: TextDirection.ltr,
                                                 );
                                                 textPainter.layout();
-                                                final offset =
-                                                    textPainter.width;
+                                                final offset = textPainter.width;
 
-                                                if (details.localPosition.dx >=
-                                                    offset) {
-                                                  FileDetailsHelper
-                                                      .showTrashFileDetailsBottomSheet(
+                                                if (details.localPosition.dx >= offset) {
+                                                  FileDetailsHelper.showTrashFileDetailsBottomSheet(
                                                     context,
                                                     file,
-                                                    trashBinName:
-                                                        _getTrashBinName(file),
-                                                    fileTypeLabel:
-                                                        _getFileTypeLabel(file),
+                                                    trashBinName: _getTrashBinName(file),
+                                                    fileTypeLabel: _getFileTypeLabel(file),
                                                   );
                                                 }
                                               },
@@ -1074,18 +1082,10 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     );
   }
 
-  /// 获取过滤后的文件列表（使用_getDisplayedFiles替代）
-  List<TrashFileItem> get _filteredFiles => _getDisplayedFiles();
-
   /// 统计各类文件数量（根据时间过滤状态）
   Map<String, int> get _categoryStats {
     final config = AppConfig.instance.fileTypes;
-    int images = 0,
-        videos = 0,
-        audios = 0,
-        documents = 0,
-        archives = 0,
-        others = 0;
+    int images = 0, videos = 0, audios = 0, documents = 0, archives = 0, others = 0;
 
     // 获取用于统计的文件列表
     final filesToStats = _getFilesForStats();
@@ -1095,11 +1095,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
       if (mimeType.startsWith('image/') || config.isImageFile(file.name)) {
         images++;
-      } else if (mimeType.startsWith('video/') ||
-          config.isVideoFile(file.name)) {
+      } else if (mimeType.startsWith('video/') || config.isVideoFile(file.name)) {
         videos++;
-      } else if (mimeType.startsWith('audio/') ||
-          config.isAudioFile(file.name)) {
+      } else if (mimeType.startsWith('audio/') || config.isAudioFile(file.name)) {
         audios++;
       } else if (config.isDocumentFile(file.name)) {
         documents++;
@@ -1155,9 +1153,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     final screenWidth = screenSize.width;
     final screenHeight = screenSize.height;
     // 使用可用空间的较小值，避免横屏时溢出
-    final maxSize = screenWidth < screenHeight
-        ? (screenWidth / 2) * 0.9
-        : screenHeight * 0.35;
+    final maxSize = screenWidth < screenHeight ? (screenWidth / 2) * 0.9 : screenHeight * 0.35;
     final iconSize = maxSize;
 
     return Card(
@@ -1224,11 +1220,43 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '不可恢复，请谨慎操作',
+                        '前往查看已恢复文件？',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey[600],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // 打开文件恢复区（使用FileBrowserRootPage）
+                          final presenter = locator.get<FilePresenter>();
+                          final viewModel = locator.get<FileViewModel>();
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FileBrowserRootPage(
+                                presenter: presenter,
+                                viewModel: viewModel,
+                                initialPath: '/storage/emulated/0/EasyFile/Restored',
+                                returnToSecondPage: false,
+                              ),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          '文件恢复区',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue,
+                          ),
                         ),
                       ),
                     ],
@@ -1240,8 +1268,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
             if (_showOldFilesOnly && _allFiles.isNotEmpty) ...[
               const SizedBox(height: 12),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.orange[50],
                   borderRadius: BorderRadius.circular(8),
@@ -1257,7 +1284,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '当前仅显示$_oldFilesMonths个月以上的文件',
+                        '当前仅显示${AppConfig.instance.fileScan.systemTrashOldFileMonths}个月以上的文件',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.orange[900],
@@ -1303,9 +1330,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
     final screenWidth = screenSize.width;
     final screenHeight = screenSize.height;
     // 横屏时使用高度限制，竖屏时使用宽度
-    final pieChartSize = screenWidth < screenHeight
-        ? (screenWidth / 2) * 0.9
-        : screenHeight * 0.35;
+    final pieChartSize = screenWidth < screenHeight ? (screenWidth / 2) * 0.9 : screenHeight * 0.35;
     final radius = pieChartSize / 2.5; // 动态计算半径
 
     final sections = categories.map((category) {
@@ -1536,11 +1561,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       return verified ? 'PDF文档' : 'PDF文件';
     } else if (mimeType.contains('word') || config.isWordDocument(file.name)) {
       return 'Word文档';
-    } else if (mimeType.contains('excel') ||
-        config.isExcelDocument(file.name)) {
+    } else if (mimeType.contains('excel') || config.isExcelDocument(file.name)) {
       return 'Excel表格';
-    } else if (mimeType.contains('powerpoint') ||
-        config.isPowerPointDocument(file.name)) {
+    } else if (mimeType.contains('powerpoint') || config.isPowerPointDocument(file.name)) {
       return 'PPT演示';
     } else if (mimeType.contains('text/') || config.isTextFile(file.name)) {
       return '文本文件';
@@ -1634,8 +1657,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.error,
-                                color: Colors.white, size: 48),
+                            const Icon(Icons.error, color: Colors.white, size: 48),
                             const SizedBox(height: 16),
                             Text(
                               '无法加载图片\n${error.toString()}',
@@ -1673,16 +1695,14 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                     children: [
                       Text(
                         file.name,
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         FileSizeFormatter.formatBytes(file.size),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1725,8 +1745,7 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                         children: [
                           Text('文件名: ${file.name}'),
                           const SizedBox(height: 8),
-                          Text(
-                              '大小: ${FileSizeFormatter.formatBytes(file.size)}'),
+                          Text('大小: ${FileSizeFormatter.formatBytes(file.size)}'),
                           const SizedBox(height: 8),
                           Text('类型: ${file.mimeType}'),
                           const SizedBox(height: 8),
@@ -1889,8 +1908,7 @@ class _CategoryFilterDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 56.0;
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: child,

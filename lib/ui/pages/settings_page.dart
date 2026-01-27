@@ -17,6 +17,7 @@ import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/trash_config_page.dart';
+import 'package:easyfile/ui/utils/system_trash_diagnostics.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:flutter/material.dart';
@@ -160,6 +161,8 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildRecommendationThresholdTile(context),
             const Divider(height: 1, indent: 56),
             _buildDuplicateScanSettingTile(context),
+            const Divider(height: 1, indent: 56),
+            _buildSystemTrashDiagnosticsTile(context),
             const Divider(height: 1, indent: 56),
             _buildScanTestTile(context, 'APK扫描性能测试', CategoryType.apk, Icons.android),
             _buildScanTestTile(context, '压缩包扫描性能测试', CategoryType.archive, Icons.archive),
@@ -854,5 +857,18 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
     }
+  }
+
+  /// 系统回收站诊断
+  Widget _buildSystemTrashDiagnosticsTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.recycling),
+      title: const Text('系统回收站诊断'),
+      subtitle: const Text('检查系统回收站扫描状态和抑制期设置'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        await SystemTrashDiagnostics.show(context);
+      },
+    );
   }
 }

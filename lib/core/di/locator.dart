@@ -126,10 +126,7 @@ void setupLocator() {
 
   locator.registerLazySingletonAsync<TrashFileService>(() async {
     logger.d('Creating TrashFileService');
-    final filePresenter = await locator.getAsync<FilePresenter>();
-    return TrashFileService(
-      filePresenter: filePresenter,
-    );
+    return TrashFileService();
   });
 
   // App Trash Services (Phase 1)

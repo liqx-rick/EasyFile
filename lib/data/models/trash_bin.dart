@@ -19,9 +19,6 @@ class TrashBin {
   /// 总大小（字节）
   final int totalSize;
 
-  /// 是否被选中（用于批量清空）
-  bool isSelected;
-
   TrashBin({
     required this.id,
     required this.path,
@@ -29,7 +26,6 @@ class TrashBin {
     required this.type,
     required this.fileCount,
     required this.totalSize,
-    this.isSelected = false,
   });
 
   /// 从路径生成唯一ID
@@ -141,7 +137,6 @@ class TrashBin {
     TrashBinType? type,
     int? fileCount,
     int? totalSize,
-    bool? isSelected,
   }) {
     return TrashBin(
       id: id ?? this.id,
@@ -150,7 +145,6 @@ class TrashBin {
       type: type ?? this.type,
       fileCount: fileCount ?? this.fileCount,
       totalSize: totalSize ?? this.totalSize,
-      isSelected: isSelected ?? this.isSelected,
     );
   }
 

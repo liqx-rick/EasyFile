@@ -97,11 +97,9 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       return;
     }
 
-    // Priority 3: 如果从第二屏打开且在初始路径，直接返回第二屏
-    if (widget.returnToSecondPage && 
-        widget.initialPath != null && 
-        _currentPath == widget.initialPath) {
-      Navigator.of(context).pop(true);
+    // Priority 3: 如果指定了初始路径且当前在初始路径，直接关闭页面
+    if (widget.initialPath != null && _currentPath == widget.initialPath) {
+      Navigator.of(context).pop(widget.returnToSecondPage);
       return;
     }
 
@@ -358,6 +356,10 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
       if (Platform.isAndroid) return '内部存储';
       if (Platform.isWindows) return '用户目录';
       return '根目录';
+    }
+    // 特殊路径：文件恢复区
+    if (_currentPath == '/storage/emulated/0/EasyFile/Restored') {
+      return '文件恢复区';
     }
     return _currentPath.split(Platform.pathSeparator).last;
   }
