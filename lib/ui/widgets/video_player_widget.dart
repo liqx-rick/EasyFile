@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
+
+import 'package:chewie/chewie.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:screen_brightness/screen_brightness.dart';
 import 'package:gal/gal.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
+import 'package:screen_brightness/screen_brightness.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:video_player/video_player.dart';
 
 /// 视频适配模式枚举
 enum VideoFitMode {
@@ -206,8 +207,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
       // 检查视频是否有错误
       if (_videoPlayerController!.value.hasError) {
-        throw Exception(
-            '视频加载错误: ${_videoPlayerController!.value.errorDescription}');
+        throw Exception('视频加载错误: ${_videoPlayerController!.value.errorDescription}');
       }
 
       // 恢复播放位置
@@ -264,14 +264,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       _handleError(errorMsg);
     } on PlatformException catch (e) {
       String errorMsg;
-      if (e.message?.contains('ExoPlaybackException') == true ||
-          e.message?.contains('MediaCodec') == true) {
+      if (e.message?.contains('ExoPlaybackException') == true || e.message?.contains('MediaCodec') == true) {
         errorMsg = '视频格式不支持\n设备编解码器无法处理此视频格式';
       } else {
         errorMsg = '平台错误: ${e.message ?? e.code}';
       }
-      logger.e(
-          'PlatformException initializing video player: ${e.code} - ${e.message}');
+      logger.e('PlatformException initializing video player: ${e.code} - ${e.message}');
       _handleError(errorMsg);
     } on FileSystemException catch (e) {
       final errorMsg = '文件系统错误: ${e.message}';
@@ -307,8 +305,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (positionMs != null && positionMs > 0) {
         final position = Duration(milliseconds: positionMs);
         await _videoPlayerController!.seekTo(position);
-        logger.i(
-            'Restored playback position: ${position.inSeconds}s for videoId: ${widget.videoId}');
+        logger.i('Restored playback position: ${position.inSeconds}s for videoId: ${widget.videoId}');
       }
     } catch (e) {
       logger.e('Error restoring playback position: $e');
@@ -325,8 +322,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     // fire-and-forget方式保存，不阻塞dispose
     SharedPreferences.getInstance().then((prefs) {
       prefs.setInt(key, position.inMilliseconds);
-      logger.i(
-          'Saved playback position: ${position.inSeconds}s for videoId: ${widget.videoId}');
+      logger.i('Saved playback position: ${position.inSeconds}s for videoId: ${widget.videoId}');
     }).catchError((e) {
       logger.e('Error saving playback position: $e');
     });
@@ -374,10 +370,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       }
 
       // 检查是否达到观看完成条件（80%以上）
-      if (!_hasTriggeredWatched &&
-          state.progress >= 0.8 &&
-          widget.videoId != null &&
-          mounted) {
+      if (!_hasTriggeredWatched && state.progress >= 0.8 && widget.videoId != null && mounted) {
         _hasTriggeredWatched = true;
         widget.onVideoWatched?.call(widget.videoId!);
         logger.i(
@@ -390,8 +383,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void _toggleControls() {
     if (!mounted) return; // 安全检查
 
-    logger.i(
-        'Toggle controls: $_showControls -> ${!_showControls}, isFullScreen: $_isFullScreen');
+    logger.i('Toggle controls: $_showControls -> ${!_showControls}, isFullScreen: $_isFullScreen');
 
     setState(() {
       _showControls = !_showControls;
@@ -402,8 +394,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (!_isFullScreen) {
       if (mounted) widget.onToggleUI?.call();
     } else {
-      logger
-          .i('Fullscreen mode - not toggling parent UI (AppBar stays hidden)');
+      logger.i('Fullscreen mode - not toggling parent UI (AppBar stays hidden)');
     }
 
     // 如果显示控制栏，启动自动隐藏定时器
@@ -467,8 +458,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       }
 
       // 捕获当前视频帧
-      final boundary = _repaintBoundaryKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
+      final boundary = _repaintBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
 
       if (boundary == null) {
         logger.w('Failed to get render boundary');
@@ -560,8 +550,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       logger.i('Exiting fullscreen - force showing AppBar');
     }
 
-    logger.i(
-        'After toggle - isFullScreen: $_isFullScreen, showControls: $_showControls');
+    logger.i('After toggle - isFullScreen: $_isFullScreen, showControls: $_showControls');
 
     // 设置系统界面模式
     if (_isFullScreen) {
@@ -569,8 +558,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
       // 根据视频宽高比决定屏幕方向
-      if (_videoPlayerController != null &&
-          _videoPlayerController!.value.isInitialized) {
+      if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
         final aspectRatio = _videoPlayerController!.value.aspectRatio;
         logger.i('Video aspect ratio: $aspectRatio');
 
@@ -707,19 +695,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.red, fontSize: 16),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _error = null;
-                  _isInitializing = true;
-                  _hasTriggeredWatched = false;
-                });
-                _initializePlayer();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
           ],
         ),
       ),
@@ -775,12 +750,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   size: 22,
                 ),
                 onPressed: () async {
-                  final currentPosition =
-                      _videoPlayerController!.value.position;
-                  final newPosition =
-                      currentPosition - const Duration(seconds: 10);
-                  final targetPosition =
-                      newPosition < Duration.zero ? Duration.zero : newPosition;
+                  final currentPosition = _videoPlayerController!.value.position;
+                  final newPosition = currentPosition - const Duration(seconds: 10);
+                  final targetPosition = newPosition < Duration.zero ? Duration.zero : newPosition;
 
                   await _videoPlayerController!.seekTo(targetPosition);
                   if (mounted) {
@@ -794,25 +766,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 child: SliderTheme(
                   data: SliderThemeData(
                     trackHeight: 2,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape:
-                        const RoundSliderOverlayShape(overlayRadius: 12),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                     activeTrackColor: _primaryColor ?? Colors.blue,
                     inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
                     thumbColor: _primaryColor ?? Colors.blue,
-                    overlayColor:
-                        (_primaryColor ?? Colors.blue).withValues(alpha: 0.3),
+                    overlayColor: (_primaryColor ?? Colors.blue).withValues(alpha: 0.3),
                   ),
                   child: Slider(
-                    value: duration.inMilliseconds > 0
-                        ? position.inMilliseconds.toDouble()
-                        : 0.0,
+                    value: duration.inMilliseconds > 0 ? position.inMilliseconds.toDouble() : 0.0,
                     min: 0.0,
                     max: duration.inMilliseconds.toDouble(),
                     onChanged: (value) {
-                      _videoPlayerController!
-                          .seekTo(Duration(milliseconds: value.toInt()));
+                      _videoPlayerController!.seekTo(Duration(milliseconds: value.toInt()));
                     },
                   ),
                 ),
@@ -830,13 +796,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   size: 22,
                 ),
                 onPressed: () async {
-                  final currentPosition =
-                      _videoPlayerController!.value.position;
+                  final currentPosition = _videoPlayerController!.value.position;
                   final duration = _videoPlayerController!.value.duration;
-                  final newPosition =
-                      currentPosition + const Duration(seconds: 10);
-                  final targetPosition =
-                      newPosition > duration ? duration : newPosition;
+                  final newPosition = currentPosition + const Duration(seconds: 10);
+                  final targetPosition = newPosition > duration ? duration : newPosition;
 
                   await _videoPlayerController!.seekTo(targetPosition);
                   if (mounted) {
@@ -878,8 +841,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   // 3. 调用 play()/pause() 触发异步操作
                   // 4. 控制器状态更新后，_onVideoPlayerUpdate() 会清除 _localIsPlaying
                   // 5. UI 切换回使用实际状态（value.isPlaying）
-                  final actuallyPlaying =
-                      _videoPlayerController!.value.isPlaying;
+                  final actuallyPlaying = _videoPlayerController!.value.isPlaying;
 
                   if (actuallyPlaying) {
                     // 暂停：立即更新本地状态以实现即时UI反馈
@@ -911,8 +873,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Icon(
@@ -961,8 +922,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                       // 取消静音，恢复之前的音量
                                       _isMuted = false;
                                       _volume = _volumeBeforeMute;
-                                      _videoPlayerController!
-                                          .setVolume(_volume);
+                                      _videoPlayerController!.setVolume(_volume);
                                     } else {
                                       // 静音
                                       _isMuted = true;
@@ -986,19 +946,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                   child: SliderTheme(
                                     data: SliderThemeData(
                                       trackHeight: 3,
-                                      thumbShape: const RoundSliderThumbShape(
-                                          enabledThumbRadius: 6),
-                                      overlayShape:
-                                          const RoundSliderOverlayShape(
-                                              overlayRadius: 12),
-                                      activeTrackColor:
-                                          _primaryColor ?? Colors.blue,
-                                      inactiveTrackColor:
-                                          Colors.grey.withValues(alpha: 0.3),
+                                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                                      activeTrackColor: _primaryColor ?? Colors.blue,
+                                      inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
                                       thumbColor: _primaryColor ?? Colors.blue,
-                                      overlayColor:
-                                          (_primaryColor ?? Colors.blue)
-                                              .withValues(alpha: 0.3),
+                                      overlayColor: (_primaryColor ?? Colors.blue).withValues(alpha: 0.3),
                                     ),
                                     child: Slider(
                                       value: _volume,
@@ -1009,8 +962,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                         setState(() {
                                           _volume = value;
                                           _isMuted = false;
-                                          _videoPlayerController!
-                                              .setVolume(value);
+                                          _videoPlayerController!.setVolume(value);
                                         });
                                         // 更新弹窗内部状态，实现视觉反馈
                                         setPopupState(() {});
@@ -1090,17 +1042,12 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                     child: SliderTheme(
                                       data: SliderThemeData(
                                         trackHeight: 3,
-                                        thumbShape: const RoundSliderThumbShape(
-                                            enabledThumbRadius: 6),
-                                        overlayShape:
-                                            const RoundSliderOverlayShape(
-                                                overlayRadius: 12),
+                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                                         activeTrackColor: Colors.amber,
-                                        inactiveTrackColor:
-                                            Colors.grey.withValues(alpha: 0.3),
+                                        inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
                                         thumbColor: Colors.amber,
-                                        overlayColor:
-                                            Colors.amber.withValues(alpha: 0.3),
+                                        overlayColor: Colors.amber.withValues(alpha: 0.3),
                                       ),
                                       child: Slider(
                                         value: _brightness,
@@ -1113,14 +1060,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                                           });
                                           // 设置屏幕亮度
                                           try {
-                                            await ScreenBrightness()
-                                                .setApplicationScreenBrightness(
-                                                    value);
-                                            logger.i(
-                                                'Screen brightness set to: $value');
+                                            await ScreenBrightness().setApplicationScreenBrightness(value);
+                                            logger.i('Screen brightness set to: $value');
                                           } catch (e) {
-                                            logger.e(
-                                                'Failed to set brightness: $e');
+                                            logger.e('Failed to set brightness: $e');
                                           }
                                           // 更新弹窗内部状态，实现视觉反馈
                                           setPopupState(() {});
@@ -1169,9 +1112,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                   onPressed: () {
                     setState(() {
                       // 在两种模式间切换
-                      _videoFitMode = _videoFitMode == VideoFitMode.contain
-                          ? VideoFitMode.cover
-                          : VideoFitMode.contain;
+                      _videoFitMode = _videoFitMode == VideoFitMode.contain ? VideoFitMode.cover : VideoFitMode.contain;
                     });
                     _startHideControlsTimer();
                   },
@@ -1202,54 +1143,47 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     value: 0.5,
                     height: 40,
                     child: Center(
-                      child: Text('0.5x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('0.5x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 0.75,
                     height: 40,
                     child: Center(
-                      child: Text('0.75x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('0.75x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.0,
                     height: 40,
                     child: Center(
-                      child: Text('1.0x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.0x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.25,
                     height: 40,
                     child: Center(
-                      child: Text('1.25x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.25x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 1.5,
                     height: 40,
                     child: Center(
-                      child: Text('1.5x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('1.5x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                   const PopupMenuItem(
                     value: 2.0,
                     height: 40,
                     child: Center(
-                      child: Text('2.0x',
-                          style: TextStyle(color: Colors.white, fontSize: 13)),
+                      child: Text('2.0x', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ),
                   ),
                 ],
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Text(
                     '${_playbackSpeed}x',
                     style: const TextStyle(
@@ -1371,9 +1305,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                     child: AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 300),
-                      child: _showControls
-                          ? _buildBottomControls()
-                          : const SizedBox.shrink(),
+                      child: _showControls ? _buildBottomControls() : const SizedBox.shrink(),
                     ),
                   ),
                 ),
