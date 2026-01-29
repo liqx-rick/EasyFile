@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:disk_space_plus/disk_space_plus.dart';
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
 import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
@@ -865,6 +866,13 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   // 此方法保留用于未来可能的快捷访问导航功能
   // ignore: unused_element
   void _navigateToFolder(QuickAccessFolder folder) {
+    // 埋点：快捷访问文件夹点击
+    AnalyticsHelper.logQuickAccessFolderClick(
+      folderType: folder.type.name,
+      folderName: folder.displayName,
+      isPinned: folder.isAddedToQuickAccess,
+    );
+
     // 更新访问时间
     widget.quickAccessPresenter.updateAccessInfo(folder.path);
 
@@ -877,6 +885,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
 
   void _navigateToRecommendation(RecommendationCard card) {
     logger.d('导航到推荐详情: ${card.title}');
+
+    // 埋点：点击快速访问推荐卡片
+    AnalyticsHelper.logQuickAccessCardClick(card.type.toString());
 
     // 根据推荐卡片生成页面配置
     final config = RecommendPageConfigFactory.fromRecommendationCard(card);

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
+import 'package:flutter/material.dart';
 
 /// 快速访问管理页面
 ///
@@ -32,6 +33,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+
+    // 埋点：进入快速访问管理页面
+    AnalyticsHelper.logQuickAccessEnter('manage_page');
   }
 
   @override
@@ -107,8 +111,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
           if (widget.viewModel.isScanning) _buildScanningIndicator(),
 
           // ⭐ v2.0：系统推荐区
-          if (systemFolders.isNotEmpty)
-            _buildSystemFoldersSection(systemFolders),
+          if (systemFolders.isNotEmpty) _buildSystemFoldersSection(systemFolders),
 
           // 📂 v2.0：其他目录区
           if (otherFolders.isNotEmpty) _buildOtherFoldersSection(otherFolders),
@@ -247,10 +250,8 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                     value: 'add_to_qa',
                     child: ListTile(
                       dense: true,
-                      leading:
-                          Icon(Icons.add_circle_outline, color: Colors.green),
-                      title:
-                          Text('加入快速访问', style: TextStyle(color: Colors.green)),
+                      leading: Icon(Icons.add_circle_outline, color: Colors.green),
+                      title: Text('加入快速访问', style: TextStyle(color: Colors.green)),
                     ),
                   ),
                 );
@@ -260,8 +261,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
                     child: ListTile(
                       dense: true,
                       leading: Icon(Icons.visibility_off, color: Colors.orange),
-                      title:
-                          Text('忽略此项', style: TextStyle(color: Colors.orange)),
+                      title: Text('忽略此项', style: TextStyle(color: Colors.orange)),
                     ),
                   ),
                 );
@@ -297,9 +297,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     // 寻找匹配的前缀
     for (final entry in pathMappings.entries) {
       if (displayPath.startsWith(entry.key)) {
-        final remaining = displayPath
-            .substring(entry.key.length)
-            .replaceAll(RegExp(r'^/+'), '');
+        final remaining = displayPath.substring(entry.key.length).replaceAll(RegExp(r'^/+'), '');
         if (remaining.isEmpty) {
           return entry.value;
         } else {
@@ -449,12 +447,9 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
             _buildResultRow('发现总计', result.totalFound, highlight: true),
 
             // 操作结果
-            if (result.newlyAdded > 0)
-              _buildResultRow('新增目录', result.newlyAdded, color: Colors.green),
-            if (result.unhidden > 0)
-              _buildResultRow('恢复显示', result.unhidden, color: Colors.orange),
-            if (result.alreadyExists > 0)
-              _buildResultRow('已存在', result.alreadyExists, color: Colors.grey),
+            if (result.newlyAdded > 0) _buildResultRow('新增目录', result.newlyAdded, color: Colors.green),
+            if (result.unhidden > 0) _buildResultRow('恢复显示', result.unhidden, color: Colors.orange),
+            if (result.alreadyExists > 0) _buildResultRow('已存在', result.alreadyExists, color: Colors.grey),
           ],
         ),
         actions: [
@@ -477,8 +472,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
     bool highlight = false,
     Color? color,
   }) {
-    final displayColor =
-        color ?? (highlight ? Theme.of(context).colorScheme.primary : null);
+    final displayColor = color ?? (highlight ? Theme.of(context).colorScheme.primary : null);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -609,8 +603,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               );
               if (!mounted) return;
               navigator.pop();
-              messenger.showSnackBar(
-                  SnackBar(content: Text(success ? '已移出快速访问' : '操作失败')));
+              messenger.showSnackBar(SnackBar(content: Text(success ? '已移出快速访问' : '操作失败')));
               if (success) {
                 _loadDataKeepPosition();
               }
@@ -645,8 +638,7 @@ class _QuickAccessManagePageState extends State<QuickAccessManagePage> {
               final success = await widget.presenter.hideFolder(folder.id);
               if (!mounted) return;
               navigator.pop();
-              messenger.showSnackBar(
-                  SnackBar(content: Text(success ? '已忽略' : '操作失败')));
+              messenger.showSnackBar(SnackBar(content: Text(success ? '已忽略' : '操作失败')));
               if (success) {
                 _loadDataKeepPosition();
               }

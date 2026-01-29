@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -216,6 +217,9 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   void initState() {
     super.initState();
 
+    // 埋点：进入压缩包管理页面
+    AnalyticsHelper.logArchiveManagementEnter();
+
     // 初始化Tab控制器
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
@@ -273,6 +277,9 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     _loadSortPreferences().then((_) {
       _scanArchives();
     });
+
+    // 埋点：进入归档管理页面
+    AnalyticsHelper.logArchiveManagementEnter();
   }
 
   /// 加载已解压压缩包标记
@@ -468,6 +475,10 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       _errorMessage = '';
     });
 
+    // 埋点：压缩包扫描开始
+    final scanStartTime = DateTime.now();
+    AnalyticsHelper.logArchiveScanStart();
+
     try {
       // 保存当前最近添加的文件（避免被扫描结果覆盖）
       final recentlyAddedFile = _viewModel.lastAddedFile;
@@ -504,6 +515,15 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
       // 应用排序
       _applySorting();
+
+      // 埋点：压缩包扫描完成
+      final durationMs = DateTime.now().difference(scanStartTime).inMilliseconds;
+      final totalSizeMb = allFiles.fold<double>(0.0, (sum, file) => sum + file.size) / (1024 * 1024);
+      AnalyticsHelper.logArchiveScanFinish(
+        archiveCount: allFiles.length,
+        totalSizeMb: totalSizeMb,
+        durationMs: durationMs,
+      );
 
       if (mounted) {
         setState(() {
@@ -1027,9 +1047,14 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     );
   }
 
-  /// 查看压缩包内容
-  void _viewArchiveContents(FileItem archive) {
-    Navigator.of(context).push(
+  /// 打开压缩包内容查看器
+  Future<void> _viewArchiveContents(FileItem archive) async {
+    // 埋点：压缩包浏览
+    final format = FileUtils.getExtension(archive.name).replaceFirst('.', '');
+    AnalyticsHelper.logArchiveBrowse(format);
+
+    await Navigator.push(
+      context,
       MaterialPageRoute(
         builder: (context) => ArchiveViewerPage(archiveFile: archive),
       ),
@@ -1038,6 +1063,11 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
   /// 解压压缩包
   void _extractArchive(FileItem archive) {
+    // 埋点：压缩包解压
+    final format = FileUtils.getExtension(archive.name).replaceFirst('.', '');
+    final sizeMb = archive.size / (1024 * 1024);
+    AnalyticsHelper.logArchiveExtract(format, sizeMb, true);
+
     // 标记为已解压（点击开始解压按钮时立即标记）
     setState(() {
       _extractedArchives.add(archive.path);

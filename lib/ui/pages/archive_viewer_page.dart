@@ -1,13 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/data/models/archive_entry_info.dart';
-import 'package:easyfile/core/services/archive_service.dart';
-import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
+import 'package:easyfile/core/services/archive_service.dart';
+import 'package:easyfile/data/models/archive_entry_info.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/password_input_dialog.dart';
+import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 
 /// 压缩包查看器页面
@@ -53,6 +54,9 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           await _archiveService.listArchiveContents(widget.archiveFile.path);
 
       if (result.success) {
+        // 埋点：压缩包密码检测
+        AnalyticsHelper.logArchivePasswordCheck(false);
+
         setState(() {
           _allEntries = result.entries;
           _entries = _getEntriesForCurrentPath();
@@ -66,6 +70,11 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         // 检查是否是 libarchive 不支持的加密文件
         final isUnsupportedEncryption =
             errorMsg.toLowerCase().contains('currently not supported');
+
+        // 埋点：压缩包密码检测
+        if (isUnsupportedEncryption || mayNeedPassword) {
+          AnalyticsHelper.logArchivePasswordCheck(true);
+        }
 
         setState(() {
           if (isUnsupportedEncryption || mayNeedPassword) {
@@ -692,11 +701,11 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
   }
 
   /// 判断文件是否支持预览
-  /// 
+  ///
   /// 遵循 FilePreviewPage 的判断逻辑：
   /// - 已知支持类型（图片、视频、音频、PDF、文本、文档）→ 彩色图标
   /// - 未知类型（二进制文件、压缩包等）→ 灰色图标
-  /// 
+  ///
   /// 注意：在列表中无法读取文件内容判断是否为文本，所以未知扩展名默认灰色
   bool _canPreviewFile(String fileName) {
     final config = AppConfig.instance.fileTypes;

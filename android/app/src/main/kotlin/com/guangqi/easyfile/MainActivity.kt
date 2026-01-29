@@ -31,6 +31,7 @@ import androidx.exifinterface.media.ExifInterface
 import com.ryanheise.audioservice.AudioServicePlugin
 import androidx.annotation.NonNull
 import com.guangqi.easyfile.helpers.ApkParserHelper
+import com.guangqi.easyfile.analytics.UmengAnalyticsChannel
 
 class MainActivity : FlutterFragmentActivity() {
 
@@ -82,6 +83,8 @@ class MainActivity : FlutterFragmentActivity() {
     private val AUDIO_NOTIFICATION_CHANNEL = "easyfile/audio_notification"
     // APK解析通道
     private val APK_PARSER_CHANNEL = "com.easyfile.apk_parser"
+    // 友盟统计通道
+    private val UMENG_ANALYTICS_CHANNEL = "easyfile/analytics/umeng"
     private val TAG = "MainActivity"
 
     private var isRestoringFromBackground = false
@@ -91,6 +94,7 @@ class MainActivity : FlutterFragmentActivity() {
     private lateinit var appFileScanner: AppFileScanner
     private lateinit var newFilesScanner: NewFilesNativeScanner
     private lateinit var apkParserHelper: ApkParserHelper
+    private lateinit var umengAnalyticsChannel: UmengAnalyticsChannel
     private var appEventSink: EventChannel.EventSink? = null
     private var fileChangeEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: android.database.ContentObserver? = null
@@ -144,6 +148,9 @@ class MainActivity : FlutterFragmentActivity() {
         // 初始化 ApkParserHelper
         apkParserHelper = ApkParserHelper(this) // 设置Activity引用
 
+        // 初始化友盟 Analytics Channel
+        umengAnalyticsChannel = UmengAnalyticsChannel(this)
+
         // 注册 MediaStore 监听器
         registerMediaStoreObserver()
 
@@ -163,10 +170,11 @@ class MainActivity : FlutterFragmentActivity() {
         super.onNewIntent(intent)
 
         val action = intent.action
+        val data = intent.data
         val categories = intent.categories
         val flags = intent.flags
 
-        LogHelper.i(TAG, "onNewIntent - action: $action, categories: $categories, flags: $flags")
+        LogHelper.i(TAG, "onNewIntent - action: $action, data: $data, categories: $categories, flags: $flags")
 
         // audio_service的通知栏点击会发送特定的action
         if (action == "com.ryanheise.audioservice.NOTIFICATION_CLICK") {
@@ -230,6 +238,9 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // 友盟 Analytics Channel
+        MethodChannel(messenger, UMENG_ANALYTICS_CHANNEL).setMethodCallHandler(umengAnalyticsChannel)
 
         // 分享功能 Channel
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->

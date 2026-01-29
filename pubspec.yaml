@@ -60,6 +60,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icon/
+    - config/analytics_config.yaml
 
 
 

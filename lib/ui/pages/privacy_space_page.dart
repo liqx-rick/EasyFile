@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
@@ -50,6 +51,9 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
     // 生物识别验证后可能锁定竖屏，再次确保恢复所有方向
     _ensureOrientationFreedom();
     _loadFiles();
+
+    // 埋点：进入隐私空间
+    AnalyticsHelper.logPrivacySpaceEnter('main_page');
   }
 
   /// 确保屏幕方向自由

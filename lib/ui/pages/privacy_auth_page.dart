@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/privacy_service.dart';
 import 'package:easyfile/ui/pages/privacy_reset_pin_page.dart';
@@ -78,6 +79,9 @@ class _PrivacyAuthPageState extends State<PrivacyAuthPage> {
       final success = await _privacyService.verifyPin(pin);
 
       if (success && mounted) {
+        // 埋点：隐私空间认证成功
+        AnalyticsHelper.logPrivacySpaceAuth('pin', true);
+
         // 验证成功，激活会话
         _privacyService.markSessionActive();
 
@@ -87,6 +91,9 @@ class _PrivacyAuthPageState extends State<PrivacyAuthPage> {
           MaterialPageRoute(builder: (context) => const PrivacySpacePage()),
         );
       } else if (mounted) {
+        // 埋点：隐私空间认证失败
+        AnalyticsHelper.logPrivacySpaceAuth('pin', false);
+
         // 验证失败
         setState(() {
           _failedAttempts++;
@@ -132,6 +139,9 @@ class _PrivacyAuthPageState extends State<PrivacyAuthPage> {
       logger.d('✅ 方向设置已调用');
 
       if (success && mounted) {
+        // 埋点：隐私空间认证成功
+        AnalyticsHelper.logPrivacySpaceAuth('biometric', true);
+
         // 验证成功，激活会话
         _privacyService.markSessionActive();
 
@@ -148,6 +158,9 @@ class _PrivacyAuthPageState extends State<PrivacyAuthPage> {
           );
         }
       } else if (mounted) {
+        // 埋点：隐私空间认证失败
+        AnalyticsHelper.logPrivacySpaceAuth('biometric', false);
+
         setState(() {
           _errorMessage = '$_biometricType验证失败';
         });

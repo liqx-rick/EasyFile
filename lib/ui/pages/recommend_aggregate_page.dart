@@ -1,33 +1,34 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/models/recommend_page_config.dart';
-import 'package:easyfile/core/models/page_settings.dart';
-import 'package:easyfile/core/services/page_settings_service.dart';
-import 'package:easyfile/core/services/category_sort_service.dart';
-import 'package:easyfile/core/data_sources/file_list_data_source.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
+import 'package:easyfile/core/data_sources/file_list_data_source.dart';
 import 'package:easyfile/core/data_sources/recommend_config_mapper.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/core/models/recommend_page_config.dart';
+import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/file_toolbar.dart';
-import 'package:easyfile/ui/widgets/file_search_bar.dart';
-import 'package:easyfile/ui/widgets/unified_view_config.dart';
-import 'package:easyfile/ui/services/single_file_operations_service.dart';
-import 'package:easyfile/ui/services/batch_operations_service.dart';
-import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
-import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/file_search_bar.dart';
+import 'package:easyfile/ui/widgets/file_toolbar.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
+import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/utils/file_comparator_util.dart';
+import 'package:easyfile/utils/file_grouping_util.dart';
+import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 推荐聚合页面
 ///
@@ -122,6 +123,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
     // 监听PageSettingsService变化
     PageSettingsService().addListener(_onPageSettingsChanged);
+
+    // 埋点：推荐卡片浏览
+    AnalyticsHelper.logHomeRecommendView(widget.config.type.toString(), 0);
   }
 
   @override
@@ -236,11 +240,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         final appKey = params['appKey'] as String?;
         if (appKey != null) {
           // 尝试从缓存快速获取文件数量
-          final cachedCount = await widget.dataSourceFactory.scanner
-              ?.getFileCountFast(appKey: appKey);
+          final cachedCount = await widget.dataSourceFactory.scanner?.getFileCountFast(appKey: appKey);
           if (cachedCount != null && cachedCount > 0) {
-            logger
-                .d('RecommendAggregatePage - 缓存命中: $appKey = $cachedCount 文件');
+            logger.d('RecommendAggregatePage - 缓存命中: $appKey = $cachedCount 文件');
             // 立即更新UI显示缓存的数量（使用空列表占位）
             if (mounted) {
               setState(() {
@@ -265,8 +267,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
       if (mounted) {
         // 根据文件内容过滤出visible tabs
-        if (widget.config.mode == RecommendMode.application &&
-            widget.config.tabs != null) {
+        if (widget.config.mode == RecommendMode.application && widget.config.tabs != null) {
           final visibleTabs = <TabConfig>[];
 
           for (final tab in widget.config.tabs!) {
@@ -275,8 +276,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
             }
           }
 
-          _visibleTabs =
-              visibleTabs.isNotEmpty ? visibleTabs : widget.config.tabs;
+          _visibleTabs = visibleTabs.isNotEmpty ? visibleTabs : widget.config.tabs;
 
           // 初始化TabController
           if (_visibleTabs!.isNotEmpty) {
@@ -287,8 +287,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
             _tabController!.addListener(_onTabChanged);
           }
 
-          logger.d(
-              '初始化可见Tabs: ${_visibleTabs!.length} 个 (原${widget.config.tabs!.length}个)');
+          logger.d('初始化可见Tabs: ${_visibleTabs!.length} 个 (原${widget.config.tabs!.length}个)');
         }
 
         setState(() {
@@ -298,8 +297,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         });
       }
 
-      logger.i(
-          'RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+      logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
     } catch (e) {
       logger.e('RecommendAggregatePage - 加载失败: $e');
       if (mounted) {
@@ -367,8 +365,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       // 获取查询参数
       Map<String, dynamic> params;
 
-      if (widget.config.mode == RecommendMode.application &&
-          _tabController != null) {
+      if (widget.config.mode == RecommendMode.application && _tabController != null) {
         // 应用模式：根据当前 Tab 获取参数
         final currentTab = _visibleTabs![_tabController!.index];
         params = RecommendConfigDataSourceMapper.getTabQueryParams(
@@ -387,8 +384,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         params['forceRefresh'] = true;
       }
 
-      logger.d(
-          'RecommendAggregatePage - 查询参数: $params${forceRefresh ? ' (强制刷新)' : ''}');
+      logger.d('RecommendAggregatePage - 查询参数: $params${forceRefresh ? ' (强制刷新)' : ''}');
 
       // 查询文件
       final files = await _dataSource.queryFiles(params);
@@ -401,8 +397,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         });
       }
 
-      logger.i(
-          'RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+      logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
     } catch (e) {
       logger.e('RecommendAggregatePage - 加载失败: $e');
       if (mounted) {
@@ -452,8 +447,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       final ext = FileUtils.getExtension(file.name);
       return !knownTypes.contains(ext);
     }).toList();
-    logger.d(
-        'Tab "${currentTab.title}": 其他类型 ${filtered.length} 个文件（排除${knownTypes.length}种已知类型）');
+    logger.d('Tab "${currentTab.title}": 其他类型 ${filtered.length} 个文件（排除${knownTypes.length}种已知类型）');
     return filtered;
   }
 
@@ -488,9 +482,8 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     logger.d('Previewing file: ${file.path}');
 
     // 图片/视频/音频：传递文件列表支持滑动切换
-    final isMediaFile = FileUtils.isImageFile(file.name) ||
-        FileUtils.isVideoFile(file.name) ||
-        FileUtils.isAudioFile(file.name);
+    final isMediaFile =
+        FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name) || FileUtils.isAudioFile(file.name);
 
     final fileList = isMediaFile ? _files : null;
     final initialIndex = fileList?.indexWhere((f) => f.path == file.path) ?? 0;
@@ -535,8 +528,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   @override
   Widget build(BuildContext context) {
     // 检测横屏模式
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return wrapWithPopScope(
       child: Scaffold(
@@ -564,8 +556,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                       toolbarHeight: 48, // 横屏时压缩AppBar高度
                       backgroundColor: widget.config.themeColor,
                       foregroundColor: Colors.white,
-                      systemOverlayStyle:
-                          SystemUiOverlayStyle.light, // 状态栏使用浅色图标（白色）
+                      systemOverlayStyle: SystemUiOverlayStyle.light, // 状态栏使用浅色图标（白色）
                     )
                   : SliverAppBar(
                       pinned: true, // 竖屏时固定在顶部
@@ -598,16 +589,13 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                 SliverToBoxAdapter(child: _buildHeader()),
 
               // Tab Bar（仅 application 模式，吸顶显示）
-              if (widget.config.mode == RecommendMode.application &&
-                  _tabController != null)
+              if (widget.config.mode == RecommendMode.application && _tabController != null)
                 SliverPersistentHeader(
                   pinned: true, // 吸顶
                   delegate: _StickyHeaderDelegate(
                     child: _buildTabBar(),
                     // 横屏时高度 = Tab高度 + 状态栏高度
-                    height: isLandscape
-                        ? 44 + MediaQuery.of(context).padding.top
-                        : 56,
+                    height: isLandscape ? 44 + MediaQuery.of(context).padding.top : 56,
                   ),
                 ),
 
@@ -619,8 +607,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                   // content模式（时光记忆、生活剪影、声音记录）和cleanupRecommend模式（大文件）在横屏时需要增加状态栏高度
                   height: isLandscape
                       ? (widget.config.mode == RecommendMode.content ||
-                              widget.config.mode ==
-                                  RecommendMode.cleanupRecommend
+                              widget.config.mode == RecommendMode.cleanupRecommend
                           ? 40 + MediaQuery.of(context).padding.top
                           : 40)
                       : 48,
@@ -636,8 +623,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                       controller: _searchController,
                       focusNode: _searchFocusNode,
                       onSearch: (query) => setState(() => _searchQuery = query),
-                      onChanged: (query) =>
-                          setState(() => _searchQuery = query),
+                      onChanged: (query) => setState(() => _searchQuery = query),
                       onClose: () => setState(() {
                         _isSearchMode = false;
                         _searchQuery = '';
@@ -649,9 +635,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                 ),
             ];
           },
-          body: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _buildFileListForNestedScroll(),
+          body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildFileListForNestedScroll(),
         ),
         bottomNavigationBar: isEditMode ? _buildSelectionBottomBar() : null,
       ),
@@ -691,15 +675,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     }
 
     // 检测横屏模式
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     // 横屏时添加顶部安全区域，避免与系统状态栏重合
     return Container(
       color: Theme.of(context).colorScheme.surface,
-      padding: isLandscape
-          ? EdgeInsets.only(top: MediaQuery.of(context).padding.top)
-          : EdgeInsets.zero,
+      padding: isLandscape ? EdgeInsets.only(top: MediaQuery.of(context).padding.top) : EdgeInsets.zero,
       child: TabBar(
         controller: _tabController,
         isScrollable: true, // 允许滚动以显示更多Tab
@@ -707,18 +688,14 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         tabs: _visibleTabs!.map((tab) {
           return Tab(
             text: tab.title,
-            icon: tab.icon != null
-                ? Icon(tab.icon, size: isLandscape ? 18 : 22)
-                : null,
+            icon: tab.icon != null ? Icon(tab.icon, size: isLandscape ? 18 : 22) : null,
             height: isLandscape ? 44 : 56, // 横屏时压缩高度（44避免溢出）
-            iconMargin:
-                EdgeInsets.only(bottom: isLandscape ? 0 : 2), // 横屏去掉底部边距
+            iconMargin: EdgeInsets.only(bottom: isLandscape ? 0 : 2), // 横屏去掉底部边距
           );
         }).toList(),
         labelColor: widget.config.themeColor ?? Theme.of(context).primaryColor,
         unselectedLabelColor: Colors.grey,
-        indicatorColor:
-            widget.config.themeColor ?? Theme.of(context).primaryColor,
+        indicatorColor: widget.config.themeColor ?? Theme.of(context).primaryColor,
         labelStyle: TextStyle(fontSize: isLandscape ? 12 : 13), // 横屏时更小的文字
         unselectedLabelStyle: TextStyle(fontSize: isLandscape ? 12 : 13),
       ),
@@ -729,14 +706,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   Widget _buildToolbar() {
     final theme = Theme.of(context);
     // 检测横屏模式
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     // content模式（时光记忆、生活剪影、声音记录）和cleanupRecommend模式（大文件）在横屏时需要增加顶部安全区域
-    final needsTopPadding = (widget.config.mode == RecommendMode.content ||
-            widget.config.mode == RecommendMode.cleanupRecommend) &&
-        isLandscape;
-    final topPadding =
-        needsTopPadding ? MediaQuery.of(context).padding.top : 0.0;
+    final needsTopPadding =
+        (widget.config.mode == RecommendMode.content || widget.config.mode == RecommendMode.cleanupRecommend) &&
+            isLandscape;
+    final topPadding = needsTopPadding ? MediaQuery.of(context).padding.top : 0.0;
 
     return Container(
       height: isLandscape ? 40 : 48, // 横屏时压缩高度
@@ -744,8 +719,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         color: theme.scaffoldBackgroundColor,
         border: Border(
           bottom: BorderSide(color: theme.dividerColor, width: 1),
-          top: BorderSide(
-              color: theme.dividerColor.withValues(alpha: 0.5), width: 0.5),
+          top: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5), width: 0.5),
         ),
       ),
       padding: EdgeInsets.only(
@@ -762,8 +736,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
               totalCount: _filteredFiles.length,
               onPressed: () {
                 setState(() {
-                  if (_selectionController.selected.length ==
-                      _filteredFiles.length) {
+                  if (_selectionController.selected.length == _filteredFiles.length) {
                     _selectionController.clear();
                   } else {
                     _selectionController.selectAll(
@@ -846,10 +819,8 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                     currentSortType: settings.sortType,
                     currentAscending: settings.sortAscending,
                     onTap: (ascending) {
-                      PageSettingsService()
-                          .setSortType(pageId, SortType.modifiedTime);
-                      PageSettingsService()
-                          .setSortAscending(pageId, ascending ?? false);
+                      PageSettingsService().setSortType(pageId, SortType.modifiedTime);
+                      PageSettingsService().setSortAscending(pageId, ascending ?? false);
                       setState(() {});
                       Navigator.pop(context); // 关闭菜单
                     },
@@ -862,8 +833,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                     currentAscending: settings.sortAscending,
                     onTap: (ascending) {
                       PageSettingsService().setSortType(pageId, SortType.name);
-                      PageSettingsService()
-                          .setSortAscending(pageId, ascending ?? false);
+                      PageSettingsService().setSortAscending(pageId, ascending ?? false);
                       setState(() {});
                       Navigator.pop(context); // 关闭菜单
                     },
@@ -876,8 +846,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                     currentAscending: settings.sortAscending,
                     onTap: (ascending) {
                       PageSettingsService().setSortType(pageId, SortType.size);
-                      PageSettingsService()
-                          .setSortAscending(pageId, ascending ?? false);
+                      PageSettingsService().setSortAscending(pageId, ascending ?? false);
                       setState(() {});
                       Navigator.pop(context); // 关闭菜单
                     },
@@ -909,9 +878,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  currentAscending == true
-                      ? Icons.arrow_upward
-                      : Icons.arrow_downward,
+                  currentAscending == true ? Icons.arrow_upward : Icons.arrow_downward,
                   size: 18,
                 ),
                 const SizedBox(width: 4),
@@ -936,10 +903,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     var result = _files;
 
     if (_searchQuery.isNotEmpty) {
-      result = result
-          .where(
-              (f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-          .toList();
+      result = result.where((f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
     }
 
     // 应用排序
@@ -1002,24 +966,19 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           _visibleTabs!.isNotEmpty) {
         final currentTab = _visibleTabs![_tabController!.index];
         // 检查Tab标题或fileTypes是否表明这是图片/视频Tab
-        isImageOrVideoTab =
-            currentTab.title == '图片' || currentTab.title == '视频';
-        logger.d(
-            '应用模式 - 当前Tab: ${currentTab.title}, 是否图片/视频Tab: $isImageOrVideoTab');
+        isImageOrVideoTab = currentTab.title == '图片' || currentTab.title == '视频';
+        logger.d('应用模式 - 当前Tab: ${currentTab.title}, 是否图片/视频Tab: $isImageOrVideoTab');
       } else if (widget.config.mode == RecommendMode.content) {
         // 时光记忆（照片）和生活剪影（视频）也是图片/视频类型
-        isImageOrVideoTab = widget.config.type == RecommendationType.memories ||
-            widget.config.type == RecommendationType.videos;
-        logger.d(
-            '内容模式 - 类型: ${widget.config.type}, 是否图片/视频Tab: $isImageOrVideoTab');
+        isImageOrVideoTab =
+            widget.config.type == RecommendationType.memories || widget.config.type == RecommendationType.videos;
+        logger.d('内容模式 - 类型: ${widget.config.type}, 是否图片/视频Tab: $isImageOrVideoTab');
       }
 
-      logger.d(
-          '网格显示配置 - showFileInfo: $showFileInfo, isImageOrVideoTab: $isImageOrVideoTab');
+      logger.d('网格显示配置 - showFileInfo: $showFileInfo, isImageOrVideoTab: $isImageOrVideoTab');
 
       viewConfigBuilder = (file) {
-        logger
-            .d('viewConfigBuilder被调用 - 文件: ${file.name}, 类别: ${file.category}');
+        logger.d('viewConfigBuilder被调用 - 文件: ${file.name}, 类别: ${file.category}');
 
         // 对于图片/视频Tab，根据设置决定是否使用简洁模式
         if (isImageOrVideoTab && !file.isDirectory) {
@@ -1032,10 +991,8 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           if (isFileImageOrVideo) {
             // 只有在设置为简洁模式（不显示文件信息）时才使用 compactMode
             final useCompactMode = !showFileInfo;
-            logger.d(
-                '文件 ${file.name} - 是图片: $isImage, 是视频: $isVideo, 使用简洁模式: $useCompactMode');
-            return UnifiedViewConfig.fromContext(context,
-                compactMode: useCompactMode);
+            logger.d('文件 ${file.name} - 是图片: $isImage, 是视频: $isVideo, 使用简洁模式: $useCompactMode');
+            return UnifiedViewConfig.fromContext(context, compactMode: useCompactMode);
           }
         }
 
@@ -1055,9 +1012,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
             final groupFiles = entry.value;
             return FileGroup(
               key: dateLabel,
-              title: dateLabel.isNotEmpty
-                  ? '$dateLabel（${groupFiles.length}个文件）'
-                  : '',
+              title: dateLabel.isNotEmpty ? '$dateLabel（${groupFiles.length}个文件）' : '',
               items: groupFiles,
               isCollapsible: false,
             );
@@ -1066,9 +1021,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           return FileCollectionView(
             groups: fileGroups,
             gridMode: isGridView,
-            padding: isGridView
-                ? const EdgeInsets.all(8)
-                : const EdgeInsets.symmetric(vertical: 0),
+            padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
             cacheExtent: isGridView ? 1000.0 : 600.0,
             selectionController: _selectionController,
             showCheckbox: isEditMode,
@@ -1090,9 +1043,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         return FileCollectionView(
           items: files,
           gridMode: isGridView,
-          padding: isGridView
-              ? const EdgeInsets.all(8)
-              : const EdgeInsets.symmetric(vertical: 0),
+          padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
           cacheExtent: isGridView ? 1000.0 : 600.0,
           selectionController: _selectionController,
           showCheckbox: isEditMode,
@@ -1265,10 +1216,8 @@ class _EmotionHeader extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            config.themeColor?.withValues(alpha: 0.3) ??
-                Colors.purple.withValues(alpha: 0.3),
-            config.themeColor?.withValues(alpha: 0.1) ??
-                Colors.purple.withValues(alpha: 0.1),
+            config.themeColor?.withValues(alpha: 0.3) ?? Colors.purple.withValues(alpha: 0.3),
+            config.themeColor?.withValues(alpha: 0.1) ?? Colors.purple.withValues(alpha: 0.1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1326,8 +1275,7 @@ class _StorageSummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalSize = files.fold<int>(0, (sum, file) => sum + file.size);
-    final largestFile =
-        files.isEmpty ? null : files.reduce((a, b) => a.size > b.size ? a : b);
+    final largestFile = files.isEmpty ? null : files.reduce((a, b) => a.size > b.size ? a : b);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1391,8 +1339,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return SizedBox.expand(child: child);
   }
 

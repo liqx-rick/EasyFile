@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -48,6 +49,9 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
     _initializeService();
     // 独立检查系统回收站（不依赖垃圾文件扫描）
     _checkSystemTrashOnInit();
+
+    // 埋点：进入垃圾文件清理页面
+    AnalyticsHelper.logJunkFilesEnter();
   }
 
   /// 异步初始化服务
@@ -173,6 +177,10 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
       _selectedPaths.clear();
     });
 
+    // 埋点：扫描开始
+    AnalyticsHelper.logScanStart('junk');
+    final scanStartTime = DateTime.now();
+
     try {
       final config = widget.initialConfig ?? const JunkFileScanConfig();
 
@@ -195,6 +203,15 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
           _applyFilter();
           _isScanning = false;
         });
+
+        // 埋点：扫描完成
+        final totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
+        AnalyticsHelper.logScanFinish(
+          scanType: 'junk',
+          durationMs: DateTime.now().difference(scanStartTime).inMilliseconds,
+          itemCount: files.length,
+          totalSizeMb: totalSize / (1024 * 1024),
+        );
 
         // 刷新时也重新扫描系统回收站（强制刷新）
         if (forceRefresh) {

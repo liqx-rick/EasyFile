@@ -1,0 +1,56 @@
+event_id,event_name,type,remark,trigger
+app_launch,应用启动,count,"应用冷/热启动（params: launch_type）","App 启动时（main.dart 初始化后上报）"
+app_foreground,应用前台进入,count,"应用切回前台","应用从后台回到前台时（app 生命周期 resume）"
+app_background,应用切后台,count,应用切到后台,"应用进入后台时（app 生命周期 pause）"
+scan_start,扫描开始,count,"扫描某一模块开始（params: type）","用户触发扫描或自动开始扫描时（scan 开始立即上报）"
+scan_finish,扫描完成,count,"扫描完成（params: type,duration_ms,item_count,total_size_mb）","扫描任务完成后立即上报（包含耗时/结果计数/大小）"
+scan_cancel,扫描取消,count,用户取消扫描（params: type）,用户在扫描过程中取消时上报
+start_scan,示例-开始扫描,count,示例用事件（analytics_example）,示例代码触发（仅用于示例/测试）
+finish_scan,示例-完成扫描,count,示例用事件（analytics_example）,示例代码触发（仅用于示例/测试）
+permission_denied,权限被拒绝,count,"存储/权限请求被拒（params: permission）","请求权限被拒绝时立即上报"
+clean_action,清理操作,count,"执行清理操作（params: type,item_count,size_mb）","用户执行清理（点击清理按钮并开始清理）"
+clean_confirm,清理确认,count,用户确认清理（params: type）,用户在确认对话框确认清理时上报
+clean_success,清理成功,count,清理完成释放空间（params: freed_mb）,"清理完成并返回结果（释放空间大小）时上报"
+clean_junk_files_enter,垃圾清理页面进入,count,打开垃圾清理页面,页面进入（initState）时上报
+category_enter,分类页面进入,count,进入某分类页面（params: category）,进入分类页面时上报
+category_sort_change,分类排序切换,count,"切换分类排序（params: category,sort_by）","用户切换排序选项时上报"
+category_file_open,分类文件打开,count,"在分类中打开文件（params: category,file_type）","用户点击打开文件时上报"
+file_browse_enter,文件浏览进入,count,进入文件浏览（params: entry_point）,进入文件浏览页面或子目录时上报
+file_browse_action,文件浏览操作,count,文件浏览内操作（params: action）,文件浏览中执行操作（复制/删除/分享等）时上报
+storage_view,存储管理查看,count,查看存储管理页面,打开存储管理页面时上报
+storage_expand_folder,存储文件夹展开,count,"展开存储文件夹（params: folder_level）","用户展开文件夹层级时上报"
+privacy_space_enter,隐私空间进入,count,"进入隐私空间（params: entry_point）","进入隐私空间页面（initState）时上报"
+privacy_space_auth,隐私空间认证,count,"隐私空间认证结果（params: auth_method,success）","用户进行隐私空间认证并返回结果后上报"
+privacy_file_add,隐私文件添加,count,"向隐私空间添加文件（params: file_type,file_count）","用户将文件加入隐私空间时上报"
+privacy_file_remove,隐私文件移出,count,从隐私空间移出文件,用户将文件移出隐私空间时上报
+privacy_space_lock,隐私空间锁定,count,隐私空间被锁定,用户执行锁定隐私空间时上报
+archive_management_enter,压缩包管理进入,count,进入压缩包管理页面,进入压缩包管理页面时上报
+archive_scan_start,压缩包扫描开始,count,开始扫描压缩包,开始压缩包扫描任务时上报
+archive_scan_finish,压缩包扫描完成,count,"压缩包扫描完成（params: archive_count,total_size_mb,duration_ms）","压缩包扫描结束时上报（含统计）"
+archive_browse,压缩包浏览,count,"浏览压缩包（params: format）","用户打开/浏览压缩包内容时上报"
+archive_extract,压缩包解压,count,"执行解压（params: format,size_mb,extract_all）","用户触发解压操作并开始解压时上报"
+archive_password_check,压缩包密码检测,count,"检测压缩包是否有密码（params: has_password）","检测到压缩包密码状态后上报"
+quick_access_enter,快捷访问进入,count,"进入快捷访问（params: entry_point）","进入快捷访问页面或区域时上报"
+quick_access_folder_click,快捷访问文件夹点击,count,"点击快捷访问文件夹（params: folder_type,folder_name,is_pinned）","用户点击快捷访问中的文件夹卡片时上报"
+quick_access_folder_add,快捷访问文件夹添加,count,"添加快捷访问文件夹（params: folder_type,source）","用户添加快捷访问文件夹时上报"
+quick_access_folder_remove,快捷访问文件夹移除,count,移除快捷访问文件夹（params: folder_type）,用户移除快捷访问文件夹时上报
+quick_access_folder_pin,快捷访问文件夹置顶,count,"置顶快捷访问文件夹（params: folder_type）","用户对快捷访问文件夹置顶时上报"
+quick_access_folder_unpin,快捷访问文件夹取消置顶,count,"取消置顶快捷访问文件夹（params: folder_type）","用户取消置顶时上报"
+quick_access_folder_rename,快捷访问文件夹重命名,count,"重命名快捷访问文件夹（params: folder_type）","用户完成重命名操作后上报"
+quick_access_long_press,快捷访问长按,count,"长按快捷访问文件夹（params: folder_type）","用户长按文件夹以显示上下文菜单时上报"
+quick_access_card_click,快捷访问卡片点击,count,"点击快捷访问卡片（params: type）","用户点击快捷访问卡片或推荐卡片时上报"
+quick_access_rename,快捷访问重命名操作,count,快捷访问重命名（params: ...）,执行重命名动作时上报
+trash_view,回收站查看,count,查看回收站,打开回收站页面时上报
+trash_restore,回收站恢复,count,从回收站恢复文件,用户恢复文件操作成功/触发时上报
+trash_permanent_delete,回收站永久删除,count,"永久删除（params: item_count）","用户确认并执行永久删除时上报"
+app_management_enter,应用管理进入,count,进入应用管理页面,打开应用管理页面时上报
+app_settings_open,应用设置打开,count,"打开应用设置（params: package_name）","用户在应用管理中打开特定应用设置页时上报"
+app_uninstall,应用卸载,count,"卸载应用（params: size_mb）","用户卸载应用成功或触发卸载流程时上报（按需统计大小）"
+apk_install,APK 安装,count,安装 APK,检测或完成 APK 安装时上报
+settings_enter,设置页面进入,count,进入设置页面,打开设置页面时上报
+settings_change,设置修改,count,"修改设置项（params: setting_key,new_value）","用户修改某项设置并保存时上报"
+home_recommend_view,首页推荐查看,count,"查看首页推荐（params: type）","用户浏览首页推荐卡片时上报"
+scan_large_files_enter,大文件扫描页面进入,count,进入大文件扫描页面,进入大文件扫描页面时上报
+scan_duplicate_files_enter,重复文件扫描页面进入,count,进入重复文件扫描页面,进入重复文件扫描页面时上报
+scan_apk_management_enter,APK 管理页面进入,count,进入 APK 管理页面,进入 APK 管理页面时上报
+event_name,示例事件占位,count,文档示例占位事件,示例/占位（无需导入）

@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -26,6 +27,9 @@ class _TrashPageState extends State<TrashPage> {
   void initState() {
     super.initState();
     _loadData();
+
+    // 埋点：查看回收站
+    AnalyticsHelper.logTrashView();
   }
 
   Future<void> _loadData() async {
@@ -512,6 +516,11 @@ class _TrashPageState extends State<TrashPage> {
 
       final result = await _trashManager.restoreFile(item);
 
+      // 埋点：恢复文件
+      if (result['success'] == true) {
+        AnalyticsHelper.logTrashRestore();
+      }
+
       // 关闭加载对话框
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -628,6 +637,11 @@ class _TrashPageState extends State<TrashPage> {
   Future<void> _deleteFile(AppTrashItem item) async {
     try {
       final success = await _trashManager.deleteFilePermanently(item);
+
+      // 埋点：永久删除
+      if (success) {
+        AnalyticsHelper.logTrashPermanentDelete(1);
+      }
 
       if (!mounted) return;
 

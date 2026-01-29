@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
-
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -11,23 +10,24 @@ import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/pages/file_preview_page.dart';
-import 'package:easyfile/ui/services/batch_operations_service.dart';
-import 'package:easyfile/ui/widgets/file_collection_view.dart';
-import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
-import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
-import 'package:easyfile/ui/widgets/image_thumbnail.dart';
-import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
 import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
-import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
+import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/services/batch_operations_service.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
+import 'package:easyfile/ui/widgets/edit_mode_hint_bar.dart';
+import 'package:easyfile/ui/widgets/edit_mode_widgets.dart';
+import 'package:easyfile/ui/widgets/file_collection_view.dart';
+import 'package:easyfile/ui/widgets/image_thumbnail.dart';
+import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
+import 'package:easyfile/ui/widgets/selection_bottom_bar.dart';
+import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
-import 'package:easyfile/ui/services/single_file_operations_service.dart';
-import 'package:easyfile/ui/widgets/single_file_operations_sheet.dart';
+import 'package:flutter/material.dart';
 
 /// 大文件查找页面
 ///
@@ -50,8 +50,7 @@ class LargeFilesPage extends StatefulWidget {
   State<LargeFilesPage> createState() => _LargeFilesPageState();
 }
 
-class _LargeFilesPageState extends State<LargeFilesPage>
-    with EditModeMixin, PopScopeHandlerMixin {
+class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, PopScopeHandlerMixin {
   // 扫描配置
   late LargeFileScanConfig _config;
 
@@ -101,6 +100,9 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     // 监听ViewModel变化，同步文件操作
     locator<FileViewModel>().addListener(_onViewModelChanged);
 
+    // 埋点：进入大文件扫描页面
+    AnalyticsHelper.logLargeFilesEnter();
+
     // 从配置文件读取缓存有效期并初始化缓存管理器
     _cacheManager = LargeFileCacheManager(
       cacheExpiryDays: AppConfig.instance.fileScan.largeFileCacheExpiry,
@@ -136,8 +138,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
     // 记录当前配置
     logger.i('Scan config: ${_config.toString()}');
-    logger.i(
-        'File types enabled: ${_config.fileTypes.map((t) => t.label).join(", ")}');
+    logger.i('File types enabled: ${_config.fileTypes.map((t) => t.label).join(", ")}');
 
     // 3. 根据缓存状态决定扫描策略
     if (_cache != null && _cache!.config.isEquivalent(_config)) {
@@ -151,8 +152,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         });
       }
 
-      logger.i(
-          'Cache loaded: ${_largeFiles.length} files, starting differential scan...');
+      logger.i('Cache loaded: ${_largeFiles.length} files, starting differential scan...');
       // 启动差异扫描（不阻塞，后台运行）
       unawaited(_startDifferentialScan());
     } else {
@@ -167,8 +167,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
     try {
       _cache = await _cacheManager.loadCache();
       if (_cache != null) {
-        logger.i(
-            'Cache loaded: ${_cache!.files.length} files, age: ${_cache!.formattedAge}');
+        logger.i('Cache loaded: ${_cache!.files.length} files, age: ${_cache!.formattedAge}');
       }
     } catch (e) {
       logger.e('Failed to load cache: $e');
@@ -296,6 +295,10 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
   /// 执行完全扫描
   Future<void> _startFullScan() async {
+    // 埋点：扫描开始
+    AnalyticsHelper.logScanStart('large_file');
+    final scanStartTime = DateTime.now();
+
     setState(() {
       _isScanning = true;
       _largeFiles = [];
@@ -327,6 +330,15 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           _totalSize = files.fold<int>(0, (sum, f) => sum + f.size);
           _isScanning = false;
         });
+
+        // 埋点：扫描完成
+        final durationMs = DateTime.now().difference(scanStartTime).inMilliseconds;
+        AnalyticsHelper.logScanFinish(
+          scanType: 'large_file',
+          durationMs: durationMs,
+          itemCount: files.length,
+          totalSizeMb: _totalSize / (1024 * 1024),
+        );
 
         // Capture messenger before async operation
         final messenger = ScaffoldMessenger.of(context);
@@ -395,8 +407,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
 
       // 新增的文件
       final addedPaths = newPaths.difference(currentPaths);
-      final addedFiles =
-          allFiles.where((f) => addedPaths.contains(f.path)).toList();
+      final addedFiles = allFiles.where((f) => addedPaths.contains(f.path)).toList();
 
       logger.i('Differential scan results:');
       logger.i('  Current files: ${currentPaths.length}');
@@ -407,8 +418,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
       if (addedFiles.isNotEmpty) {
         logger.i('  New files details:');
         for (final file in addedFiles) {
-          logger.i(
-              '    - ${file.name} (${FileSizeFormatter.formatBytes(file.size)}, ${file.path})');
+          logger.i('    - ${file.name} (${FileSizeFormatter.formatBytes(file.size)}, ${file.path})');
         }
       }
 
@@ -424,8 +434,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
         if (!currentPaths.contains(newFile.path)) continue;
 
         final oldFile = _largeFiles.firstWhere((f) => f.path == newFile.path);
-        if (oldFile.size != newFile.size ||
-            oldFile.modified != newFile.modified) {
+        if (oldFile.size != newFile.size || oldFile.modified != newFile.modified) {
           modifiedFiles.add(newFile);
         }
       }
@@ -459,8 +468,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
       // 必须重新排序才能保证所有文件按大小正确排列
       updatedFiles.sort((a, b) => b.size.compareTo(a.size));
 
-      logger.i(
-          'Updated file list built: ${updatedFiles.length} total files (sorted by size)');
+      logger.i('Updated file list built: ${updatedFiles.length} total files (sorted by size)');
 
       if (mounted) {
         setState(() {
@@ -470,25 +478,20 @@ class _LargeFilesPageState extends State<LargeFilesPage>
           _newFilesCount = addedFiles.length;
         });
 
-        logger.i(
-            'UI updated with ${_largeFiles.length} files, newFilesCount=$_newFilesCount');
+        logger.i('UI updated with ${_largeFiles.length} files, newFilesCount=$_newFilesCount');
 
         // 保存到缓存
         await _cacheManager.saveCache(files: _largeFiles, config: _config);
 
         // 如果有变化，显示提示
-        if (addedFiles.isNotEmpty ||
-            removedPaths.isNotEmpty ||
-            modifiedFiles.isNotEmpty) {
-          logger.i(
-              'Differential scan: +${addedFiles.length} -${removedPaths.length} ~${modifiedFiles.length}');
+        if (addedFiles.isNotEmpty || removedPaths.isNotEmpty || modifiedFiles.isNotEmpty) {
+          logger.i('Differential scan: +${addedFiles.length} -${removedPaths.length} ~${modifiedFiles.length}');
 
           // 记录新文件信息
           if (addedFiles.isNotEmpty) {
             logger.i('New files added:');
             for (final file in addedFiles) {
-              logger.i(
-                  '  - ${file.name} (${FileSizeFormatter.formatBytes(file.size)})');
+              logger.i('  - ${file.name} (${FileSizeFormatter.formatBytes(file.size)})');
             }
           }
 
@@ -496,9 +499,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  addedFiles.isNotEmpty
-                      ? '发现 ${addedFiles.length} 个新文件'
-                      : '${removedPaths.length} 个文件已不存在',
+                  addedFiles.isNotEmpty ? '发现 ${addedFiles.length} 个新文件' : '${removedPaths.length} 个文件已不存在',
                 ),
                 duration: const Duration(seconds: 2),
               ),
@@ -838,8 +839,7 @@ class _LargeFilesPageState extends State<LargeFilesPage>
   }
 
   /// 构建文件列表项
-  Widget _buildFileItem(
-      FileItem file, bool isSelectionMode, ColorScheme colorScheme) {
+  Widget _buildFileItem(FileItem file, bool isSelectionMode, ColorScheme colorScheme) {
     final isSelected = _selectionController.contains(file.path);
     final displayPath = _formatPath(file.path);
 
@@ -941,12 +941,10 @@ class _LargeFilesPageState extends State<LargeFilesPage>
   Widget _buildSelectionBottomBar() {
     return SelectionBottomBar(
       selectedPaths: _selectionController.selected,
-      isAllFavorite:
-          _batchService.isAllSelectedFavorite(_selectionController.selected),
+      isAllFavorite: _batchService.isAllSelectedFavorite(_selectionController.selected),
       onCopy: () {
         if (!mounted) return;
-        _batchService.batchCopy(
-            context, _selectionController.selected, '/storage/emulated/0');
+        _batchService.batchCopy(context, _selectionController.selected, '/storage/emulated/0');
       },
       onRename: () {
         if (!mounted) return;
@@ -958,16 +956,26 @@ class _LargeFilesPageState extends State<LargeFilesPage>
       },
       onMove: () {
         if (!mounted) return;
-        _batchService.batchMove(
-            context, _selectionController.selected, '/storage/emulated/0');
+        _batchService.batchMove(context, _selectionController.selected, '/storage/emulated/0');
       },
       onToggleFavorite: () {
         if (!mounted) return;
-        _batchService.batchToggleFavorite(
-            context, _selectionController.selected);
+        _batchService.batchToggleFavorite(context, _selectionController.selected);
       },
       onDelete: () {
         if (!mounted) return;
+
+        // 埋点：清理操作
+        final totalSize = _selectionController.selected
+            .map((path) => _largeFiles.firstWhere((f) => f.path == path,
+                orElse: () => FileItem(name: '', path: '', isDirectory: false, size: 0, modified: DateTime.now())))
+            .fold<int>(0, (sum, file) => sum + file.size);
+        AnalyticsHelper.logCleanAction(
+          cleanType: 'large_file',
+          itemCount: _selectionController.selected.length,
+          sizeMb: totalSize / (1024 * 1024),
+        );
+
         _batchService.batchDelete(context, _selectionController.selected);
       },
     );
