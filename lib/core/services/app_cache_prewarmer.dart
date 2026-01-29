@@ -130,18 +130,18 @@ class AppCachePrewarmer {
             );
 
             stopwatch.stop();
-            
+
             // 仅在扫描成功且未超时的情况下计为成功
             if (!scanTimedOut && !scanCancelled) {
               scanned++;
               logger.i('✅ ${config.appName} 预热完成 (${stopwatch.elapsedMilliseconds}ms)');
             }
-          } on TimeoutException catch (e) {
+          } on TimeoutException {
             stopwatch.stop();
             failed++;
             logger.e('预热失败: ${config.appName} - 超时 (${stopwatch.elapsedMilliseconds}ms)');
             logger.w('⚠️ 超时扫描已取消，未写入缓存');
-          } on CancelledException catch (e) {
+          } on CancelledException {
             stopwatch.stop();
             scanCancelled = true;
             failed++;
@@ -151,6 +151,11 @@ class AppCachePrewarmer {
             failed++;
             logger.e('预热失败: ${config.appName} - $e');
           }
+        } catch (e) {
+          // 外层catch处理应用检测或缓存检查阶段的错误
+          failed++;
+          logger.e('预热失败: ${config.appName} - $e');
+        }
       }
 
       logger.i('========== 缓存预热完成 ==========');

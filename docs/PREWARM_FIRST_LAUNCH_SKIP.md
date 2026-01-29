@@ -46,15 +46,15 @@ if (!isFirstLaunch) {
 ```dart
 Future<bool> _isFirstLaunch() async {
   const String _keyFirstLaunch = 'app_first_launch_completed';
-  
+
   final prefs = await SharedPreferences.getInstance();
   final hasLaunched = prefs.getBool(_keyFirstLaunch) ?? false;
-  
+
   if (!hasLaunched) {
     await prefs.setBool(_keyFirstLaunch, true);
     return true;
   }
-  
+
   return false;
 }
 ```

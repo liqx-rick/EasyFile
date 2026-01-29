@@ -77,7 +77,7 @@ Future<void> main() async {
   // 阶段2（延迟3秒）：MediaStore 缓存预热
   // 阶段3（延迟5秒）：应用文件缓存预热
   await CachePrewarmCoordinator.instance.initialize();
-  
+
   // ✨ 优化：首次启动跳过预热（避免与首页推荐服务重复扫描）
   // 原因：首页在T=3s执行推荐扫描并写入缓存，预热T=5s执行时会100%跳过
   // 节省：约200-300ms的初始化成本（AppDetectionService、FileCountCache等）
@@ -85,7 +85,7 @@ Future<void> main() async {
   if (!isFirstLaunch) {
     CachePrewarmCoordinator.instance.startPrewarming();
     logger.i('🚀 启动缓存预热（非首次启动）');
-    
+
     // 可选：监听预热进度
     CachePrewarmCoordinator.instance.progressStream.listen((progress) {
       logger.d('预热进度: ${progress.taskName} - ${progress.progressPercent}%');
@@ -109,22 +109,22 @@ Future<void> main() async {
 }
 
 /// 判断是否首次启动
-/// 
+///
 /// 使用SharedPreferences持久化标记。
 /// 首次启动时返回true并写入标记，后续启动返回false。
 Future<bool> _isFirstLaunch() async {
-  const String _keyFirstLaunch = 'app_first_launch_completed';
-  
+  const String keyFirstLaunch = 'app_first_launch_completed';
+
   try {
     final prefs = await SharedPreferences.getInstance();
-    final hasLaunched = prefs.getBool(_keyFirstLaunch) ?? false;
-    
+    final hasLaunched = prefs.getBool(keyFirstLaunch) ?? false;
+
     if (!hasLaunched) {
       // 首次启动，写入标记
-      await prefs.setBool(_keyFirstLaunch, true);
+      await prefs.setBool(keyFirstLaunch, true);
       return true;
     }
-    
+
     return false;
   } catch (e) {
     logger.e('检查首次启动状态失败: $e');

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:easyfile/data/models/file_item.dart';
 
 /// 应用扫描结果

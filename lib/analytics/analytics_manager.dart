@@ -7,7 +7,7 @@ import 'package:easyfile/analytics/umeng_analytics_service.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 全局埋点管理器（单例）
-/// 
+///
 /// 职责：
 /// - 根据配置选择具体实现（Umeng/Firebase）
 /// - 提供统一的静态 API 入口

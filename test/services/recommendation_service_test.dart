@@ -5,6 +5,7 @@ import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/core/utils/cancellation_token.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -56,6 +57,7 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
     bool useMediaStore = true,
     bool updateCache = true,
     bool forceRefresh = false,
+    CancellationToken? cancellationToken,
   }) async {
     return AppScanResult(
       appName: appKey,

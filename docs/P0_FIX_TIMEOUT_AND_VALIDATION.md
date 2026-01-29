@@ -36,7 +36,7 @@ await _scanner.scanApp(...).timeout(_singleAppTimeout, onTimeout: () {
 // lib/core/utils/cancellation_token.dart
 class CancellationToken {
   bool _isCancelled = false;
-  
+
   bool get isCancelled => _isCancelled;
   void cancel() => _isCancelled = true;
   void throwIfCancelled() {
@@ -59,10 +59,10 @@ Future<AppScanResult> scanApp({
     logger.w('扫描已取消');
     return AppScanResult.cancelled(appName);  // ✅ 返回空结果，不写缓存
   }
-  
+
   final pathScanResult = await _scanByPaths(
-    scanPaths, 
-    config.filePatterns, 
+    scanPaths,
+    config.filePatterns,
     cancellationToken,  // ✅ 传递取消令牌
   );
 }
@@ -91,7 +91,7 @@ Future<void> prewarmAll() async {
   for (final config in targetConfigs) {
     final cancellationToken = CancellationToken();
     bool scanTimedOut = false;
-    
+
     try {
       await _scanner.scanApp(
         appKey: config.appKey,
@@ -101,7 +101,7 @@ Future<void> prewarmAll() async {
         cancellationToken.cancel();  // ✅ 超时时取消扫描
         throw TimeoutException('扫描超时');
       });
-      
+
       // ✅ 仅在未超时时计为成功
       if (!scanTimedOut) {
         scanned++;
@@ -123,7 +123,7 @@ Future<List<RecommendationCard>> _generateCardsFromSelection(
   List<String> selectedAppKeys
 ) async {
   final maxCacheAge = Duration(hours: 6);  // ✅ 定义最大缓存年龄
-  
+
   for (final appKey in selectedAppKeys) {
     // ✅ 检查缓存新鲜度
     final cacheValid = await _isCacheFresh(appKey, maxAge: maxCacheAge);
@@ -139,7 +139,7 @@ Future<List<RecommendationCard>> _generateCardsFromSelection(
         continue;  // ✅ 跳过无效数据
       }
     }
-    
+
     // 生成卡片...
   }
 }
