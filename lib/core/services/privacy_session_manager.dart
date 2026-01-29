@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 
 /// 隐私空间可信会话管理器
@@ -87,6 +88,9 @@ class PrivacySessionManager {
   void invalidate() {
     _lastVerifiedTime = null;
     logger.i('🔒 隐私会话已清除');
+
+    // 埋点：隐私空间锁定
+    AnalyticsHelper.logPrivacySpaceLock();
   }
 
   /// 应用进入后台

@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
@@ -47,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    AnalyticsHelper.logSettingsEnter();
 
     // 初始化重复文件扫描服务：注入依赖到CacheManagerService，供缓存清理页面使用
     final presenter = locator<FilePresenter>();
@@ -246,6 +248,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onChanged: (value) async {
               if (value != null) {
                 logger.i('Theme selected in dialog: $value');
+                AnalyticsHelper.logSettingsChange('theme_mode', value.toString());
                 // 通过 Presenter 保存，确保同时保存到JSON和SharedPreferences
                 final presenter = locator<FilePresenter>();
                 await presenter.setThemeMode(value);
@@ -374,6 +377,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: hideEmpty,
           onChanged: (value) async {
+            AnalyticsHelper.logSettingsChange('hide_empty_folders', value.toString());
             await _displaySettings.setHideEmptyFolders(value);
             setState(() {}); // 触发重建以更新UI
           },
@@ -470,6 +474,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     });
                   },
                   onChangeEnd: (value) async {
+                    AnalyticsHelper.logSettingsChange('min_file_size', value.toInt().toString());
                     await _displaySettings.setMinFileSize(value.toInt());
                   },
                 ),

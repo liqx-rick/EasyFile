@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../core/logger.dart';
 import '../viewmodel/splash_viewmodel.dart';
@@ -47,8 +46,8 @@ class SplashPresenter {
 
   /// 执行初始化任务
   Future<void> _performInitializationTasks() async {
-    // 任务1：检查存储权限
-    await _checkPermissions();
+    // 任务1：检查存储权限（已移至 app.dart 的 _initializeApp 中提前处理）
+    // 避免在隐私政策弹窗显示时重复请求权限
 
     // 任务2：预加载主题配置
     await _preloadTheme();
@@ -58,61 +57,6 @@ class SplashPresenter {
 
     // 任务4：其他初始化任务
     await _performAdditionalInit();
-  }
-
-  /// 检查应用权限（只在首次启动且权限未授予时请求）
-  ///
-  /// 该方法会：
-  /// 1. 检查所有必需权限的状态
-  /// 2. 如果所有权限已授予，直接返回
-  /// 3. 只在权限处于未决定状态时请求，避免重复请求
-  Future<void> _checkPermissions() async {
-    try {
-      logger.d('SplashPresenter: Requesting permissions...');
-      viewModel.setInitMessage('请求应用权限...');
-
-      // 检查所有权限状态
-      final manageStorageStatus = await Permission.manageExternalStorage.status;
-      final storageStatus = await Permission.storage.status;
-      final photosStatus = await Permission.photos.status;
-      final videosStatus = await Permission.videos.status;
-
-      // 如果所有权限已授予，直接返回（避免重复弹窗）
-      if (manageStorageStatus.isGranted ||
-          (storageStatus.isGranted &&
-              photosStatus.isGranted &&
-              videosStatus.isGranted)) {
-        logger.i(
-            'SplashPresenter: All permissions already granted, skipping requests');
-        return;
-      }
-
-      // 只在首次启动（未决定状态）时请求权限
-      // 已授予或永久拒绝的权限不再请求
-      if (manageStorageStatus.isDenied &&
-          !manageStorageStatus.isPermanentlyDenied) {
-        logger.i('SplashPresenter: Requesting MANAGE_EXTERNAL_STORAGE...');
-        Permission.manageExternalStorage.request();
-      }
-
-      if (storageStatus.isDenied && !storageStatus.isPermanentlyDenied) {
-        logger.i('SplashPresenter: Requesting storage permission...');
-        Permission.storage.request();
-      }
-
-      // 请求媒体访问权限（Android 13+）
-      if (photosStatus.isDenied && !photosStatus.isPermanentlyDenied) {
-        Permission.photos.request();
-      }
-      if (videosStatus.isDenied && !videosStatus.isPermanentlyDenied) {
-        Permission.videos.request();
-      }
-
-      logger.d('SplashPresenter: Permission requests sent');
-    } catch (e) {
-      logger.w('SplashPresenter: Error requesting permissions: $e');
-      // 权限请求失败不阻塞启动
-    }
   }
 
   /// 预加载主题配置

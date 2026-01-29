@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
@@ -49,6 +50,9 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
 
     // 启动包管理器监听（页面级）
     _apkManagerService.startPackageListener(_onPackageChanged);
+
+    // 埋点：进入APK管理页面
+    AnalyticsHelper.logApkManagementEnter();
   }
 
   @override

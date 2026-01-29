@@ -1,0 +1,105 @@
+# EasyFile Analytics 统一配置文件
+# 修改此文件后需重新编译应用
+#
+# 使用说明：
+# 1. 复制 .env.analytics.example 为 .env.analytics 并填入实际密钥
+# 2. 根据目标市场修改 market 字段（china / international）
+# 3. 运行 flutter clean && flutter run
+
+version: "1.0"
+
+# =============================================================================
+# 全局配置
+# =============================================================================
+
+# 埋点总开关（false 则完全禁用所有埋点）
+enabled: true
+
+# 目标市场选择：china(国内) / international(海外)
+# 此字段决定使用哪个 provider
+market: china
+
+# =============================================================================
+# 各市场的 Provider 配置
+# =============================================================================
+
+providers:
+  # 国内市场配置（中国大陆）
+  china:
+    # 默认使用的埋点服务商
+    default: umeng
+
+    # 友盟配置
+    umeng:
+      # SDK 组件版本号（Android）
+      # 更新版本时修改此处即可，Gradle 会自动读取
+      sdk_versions:
+        common: "9.6.8"      # 基础组件（必需）
+        asms: "1.8.3"        # 反作弊组件（必需）
+        abtest: "1.0.3"      # ABTest 组件（可选）
+        # apm: "1.9.5"       # 性能监控（未启用）
+        # crash: "0.0.5"     # 崩溃收集（未启用）
+
+      # 渠道名称（根据发布渠道修改，如：GooglePlay, Huawei, Xiaomi）
+      channel: "GooglePlay"
+
+      # 是否自动采集页面浏览
+      auto_page_collection: true
+
+      # 是否启用加密传输
+      enable_encryption: true
+
+  # 海外市场配置
+  international:
+    # 默认使用的埋点服务商
+    default: firebase
+
+    # Firebase 配置
+    firebase:
+      # 是否启用自动收集
+      auto_collection_enabled: true
+
+      # 会话超时时间（分钟）
+      session_timeout_duration: 30
+
+# =============================================================================
+# 隐私合规配置
+# =============================================================================
+
+privacy:
+  # 是否需要用户同意才启用埋点（GDPR/CCPA 合规）
+  require_user_consent: true
+
+  # 是否启用 GDPR 模式（欧盟用户）
+  gdpr_mode: true
+
+  # 是否自动收集设备 ID
+  auto_collect_device_id: false
+
+  # 数据保留天数（本地缓存）
+  data_retention_days: 30
+
+# =============================================================================
+# 功能开关
+# =============================================================================
+
+features:
+  # 是否启用崩溃报告
+  crash_report: false
+
+  # 是否启用性能监控
+  performance_monitor: false
+
+  # 是否启用 A/B 测试
+  ab_testing: false
+
+# =============================================================================
+# 调试配置
+# =============================================================================
+
+debug:
+  # 是否在 Debug 模式输出详细日志
+  verbose_logging: true
+
+  # 是否在测试环境禁用真实上报（仅打印日志）
+  dry_run: false

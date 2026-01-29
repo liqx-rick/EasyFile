@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
@@ -484,6 +485,9 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
     _selectionController.selectedNotifier.addListener(_onSelectionChanged);
     // 监听ViewModel变化，当文件列表更新时同步本地状态
     widget.viewModel.addListener(_onViewModelChanged);
+
+    // 埋点：进入文件浏览器
+    AnalyticsHelper.logFileBrowseEnter(widget.initialPath != null ? 'direct_path' : 'storage_root');
 
     // 延迟加载，避免在 initState 中访问 ScaffoldMessenger
     WidgetsBinding.instance.addPostFrameCallback((_) {

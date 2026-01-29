@@ -1,4 +1,5 @@
 import 'package:audio_session/audio_session.dart';
+import 'package:easyfile/analytics/analytics_manager.dart';
 import 'package:easyfile/app.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
@@ -84,6 +85,14 @@ Future<void> main() async {
       logger.e('预热失败: ${progress.error}');
     }
   });
+
+  // ===== 合规步骤1: Analytics 预初始化（无需用户同意）=====
+  try {
+    await AnalyticsManager.preInit();
+    logger.i('✓ Analytics pre-initialized (Step 1/3)');
+  } catch (e) {
+    logger.e('Analytics preInit failed: $e');
+  }
 
   runApp(const EasyFileApp());
 }

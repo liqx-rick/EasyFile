@@ -57,3 +57,8 @@ Untitled-*
 # Log files
 consolelog.txt
 docs/consolelog.txt
+
+# Analytics configuration - Keep secrets private
+config/.env.analytics
+**/analytics_secrets.*
+.env.analytics

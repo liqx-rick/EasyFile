@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/models/app_info.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
-import 'package:easyfile/core/services/usage_stats_permission_service.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
+import 'package:easyfile/core/services/usage_stats_permission_service.dart';
+import 'package:easyfile/data/models/app_info.dart';
+import 'package:flutter/material.dart';
 
 /// 应用管理页面
 ///
@@ -18,8 +19,7 @@ class AppManagementPage extends StatefulWidget {
   State<AppManagementPage> createState() => _AppManagementPageState();
 }
 
-class _AppManagementPageState extends State<AppManagementPage>
-    with WidgetsBindingObserver {
+class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindingObserver {
   final _appService = locator<AppManagementService>();
   final _permissionService = locator<UsageStatsPermissionService>();
   final _intentService = locator<SystemIntentService>();
@@ -50,6 +50,7 @@ class _AppManagementPageState extends State<AppManagementPage>
   @override
   void initState() {
     super.initState();
+    AnalyticsHelper.logAppManagementEnter();
     WidgetsBinding.instance.addObserver(this);
     _checkPermission().then((_) {
       _hadPermissionBefore = _hasPermission; // 初始化权限状态记录
@@ -78,8 +79,7 @@ class _AppManagementPageState extends State<AppManagementPage>
       _checkPermission().then((_) async {
         // 如果权限状态从无到有，执行完整扫描（不显示顶部状态栏，使用中间加载指示器）
         if (!_hadPermissionBefore && _hasPermission) {
-          logger
-              .i('Permission state changed: granted, reloading with full scan');
+          logger.i('Permission state changed: granted, reloading with full scan');
           _loadApps(); // 不传showBanner参数，默认false，显示中间的加载状态
         } else {
           // 检查缓存是否存在，决定使用增量刷新还是完全刷新
@@ -156,8 +156,7 @@ class _AppManagementPageState extends State<AppManagementPage>
             _apps = cachedApps;
             _applyFilters();
           });
-          logger.i(
-              'Loaded ${cachedApps.length} apps from cache, starting incremental refresh');
+          logger.i('Loaded ${cachedApps.length} apps from cache, starting incremental refresh');
 
           // 然后增量刷新
           _refreshAppsWithBanner(incremental: true);
@@ -227,8 +226,7 @@ class _AppManagementPageState extends State<AppManagementPage>
           _apps,
           includeSystemApps: _showSystemApps,
         );
-        logger
-            .i('Incremental refresh completed: ${appsWithStorage.length} apps');
+        logger.i('Incremental refresh completed: ${appsWithStorage.length} apps');
       } else {
         // 完全扫描：重新获取所有应用和存储信息
         logger.i('Starting full refresh...');
@@ -586,8 +584,7 @@ class _AppManagementPageState extends State<AppManagementPage>
             ),
             filled: true,
             fillColor: Colors.grey[100],
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
           onChanged: (value) {
             setState(() {
@@ -629,26 +626,22 @@ class _AppManagementPageState extends State<AppManagementPage>
                 label: const Text('显示系统应用', style: TextStyle(fontSize: 13)),
                 selected: _showSystemApps,
                 showCheckmark: false, // 隐藏勾选图标
-                labelPadding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onSelected: _isLoading
                     ? null
                     : (selected) async {
                         // 加载时禁用
-                        logger.i(
-                            '🔄 系统应用切换: $selected, 当前baseline=${_appService.deviceBaselineTime}');
+                        logger.i('🔄 系统应用切换: $selected, 当前baseline=${_appService.deviceBaselineTime}');
 
                         // 如果要显示系统应用，确保baseline已经存在
-                        if (selected &&
-                            _appService.deviceBaselineTime == null) {
+                        if (selected && _appService.deviceBaselineTime == null) {
                           logger.w('⚠️ Baseline未加载，先加载用户应用以计算baseline');
                           // 先加载用户应用以计算baseline（baseline在加载用户应用时自动计算并保存）
                           logger.i('📥 [第1次加载] 加载用户应用以计算baseline...');
                           await _loadApps(); // 此时 _showSystemApps 还是 false，加载用户应用
-                          logger.i(
-                              '✓ Baseline已计算并保存: ${_appService.deviceBaselineTime}');
+                          logger.i('✓ Baseline已计算并保存: ${_appService.deviceBaselineTime}');
 
                           // 计算完baseline后，切换到系统应用
                           logger.i('📥 [第2次加载] 切换到系统应用，使用已计算的baseline');
@@ -663,8 +656,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                         }
 
                         // 切换显示范围并重新加载（使用已保存的baseline）
-                        logger.i(
-                            '📥 [切换加载] 切换到${selected ? "系统应用" : "用户应用"}，使用已有baseline');
+                        logger.i('📥 [切换加载] 切换到${selected ? "系统应用" : "用户应用"}，使用已有baseline');
                         setState(() {
                           _showSystemApps = selected;
                         });
@@ -701,8 +693,7 @@ class _AppManagementPageState extends State<AppManagementPage>
       ),
       selected: isSelected,
       showCheckmark: false, // 隐藏勾选图标
-      labelPadding:
-          const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 增加内边距
+      labelPadding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0), // 增加内边距
       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6), // 增加外边距
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // 收缩点击区域
       onSelected: (selected) {
@@ -849,9 +840,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                         timeColor = Colors.blue[600]!;
                       } else if (days <= 30) {
                         // 8-30天：根据数据来源选择深浅蓝
-                        timeColor = stats.lastTimeUsed != null
-                            ? Colors.blue[600]!
-                            : Colors.blue[400]!;
+                        timeColor = stats.lastTimeUsed != null ? Colors.blue[600]! : Colors.blue[400]!;
                       } else if (days <= 180) {
                         // 1-6个月：浅蓝色
                         timeColor = Colors.blue[400]!;
@@ -868,9 +857,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                         style: TextStyle(
                           fontSize: 11,
                           color: timeColor,
-                          fontWeight: stats.isActive
-                              ? FontWeight.w500
-                              : FontWeight.normal,
+                          fontWeight: stats.isActive ? FontWeight.w500 : FontWeight.normal,
                         ),
                       );
                     } else {
@@ -888,8 +875,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child:
-                      Icon(Icons.settings, size: 16, color: Colors.grey[600]),
+                  child: Icon(Icons.settings, size: 16, color: Colors.grey[600]),
                 ),
               ),
             ],
@@ -902,8 +888,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                 Flexible(
                   child: Text(
                     '总占用 ${_formatSize(app.storageInfo!.totalSize)}',
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w500),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -926,6 +911,9 @@ class _AppManagementPageState extends State<AppManagementPage>
   Future<void> _openAppSettings(String packageName) async {
     try {
       final success = await _intentService.openAppSettings(packageName);
+      if (success) {
+        AnalyticsHelper.logAppSettingsOpen(packageName);
+      }
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('打开应用设置失败')),
@@ -990,8 +978,7 @@ class _AppManagementPageState extends State<AppManagementPage>
           ],
         ),
         body: RefreshIndicator(
-          onRefresh: () =>
-              _refreshAppsWithBanner(incremental: false), // 下拉刷新使用完全扫描
+          onRefresh: () => _refreshAppsWithBanner(incremental: false), // 下拉刷新使用完全扫描
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
@@ -1004,10 +991,8 @@ class _AppManagementPageState extends State<AppManagementPage>
                     if (_showRefreshBanner)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -1021,8 +1006,7 @@ class _AppManagementPageState extends State<AppManagementPage>
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.blue[700]!),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1046,9 +1030,7 @@ class _AppManagementPageState extends State<AppManagementPage>
               SliverPersistentHeader(
                 pinned: true,
                 delegate: _StickyHeaderDelegate(
-                  height: _showSearchBar
-                      ? 114
-                      : 58, // 动态高度：搜索栏(48+8) + 排序栏(50+8) = 114；仅排序栏(50+8) = 58
+                  height: _showSearchBar ? 114 : 58, // 动态高度：搜索栏(48+8) + 排序栏(50+8) = 114；仅排序栏(50+8) = 58
                   child: Container(
                     color: Theme.of(context).scaffoldBackgroundColor,
                     child: Column(
@@ -1086,8 +1068,7 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return child;
   }
 

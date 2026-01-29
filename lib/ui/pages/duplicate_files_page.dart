@@ -1,28 +1,29 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
 
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_cache_manager.dart';
+import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
-import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
 import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
-import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
 
 /// 重复文件检测页面
 ///
@@ -98,6 +99,9 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     _setupScanListeners();
     _initializeAndScan();
+
+    // 埋点：进入重复文件扫描页面
+    AnalyticsHelper.logDuplicateFilesEnter();
   }
 
   /// 设置扫描监听器
@@ -172,10 +176,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       _newGroupsCount = newCount - _oldGroupsCount;
 
       // 计算新增文件数
-      final oldFilesCount =
-          _allGroups.fold<int>(0, (sum, g) => sum + g.files.length);
-      final newFilesCount =
-          groups.fold<int>(0, (sum, g) => sum + g.files.length);
+      final oldFilesCount = _allGroups.fold<int>(0, (sum, g) => sum + g.files.length);
+      final newFilesCount = groups.fold<int>(0, (sum, g) => sum + g.files.length);
       _newFilesCount = newFilesCount - oldFilesCount;
 
       logger.i(
@@ -203,8 +205,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     });
 
     final t2 = DateTime.now();
-    logger.i(
-        '[${t2.toIso8601String()}] 🎯 setState completed, delay: ${t2.difference(t1).inMilliseconds}ms');
+    logger.i('[${t2.toIso8601String()}] 🎯 setState completed, delay: ${t2.difference(t1).inMilliseconds}ms');
 
     _initializeDefaultSelection();
 
@@ -217,13 +218,11 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       _prewarmThumbnailCache(groups);
     } else if (_newGroupsCount != 0 || _newFilesCount != 0) {
       // 增量扫描完成且有更新，预热所有缩略图（包括旧的）
-      logger.i(
-          '🔥 Incremental scan completed with updates, starting cache prewarming');
+      logger.i('🔥 Incremental scan completed with updates, starting cache prewarming');
       _prewarmThumbnailCache(groups);
     } else {
       // 增量扫描无更新，跳过预热
-      logger.i(
-          '🔥 Incremental scan completed with no updates, skipping cache prewarming');
+      logger.i('🔥 Incremental scan completed with no updates, skipping cache prewarming');
     }
 
     // 添加帧回调，确认UI何时真正渲染
@@ -276,8 +275,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     final currentState = manager.getStateFor(_config);
     final currentGroups = manager.getCachedGroupsFor(_config);
 
-    logger.i(
-        '📱 _initializeAndScan: state for this config = $currentState, cachedGroups = ${currentGroups.length}');
+    logger.i('📱 _initializeAndScan: state for this config = $currentState, cachedGroups = ${currentGroups.length}');
 
     // 🔄 检测配置变化（用户返回后调整了参数）
     final configChanged = !_config.isEquivalent(_initialConfig);
@@ -395,8 +393,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   /// 4. 图片使用Flutter的precacheImage
   /// 5. 视频触发缩略图生成（由VideoThumbnailLoadQueue管理缓存）
   Future<void> _prewarmThumbnailCache(List<DuplicateFileGroup> groups) async {
-    logger.i(
-        '🔥 Starting thumbnail cache prewarming for ${groups.length} groups');
+    logger.i('🔥 Starting thumbnail cache prewarming for ${groups.length} groups');
 
     // 收集所有需要预热的文件
     final imagesToPrewarm = <FileItem>[];
@@ -412,8 +409,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       }
     }
 
-    logger.i(
-        '🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} videos to prewarm');
+    logger.i('🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} videos to prewarm');
 
     // 1. 预热图片（使用Flutter的precacheImage，快速）
     if (imagesToPrewarm.isNotEmpty) {
@@ -447,8 +443,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       const batchSize = 5; // 每批5个，避免MediaCodec资源耗尽
       final videosToProcess = videosToPrewarm.take(maxVideos).toList();
 
-      logger.i(
-          '🔥 Starting video thumbnail prewarming for ${videosToProcess.length} videos');
+      logger.i('🔥 Starting video thumbnail prewarming for ${videosToProcess.length} videos');
 
       for (int i = 0; i < videosToProcess.length; i += batchSize) {
         final batch = videosToProcess.skip(i).take(batchSize).toList();
@@ -470,8 +465,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         );
 
         if (i % 20 == 0) {
-          logger.i(
-              '🔥 Video prewarming progress: ${i + batchSize}/${videosToProcess.length}');
+          logger.i('🔥 Video prewarming progress: ${i + batchSize}/${videosToProcess.length}');
         }
       }
 
@@ -488,8 +482,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     // 如果后台已经在扫描中，不要重复启动
     if (manager.state == DuplicateScanState.scanning) {
-      logger
-          .w('Scan already in progress in background, waiting for completion');
+      logger.w('Scan already in progress in background, waiting for completion');
       setState(() {
         _isScanning = true;
       });
@@ -515,6 +508,9 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       _lastProgressValue = 0;
     });
 
+    // 埋点：扫描开始
+    AnalyticsHelper.logScanStart('duplicate');
+
     try {
       // 记录扫描开始时间，用于判断是否使用了缓存
       final scanStartTime = DateTime.now();
@@ -534,6 +530,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
           _allGroups = groups;
           _isScanning = false;
         });
+
+        // 埋点：扫描完成
+        final totalFiles = groups.fold<int>(0, (sum, g) => sum + g.files.length);
+        final totalSize = groups.fold<int>(0, (sum, g) => sum + g.files.fold<int>(0, (s, f) => s + f.size));
+        AnalyticsHelper.logScanFinish(
+          scanType: 'duplicate',
+          durationMs: scanDuration.inMilliseconds,
+          itemCount: totalFiles,
+          totalSizeMb: totalSize / (1024 * 1024),
+        );
 
         // 初始化默认选中状态
         _initializeDefaultSelection();
@@ -559,12 +565,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
           // 只有在使用缓存时才启动增量更新检测
           // 如果是刚完成的完整扫描，数据已经是最新的，无需再检查更新
           if (isFromCache) {
-            logger.i(
-                '📦 Loaded from cache in ${scanDuration.inMilliseconds}ms, starting incremental update');
+            logger.i('📦 Loaded from cache in ${scanDuration.inMilliseconds}ms, starting incremental update');
             _startIncrementalUpdateCheck();
           } else {
-            logger.i(
-                '✅ Fresh scan completed in ${scanDuration.inSeconds}s, no need for incremental update');
+            logger.i('✅ Fresh scan completed in ${scanDuration.inSeconds}s, no need for incremental update');
           }
         }
       }
@@ -599,8 +603,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       _showIncrementalSummary = false;
     });
 
-    logger.i(
-        '🔄 After setState: _isCheckingUpdates=$_isCheckingUpdates, _oldGroupsCount=$_oldGroupsCount');
+    logger.i('🔄 After setState: _isCheckingUpdates=$_isCheckingUpdates, _oldGroupsCount=$_oldGroupsCount');
 
     // 💡 监听器会在增量更新完成时自动清除状态
     // 在Android设备上，文件系统扫描可能需要1-2分钟，不设置timeout
@@ -789,8 +792,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     return Scaffold(
       appBar: _buildAppBar(colorScheme),
       body: _buildBody(theme, colorScheme),
-      bottomNavigationBar:
-          _isSelectionMode ? _buildBottomBar(colorScheme) : null,
+      bottomNavigationBar: _isSelectionMode ? _buildBottomBar(colorScheme) : null,
     );
   }
 
@@ -808,9 +810,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
           },
         ),
         title: Text(
-          _config.scanMode == DuplicateScanMode.full
-              ? '重复文件清理（完整检测）'
-              : '重复文件清理（${_config.selectedType!.label}）',
+          _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整检测）' : '重复文件清理（${_config.selectedType!.label}）',
         ),
         centerTitle: true,
       );
@@ -818,9 +818,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     return AppBar(
       title: Text(
-        _config.scanMode == DuplicateScanMode.full
-            ? '重复文件清理（完整检测）'
-            : '重复文件清理（${_config.selectedType!.label}）',
+        _config.scanMode == DuplicateScanMode.full ? '重复文件清理（完整检测）' : '重复文件清理（${_config.selectedType!.label}）',
       ),
       centerTitle: true,
     );
@@ -1026,9 +1024,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 估算剩余时间
   String _getEstimatedTimeRemaining() {
-    if (_scanStartTime == null ||
-        _totalProgress == 0 ||
-        _currentProgress == 0) {
+    if (_scanStartTime == null || _totalProgress == 0 || _currentProgress == 0) {
       return ''; // 没有足够信息估算
     }
 
@@ -1161,8 +1157,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     final groupsByType = _groupByType();
     final totalFiles = _allGroups.fold<int>(0, (sum, g) => sum + g.count);
-    final totalReclaimable =
-        _allGroups.fold<int>(0, (sum, g) => sum + g.reclaimableSpace);
+    final totalReclaimable = _allGroups.fold<int>(0, (sum, g) => sum + g.reclaimableSpace);
 
     return CustomScrollView(
       slivers: [
@@ -1212,8 +1207,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
               final groups = groupsByType[type]!;
               final isExpanded = _expandedTypes[type] ?? false;
 
-              return _buildTypeExpansionTile(
-                  type, groups, isExpanded, theme, colorScheme);
+              return _buildTypeExpansionTile(type, groups, isExpanded, theme, colorScheme);
             },
             childCount: groupsByType.length,
           ),
@@ -1277,8 +1271,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     }
 
     final totalFiles = _allGroups.fold<int>(0, (sum, g) => sum + g.count);
-    final totalReclaimable =
-        _allGroups.fold<int>(0, (sum, g) => sum + g.reclaimableSpace);
+    final totalReclaimable = _allGroups.fold<int>(0, (sum, g) => sum + g.reclaimableSpace);
 
     return CustomScrollView(
       slivers: [
@@ -1303,8 +1296,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                      '找到 ${_allGroups.length} 组重复${_config.selectedType!.label} (共 $totalFiles 个文件)'),
+                  Text('找到 ${_allGroups.length} 组重复${_config.selectedType!.label} (共 $totalFiles 个文件)'),
                   const SizedBox(height: 4),
                   Text(
                     '最小文件大小: ${FileDisplaySettingsService.formatFileSize(_config.minSizeInKB * 1024)} · 可释放空间: ${FileSizeFormatter.formatBytes(totalReclaimable)}',
@@ -1338,8 +1330,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final isAtGlobalMin = (_config.minSizeInKB * 1024) <=
-        FileDisplaySettingsService.minFileSizeMin;
+    final isAtGlobalMin = (_config.minSizeInKB * 1024) <= FileDisplaySettingsService.minFileSizeMin;
 
     return SingleChildScrollView(
       child: Padding(
@@ -1365,8 +1356,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color:
-                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: colorScheme.outline.withValues(alpha: 0.2),
@@ -1395,8 +1385,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                   _buildConditionRow(
                     Icons.straighten_outlined,
                     '最小文件大小',
-                    FileDisplaySettingsService.formatFileSize(
-                        _config.minSizeInKB * 1024),
+                    FileDisplaySettingsService.formatFileSize(_config.minSizeInKB * 1024),
                     colorScheme,
                   ),
                 ],
@@ -1419,8 +1408,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   }
 
   /// 构建条件行
-  Widget _buildConditionRow(
-      IconData icon, String label, String value, ColorScheme colorScheme) {
+  Widget _buildConditionRow(IconData icon, String label, String value, ColorScheme colorScheme) {
     return Row(
       children: [
         Icon(icon, size: 16, color: colorScheme.primary),
@@ -1466,8 +1454,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color:
-                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -1508,8 +1495,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
             ),
             const SizedBox(height: 8),
             // 第三行+：重复文件列表（延迟加载优化）
-            ..._buildFileListWithDelay(
-                group, recommendedFile, theme, colorScheme),
+            ..._buildFileListWithDelay(group, recommendedFile, theme, colorScheme),
           ],
         ),
       ),
@@ -1600,9 +1586,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                             ),
                             const SizedBox(width: 8),
                             Icon(
-                              isExpanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
+                              isExpanded ? Icons.expand_less : Icons.expand_more,
                               size: 16,
                               color: colorScheme.onSurfaceVariant,
                             ),
@@ -1693,8 +1677,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.5),
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -1823,13 +1806,11 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                 TextButton(
                   onPressed: isRecommended ? null : _applyRecommendedSelection,
                   style: TextButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     minimumSize: const Size(0, 36),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: colorScheme.primary,
-                    disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                   ),
                   child: const Text('推荐', style: TextStyle(fontSize: 14)),
                 ),
@@ -1839,13 +1820,11 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                 TextButton(
                   onPressed: hasSelection ? _clearSelection : null,
                   style: TextButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     minimumSize: const Size(0, 36),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: colorScheme.onSurfaceVariant,
-                    disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                   ),
                   child: const Text('清空', style: TextStyle(fontSize: 14)),
                 ),
@@ -1855,16 +1834,13 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
                 FilledButton(
                   onPressed: hasSelection ? _deleteSelectedFiles : null,
                   style: FilledButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     minimumSize: const Size(0, 36),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     backgroundColor: colorScheme.error,
                     foregroundColor: colorScheme.onError,
-                    disabledBackgroundColor:
-                        colorScheme.surfaceContainerHighest,
-                    disabledForegroundColor:
-                        colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+                    disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+                    disabledForegroundColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -1892,8 +1868,7 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   /// 其他文件类型使用 40px 小尺寸（图标化显示）
   Widget _buildThumbnail(FileItem file) {
     // 根据文件类型确定缩略图尺寸
-    final isImageOrVideo =
-        FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
+    final isImageOrVideo = FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name);
     final size = isImageOrVideo ? 80.0 : 40.0;
 
     // 使用Key来优化Widget复用
@@ -1974,8 +1949,7 @@ class _TypeGroupList extends StatelessWidget {
   final List<DuplicateFileGroup> groups;
   final ThemeData theme;
   final ColorScheme colorScheme;
-  final Widget Function(DuplicateFileGroup, ThemeData, ColorScheme)
-      buildGroupItem;
+  final Widget Function(DuplicateFileGroup, ThemeData, ColorScheme) buildGroupItem;
 
   const _TypeGroupList({
     required this.groups,
@@ -1990,9 +1964,7 @@ class _TypeGroupList extends StatelessWidget {
     // Flutter的渲染引擎会自动优化不可见部分的渲染
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: groups
-          .map((group) => buildGroupItem(group, theme, colorScheme))
-          .toList(),
+      children: groups.map((group) => buildGroupItem(group, theme, colorScheme)).toList(),
     );
   }
 }
@@ -2046,8 +2018,7 @@ class _LazyThumbnailState extends State<_LazyThumbnail> {
   Widget build(BuildContext context) {
     if (!_shouldLoad) {
       // 占位Widget：快速渲染
-      final isImageOrVideo = FileUtils.isImageFile(widget.file.name) ||
-          FileUtils.isVideoFile(widget.file.name);
+      final isImageOrVideo = FileUtils.isImageFile(widget.file.name) || FileUtils.isVideoFile(widget.file.name);
       final size = isImageOrVideo ? 80.0 : 40.0;
 
       return Container(

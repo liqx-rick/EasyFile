@@ -1,20 +1,24 @@
+import 'package:easyfile/analytics/analytics_manager.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/permission_service.dart';
+import 'package:easyfile/core/services/privacy_consent_service.dart';
 import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:easyfile/ui/pages/file_browser_page.dart';
 import 'package:easyfile/ui/pages/splash_page.dart';
 import 'package:easyfile/ui/theme/app_theme.dart';
+import 'package:easyfile/ui/widgets/privacy_policy_dialog.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/splash_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,6 +56,8 @@ class _EasyFileAppState extends State<EasyFileApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // 应用返回前台
         sessionManager.onAppResumed();
+        AnalyticsManager.log('app_foreground');
+        logger.d('📱 [Analytics] app_foreground');
         break;
       case AppLifecycleState.inactive:
         // 应用进入非活动状态（例如接听电话、系统对话框）
@@ -61,6 +67,8 @@ class _EasyFileAppState extends State<EasyFileApp> with WidgetsBindingObserver {
       case AppLifecycleState.paused:
         // 应用进入后台
         sessionManager.onAppPaused();
+        AnalyticsManager.log('app_background');
+        logger.d('📱 [Analytics] app_background');
         break;
       case AppLifecycleState.detached:
         // 应用即将被销毁
@@ -109,7 +117,7 @@ class _EasyFileAppState extends State<EasyFileApp> with WidgetsBindingObserver {
           final themeMode = themeService.themeMode;
 
           return MaterialApp(
-            title: 'EasyFile',
+            title: '易览文件',
             debugShowCheckedModeBanner: false,
             themeMode: themeMode,
             theme: AppTheme.lightTheme,
@@ -181,6 +189,29 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
   Future<void> _initializeApp() async {
     try {
       logger.i('_initializeApp: Starting initialization...');
+
+      // ===== 优先请求文件访问权限 =====
+      // 在显示隐私政策弹窗之前，先请求必要的文件访问权限
+      // 这样用户可以先授予权限，然后再阅读并同意隐私政策
+      await _requestStoragePermissionIfNeeded();
+
+      // ===== 合规检查：在应用初始化时检查隐私政策同意状态 =====
+      final hasConsented = await PrivacyConsentService.hasUserConsented();
+      logger.i('_initializeApp: Privacy consent status = $hasConsented');
+
+      if (!hasConsented) {
+        // 用户未同意隐私政策，显示弹窗
+        logger.i('_initializeApp: Showing privacy policy dialog...');
+        // 等待下一帧确保 context 可用
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showPrivacyPolicyDialog();
+        });
+        // 暂停后续初始化，等待用户同意
+        return;
+      } else {
+        // 用户已同意，继续完成 Analytics 初始化
+        await _completeAnalyticsInitialization();
+      }
 
       // 检查是否从后台恢复
       bool isRestoringFromBackground = false;
@@ -284,6 +315,113 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
         _hasCompletedSplash = true;
       });
     }
+  }
+
+  /// 完成 Analytics 初始化（用户同意隐私政策后）
+  Future<void> _completeAnalyticsInitialization() async {
+    try {
+      // ===== 合规步骤2: 授权隐私政策 =====
+      await AnalyticsManager.grant();
+      logger.i('✓ Analytics privacy granted (Step 2/3)');
+
+      // ===== 合规步骤3: 正式初始化 =====
+      await AnalyticsManager.init();
+      logger.i('✓ Analytics initialized (Step 3/3)');
+
+      // 记录应用启动事件
+      await AnalyticsManager.log('app_launch', params: {
+        'launch_type': 'cold',
+      });
+      logger.d('[Analytics] app_launch logged');
+    } catch (e) {
+      logger.e('Analytics initialization failed: $e');
+    }
+  }
+
+  /// 如果需要，请求存储权限（仅在首次启动且未授予时）
+  Future<void> _requestStoragePermissionIfNeeded() async {
+    try {
+      logger.i('_requestStoragePermissionIfNeeded: Checking permissions...');
+
+      // 检查 MANAGE_EXTERNAL_STORAGE 权限状态（最高权限）
+      final manageStorageStatus = await Permission.manageExternalStorage.status;
+
+      // 如果已有完整文件管理权限，无需请求其他权限
+      if (manageStorageStatus.isGranted) {
+        logger.i(
+            '_requestStoragePermissionIfNeeded: MANAGE_EXTERNAL_STORAGE already granted, no other permissions needed');
+        return;
+      }
+
+      // 如果没有完整权限，尝试请求（只在首次启动时）
+      if (manageStorageStatus.isDenied && !manageStorageStatus.isPermanentlyDenied) {
+        logger.i('_requestStoragePermissionIfNeeded: Requesting MANAGE_EXTERNAL_STORAGE...');
+        final result = await Permission.manageExternalStorage.request();
+
+        // 如果用户授予了完整权限，直接返回
+        if (result.isGranted) {
+          logger.i('_requestStoragePermissionIfNeeded: MANAGE_EXTERNAL_STORAGE granted');
+          return;
+        }
+      }
+
+      // 如果没有获得完整权限，检查基础存储权限
+      final storageStatus = await Permission.storage.status;
+      if (storageStatus.isDenied && !storageStatus.isPermanentlyDenied) {
+        logger.i('_requestStoragePermissionIfNeeded: Requesting basic storage permission...');
+        await Permission.storage.request();
+      }
+
+      // 对于 Android 13+，如果没有完整权限，请求照片和视频权限
+      // 注意：只有在用户拒绝或无法获得 MANAGE_EXTERNAL_STORAGE 时才需要
+      final photosStatus = await Permission.photos.status;
+      final videosStatus = await Permission.videos.status;
+
+      if (photosStatus.isDenied && !photosStatus.isPermanentlyDenied) {
+        logger.i('_requestStoragePermissionIfNeeded: Requesting photos permission (Android 13+)...');
+        await Permission.photos.request();
+      }
+      if (videosStatus.isDenied && !videosStatus.isPermanentlyDenied) {
+        logger.i('_requestStoragePermissionIfNeeded: Requesting videos permission (Android 13+)...');
+        await Permission.videos.request();
+      }
+
+      logger.i('_requestStoragePermissionIfNeeded: Permission requests completed');
+    } catch (e) {
+      logger.w('_requestStoragePermissionIfNeeded: Error requesting permissions: $e');
+      // 权限请求失败不阻塞启动
+    }
+  }
+
+  /// 显示隐私政策弹窗
+  void _showPrivacyPolicyDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PrivacyPolicyDialog(
+        onAgree: () async {
+          Navigator.of(context).pop();
+          logger.i('User agreed to privacy policy');
+
+          // 保存用户同意状态
+          await PrivacyConsentService.setUserConsented();
+
+          // 完成 Analytics 初始化
+          await _completeAnalyticsInitialization();
+
+          // 继续应用初始化
+          setState(() {
+            _isLoadingState = false;
+          });
+          _initializeApp();
+        },
+        onDisagree: () {
+          logger.i('User disagreed with privacy policy, exiting app');
+          // 用户不同意，退出应用
+          SystemNavigator.pop();
+        },
+      ),
+    );
   }
 
   @override

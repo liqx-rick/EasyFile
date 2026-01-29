@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
@@ -318,6 +319,9 @@ class _CategoryFilePageState extends State<CategoryFilePage> with EditModeMixin,
     // 加载显示设置
     _loadDisplaySettings();
     categoryInfo = CategoryInfo.getInfoByType(widget.categoryType)!;
+
+    // 埋点：进入分类页面
+    AnalyticsHelper.logCategoryEnter(widget.categoryType.toString());
     _loadFileTypeFilter();
     _loadCategoryFiles();
   }
