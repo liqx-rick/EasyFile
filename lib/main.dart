@@ -14,6 +14,7 @@ import 'package:easyfile/core/services/view_mode_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -76,15 +77,25 @@ Future<void> main() async {
   // 阶段2（延迟3秒）：MediaStore 缓存预热
   // 阶段3（延迟5秒）：应用文件缓存预热
   await CachePrewarmCoordinator.instance.initialize();
-  CachePrewarmCoordinator.instance.startPrewarming();
-
-  // 可选：监听预热进度
-  CachePrewarmCoordinator.instance.progressStream.listen((progress) {
-    logger.d('预热进度: ${progress.taskName} - ${progress.progressPercent}%');
-    if (progress.isFailed) {
-      logger.e('预热失败: ${progress.error}');
-    }
-  });
+  
+  // ✨ 优化：首次启动跳过预热（避免与首页推荐服务重复扫描）
+  // 原因：首页在T=3s执行推荐扫描并写入缓存，预热T=5s执行时会100%跳过
+  // 节省：约200-300ms的初始化成本（AppDetectionService、FileCountCache等）
+  final isFirstLaunch = await _isFirstLaunch();
+  if (!isFirstLaunch) {
+    CachePrewarmCoordinator.instance.startPrewarming();
+    logger.i('🚀 启动缓存预热（非首次启动）');
+    
+    // 可选：监听预热进度
+    CachePrewarmCoordinator.instance.progressStream.listen((progress) {
+      logger.d('预热进度: ${progress.taskName} - ${progress.progressPercent}%');
+      if (progress.isFailed) {
+        logger.e('预热失败: ${progress.error}');
+      }
+    });
+  } else {
+    logger.i('✨ 首次启动，跳过预热（首页推荐服务将执行扫描）');
+  }
 
   // ===== 合规步骤1: Analytics 预初始化（无需用户同意）=====
   try {
@@ -95,4 +106,29 @@ Future<void> main() async {
   }
 
   runApp(const EasyFileApp());
+}
+
+/// 判断是否首次启动
+/// 
+/// 使用SharedPreferences持久化标记。
+/// 首次启动时返回true并写入标记，后续启动返回false。
+Future<bool> _isFirstLaunch() async {
+  const String _keyFirstLaunch = 'app_first_launch_completed';
+  
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final hasLaunched = prefs.getBool(_keyFirstLaunch) ?? false;
+    
+    if (!hasLaunched) {
+      // 首次启动，写入标记
+      await prefs.setBool(_keyFirstLaunch, true);
+      return true;
+    }
+    
+    return false;
+  } catch (e) {
+    logger.e('检查首次启动状态失败: $e');
+    // 出错时保守处理：视为非首次启动，执行预热
+    return false;
+  }
 }
