@@ -361,4 +361,29 @@ class RecommendationService {
       'configCount': configs.length,
     };
   }
+
+  /// 检查缓存是否新鲜（新增）
+  ///
+  /// [appKey] 应用Key
+  /// [maxAge] 最大年龄，默认6小时
+  /// 返回 true 如果缓存有效，false 如果缓存过期或不存在
+  Future<bool> _isCacheFresh(String appKey, {Duration maxAge = const Duration(hours: 6)}) async {
+    try {
+      // 检查FileCountCache
+      final fileCountCache = _scanner as dynamic;
+      if (fileCountCache._fileCountCache != null) {
+        final count = await fileCountCache._fileCountCache.getFileCount(appKey);
+        if (count == null || count <= 0) {
+          return false;
+        }
+        // 简单检查：如果能获取到数据，认为有效
+        // TODO: 未来可以增加时间戳检查
+        return true;
+      }
+      return false;
+    } catch (e) {
+      logger.w('检查缓存新鲜度失败: $appKey, $e');
+      return false;
+    }
+  }
 }

@@ -7,6 +7,7 @@ import 'package:easyfile/core/constants/system_folders_config.dart';
 import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
+import 'package:easyfile/core/utils/cancellation_token.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
 
@@ -67,6 +68,7 @@ class UnifiedAppScanner {
   /// [useMediaStore] 是否使用 MediaStore 扫描（Android 11+）
   /// [updateCache] 是否更新文件数量缓存（默认 true）
   /// [forceRefresh] 是否强制刷新，忽略缓存（默认 false）
+  /// [cancellationToken] 取消令牌，用于中断扫描
   Future<AppScanResult> scanApp({
     required String appKey,
     List<String> additionalPaths = const [],
@@ -74,6 +76,7 @@ class UnifiedAppScanner {
     bool useMediaStore = true,
     bool updateCache = true,
     bool forceRefresh = false,
+    CancellationToken? cancellationToken,
   }) async {
     final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (config == null) {
@@ -157,8 +160,13 @@ class UnifiedAppScanner {
       }
     }
 
-    // 步骤5: 路径扫描
-    final pathScanResult = await _scanByPaths(scanPaths, config.filePatterns);
+    // 步骤5: 路径扫描（带取消检查）
+    if (cancellationToken?.isCancelled ?? false) {
+      logger.w('扫描已取消: ${config.appName}');
+      return AppScanResult.cancelled(config.appName);
+    }
+    
+    final pathScanResult = await _scanByPaths(scanPaths, config.filePatterns, cancellationToken);
     logger.i('路径扫描: ${pathScanResult.files.length} 文件 '
         '(${pathScanResult.duration.inMilliseconds}ms)');
 
@@ -387,6 +395,7 @@ class UnifiedAppScanner {
   Future<ScanResult> _scanByPaths(
     List<String> paths,
     List<String> filePatterns,
+    CancellationToken? cancellationToken,
   ) async {
     final startTime = DateTime.now();
     final files = <FileItem>[];
@@ -407,6 +416,12 @@ class UnifiedAppScanner {
           recursive: true,
           followLinks: false,
         )) {
+          // 定期检查取消状态
+          if (cancellationToken?.isCancelled ?? false) {
+            logger.w('路径扫描已取消');
+            break;
+          }
+          
           if (entity is File) {
             // 计算当前文件深度
             final currentDepth = entity.path.split('/').where((s) => s.isNotEmpty).length;

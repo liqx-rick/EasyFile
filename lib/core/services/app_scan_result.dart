@@ -111,6 +111,17 @@ class AppScanResult {
     );
   }
 
+  /// 创建已取消扫描的结果
+  factory AppScanResult.cancelled(String appName) {
+    return AppScanResult(
+      appName: appName,
+      isInstalled: true,
+      allFiles: const [],
+      mediaStoreFiles: const [],
+      pathScanFiles: const [],
+    );
+  }
+
   /// 复制并修改
   AppScanResult copyWith({
     String? appName,
