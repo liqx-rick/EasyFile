@@ -82,6 +82,8 @@ Future<void> main() async {
   // 原因：首页在T=3s执行推荐扫描并写入缓存，预热T=5s执行时会100%跳过
   // 节省：约200-300ms的初始化成本（AppDetectionService、FileCountCache等）
   final isFirstLaunch = await _isFirstLaunch();
+  logger.i('📱 启动类型检查: ${isFirstLaunch ? "首次启动" : "后续启动"}');
+
   if (!isFirstLaunch) {
     CachePrewarmCoordinator.instance.startPrewarming();
     logger.i('🚀 启动缓存预热（非首次启动）');
@@ -119,9 +121,12 @@ Future<bool> _isFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
     final hasLaunched = prefs.getBool(keyFirstLaunch) ?? false;
 
+    logger.d('🔍 首次启动检查: key=$keyFirstLaunch, hasLaunched=$hasLaunched');
+
     if (!hasLaunched) {
       // 首次启动，写入标记
       await prefs.setBool(keyFirstLaunch, true);
+      logger.i('✍️ 写入首次启动标记');
       return true;
     }
 
