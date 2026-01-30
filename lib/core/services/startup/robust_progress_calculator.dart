@@ -1,48 +1,37 @@
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/initialization_stage.dart';
 
+import 'initialization_config.dart';
+
 /// 混合权重进度计算器
 ///
 /// 设计理念：
-/// - 使用固定阶段权重，不依赖文件数量估计
-/// - 估计仅影响阶段内部的进度平滑度
+/// - 根据InitializationConfig动态计算阶段权重
+/// - 权重归一化确保总和始终为1.0
 /// - 阶段进度限制在0.95以内，防止卡死
 /// - 保证总进度必然达到100%
 ///
 /// 使用示例：
 /// ```dart
-/// final calculator = RobustProgressCalculator();
+/// final calculator = RobustProgressCalculator(
+///   config: InitializationConfig.quickStart(),
+/// );
 ///
 /// // 扫描图片时
 /// final progress = calculator.calculateProgress(
 ///   phase: 'p1_images',
 ///   stageProgress: 0.5,  // 当前阶段50%
 /// );
-/// // progress = 0.02 + 0.12 * 0.5 = 0.08 (8%)
 /// ```
 class RobustProgressCalculator {
-  /// 固定阶段权重（总和 = 1.0）
+  /// 基础阶段权重（相对权重，用于计算比例）
   ///
-  /// P0 阶段（2%）：
-  /// - p0_init: 基础资源加载
-  ///
-  /// P1 阶段（88%）：
-  /// - p1_images: 图片扫描 (12%)
-  /// - p1_video: 视频扫描 (10%)
-  /// - p1_music: 音频扫描 (10%)
-  /// - p1_documents: 文档扫描 (12%)
-  /// - p1_downloads: 下载扫描 (8%)
-  /// - p1_apk: APK扫描 (8%)
-  /// - p1_archive: 压缩包扫描 (8%)
-  /// - p1_apps: 推荐应用扫描 (20%)
-  ///
-  /// P2 阶段（10%）：
-  /// - p2_folders: 快速访问文件夹检测
-  static const Map<String, double> stageWeights = {
+  /// 这些是参考权重，实际权重会根据配置动态调整
+  static const Map<String, double> _baseWeights = {
     // P0: 基础初始化
     'p0_init': 0.02,
 
-    // P1.1: 分类文件扫描 (68%)
+    // P1.1: 分类文件扫描
     'p1_images': 0.12,
     'p1_video': 0.10,
     'p1_music': 0.10,
@@ -51,14 +40,79 @@ class RobustProgressCalculator {
     'p1_apk': 0.08,
     'p1_archive': 0.08,
 
-    // P1.2: 推荐应用扫描 (20%)
+    // P1.2: 推荐应用扫描
     'p1_apps': 0.20,
 
-    // P2: 文件夹检测 (10%)
+    // P2: 文件夹检测
     'p2_folders': 0.10,
   };
 
-  /// 计算当前总进度
+  /// 当前配置
+  final InitializationConfig _config;
+
+  /// 有效权重（根据配置动态计算并归一化）
+  late final Map<String, double> _effectiveWeights;
+
+  RobustProgressCalculator({InitializationConfig? config}) : _config = config ?? InitializationConfig.full() {
+    _effectiveWeights = _calculateEffectiveWeights();
+    logger.d('[ProgressCalc] Initialized with config: $_config');
+    logger.d('[ProgressCalc] Effective weights: ${_formatWeights(_effectiveWeights)}');
+  }
+
+  /// 根据配置计算有效权重（归一化到1.0）
+  Map<String, double> _calculateEffectiveWeights() {
+    final weights = <String, double>{};
+
+    // P0: 始终执行
+    weights['p0_init'] = _baseWeights['p0_init']!;
+
+    // P1.1: 根据配置决定是否包含分类扫描
+    if (_config.enableP1CategoryScan) {
+      weights['p1_images'] = _baseWeights['p1_images']!;
+      weights['p1_video'] = _baseWeights['p1_video']!;
+      weights['p1_music'] = _baseWeights['p1_music']!;
+      weights['p1_documents'] = _baseWeights['p1_documents']!;
+      weights['p1_downloads'] = _baseWeights['p1_downloads']!;
+      weights['p1_apk'] = _baseWeights['p1_apk']!;
+      weights['p1_archive'] = _baseWeights['p1_archive']!;
+    }
+
+    // P1.2: 根据配置决定是否包含应用扫描
+    if (_config.enableP1AppScan) {
+      weights['p1_apps'] = _baseWeights['p1_apps']!;
+    }
+
+    // P2: 始终执行
+    weights['p2_folders'] = _baseWeights['p2_folders']!;
+
+    // 归一化：确保总和为1.0
+    return _normalizeWeights(weights);
+  }
+
+  /// 归一化权重（总和调整为1.0）
+  Map<String, double> _normalizeWeights(Map<String, double> weights) {
+    final sum = weights.values.fold<double>(0, (a, b) => a + b);
+    if (sum == 0) {
+      logger.e('[ProgressCalc] Sum of weights is 0!');
+      return weights;
+    }
+
+    final normalized = weights.map((phase, weight) => MapEntry(phase, weight / sum));
+
+    logger.d('[ProgressCalc] Normalization: sum=$sum');
+    return normalized;
+  }
+
+  /// 格式化权重用于日志输出
+  String _formatWeights(Map<String, double> weights) {
+    final buffer = StringBuffer();
+    weights.forEach((phase, weight) {
+      buffer.write('$phase=${(weight * 100).toStringAsFixed(1)}% ');
+    });
+    return buffer.toString().trim();
+  }
+
+  /// 计算当前总进度（使用动态权重）
   ///
   /// [completedPhases] 已完成的阶段列表
   /// [currentPhase] 当前正在执行的阶段
@@ -70,40 +124,36 @@ class RobustProgressCalculator {
     required String currentPhase,
     required double stageProgress,
   }) {
-    // 1. 计算已完成阶段的权重总和
+    // 1. 计算已完成阶段的权重总和（使用有效权重）
     double completedWeight = 0.0;
     for (final phase in completedPhases) {
-      final weight = stageWeights[phase];
+      final weight = _effectiveWeights[phase];
       if (weight != null) {
         completedWeight += weight;
       } else {
-        logger.w('Unknown completed phase: $phase');
+        // 忽略未在有效权重中的阶段（可能被配置禁用）
+        logger.d('[ProgressCalc] Phase not in effective weights (skipped): $phase');
       }
     }
 
-    // 2. 获取当前阶段权重
-    final currentWeight = stageWeights[currentPhase];
+    // 2. 获取当前阶段权重（使用有效权重）
+    final currentWeight = _effectiveWeights[currentPhase];
     if (currentWeight == null) {
-      logger.e('Unknown current phase: $currentPhase');
-      return completedWeight; // 返回已完成的进度
+      logger.w('[ProgressCalc] Current phase not in effective weights: $currentPhase');
+      return completedWeight.clamp(0.0, 1.0); // 返回已完成的进度
     }
 
     // 3. 限制阶段内进度最大为0.95，防止卡死
     final clampedStageProgress = stageProgress.clamp(0.0, 0.95);
 
     if (stageProgress > 0.95) {
-      logger.d('Stage progress clamped: $stageProgress -> $clampedStageProgress (phase: $currentPhase)');
+      logger.d('[ProgressCalc] Stage progress clamped: $stageProgress -> $clampedStageProgress (phase: $currentPhase)');
     }
 
     // 4. 计算总进度
     final totalProgress = completedWeight + (currentWeight * clampedStageProgress);
 
-    logger.d('Progress: $currentPhase @ ${(stageProgress * 100).toStringAsFixed(1)}% '
-        '→ Total: ${(totalProgress * 100).toStringAsFixed(1)}% '
-        '(completed: ${(completedWeight * 100).toStringAsFixed(1)}%, '
-        'current: ${(currentWeight * clampedStageProgress * 100).toStringAsFixed(1)}%)');
-
-    return totalProgress;
+    return totalProgress.clamp(0.0, 1.0);
   }
 
   /// 根据实际扫描文件数生成阶段信息

@@ -28,7 +28,7 @@ class BuildConfig {
   String get packageName => 'com.guangqi.easyfile';
 
   /// 应用名称
-  String get appName => 'EasyFile';
+  String get appName => '易览文件';
 
   // ==================== 平台支持 ====================
 

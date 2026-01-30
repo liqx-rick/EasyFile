@@ -1,5 +1,6 @@
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 首次安装检测服务
 ///
@@ -19,8 +20,7 @@ class FirstInstallService {
       logger.i('[FirstInstallService] isInitialized: $result');
       return result;
     } catch (e) {
-      logger
-          .e('[FirstInstallService] Error checking initialization status: $e');
+      logger.e('[FirstInstallService] Error checking initialization status: $e');
       // 如果出错，假设未初始化，重新开始
       return false;
     }
@@ -43,6 +43,7 @@ class FirstInstallService {
   /// 清除初始化标记
   ///
   /// 用于测试或恢复初始状态
+  @visibleForTesting
   Future<void> clearInitialization() async {
     try {
       final prefs = await SharedPreferences.getInstance();

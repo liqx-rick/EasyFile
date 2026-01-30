@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
+import 'package:flutter/material.dart';
 
 /// 视频真实缩略图组件
 ///
@@ -33,8 +34,7 @@ class RealVideoThumbnail extends StatefulWidget {
   State<RealVideoThumbnail> createState() => _RealVideoThumbnailState();
 }
 
-class _RealVideoThumbnailState extends State<RealVideoThumbnail>
-    with AutomaticKeepAliveClientMixin {
+class _RealVideoThumbnailState extends State<RealVideoThumbnail> with AutomaticKeepAliveClientMixin {
   Uint8List? _thumbnailData;
   bool _isLoading = true;
   bool _hasError = false;
@@ -106,8 +106,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
       // 2. 使用队列加载缩略图（自动处理缓存和并发控制）
       // 如果缓存命中，通常在100ms内返回
       final startTime = DateTime.now();
-      final thumbnailData =
-          await _loadQueue.loadThumbnail(widget.videoPath, widget.size);
+      final thumbnailData = await _loadQueue.loadThumbnail(widget.videoPath, widget.size);
       final loadDuration = DateTime.now().difference(startTime);
 
       if (thumbnailData != null) {
@@ -161,19 +160,18 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
       height: widget.size,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue.shade700, Colors.blue.shade500],
+          colors: [Colors.grey.shade300, Colors.grey.shade200],
         ),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Center(
-        child: SizedBox(
-          width: widget.size * 0.3,
-          height: widget.size * 0.3,
-          child: const CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
+      child: Align(
+        alignment: Alignment.bottomLeft, // 左下角对齐
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            Icons.play_circle_outline,
+            color: Colors.grey.shade400.withValues(alpha: 0.6), // 半透明灰色
+            size: widget.size * 0.2, // 缩小到20%
           ),
         ),
       ),
@@ -214,10 +212,17 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
 
     // 缓存 cacheWidth 计算结果，避免每次 build 都创建新的 Image widget
     // 这会导致 Flutter 认为这是一个新的图片请求，触发重复的解码操作
-    _cachedCacheWidth ??=
-        (widget.size * MediaQuery.of(context).devicePixelRatio)
-            .toInt()
-            .clamp(150, 800);
+    if (_cachedCacheWidth == null) {
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final rawWidth = widget.size * dpr;
+      _cachedCacheWidth = rawWidth.toInt().clamp(150, 800);
+
+      // 调试：打印渲染参数
+      logger.d('[ImageCache] 🎬渲染视频缩略图: ${widget.videoPath}');
+      logger.d(
+          '[ImageCache] 🎬  原始: ${rawWidth.toStringAsFixed(2)} → toInt: ${rawWidth.toInt()} → clamp: $_cachedCacheWidth');
+      logger.d('[ImageCache] 🎬  参数: widget.size=${widget.size}, dpr=$dpr');
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
@@ -248,10 +253,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.4)
-                  ],
+                  colors: [Colors.transparent, Colors.black.withValues(alpha: 0.4)],
                 ),
               ),
             ),

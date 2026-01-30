@@ -518,11 +518,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
-  /// 使用 StartupOrchestrator 进行三场景初始化
+  /// 使用 StartupOrchestrator 进行两场景初始化
   ///
   /// 检测启动场景并路由到相应的初始化流程：
   /// - freshInstall：执行完整初始化（P0→P1→P2）
-  /// - reinstall：加载缓存数据（3秒）
   /// - normalOpen：直接加载数据库（2秒）
   Future<void> _initializeAppWithOrchestrator() async {
     logger.i('[FileBrowser] Starting startup orchestration...');
@@ -570,9 +569,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 加载初始目录
       await _loadInitialDirectory();
 
-      // ⚡ 性能优化：后台预扫描新文件，避免首次点击Tab时延迟
-      _preloadNewFilesInBackground();
-
       logger.i('[FileBrowser] Orchestration completed successfully');
     } catch (e) {
       logger.e('[FileBrowser] Error during orchestration: $e');
@@ -588,22 +584,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 降级处理：仍然尝试加载初始目录
       await _loadInitialDirectory();
     }
-  }
-
-  /// 后台预加载新文件（避免首次点击Tab时的延迟）
-  void _preloadNewFilesInBackground() {
-    logger.i('[PERF] 开始后台预扫描新文件...');
-
-    // 异步执行，不阻塞UI
-    Future.microtask(() async {
-      try {
-        // 使用Presenter的后台刷新方法（静默扫描+更新缓存）
-        presenter.refreshNewFilesInBackground();
-        logger.i('[PERF] 新文件后台预扫描已启动');
-      } catch (e) {
-        logger.e('[PERF] 新文件预扫描失败: $e');
-      }
-    });
   }
 
   /// 请求权限并重新初始化
@@ -3770,11 +3750,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         children: [
                           Image.asset(
                             'assets/images/logo.png',
-                            width: 24,
-                            height: 24,
+                            width: 36,
+                            height: 36,
                           ),
                           const SizedBox(width: 8),
-                          const Text('EasyFile'),
+                          const Text('易览文件'),
                         ],
                       ),
                       actions: [

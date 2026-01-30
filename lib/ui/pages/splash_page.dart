@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:get_it/get_it.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/logger.dart';
 import '../../presenter/splash_presenter.dart';
 import '../../viewmodel/splash_viewmodel.dart';
-import '../../core/logger.dart';
 
 /// 启动页界面
 class SplashPage extends StatefulWidget {
@@ -16,8 +16,7 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage>
-    with SingleTickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
   late SplashPresenter presenter;
   late AppLogger logger;
   late AnimationController _animationController;
@@ -140,9 +139,29 @@ class _SplashPageState extends State<SplashPage>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Logo图标
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.asset(
+              'assets/icon/app_icon.png',
+              width: 120,
+              height: 120,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
         // 应用名称
         Text(
-          'EasyFile',
+          '易览文件',
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -155,11 +174,10 @@ class _SplashPageState extends State<SplashPage>
 
         // 应用描述
         Text(
-          '一个简洁高效的文件管理器',
+          '一款简洁高效的文件浏览器',
           style: TextStyle(
             fontSize: 16,
-            color:
-                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             letterSpacing: 0.5,
           ),
         ),

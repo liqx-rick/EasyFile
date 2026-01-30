@@ -1,8 +1,12 @@
 ## 🎯 实际测试执行指南
 
-**目标**: 在真实 Android 设备上验证三个启动场景的实现
+**目标**: 在真实 Android 设备上验证启动场景的实现
 
 **准备状态**: ✅ 代码已编译，依赖已解析，设备已连接
+
+> ⚠️ **重要变更（2026-01-31）**: `reinstall`场景已从代码库中移除（P1高优先级清理任务）。
+> 原因：Android卸载/清除数据会删除SharedPreferences，实际中该场景无法达到（<1%概率）。
+> **当前仅支持两个场景**: `freshInstall` 和 `normalOpen`。本文档中的场景2(reinstall)相关内容仅供历史参考。
 
 ---
 
@@ -107,7 +111,7 @@ flutter run
 # 查找这些时间戳来计算阶段耗时:
 [AppInitService] Starting full initialization... <- 开始时间
 [AppInitService] Basic resources loading completed <- P0 完成
-[AppInitService] Category statistics loading completed <- P1 完成  
+[AppInitService] Category statistics loading completed <- P1 完成
 [AppInitService] Full file system scan completed <- P2 完成
 [AppInitService] Full initialization completed <- 总耗时
 ```
@@ -141,7 +145,7 @@ flutter run
 
 #### 步骤 2: 卸载应用（保留数据）
 ```bash
-# 终端1: 
+# 终端1:
 adb uninstall com.example.easyfile
 
 # 等待卸载完成
@@ -205,7 +209,7 @@ flutter run
 
 **前置条件**:
 - ✅ 场景1 (freshInstall) 已完成
-- ✅ 场景2 (reinstall) 已完成
+
 - ✅ 应用已初始化完成
 
 **目的**: 验证初始化完成后的正常启动速度
@@ -276,15 +280,15 @@ flutter run
 
 ### 功能验证
 
-| 验证项 | 场景1<br>(freshInstall) | 场景2<br>(reinstall) | 场景3<br>(normalOpen) | 备注 |
-|--------|:-----:|:-----:|:-----:|------|
-| 场景检测正确 | [ ] | [ ] | [ ] | 日志中显示正确的场景名 |
-| 进度 UI 显示 | [ ] | [ ] | [ ] | 仅场景1应显示 |
-| 进度 UI 隐藏 | [ ] | [ ] | [ ] | 场景2/3应隐藏 |
-| 应用完全加载 | [ ] | [ ] | [ ] | 所有UI和数据可用 |
-| 数据完整性 | [ ] | [ ] | [ ] | 菜单、收藏、分类 |
-| 无崩溃/错误 | [ ] | [ ] | [ ] | 日志中无ERROR |
-| 无加载失败 | [ ] | [ ] | [ ] | 全部资源加载成功 |
+| 验证项 | 场晦1<br>(freshInstall) | 场晦2<br>(normalOpen) | 备注 |
+|--------|:-----:|:-----:|------|
+| 场景检测正确 | [ ] | [ ] | 日志中显示正确的场景名 |
+| 进度 UI 显示 | [ ] | [ ] | 仅场晦1应显示 |
+| 进度 UI 隐藏 | [ ] | [ ] | 场晦2应隐藏 |
+| 应用完全加载 | [ ] | [ ] | 所有UI和数据可用 |
+| 数据完整性 | [ ] | [ ] | 菜单、收藏、分类 |
+| 无崩溃/错误 | [ ] | [ ] | 日志中无ERROR |
+| 无加载失败 | [ ] | [ ] | 全部资源加载成功 |
 
 ### 性能指标
 
@@ -407,11 +411,7 @@ adb shell du -h /data/data/com.example.easyfile/
   - [ ] 进度 UI 正确显示
   - [ ] 初始化流程完整
   - [ ] 时间在预期范围内
-- [ ] 场景2 (reinstall) 已测试
-  - [ ] 进度 UI 正确隐藏
-  - [ ] 缓存被正确使用
-  - [ ] 时间大幅缩短
-- [ ] 场景3 (normalOpen) 已测试
+- [ ] 场晦2 (normalOpen) 已测试
   - [ ] 进度 UI 正确隐藏
   - [ ] DB 直接加载
   - [ ] 极速启动
@@ -442,12 +442,7 @@ adb shell du -h /data/data/com.example.easyfile/
   实际时间: ___ 秒
   备注: ___________________________
 
-场景2 (reinstall):
-  状态: [ ] Pass [ ] Fail
-  实际时间: ___ 秒
-  备注: ___________________________
-
-场景3 (normalOpen):
+场晦2 (normalOpen):
   状态: [ ] Pass [ ] Fail
   实际时间: ___ 秒
   备注: ___________________________

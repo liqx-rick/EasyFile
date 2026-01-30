@@ -1719,8 +1719,9 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       config: config,
       viewConfigBuilder: viewConfigBuilder,
       padding: _isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
-      // 增加预构建范围以改善滚动体验（视频分类增至2000以避免KeepAlive失效）
-      cacheExtent: _isGridView ? 2000.0 : 600.0,
+      // 修复：降低cacheExtent避免一次性创建过多widget（网格600px，列表400px）
+      // 原因3000px导致150+widget同时请求缩略图，队列积压严重
+      cacheExtent: _isGridView ? 600.0 : 400.0,
       selectionController: _selectionController,
       showCheckbox: isEditMode, // 编辑模式下显示复选框
       // 列表模式显示选项
