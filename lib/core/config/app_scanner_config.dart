@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:easyfile/core/logger.dart';
+
 import 'storage/config_storage.dart';
 
 /// 应用配置数据模型
@@ -76,26 +78,11 @@ class AppConfigData {
       appKey: json['appKey'] as String,
       appName: json['appName'] as String,
       description: json['description'] as String?,
-      packageNames: (json['packageNames'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      appLabelPatterns: (json['appLabelPatterns'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      folderKeywords: (json['folderKeywords'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      additionalPaths: (json['additionalPaths'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      filePatterns: (json['filePatterns'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
+      packageNames: (json['packageNames'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      appLabelPatterns: (json['appLabelPatterns'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      folderKeywords: (json['folderKeywords'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      additionalPaths: (json['additionalPaths'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      filePatterns: (json['filePatterns'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
       priority: json['priority'] as int? ?? 99,
       enabled: json['enabled'] as bool? ?? true,
     );
@@ -189,7 +176,7 @@ class AppScannerConfig {
       description: '社交聊天，文件、图片、视频多',
       packageNames: ['com.tencent.mm'],
       appLabelPatterns: ['微信', 'WeChat', 'weixin'],
-      folderKeywords: ['WeiXin', 'weixin', 'Weixin'],
+      folderKeywords: ['WeiXin'], // 优化：扫描代码已做不区分大小写处理，去除重复
       filePatterns: ['wx_camera_%', 'mmexport%'],
       priority: 1,
       enabled: true,
@@ -200,7 +187,7 @@ class AppScannerConfig {
       description: '办公软件，文档管理核心需求',
       packageNames: ['cn.wps.moffice_eng', 'cn.wps.moffice'],
       appLabelPatterns: ['WPS', 'wps'],
-      folderKeywords: ['WPS', 'kingsoft'],
+      folderKeywords: ['WPS', 'kingsoft'], // kingsoft是不同路径，保留
       priority: 2,
       enabled: true,
     ),
@@ -210,7 +197,7 @@ class AppScannerConfig {
       description: '社交聊天，文件传输频繁',
       packageNames: ['com.tencent.mobileqq'],
       appLabelPatterns: ['QQ', 'qq'],
-      folderKeywords: ['QQ', 'tencent'],
+      folderKeywords: ['QQ', 'tencent'], // tencent是不同路径（如tencent/MicroMsg），保留
       priority: 3,
       enabled: true,
     ),
@@ -220,7 +207,7 @@ class AppScannerConfig {
       description: '企业协作，文件/文档分享多',
       packageNames: ['com.alibaba.android.rimet'],
       appLabelPatterns: ['钉钉', 'DingTalk', 'dingtalk'],
-      folderKeywords: ['DingTalk', 'dingtalk'],
+      folderKeywords: ['DingTalk'], // 优化：扫描代码已做不区分大小写处理，去除重复
       priority: 4,
       enabled: true,
     ),
@@ -234,7 +221,6 @@ class AppScannerConfig {
       priority: 5,
       enabled: true,
     ),
-
   };
 
   // ==================== 读取配置 ====================

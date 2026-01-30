@@ -215,6 +215,80 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
     }
   }
 
+  /// 显示APK操作菜单
+  void _showApkOptionsMenu(ApkInfo apkInfo) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 标题
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      apkInfo.appName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 查看详情
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('查看详情'),
+              onTap: () {
+                Navigator.pop(context);
+                _showApkDetail(apkInfo);
+              },
+            ),
+            // 安装或打开设置
+            if (apkInfo.status == ApkInstallStatus.notInstalled)
+              ListTile(
+                leading: const Icon(Icons.install_mobile),
+                title: const Text('安装应用'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleInstall(apkInfo);
+                },
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('应用设置'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleOpenSettings(apkInfo);
+                },
+              ),
+            // 删除
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('删除APK', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteApk(apkInfo);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -315,6 +389,7 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
               return ApkListItemWidget(
                 apkInfo: apkInfo,
                 onTap: () => _showApkDetail(apkInfo),
+                onLongPress: () => _showApkOptionsMenu(apkInfo),
                 onStatusTap: () => _handleStatusAction(apkInfo),
                 onDelete: () => _deleteApk(apkInfo),
               );

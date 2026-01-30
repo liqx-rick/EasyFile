@@ -2,11 +2,15 @@ import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
 import 'package:easyfile/core/data_sources/file_list_data_source.dart';
+import 'package:easyfile/core/data_sources/media_store_data_source.dart';
 import 'package:easyfile/core/data_sources/recommend_config_mapper.dart';
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/models/recommend_page_config.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
@@ -77,7 +81,7 @@ class RecommendAggregatePage extends StatefulWidget {
 }
 
 class _RecommendAggregatePageState extends State<RecommendAggregatePage>
-    with SingleTickerProviderStateMixin, EditModeMixin, PopScopeHandlerMixin {
+    with SingleTickerProviderStateMixin, EditModeMixin, PopScopeHandlerMixin, WidgetsBindingObserver {
   /// Tab 控制器（仅 application 模式使用）
   TabController? _tabController;
 
@@ -114,9 +118,13 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   /// 批量操作服务
   late final BatchOperationsService _batchOperationsService;
 
+  /// 标记页面是否首次加载
+  bool _isFirstLoad = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initDataSource();
     _initServices();
     _loadFilesAndInitTabs();
@@ -124,13 +132,69 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     // 监听PageSettingsService变化
     PageSettingsService().addListener(_onPageSettingsChanged);
 
+    // 监听ViewModel变化，实现缓存增量更新
+    widget.viewModel.addListener(_onViewModelChanged);
+
     // 埋点：推荐卡片浏览
     AnalyticsHelper.logHomeRecommendView(widget.config.type.toString(), 0);
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    logger.i('RecommendAggregatePage: didChangeDependencies called - mounted: $mounted, _isFirstLoad: $_isFirstLoad, mode: ${widget.config.mode}');
+
+    // 所有加载场景（包括首次）都触发刷新检查
+    if (mounted) {
+      // 检查缓存是否被清除
+      _checkAndReloadIfCacheCleared();
+
+      // content模式和application模式：智能后台刷新（检查是否有新文件）
+      if (widget.config.mode == RecommendMode.content || 
+          widget.config.mode == RecommendMode.application) {
+        // 延迟执行，避免阻塞首次渲染
+        if (_isFirstLoad) {
+          // 首次加载：延迟500ms后刷新
+          Future.delayed(Duration(milliseconds: 500), () {
+            if (mounted) {
+              logger.i('RecommendAggregatePage: ✅ 首次加载后触发后台刷新检查');
+              _smartBackgroundRefresh();
+            }
+          });
+        } else {
+          // 页面重新显示：立即刷新
+          logger.i('RecommendAggregatePage: ✅ 页面重新显示，触发后台刷新');
+          _smartBackgroundRefresh();
+        }
+      }
+    }
+    _isFirstLoad = false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    logger.i('RecommendAggregatePage: didChangeAppLifecycleState called - state: $state, mode: ${widget.config.mode}');
+    
+    // 应用从后台恢复时触发刷新
+    if (state == AppLifecycleState.resumed && mounted) {
+      logger.i('RecommendAggregatePage: ✅ 应用从后台恢复，触发后台刷新');
+      
+      // content模式和application模式：智能后台刷新
+      if (widget.config.mode == RecommendMode.content || 
+          widget.config.mode == RecommendMode.application) {
+        _smartBackgroundRefresh();
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     PageSettingsService().removeListener(_onPageSettingsChanged);
+    widget.viewModel.removeListener(_onViewModelChanged);
     _tabController?.dispose();
     super.dispose();
   }
@@ -158,6 +222,20 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
   /// 获取当前Tab对应的PageId
   PageId _getPageIdForCurrentTab() {
+    // content模式：根据内容类型返回对应的PageId
+    if (widget.config.mode == RecommendMode.content) {
+      switch (widget.config.type) {
+        case RecommendationType.memories:
+          return PageId.recommendContentMemories;
+        case RecommendationType.videos:
+          return PageId.recommendContentVideos;
+        case RecommendationType.recordings:
+          return PageId.recommendContentRecordings;
+        default:
+          return widget.config.pageId;
+      }
+    }
+
     // 非application模式：直接使用配置的pageId
     if (widget.config.mode != RecommendMode.application ||
         _tabController == null ||
@@ -189,6 +267,171 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     if (mounted) {
       setState(() {});
     }
+  }
+
+  /// ViewModel变化回调 - 增量更新缓存
+  void _onViewModelChanged() async {
+    if (!mounted) return;
+
+    // 处理 content 模式（时光记忆/生活剪影/声音记录）
+    if (widget.config.mode == RecommendMode.content) {
+      await _handleContentModeChanges();
+      return;
+    }
+
+    // 处理应用模式（微信/QQ等）
+    if (widget.config.mode != RecommendMode.application) return;
+
+    // 获取appKey
+    final appKey = _getAppKeyFromConfig();
+    if (appKey == null) return;
+
+    // 获取scanner实例
+    final scanner = widget.dataSourceFactory.scanner;
+    if (scanner == null) return;
+
+    logger.d('RecommendAggregatePage: ViewModel changed callback triggered for $appKey');
+
+    // 处理文件删除
+    final deletedPath = widget.viewModel.lastDeletedFilePath;
+    if (deletedPath != null) {
+      logger.d('RecommendAggregatePage: Processing file deletion: $deletedPath');
+
+      // 更新缓存
+      await scanner.updateCacheForDeletedFile(appKey, deletedPath);
+
+      // 更新UI
+      if (mounted) {
+        setState(() {
+          _allFiles.removeWhere((f) => f.path == deletedPath);
+          _files = _filterFilesByTab(_allFiles);
+        });
+      }
+      return;
+    }
+
+    // 处理文件更新（重命名/移动）
+    final oldPath = widget.viewModel.lastUpdatedOldPath;
+    final newFile = widget.viewModel.lastUpdatedNewFile;
+    if (oldPath != null && newFile != null) {
+      logger.d('RecommendAggregatePage: Processing file update: $oldPath -> ${newFile.path}');
+
+      // 更新缓存
+      await scanner.updateCacheForUpdatedFile(appKey, oldPath, newFile);
+
+      // 更新UI
+      if (mounted) {
+        setState(() {
+          final index = _allFiles.indexWhere((f) => f.path == oldPath);
+          if (index != -1) {
+            _allFiles[index] = newFile;
+            _files = _filterFilesByTab(_allFiles);
+          }
+        });
+      }
+      return;
+    }
+
+    // 处理文件添加
+    final addedFile = widget.viewModel.lastAddedFile;
+    if (addedFile != null && _shouldShowAddedFile(addedFile)) {
+      logger.d('RecommendAggregatePage: Processing file addition: ${addedFile.path}');
+
+      // 更新缓存
+      await scanner.updateCacheForAddedFile(appKey, addedFile);
+
+      // 更新UI
+      if (mounted) {
+        setState(() {
+          if (!_allFiles.any((f) => f.path == addedFile.path)) {
+            _allFiles.add(addedFile);
+            _files = _filterFilesByTab(_allFiles);
+          }
+        });
+      }
+    }
+  }
+
+  /// 处理 content 模式的文件变化
+  Future<void> _handleContentModeChanges() async {
+    // 只处理删除操作（添加/更新由外部应用完成，需要重新扫描）
+    final deletedPath = widget.viewModel.lastDeletedFilePath;
+    if (deletedPath == null) return;
+
+    logger.d('Content模式 - 处理文件删除: $deletedPath');
+
+    // 确定MediaStore类型
+    final mediaStoreType = _getMediaStoreType();
+    if (mediaStoreType == null) return;
+
+    // 从MediaStore缓存中移除文件
+    final cacheService = MediaStoreCacheService();
+    await cacheService.initialize();
+    await cacheService.removeFileFromCache(mediaStoreType, deletedPath);
+
+    // 更新UI
+    if (mounted) {
+      setState(() {
+        _allFiles.removeWhere((f) => f.path == deletedPath);
+        _files = _allFiles; // content模式无Tab过滤
+      });
+    }
+
+    logger.i('✅ Content模式 - 文件删除已同步到缓存和UI');
+  }
+
+  /// 获取当前配置对应的MediaStore类型
+  MediaStoreType? _getMediaStoreType() {
+    switch (widget.config.type) {
+      case RecommendationType.memories:
+        return MediaStoreType.cameraPhotos;
+      case RecommendationType.videos:
+        return MediaStoreType.cameraVideos;
+      case RecommendationType.recordings:
+        return MediaStoreType.recordings;
+      default:
+        return null;
+    }
+  }
+
+  /// 从配置获取appKey
+  String? _getAppKeyFromConfig() {
+    switch (widget.config.type) {
+      case RecommendationType.wechat:
+        return 'wechat';
+      case RecommendationType.qq:
+        return 'qq';
+      case RecommendationType.telegram:
+        return 'telegram';
+      case RecommendationType.wps:
+        return 'wps';
+      default:
+        return null;
+    }
+  }
+
+  /// 判断添加的文件是否应该显示在当前页面
+  bool _shouldShowAddedFile(FileItem file) {
+    if (file.isDirectory) return false;
+
+    // 如果有Tab，检查文件是否属于当前Tab
+    if (widget.config.mode == RecommendMode.application &&
+        _tabController != null &&
+        _visibleTabs != null &&
+        _visibleTabs!.isNotEmpty) {
+      final currentTab = _visibleTabs![_tabController!.index];
+
+      // 全部Tab：所有文件都显示
+      if (currentTab.fileTypes == null) {
+        return true;
+      }
+
+      // 特定类型Tab：检查扩展名
+      final ext = FileUtils.getExtension(file.name);
+      return currentTab.fileTypes!.contains(ext);
+    }
+
+    return true;
   }
 
   /// 初始化服务
@@ -235,32 +478,10 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
       logger.d('RecommendAggregatePage - 查询参数: $params');
 
-      // ⚡ 快速路径：先从缓存读取文件数量（如果是应用模式）
-      if (widget.config.mode == RecommendMode.application) {
-        final appKey = params['appKey'] as String?;
-        if (appKey != null) {
-          // 尝试从缓存快速获取文件数量
-          final cachedCount = await widget.dataSourceFactory.scanner?.getFileCountFast(appKey: appKey);
-          if (cachedCount != null && cachedCount > 0) {
-            logger.d('RecommendAggregatePage - 缓存命中: $appKey = $cachedCount 文件');
-            // 立即更新UI显示缓存的数量（使用空列表占位）
-            if (mounted) {
-              setState(() {
-                _allFiles = List.generate(
-                    cachedCount,
-                    (i) => FileItem(
-                          name: '',
-                          path: '',
-                          isDirectory: false,
-                          size: 0,
-                          modified: DateTime.now(),
-                        ));
-                _files = _allFiles;
-              });
-            }
-          }
-        }
-      }
+      // ⚡ 快速路径：应用模式下，scanApp会自动使用内存缓存
+      // 不需要单独检查文件数量，直接调用scanApp(forceRefresh: false)
+      // 如果有缓存，scanApp会立即返回缓存结果；没有缓存才执行扫描
+      logger.d('📋 开始加载文件列表 (config.mode=${widget.config.mode})');
 
       // 查询文件
       final files = await _dataSource.queryFiles(params);
@@ -298,6 +519,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       }
 
       logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+
+      // content模式：首次加载后立即触发后台刷新（检查是否有新文件）
+      if (widget.config.mode == RecommendMode.content && !_isBackgroundRefreshing) {
+        logger.d('Content模式 - 首次加载后触发后台刷新');
+        _smartBackgroundRefresh();
+      }
     } catch (e) {
       logger.e('RecommendAggregatePage - 加载失败: $e');
       if (mounted) {
@@ -305,6 +532,152 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// 智能后台刷新（content模式专用）
+  ///
+  /// 策略：
+  /// - 页面进入/返回时触发
+  /// - 不阻塞UI，后台静默刷新
+  /// - 发现新文件时自动更新UI
+  /// - 并发保护：同时只执行一次刷新
+  ///
+  /// 场景优化：
+  /// - 用户删除文件后从回收站恢复 → 立即刷新能看到
+  /// - 系统相机拍照后进入 → 能看到最新照片
+  /// - MediaStore 系统层面有缓存，性能影响微乎其微
+  Future<void> _smartBackgroundRefresh() async {
+    // 并发保护：避免重复刷新
+    if (_isBackgroundRefreshing) {
+      logger.d('RecommendAggregatePage: 后台刷新进行中，跳过');
+      return;
+    }
+
+    _isBackgroundRefreshing = true;
+
+    final appKey = _getAppKeyFromConfig();
+    logger.i('RecommendAggregatePage: 🔄 启动智能后台刷新... (appKey: $appKey, mode: ${widget.config.mode})');
+
+    try {
+      // 获取正确的查询参数（包含必需的 appKey）
+      final params = RecommendConfigDataSourceMapper.getDefaultQueryParams(widget.config.type);
+      params['forceRefresh'] = true;
+      
+      // 后台扫描（不阻塞UI）
+      logger.d('RecommendAggregatePage: 调用 queryFiles with params: $params');
+      final newFiles = await _dataSource.queryFiles(params);
+
+      logger.i('RecommendAggregatePage: 扫描完成，获得 ${newFiles.length} 个文件');
+
+      if (!mounted) return;
+
+      // 比较文件列表，判断是否有变化
+      final oldCount = _allFiles.length;
+      final newCount = newFiles.length;
+
+      // 方法1：数量不同，肯定有变化
+      if (newCount != oldCount) {
+        logger.i('✨ 发现文件变化: $oldCount → $newCount');
+
+        // 更新数据
+        setState(() {
+          _allFiles = newFiles;
+          _files = widget.config.mode == RecommendMode.application ? _filterFilesByTab(_allFiles) : _allFiles;
+        });
+
+        // 提示用户
+        if (mounted) {
+          final diff = newCount - oldCount;
+          final message = diff > 0 ? '发现 $diff 个新文件' : '已移除 ${-diff} 个文件';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        // 方法2：数量相同，但可能文件内容不同（如删除1个+恢复1个）
+        // 比较文件路径集合
+        final oldPaths = _allFiles.map((f) => f.path).toSet();
+        final newPaths = newFiles.map((f) => f.path).toSet();
+
+        logger.d('比较文件路径集合: 缓存${oldPaths.length}个, 扫描${newPaths.length}个');
+
+        // 找出差异文件
+        final addedPaths = newPaths.difference(oldPaths);
+        final removedPaths = oldPaths.difference(newPaths);
+
+        if (addedPaths.isNotEmpty || removedPaths.isNotEmpty) {
+          // 有文件路径不同，说明有文件被替换
+          logger.i('✨ 发现文件内容变化（数量相同但文件不同）');
+          logger.i('  新增文件: ${addedPaths.length}个');
+          if (addedPaths.isNotEmpty && addedPaths.length <= 5) {
+            for (final path in addedPaths) {
+              logger.d('    + $path');
+            }
+          }
+          logger.i('  移除文件: ${removedPaths.length}个');
+          if (removedPaths.isNotEmpty && removedPaths.length <= 5) {
+            for (final path in removedPaths) {
+              logger.d('    - $path');
+            }
+          }
+
+          // 更新数据
+          setState(() {
+            _allFiles = newFiles;
+            _files = widget.config.mode == RecommendMode.application ? _filterFilesByTab(_allFiles) : _allFiles;
+          });
+
+          // 提示用户
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('文件列表已更新'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          logger.d('后台刷新完成，无新变化');
+        }
+      }
+    } catch (e) {
+      logger.e('后台刷新失败: $e');
+    } finally {
+      _isBackgroundRefreshing = false;
+    }
+  }
+
+  /// 检查缓存是否被清除，如果被清除则重新加载
+  Future<void> _checkAndReloadIfCacheCleared() async {
+    // 只对应用模式（微信、QQ等）进行检查
+    if (widget.config.mode != RecommendMode.application) {
+      return;
+    }
+
+    final appKey = _getAppKeyFromConfig();
+    if (appKey == null) return;
+
+    try {
+      // 检查SharedPreferences缓存
+      final cache = await locator.getAsync<AppFileListCache>();
+      final cachedFiles = await cache.getFileList(appKey);
+
+      // 如果有文件列表但缓存为空，说明缓存被清除了
+      final shouldReload = _allFiles.isNotEmpty && cachedFiles == null;
+
+      if (shouldReload) {
+        logger.i('检测到缓存已清除，强制重新扫描: $appKey');
+        // 使用 forceRefresh: true 强制重新扫描，跳过内存缓存
+        await _loadFiles(forceRefresh: true);
+      }
+    } catch (e) {
+      logger.e('检查缓存状态失败: $e');
     }
   }
 
@@ -351,6 +724,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   // 标记数据是否已更新（用于返回时通知主页刷新）
   bool _dataUpdated = false;
 
+  /// 是否正在后台刷新
+  bool _isBackgroundRefreshing = false;
+
   Future<void> _loadFiles({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
@@ -386,7 +762,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
       logger.d('RecommendAggregatePage - 查询参数: $params${forceRefresh ? ' (强制刷新)' : ''}');
 
-      // 查询文件
+      // 查询文件（会优先使用缓存）
       final files = await _dataSource.queryFiles(params);
 
       if (mounted) {
@@ -398,6 +774,18 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       }
 
       logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+
+      // 后台刷新策略
+      if (!forceRefresh && files.isNotEmpty && !_isBackgroundRefreshing) {
+        if (widget.config.mode == RecommendMode.application) {
+          // 应用模式：使用原有的后台刷新
+          _startBackgroundRefresh(params);
+        } else if (widget.config.mode == RecommendMode.content) {
+          // content模式：首次加载后立即后台刷新
+          logger.d('Content模式 - 首次加载后触发后台刷新');
+          _smartBackgroundRefresh();
+        }
+      }
     } catch (e) {
       logger.e('RecommendAggregatePage - 加载失败: $e');
       if (mounted) {
@@ -406,6 +794,42 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         });
       }
     }
+  }
+
+  /// 后台静默刷新数据
+  void _startBackgroundRefresh(Map<String, dynamic> params) {
+    if (_isBackgroundRefreshing) return;
+
+    _isBackgroundRefreshing = true;
+    logger.d('RecommendAggregatePage - 🔄 启动后台刷新');
+
+    // 异步执行，不阻塞UI
+    Future.delayed(const Duration(milliseconds: 500), () async {
+      try {
+        // 强制刷新以获取最新数据
+        final refreshParams = Map<String, dynamic>.from(params);
+        refreshParams['forceRefresh'] = true;
+
+        final files = await _dataSource.queryFiles(refreshParams);
+
+        if (mounted && files.isNotEmpty) {
+          // 静默更新数据（如果数据有变化）
+          if (files.length != _allFiles.length) {
+            logger.i('RecommendAggregatePage - 🔄 后台刷新完成: ${_allFiles.length} -> ${files.length} 文件');
+            setState(() {
+              _allFiles = files;
+              _files = _filterFilesByTab(files);
+            });
+          } else {
+            logger.d('RecommendAggregatePage - 🔄 后台刷新完成: 数据无变化');
+          }
+        }
+      } catch (e) {
+        logger.e('RecommendAggregatePage - 🔄 后台刷新失败: $e');
+      } finally {
+        _isBackgroundRefreshing = false;
+      }
+    });
   }
 
   /// 根据当前Tab过滤文件
@@ -635,7 +1059,24 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
                 ),
             ];
           },
-          body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildFileListForNestedScroll(),
+          body: _isLoading
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        '正在扫描文件，请稍候...',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : _buildFileListForNestedScroll(),
         ),
         bottomNavigationBar: isEditMode ? _buildSelectionBottomBar() : null,
       ),

@@ -965,11 +965,17 @@ class FilePresenter {
   Future<List<FileItem>> scanFilesByCategory(
     CategoryType categoryType, {
     bool useMediaStore = true,
+    bool useHybridScan = true, // 新增：是否使用混合扫描（MediaStore + 路径扫描）
   }) async {
     logger.i(
-        'FilePresenter.scanFilesByCategory called for: $categoryType (useMediaStore: $useMediaStore)');
+        'FilePresenter.scanFilesByCategory called for: $categoryType (useMediaStore: $useMediaStore, useHybridScan: $useHybridScan)');
 
     try {
+      // 🔥 混合扫描模式：MediaStore + 路径扫描，合并去重（类似微信推荐页面）
+      if (useMediaStore && useHybridScan && categoryType != CategoryType.downloads) {
+        return await _scanByCategoryHybrid(categoryType);
+      }
+      
       // 图片、音频、视频、文档使用 MediaStore 扫描（快速）
       if (useMediaStore && categoryType != CategoryType.downloads) {
         return await _scanByCategoryWithMediaStore(categoryType);
@@ -981,6 +987,67 @@ class FilePresenter {
       logger.e('Error scanning files by category $categoryType: $e');
       rethrow;
     }
+  }
+  
+  /// 🔥 混合扫描：MediaStore + 路径扫描，合并去重
+  /// 
+  /// 适用于所有支持 MediaStore 的分类：
+  /// - 图片 (images)
+  /// - 视频 (video)
+  /// - 音乐 (music)
+  /// - 文档 (documents)
+  /// - APK (apk)
+  /// - 压缩包 (archive)
+  /// 
+  /// 解决 MediaStore 索引延迟问题：
+  /// - 文件刚下载/保存时未被 MediaStore 索引
+  /// - 文件从回收站恢复后未更新索引
+  /// - 用户手动复制/移动文件后索引未更新
+  Future<List<FileItem>> _scanByCategoryHybrid(CategoryType categoryType) async {
+    final startTime = DateTime.now();
+    logger.i('🔄 开始混合扫描 (MediaStore + FileSystem): $categoryType');
+    
+    // 1. MediaStore 扫描（快速，但可能遗漏新文件）
+    final mediaStoreFiles = await _scanByCategoryWithMediaStore(categoryType);
+    final mediaStoreTime = DateTime.now().difference(startTime);
+    logger.i('  📱 MediaStore: ${mediaStoreFiles.length} 个文件 (${mediaStoreTime.inMilliseconds}ms)');
+    
+    // 2. 路径扫描（全面，但较慢）
+    final pathScanFiles = await _scanByCategoryWithFileSystem(categoryType);
+    final pathScanTime = DateTime.now().difference(startTime) - mediaStoreTime;
+    logger.i('  📁 路径扫描: ${pathScanFiles.length} 个文件 (${pathScanTime.inMilliseconds}ms)');
+    
+    // 3. 合并去重（以路径为键）
+    final fileMap = <String, FileItem>{};
+    
+    // 先加入 MediaStore 结果
+    for (final file in mediaStoreFiles) {
+      fileMap[file.path] = file;
+    }
+    
+    // 再加入路径扫描结果（如果路径已存在，保留 MediaStore 的版本）
+    int addedCount = 0;
+    for (final file in pathScanFiles) {
+      if (!fileMap.containsKey(file.path)) {
+        fileMap[file.path] = file;
+        addedCount++;
+      }
+    }
+    
+    final allFiles = fileMap.values.toList();
+    final totalTime = DateTime.now().difference(startTime);
+    
+    logger.i('✅ 混合扫描完成: $categoryType');
+    logger.i('  总文件数: ${allFiles.length}');
+    logger.i('  MediaStore独有: ${mediaStoreFiles.length - (allFiles.length - addedCount)}');
+    logger.i('  路径扫描补充: $addedCount 个 (MediaStore未索引的文件)');
+    logger.i('  总耗时: ${totalTime.inMilliseconds}ms');
+    
+    if (addedCount > 0) {
+      logger.w('⚠️ 发现 $addedCount 个文件未被 MediaStore 索引，已通过路径扫描补充');
+    }
+    
+    return allFiles;
   }
 
   /// 使用 MediaStore 扫描分类文件（快速）

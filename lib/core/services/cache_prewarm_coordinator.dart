@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 import 'package:easyfile/core/services/app_cache_prewarmer.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
@@ -259,13 +261,16 @@ class CachePrewarmCoordinator {
       await detectionService.initialize();
       _emitProgress('应用文件', 0.2);
 
-      final fileCountCache = FileCountCache();
-      await fileCountCache.initialize();
+      // 使用全局单例FileCountCache
+      final fileCountCache = await locator.getAsync<FileCountCache>();
       _emitProgress('应用文件', 0.3);
+
+      final fileListCache = await locator.getAsync<AppFileListCache>();
 
       final scanner = UnifiedAppScanner(
         detectionService,
         fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
       );
       _emitProgress('应用文件', 0.4);
 

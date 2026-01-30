@@ -6,6 +6,7 @@ import 'package:easyfile/core/services/app_scan_result.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/utils/cancellation_token.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,11 +60,23 @@ class MockUnifiedAppScanner extends UnifiedAppScanner {
     bool forceRefresh = false,
     CancellationToken? cancellationToken,
   }) async {
+    // 返回与getFileCountFast一致的文件数量
+    final count = _fileCounts[appKey] ?? 0;
+    final now = DateTime.now();
     return AppScanResult(
       appName: appKey,
       packageName: 'com.test.$appKey',
       isInstalled: true,
-      allFiles: const [], // 返回空列表而不是null列表
+      allFiles: List.generate(
+        count,
+        (i) => FileItem(
+          name: 'file_$i.txt',
+          path: '/mock/path/file_$i.txt',
+          isDirectory: false,
+          size: 1024,
+          modified: now,
+        ),
+      ),
       mediaStoreFiles: const [],
       pathScanFiles: const [],
       differenceFiles: const [],

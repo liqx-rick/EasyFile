@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:easyfile/core/logger.dart';
+
 import 'storage/config_storage.dart';
 
 /// 重复文件推荐算法配置
@@ -46,7 +48,10 @@ class DuplicateFilesRecommendationConfig {
   List<String> getSystemNativeDirectories() => systemNativeDirectories;
 
   /// Download目录（临时下载目录，优先级低于用户自建目录）
-  static const String downloadDirectory = '/storage/emulated/0/download/';
+  static const String _downloadDirectoryPath = '/storage/emulated/0/download/';
+
+  /// 获取Download目录（实例getter，便于通过配置实例访问）
+  String get downloadDirectory => _downloadDirectoryPath;
 
   // ==================== 可配置的应用特征 ====================
 
@@ -348,32 +353,28 @@ class DuplicateFilesRecommendationConfig {
   /// - 产品可根据用户反馈调整衰减速度
   /// - 较大值：更重视时间新鲜度
   /// - 较小值：降低时间因素的权重
-  int get timeDecayScorePerDay =>
-      _getInt('time_decay_per_day', defaultValue: 5);
+  int get timeDecayScorePerDay => _getInt('time_decay_per_day', defaultValue: 5);
 
   /// 大小相似度阈值（字节）
   ///
   /// 默认值：1024字节（1KB）
   /// - 小于此差异认为文件大小相同，不参与评分
   /// - 避免微小差异影响推荐结果
-  int get sizeSimilarityThreshold =>
-      _getInt('size_similarity_bytes', defaultValue: 1024);
+  int get sizeSimilarityThreshold => _getInt('size_similarity_bytes', defaultValue: 1024);
 
   /// 时间相似度阈值（秒）
   ///
   /// 默认值：3600秒（1小时）
   /// - 小于此差异认为修改时间相同，不参与评分
   /// - 避免短时间内的多次修改影响推荐
-  int get timeSimilarityThreshold =>
-      _getInt('time_similarity_seconds', defaultValue: 3600);
+  int get timeSimilarityThreshold => _getInt('time_similarity_seconds', defaultValue: 3600);
 
   /// 路径深度阈值（层数）
   ///
   /// 默认值：9层
   /// - 超过此深度认为路径过深，扣除 pathTooDeepPenalty 分数
   /// - 深层目录通常是系统或应用自动生成的
-  int get pathDepthThreshold =>
-      _getInt('path_depth_threshold', defaultValue: 9);
+  int get pathDepthThreshold => _getInt('path_depth_threshold', defaultValue: 9);
 
   // ==================== 算法参数更新接口 ====================
 
@@ -441,8 +442,7 @@ class DuplicateFilesRecommendationConfig {
 
   /// 重置为默认值
   Future<void> reset() async {
-    final keys =
-        _storage.getKeys().where((key) => key.startsWith(_keyPrefix)).toList();
+    final keys = _storage.getKeys().where((key) => key.startsWith(_keyPrefix)).toList();
 
     for (final key in keys) {
       await _storage.remove(key);

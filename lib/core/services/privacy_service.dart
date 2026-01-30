@@ -6,6 +6,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'package:local_auth_ios/local_auth_ios.dart';
@@ -20,6 +21,8 @@ class PrivacyService {
   static const String _keyPinHash = 'privacy_pin_hash';
   static const String _keyBiometricEnabled = 'privacy_biometric_enabled';
   static const String _keyLastAccess = 'privacy_last_access';
+
+  static const MethodChannel _platformChannel = MethodChannel('easyfile/privacy_file');
 
   final LocalAuthentication _localAuth = LocalAuthentication();
 
@@ -351,23 +354,44 @@ class PrivacyService {
         logger.i('目标文件已存在，使用新名称: $newName');
       }
 
-      final targetFile = File(targetPath);
+      // 5. 保存原始路径到元数据
+      await _saveOriginalPath(fileName, file.path);
 
-      // 5. 跨设备移动：复制 + 删除
-      logger.d('开始复制文件: ${file.path} -> $targetPath');
-      await sourceFile.copy(targetPath);
+      // 6. 移动文件（优先使用rename，跨设备时降级到复制+删除）
+      logger.d('移动文件到隐私空间: ${file.path} -> $targetPath');
 
-      // 6. 验证复制成功
-      if (!targetFile.existsSync()) {
-        logger.e('文件复制失败: $targetPath');
-        return false;
+      try {
+        // 尝试快速rename（同分区时非常快）
+        await sourceFile.rename(targetPath);
+        logger.d('✅ 文件移动成功（使用原子操作）');
+      } on FileSystemException catch (e) {
+        // 跨分区错误，降级到复制+删除
+        if (e.message.contains('Cross-device') || e.osError?.errorCode == 18) {
+          logger.d('⚠️ 检测到跨分区，使用复制+删除');
+
+          // 复制文件到隐私空间
+          await sourceFile.copy(targetPath);
+
+          // 验证复制成功
+          final targetFile = File(targetPath);
+          if (!targetFile.existsSync()) {
+            throw Exception('文件复制失败');
+          }
+
+          // 删除源文件（优先使用原生方法，避免触发第三方回收站）
+          final deleted = await _deleteFileCompletely(file.path);
+          if (!deleted) {
+            logger.w('原生删除失败，降级到File.delete()');
+            await sourceFile.delete();
+          }
+          logger.d('✅ 复制+删除完成');
+        } else {
+          // 其他错误，抛出
+          rethrow;
+        }
       }
 
-      // 7. 删除源文件
-      logger.d('删除源文件: ${file.path}');
-      await sourceFile.delete();
-
-      logger.i('📥 文件已移入隐私空间: ${targetFile.path}');
+      logger.i('📥 文件已移入隐私空间: $targetPath');
       return true;
     } catch (e) {
       logger.e('移入隐私空间失败: $e');
@@ -376,13 +400,91 @@ class PrivacyService {
   }
 
   /// 移出隐私空间
-  Future<bool> moveFromPrivate(FileItem file, String targetPath) async {
+  ///
+  /// [file] 要移出的文件
+  /// [userSelectedPath] 用户选择的目标路径（可选）
+  ///
+  /// 返回值：
+  /// - true: 成功移出
+  /// - false: 失败或需要用户选择路径
+  ///
+  /// 逻辑：
+  /// 1. 优先尝试恢复到原始位置
+  /// 2. 原位置不可用时，使用用户选择的路径
+  /// 3. 如果都没有，返回false要求用户选择
+  Future<bool> moveFromPrivate(FileItem file, {String? userSelectedPath}) async {
     try {
       final sourceFile = File(file.path);
-      String finalTargetPath = targetPath;
+
+      // 1. 尝试获取并恢复到原始路径
+      final originalPath = await _getOriginalPath(file.name);
+      if (originalPath != null) {
+        logger.d('找到原始路径: $originalPath');
+
+        // 检查原始目录是否存在
+        final originalFile = File(originalPath);
+        final originalDir = Directory(originalFile.parent.path);
+
+        if (originalDir.existsSync()) {
+          try {
+            String finalPath = originalPath;
+
+            // 检查原位置是否已有同名文件
+            if (originalFile.existsSync()) {
+              logger.w('原位置已有同名文件，添加编号');
+              finalPath = await _getUniqueFilePath(originalPath);
+            }
+
+            // 移动到原位置
+            logger.d('恢复到原位置: ${file.path} -> $finalPath');
+
+            try {
+              // 尝试快速rename
+              await sourceFile.rename(finalPath);
+              logger.d('✅ 恢复成功（使用原子操作）');
+            } on FileSystemException catch (e) {
+              // 跨分区错误，降级到复制+删除
+              if (e.message.contains('Cross-device') || e.osError?.errorCode == 18) {
+                logger.d('⚠️ 检测到跨分区，使用复制+删除');
+                await sourceFile.copy(finalPath);
+                if (!File(finalPath).existsSync()) {
+                  throw Exception('文件复制失败');
+                }
+                await sourceFile.delete();
+                logger.d('✅ 复制+删除完成');
+              } else {
+                rethrow;
+              }
+            }
+
+            // 清除元数据记录
+            await _removeOriginalPathRecord(file.name);
+
+            // 通知 MediaStore 扫描文件，让相册能看到
+            await _scanFile(finalPath);
+
+            logger.i('📤 文件已恢复到原位置: $finalPath');
+            return true;
+          } catch (e) {
+            logger.w('恢复到原位置失败: $e，将使用用户选择的路径');
+            // 继续执行下面的逻辑
+          }
+        } else {
+          logger.w('原始目录不存在: ${originalDir.path}');
+        }
+      }
+
+      // 2. 原位置不可用，检查是否有用户选择的路径
+      if (userSelectedPath == null) {
+        logger.i('需要用户选择目标路径');
+        return false;
+      }
+
+      // 3. 使用用户选择的路径
+      String finalTargetPath = userSelectedPath;
 
       // 检查目标目录是否存在
-      final targetFile = File(targetPath);
+      final targetFile = File(userSelectedPath);
       final targetDir = Directory(targetFile.parent.path);
       if (!targetDir.existsSync()) {
         logger.w('目标目录不存在: ${targetDir.path}');
@@ -391,40 +493,65 @@ class PrivacyService {
 
       // 检查目标文件是否已存在
       if (targetFile.existsSync()) {
-        // 添加编号避免冲突
-        final fileName = file.name;
-        final nameParts = fileName.split('.');
-        int counter = 1;
-
-        do {
-          final newName = nameParts.length > 1
-              ? '${nameParts.sublist(0, nameParts.length - 1).join('.')}($counter).${nameParts.last}'
-              : '$fileName($counter)';
-          finalTargetPath = '${targetDir.path}/$newName';
-          counter++;
-        } while (File(finalTargetPath).existsSync());
+        logger.w('目标位置已有同名文件，添加编号');
+        finalTargetPath = await _getUniqueFilePath(userSelectedPath);
       }
 
-      // 跨设备移动：复制 + 删除
-      // 不能使用 rename()，因为源文件和目标文件可能在不同的文件系统上
-      await sourceFile.copy(finalTargetPath);
+// 直接移动文件（优先使用rename，跨设备时降级到复制+删除）
+      logger.d('移出隐私空间: ${file.path} -> $finalTargetPath');
 
-      // 验证复制成功
-      final newTargetFile = File(finalTargetPath);
-      if (!newTargetFile.existsSync()) {
-        logger.e('文件复制失败: $finalTargetPath');
-        return false;
+      try {
+        // 尝试快速rename
+        await sourceFile.rename(finalTargetPath);
+        logger.d('✅ 文件移动成功（使用原子操作）');
+      } on FileSystemException catch (e) {
+        // 跨分区错误，降级到复制+删除
+        if (e.message.contains('Cross-device') || e.osError?.errorCode == 18) {
+          logger.d('⚠️ 检测到跨分区，使用复制+删除');
+          await sourceFile.copy(finalTargetPath);
+          if (!File(finalTargetPath).existsSync()) {
+            throw Exception('文件复制失败');
+          }
+          await sourceFile.delete();
+          logger.d('✅ 复制+删除完成');
+        } else {
+          rethrow;
+        }
       }
 
-      // 删除源文件
-      await sourceFile.delete();
+      // 清除元数据记录
+      await _removeOriginalPathRecord(file.name);
 
-      logger.i('📤 文件已移出隐私空间: ${newTargetFile.uri.pathSegments.last}');
+      // 通知 MediaStore 扫描文件，让相册能看到
+      await _scanFile(finalTargetPath);
+
+      logger.i('📤 文件已移出隐私空间: $finalTargetPath');
       return true;
     } catch (e) {
       logger.e('移出隐私空间失败: $e');
       return false;
     }
+  }
+
+  /// 生成唯一文件路径（处理同名冲突）
+  Future<String> _getUniqueFilePath(String originalPath) async {
+    final file = File(originalPath);
+    final dir = file.parent.path;
+    final fileName = file.uri.pathSegments.last;
+    final nameParts = fileName.split('.');
+
+    int counter = 1;
+    String newPath;
+
+    do {
+      final newName = nameParts.length > 1
+          ? '${nameParts.sublist(0, nameParts.length - 1).join('.')}($counter).${nameParts.last}'
+          : '$fileName($counter)';
+      newPath = '$dir/$newName';
+      counter++;
+    } while (File(newPath).existsSync());
+
+    return newPath;
   }
 
   /// 获取隐私文件列表
@@ -493,13 +620,13 @@ class PrivacyService {
   /// 清空隐私空间（删除所有文件+配置）
   Future<void> resetPrivacySpace() async {
     try {
-      // 1. 删除所有隐私文件
+      // 1. 删除所有隐私文件和元数据
       final privateDir = await getPrivateDirectory();
       final dir = Directory(privateDir);
 
       if (dir.existsSync()) {
         await dir.delete(recursive: true);
-        logger.i('🗑️ 隐私文件已删除');
+        logger.i('🗑️ 隐私文件和元数据已删除');
       }
 
       // 2. 清除配置
@@ -516,6 +643,109 @@ class PrivacyService {
     } catch (e) {
       logger.e('重置隐私空间失败: $e');
       rethrow;
+    }
+  }
+
+  // ==================== 元数据管理（原始路径记录） ====================
+
+  /// 获取元数据文件路径
+  Future<String> _getMetadataFilePath() async {
+    final privateDir = await getPrivateDirectory();
+    return '$privateDir/.metadata.json';
+  }
+
+  /// 加载元数据（文件名 -> 原始路径映射）
+  Future<Map<String, String>> _loadMetadata() async {
+    try {
+      final metadataPath = await _getMetadataFilePath();
+      final metadataFile = File(metadataPath);
+
+      if (!metadataFile.existsSync()) {
+        return {};
+      }
+
+      final content = await metadataFile.readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      return Map<String, String>.from(json);
+    } catch (e) {
+      logger.w('加载元数据失败: $e');
+      return {};
+    }
+  }
+
+  /// 保存元数据
+  Future<void> _saveMetadata(Map<String, String> metadata) async {
+    try {
+      final metadataPath = await _getMetadataFilePath();
+      final metadataFile = File(metadataPath);
+
+      final content = jsonEncode(metadata);
+      await metadataFile.writeAsString(content);
+
+      logger.d('元数据已保存: ${metadata.length} 条记录');
+    } catch (e) {
+      logger.e('保存元数据失败: $e');
+    }
+  }
+
+  /// 保存文件的原始路径
+  Future<void> _saveOriginalPath(String fileName, String originalPath) async {
+    final metadata = await _loadMetadata();
+    metadata[fileName] = originalPath;
+    await _saveMetadata(metadata);
+    logger.d('已记录原始路径: $fileName -> $originalPath');
+  }
+
+  /// 获取文件的原始路径
+  Future<String?> _getOriginalPath(String fileName) async {
+    final metadata = await _loadMetadata();
+    return metadata[fileName];
+  }
+
+  /// 移除文件的原始路径记录
+  Future<void> _removeOriginalPathRecord(String fileName) async {
+    final metadata = await _loadMetadata();
+    if (metadata.remove(fileName) != null) {
+      await _saveMetadata(metadata);
+      logger.d('已移除原始路径记录: $fileName');
+    }
+  }
+
+  /// 使用原生方法彻底删除文件（避免触发第三方回收站）
+  ///
+  /// 在 Android 10+ 上，使用 MediaStore API 直接删除，不会触发系统相册的"最近删除"
+  /// 降级到 File.delete() 如果原生方法失败
+  Future<bool> _deleteFileCompletely(String filePath) async {
+    try {
+      final result = await _platformChannel.invokeMethod<bool>(
+        'deleteFileCompletely',
+        {'filePath': filePath},
+      );
+      return result ?? false;
+    } catch (e) {
+      logger.w('原生删除方法调用失败: $e');
+      return false;
+    }
+  }
+
+  /// 通知 MediaStore 扫描文件
+  ///
+  /// 当文件从隐私空间恢复到公共存储后，需要通知系统相册/媒体库重新扫描
+  /// 这样文件才会显示在相册中
+  Future<void> _scanFile(String filePath) async {
+    try {
+      logger.d('通知 MediaStore 扫描文件: $filePath');
+      final result = await _platformChannel.invokeMethod<bool>(
+        'scanFile',
+        {'filePath': filePath},
+      );
+      if (result == true) {
+        logger.i('✅ 文件已添加到媒体库: $filePath');
+      } else {
+        logger.w('⚠️ 文件扫描失败: $filePath');
+      }
+    } catch (e) {
+      logger.w('扫描文件异常: $e');
     }
   }
 }

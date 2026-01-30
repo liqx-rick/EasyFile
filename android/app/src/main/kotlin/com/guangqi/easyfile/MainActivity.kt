@@ -85,10 +85,13 @@ class MainActivity : FlutterFragmentActivity() {
     private val APK_PARSER_CHANNEL = "com.easyfile.apk_parser"
     // 友盟统计通道
     private val UMENG_ANALYTICS_CHANNEL = "easyfile/analytics/umeng"
+    // 隐私文件操作通道
+    private val PRIVACY_FILE_CHANNEL = "easyfile/privacy_file"
     private val TAG = "MainActivity"
 
     private var isRestoringFromBackground = false
     private lateinit var trashHelper: MediaStoreTrashHelper
+    private lateinit var privacyFileHelper: PrivacyFileHelper
     private lateinit var storageStatsHelper: StorageStatsHelper
     private lateinit var mediaStoreScanner: MediaStoreScanner
     private lateinit var appFileScanner: AppFileScanner
@@ -132,6 +135,9 @@ class MainActivity : FlutterFragmentActivity() {
 
         // 初始化 MediaStoreTrashHelper
         trashHelper = MediaStoreTrashHelper(this)
+
+        // 初始化 PrivacyFileHelper
+        privacyFileHelper = PrivacyFileHelper(this)
 
         // 初始化 StorageStatsHelper
         storageStatsHelper = StorageStatsHelper(this)
@@ -241,6 +247,42 @@ class MainActivity : FlutterFragmentActivity() {
 
         // 友盟 Analytics Channel
         MethodChannel(messenger, UMENG_ANALYTICS_CHANNEL).setMethodCallHandler(umengAnalyticsChannel)
+
+        // 隐私文件操作 Channel
+        MethodChannel(messenger, PRIVACY_FILE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "deleteFileCompletely" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            val success = privacyFileHelper.deleteFileCompletely(filePath)
+                            result.success(success)
+                        } catch (e: Exception) {
+                            LogHelper.e(TAG, "删除文件失败: ${e.message}", e)
+                            result.error("DELETE_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File path is required", null)
+                    }
+                }
+                "scanFile" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath != null) {
+                        try {
+                            privacyFileHelper.scanFile(filePath) { success ->
+                                result.success(success)
+                            }
+                        } catch (e: Exception) {
+                            LogHelper.e(TAG, "扫描文件失败: ${e.message}", e)
+                            result.error("SCAN_ERROR", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "File path is required", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // 分享功能 Channel
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -1792,9 +1834,10 @@ class MainActivity : FlutterFragmentActivity() {
             "owner_package_name"  // OWNER_PACKAGE_NAME
         )
 
-        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
-        val selection = "owner_package_name = ?"
-        val selectionArgs = arrayOf(cameraPackageName)
+        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名 OR 路径在 DCIM/Camera 下
+        // 这样可以包括从回收站恢复的文件（OWNER_PACKAGE_NAME可能已改变）
+        val selection = "(owner_package_name = ? OR ${MediaStore.Images.Media.DATA} LIKE ?)"
+        val selectionArgs = arrayOf(cameraPackageName, "%/DCIM/Camera/%")
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
 
         try {
@@ -1895,9 +1938,10 @@ class MainActivity : FlutterFragmentActivity() {
             "owner_package_name"  // OWNER_PACKAGE_NAME
         )
 
-        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名
-        val selection = "owner_package_name = ?"
-        val selectionArgs = arrayOf(cameraPackageName)
+        // 过滤条件：OWNER_PACKAGE_NAME = 系统相机包名 OR 路径在 DCIM/Camera 下
+        // 这样可以包括从回收站恢复的文件（OWNER_PACKAGE_NAME可能已改变）
+        val selection = "(owner_package_name = ? OR ${MediaStore.Video.Media.DATA} LIKE ?)"
+        val selectionArgs = arrayOf(cameraPackageName, "%/DCIM/Camera/%")
         val sortOrder = "${MediaStore.Video.Media.DATE_ADDED} DESC"
 
         try {

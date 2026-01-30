@@ -1,5 +1,5 @@
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
 
 /// 页面ID枚举
 enum PageId {
@@ -57,6 +57,15 @@ enum PageId {
   /// 推荐页面-内容模式（统一处理所有内容：时光记忆/生活剪影/声音记录）
   recommendContent('recommend_content'),
 
+  /// 推荐页面-内容模式-时光记忆（相机照片）
+  recommendContentMemories('recommend_content_memories'),
+
+  /// 推荐页面-内容模式-生活剪影（视频）
+  recommendContentVideos('recommend_content_videos'),
+
+  /// 推荐页面-内容模式-声音记录（录音）
+  recommendContentRecordings('recommend_content_recordings'),
+
   /// 推荐页面-清理模式（大文件清理建议）
   recommendCleanup('recommend_cleanup');
 
@@ -113,12 +122,8 @@ class PageSettings {
   /// 从JSON创建
   factory PageSettings.fromJson(Map<String, dynamic> json) {
     return PageSettings(
-      viewMode: json['viewMode'] != null
-          ? ViewMode.values.firstWhere((e) => e.name == json['viewMode'])
-          : null,
-      sortType: json['sortType'] != null
-          ? SortType.values.firstWhere((e) => e.name == json['sortType'])
-          : null,
+      viewMode: json['viewMode'] != null ? ViewMode.values.firstWhere((e) => e.name == json['viewMode']) : null,
+      sortType: json['sortType'] != null ? SortType.values.firstWhere((e) => e.name == json['sortType']) : null,
       sortAscending: json['sortAscending'] as bool?,
       groupEnabled: json['groupEnabled'] as bool?,
     );
@@ -240,8 +245,32 @@ class PageDefaultSettings {
       groupEnabled: true,
     ),
 
-    // 推荐页面-内容模式: 列表/按修改时间/默认分组
+    // 推荐页面-内容模式: 网格/按修改时间/默认分组（向后兼容）
     PageId.recommendContent: PageSettings(
+      viewMode: ViewMode.grid,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-内容模式-时光记忆: 网格/按修改时间/默认分组
+    PageId.recommendContentMemories: PageSettings(
+      viewMode: ViewMode.grid,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-内容模式-生活剪影: 网格/按修改时间/默认分组
+    PageId.recommendContentVideos: PageSettings(
+      viewMode: ViewMode.grid,
+      sortType: SortType.modifiedTime,
+      sortAscending: false,
+      groupEnabled: true,
+    ),
+
+    // 推荐页面-内容模式-声音记录: 列表/按修改时间/默认分组
+    PageId.recommendContentRecordings: PageSettings(
       viewMode: ViewMode.list,
       sortType: SortType.modifiedTime,
       sortAscending: false,
@@ -307,6 +336,12 @@ class PageDefaultSettings {
         return '应用推荐-音频';
       case PageId.recommendContent:
         return '内容推荐';
+      case PageId.recommendContentMemories:
+        return '时光记忆';
+      case PageId.recommendContentVideos:
+        return '生活剪影';
+      case PageId.recommendContentRecordings:
+        return '声音记录';
       case PageId.recommendCleanup:
         return '清理推荐';
       case PageId.archiveManagement:
@@ -351,6 +386,12 @@ class PageDefaultSettings {
         return '音频列表展示';
       case PageId.recommendContent:
         return '个性化内容推荐';
+      case PageId.recommendContentMemories:
+        return '照片网格展示，按时间浏览';
+      case PageId.recommendContentVideos:
+        return '视频网格展示，按时间浏览';
+      case PageId.recommendContentRecordings:
+        return '录音列表展示，便于查看详情';
       case PageId.recommendCleanup:
         return '大文件清理建议';
       case PageId.archiveManagement:

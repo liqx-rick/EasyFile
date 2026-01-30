@@ -2,12 +2,15 @@ import 'package:easyfile/core/config/storage/config_storage.dart';
 import 'package:easyfile/core/config/storage/local_config_storage.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/app_management_service.dart';
 import 'package:easyfile/core/services/app_storage_cache_manager.dart';
 import 'package:easyfile/core/services/app_storage_service.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/junk_file_cache_manager.dart';
 import 'package:easyfile/core/services/junk_file_service.dart';
 import 'package:easyfile/core/services/permission_service.dart';
@@ -19,6 +22,7 @@ import 'package:easyfile/core/services/startup/startup_orchestrator.dart';
 import 'package:easyfile/core/services/system_intent_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/core/services/usage_stats_permission_service.dart';
 import 'package:easyfile/core/services/usage_stats_service.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
@@ -275,6 +279,40 @@ void setupLocator() {
   locator.registerLazySingleton<CategoryFileCacheService>(() {
     logger.d('Creating CategoryFileCacheService (Singleton)');
     return CategoryFileCacheService();
+  });
+
+  locator.registerLazySingletonAsync<FileCountCache>(() async {
+    logger.d('Creating FileCountCache (Singleton)');
+    final cache = FileCountCache();
+    await cache.initialize();
+    return cache;
+  });
+
+  locator.registerLazySingletonAsync<AppFileListCache>(() async {
+    logger.d('Creating AppFileListCache (Singleton)');
+    final cache = AppFileListCache();
+    await cache.initialize();
+    return cache;
+  });
+
+  locator.registerLazySingletonAsync<AppDetectionService>(() async {
+    logger.d('Creating AppDetectionService (Singleton)');
+    final service = AppDetectionService();
+    await service.initialize();
+    return service;
+  });
+
+  locator.registerLazySingletonAsync<UnifiedAppScanner>(() async {
+    logger.d('Creating UnifiedAppScanner (Singleton)');
+    final appDetectionService = await locator.getAsync<AppDetectionService>();
+    final fileCountCache = await locator.getAsync<FileCountCache>();
+    final appFileListCache = await locator.getAsync<AppFileListCache>();
+
+    return UnifiedAppScanner(
+      appDetectionService,
+      fileCountCache: fileCountCache,
+      fileListCache: appFileListCache,
+    );
   });
 
   locator.registerLazySingletonAsync<AppInitializationService>(() async {

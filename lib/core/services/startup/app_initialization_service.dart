@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/category_info.dart';
@@ -150,15 +153,22 @@ class AppInitializationService {
           final categoryProgress = 0.20 + (i / categoriesToScan.length) * 0.08;
           _reportProgress(categoryProgress);
 
-          final files = await filePresenter.scanFilesByCategory(categoryType);
+          // 🔥 使用混合扫描模式（MediaStore + 路径扫描），确保完整性
+          final files = await filePresenter.scanFilesByCategory(
+            categoryType,
+            useHybridScan: true,
+          );
           final count = files.length;
+
+          // 💾 将文件列表保存到分类页面的缓存（避免用户首次进入时重新扫描）
+          await _saveToCategoryPageCache(categoryType, files);
 
           // 映射到 FileCategory
           final fileCategory = _mapCategoryType(categoryType);
           counts[fileCategory] = count;
           totalFiles += count;
 
-          logger.i('[AppInitService] Category statistics: ${categoryType.name} = $count files');
+          logger.i('[AppInitService] Category statistics: ${categoryType.name} = $count files (cached)');
         } catch (e) {
           logger.e('[AppInitService] Error scanning $categoryType: $e');
           // 某个分类扫描失败，使用该分类的零值继续
@@ -194,8 +204,14 @@ class AppInitializationService {
       final appDetectionService = AppDetectionService();
       await appDetectionService.initialize();
 
-      // 创建统一扫描器
-      final scanner = UnifiedAppScanner(appDetectionService);
+      // 创建统一扫描器（使用全局FileCountCache）
+      final fileCountCache = await locator.getAsync<FileCountCache>();
+      final fileListCache = await locator.getAsync<AppFileListCache>();
+      final scanner = UnifiedAppScanner(
+        appDetectionService,
+        fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
+      );
 
       // 创建推荐服务并执行扫描
       final recommendationService = RecommendationService(
@@ -281,15 +297,22 @@ class AppInitializationService {
         try {
           // 注意：这里不更新进度，因为整体进度由 performFirstTimeComprehensiveScan 管理
 
-          final files = await filePresenter.scanFilesByCategory(categoryType);
+          // 🔥 使用混合扫描模式（MediaStore + 路径扫描），确保完整性
+          final files = await filePresenter.scanFilesByCategory(
+            categoryType,
+            useHybridScan: true,
+          );
           final count = files.length;
+
+          // 💾 将文件列表保存到分类页面的缓存
+          await _saveToCategoryPageCache(categoryType, files);
 
           // 映射到 FileCategory
           final fileCategory = _mapCategoryType(categoryType);
           counts[fileCategory] = count;
           totalFiles += count;
 
-          logger.i('[AppInitService] Category scan: ${categoryType.name} = $count files');
+          logger.i('[AppInitService] Category scan: ${categoryType.name} = $count files (cached)');
         } catch (e) {
           logger.e('[AppInitService] Error scanning $categoryType: $e');
           // 某个分类扫描失败，使用该分类的零值继续
@@ -345,6 +368,40 @@ class AppInitializationService {
       logger.i('[AppInitService] Cached category counts');
     } catch (e) {
       logger.e('[AppInitService] Error caching category counts: $e');
+    }
+  }
+
+  /// 保存文件列表到分类页面的缓存
+  /// 
+  /// 使用与 CategoryFilePage._saveToCache() 相同的格式和缓存键
+  /// 这样用户首次进入分类页面时可以直接使用，无需重新扫描
+  Future<void> _saveToCategoryPageCache(
+    CategoryType categoryType,
+    List<dynamic> files,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'category_cache_${categoryType.name}';
+
+      final cacheData = {
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'categoryType': categoryType.name,
+        'files': files
+            .map(
+              (file) => {
+                'name': file.name,
+                'path': file.path,
+                'size': file.size,
+                'modified': file.modified.millisecondsSinceEpoch,
+              },
+            )
+            .toList(),
+      };
+
+      await prefs.setString(key, json.encode(cacheData));
+      logger.i('[AppInitService] Saved ${files.length} files to category page cache: ${categoryType.name}');
+    } catch (e) {
+      logger.e('[AppInitService] Error saving category page cache for ${categoryType.name}: $e');
     }
   }
 

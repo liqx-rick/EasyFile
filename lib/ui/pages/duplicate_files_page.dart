@@ -15,6 +15,7 @@ import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
@@ -392,24 +393,35 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   /// 3. 低优先级，不阻塞UI
   /// 4. 图片使用Flutter的precacheImage
   /// 5. 视频触发缩略图生成（由VideoThumbnailLoadQueue管理缓存）
+  /// 6. 跳过已缓存的视频，避免重复预热
   Future<void> _prewarmThumbnailCache(List<DuplicateFileGroup> groups) async {
     logger.i('🔥 Starting thumbnail cache prewarming for ${groups.length} groups');
+
+    // 获取缓存管理器（用于预检查）
+    final cacheManager = ThumbnailCacheManager();
 
     // 收集所有需要预热的文件
     final imagesToPrewarm = <FileItem>[];
     final videosToPrewarm = <FileItem>[];
+    int cachedVideosSkipped = 0;
 
     for (final group in groups) {
       for (final file in group.files) {
         if (FileUtils.isImageFile(file.name)) {
           imagesToPrewarm.add(file);
         } else if (FileUtils.isVideoFile(file.name)) {
-          videosToPrewarm.add(file);
+          // 检查缓存是否已存在，跳过已缓存的视频
+          final cachedData = await cacheManager.getCached(file.path);
+          if (cachedData == null) {
+            videosToPrewarm.add(file);
+          } else {
+            cachedVideosSkipped++;
+          }
         }
       }
     }
 
-    logger.i('🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} videos to prewarm');
+    logger.i('🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} uncached videos to prewarm (skipped $cachedVideosSkipped cached videos)');
 
     // 1. 预热图片（使用Flutter的precacheImage，快速）
     if (imagesToPrewarm.isNotEmpty) {

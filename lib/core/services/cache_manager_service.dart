@@ -1,14 +1,17 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/utils/thumbnail_cache_manager.dart';
-import 'package:easyfile/core/services/category_file_cache_service.dart';
-import 'package:easyfile/core/services/search_history_service.dart';
-import 'package:easyfile/core/services/large_file_cache_manager.dart';
-import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
-import 'package:easyfile/core/services/mediastore_cache_service.dart';
-import 'package:easyfile/core/services/trash_file_service.dart';
-import 'package:easyfile/core/services/junk_file_cache_manager.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
+import 'package:easyfile/core/services/category_file_cache_service.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/junk_file_cache_manager.dart';
+import 'package:easyfile/core/services/large_file_cache_manager.dart';
+import 'package:easyfile/core/services/mediastore_cache_service.dart';
+import 'package:easyfile/core/services/search_history_service.dart';
+import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/utils/thumbnail_cache_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 缓存管理服务
 ///
@@ -31,6 +34,7 @@ class CacheManagerService {
   final _thumbnailCache = ThumbnailCacheManager();
   final _categoryCache = CategoryFileCacheService();
   final _largeFileCache = LargeFileCacheManager();
+  final _appFileListCache = AppFileListCache();
 
   // MediaStore缓存服务
   final _mediaStoreCache = MediaStoreCacheService();
@@ -44,6 +48,9 @@ class CacheManagerService {
   // 系统回收站扫描服务（需要外部传入）
   TrashFileService? _trashFileService;
 
+  // 统一应用扫描器（需要外部传入）
+  UnifiedAppScanner? _appScanner;
+
   /// 设置重复文件扫描服务
   void setDuplicateFileScanService(EnhancedDuplicateFileScanService service) {
     _duplicateFileScanService = service;
@@ -52,6 +59,11 @@ class CacheManagerService {
   /// 设置系统回收站服务
   void setTrashFileService(TrashFileService service) {
     _trashFileService = service;
+  }
+
+  /// 设置统一应用扫描器
+  void setAppScanner(UnifiedAppScanner scanner) {
+    _appScanner = scanner;
   }
 
   /// 获取所有缓存信息
@@ -103,9 +115,7 @@ class CacheManagerService {
       final fileListSize = await _categoryCache.getFileListsCacheSize();
       final totalSize = (hasCache ? 1024 : 0) + fileListSize; // 统计数据1KB + 文件列表
 
-      final description = hasCache
-          ? '包含分类统计和文件列表数据${fileListSize > 0 ? "（${_formatSize(fileListSize)}）" : ""}'
-          : '无缓存';
+      final description = hasCache ? '包含分类统计和文件列表数据${fileListSize > 0 ? "（${_formatSize(fileListSize)}）" : ""}' : '无缓存';
 
       items.add(CacheItem(
         name: '分类扫描缓存',
@@ -132,8 +142,7 @@ class CacheManagerService {
 
       items.add(CacheItem(
         name: '搜索历史',
-        description:
-            history.isNotEmpty ? '包含 ${history.length} 条搜索记录' : '无搜索记录',
+        description: history.isNotEmpty ? '包含 ${history.length} 条搜索记录' : '无搜索记录',
         size: size,
         type: CacheType.searchHistory,
       ));
@@ -173,9 +182,7 @@ class CacheManagerService {
       final cacheSize = await _largeFileCache.getCacheSize();
       final cache = await _largeFileCache.loadCache();
 
-      final description = cache != null
-          ? '包含 ${cache.files.length} 个大文件记录（${cache.formattedAge}）'
-          : '无缓存';
+      final description = cache != null ? '包含 ${cache.files.length} 个大文件记录（${cache.formattedAge}）' : '无缓存';
 
       items.add(CacheItem(
         name: '大文件扫描缓存',
@@ -307,9 +314,7 @@ class CacheManagerService {
         // 使用最新的时间戳
         DateTime? latestTime;
         if (junkTimestamp != null && trashTimestamp != null) {
-          latestTime = junkTimestamp.isAfter(trashTimestamp)
-              ? junkTimestamp
-              : trashTimestamp;
+          latestTime = junkTimestamp.isAfter(trashTimestamp) ? junkTimestamp : trashTimestamp;
         } else {
           latestTime = junkTimestamp ?? trashTimestamp;
         }
@@ -362,6 +367,28 @@ class CacheManagerService {
         description: '获取信息失败',
         size: 0,
         type: CacheType.archivePreview,
+      ));
+    }
+
+    // 12. 应用文件列表缓存
+    try {
+      final appFileListSize = await _getAppFileListCacheSize();
+      final appCount = await _getAppFileListCacheCount();
+      final description = appCount > 0 ? '包含 $appCount 个应用的文件列表缓存' : '无缓存';
+
+      items.add(CacheItem(
+        name: '应用文件列表缓存',
+        description: description,
+        size: appFileListSize,
+        type: CacheType.appFileList,
+      ));
+    } catch (e) {
+      logger.e('Failed to get app file list cache info: $e');
+      items.add(CacheItem(
+        name: '应用文件列表缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.appFileList,
       ));
     }
 
@@ -452,6 +479,33 @@ class CacheManagerService {
           await ArchivePreviewCacheManager.clearAllCache();
           logger.i('Archive preview cache cleared');
           return true;
+
+        case CacheType.appFileList:
+          await _appFileListCache.initialize();
+          await _appFileListCache.clearAllCache();
+          logger.i('所有应用文件列表缓存已清除（SharedPreferences）');
+
+          // 同时清除内存缓存
+          UnifiedAppScanner? scanner = _appScanner;
+          if (scanner == null) {
+            // 尝试从locator获取
+            try {
+              scanner = await locator.getAsync<UnifiedAppScanner>();
+              logger.d('从locator获取到UnifiedAppScanner实例');
+            } catch (e) {
+              logger.w('无法获取UnifiedAppScanner: $e');
+            }
+          }
+
+          if (scanner != null) {
+            scanner.clearMemoryCache();
+            logger.i('所有应用文件列表内存缓存已清除');
+          } else {
+            logger.w('UnifiedAppScanner未初始化，跳过内存缓存清理');
+          }
+
+          logger.i('App file list cache cleared');
+          return true;
       }
     } catch (e) {
       logger.e('>>> EXCEPTION in clearCache for $type: $e');
@@ -506,8 +560,7 @@ class CacheManagerService {
 
       int totalSize = 0;
       for (final key in keys) {
-        if (key.startsWith('video_position_') ||
-            key.startsWith('video_duration_')) {
+        if (key.startsWith('video_position_') || key.startsWith('video_duration_')) {
           // 每个键值对估算：键长度 + 值（int/string，约20-50字节）
           totalSize += key.length * 2 + 40; // UTF-16编码
         }
@@ -552,21 +605,18 @@ class CacheManagerService {
 
       logger.i('>>> [VideoCache] Step 3: Getting all keys');
       final keys = prefs.getKeys();
-      logger.i(
-          '>>> [VideoCache] Step 3a: Total keys in SharedPreferences: ${keys.length}');
+      logger.i('>>> [VideoCache] Step 3a: Total keys in SharedPreferences: ${keys.length}');
 
       // 收集需要删除的键
       logger.i('>>> [VideoCache] Step 4: Collecting keys to remove');
       final keysToRemove = <String>[];
       for (final key in keys) {
-        if (key.startsWith('video_position_') ||
-            key.startsWith('video_duration_')) {
+        if (key.startsWith('video_position_') || key.startsWith('video_duration_')) {
           keysToRemove.add(key);
         }
       }
 
-      logger.i(
-          '>>> [VideoCache] Step 5: Found ${keysToRemove.length} video playback data entries to remove');
+      logger.i('>>> [VideoCache] Step 5: Found ${keysToRemove.length} video playback data entries to remove');
 
       if (keysToRemove.isEmpty) {
         logger.i('>>> [VideoCache] Step 6: No keys to remove, returning');
@@ -580,14 +630,12 @@ class CacheManagerService {
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          logger.w(
-              '>>> [VideoCache] Step 7 TIMEOUT: Video playback data clearing timeout after 10s');
+          logger.w('>>> [VideoCache] Step 7 TIMEOUT: Video playback data clearing timeout after 10s');
           return [];
         },
       );
 
-      logger.i(
-          '>>> [VideoCache] Step 8: Completed removing video playback data successfully');
+      logger.i('>>> [VideoCache] Step 8: Completed removing video playback data successfully');
     } catch (e, stackTrace) {
       logger.e('>>> [VideoCache] ERROR in _clearVideoPlaybackData: $e');
       logger.e('>>> [VideoCache] StackTrace: $stackTrace');
@@ -617,16 +665,14 @@ class CacheManagerService {
           count++;
           // 估算每个键值对大小：键长度 + 值（JSON/int，约200-500字节）
           // 应用列表缓存可能较大（含图标），估算为1-5MB
-          final estimatedSize =
-              key.startsWith('app_list_cache_') && !key.contains('_time_')
-                  ? 2 * 1024 * 1024 // 应用列表缓存：约2MB
-                  : 300; // 其他缓存：约300字节
+          final estimatedSize = key.startsWith('app_list_cache_') && !key.contains('_time_')
+              ? 2 * 1024 * 1024 // 应用列表缓存：约2MB
+              : 300; // 其他缓存：约300字节
           totalSize += key.length * 2 + estimatedSize; // UTF-16编码
         }
       }
 
-      logger.d(
-          'App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      logger.d('App management cache: $count keys, estimated size: ${_formatSize(totalSize)}');
       return totalSize;
     } catch (e) {
       logger.e('Error calculating app management cache size: $e');
@@ -668,16 +714,14 @@ class CacheManagerService {
         return true;
       }
 
-      logger.i(
-          'App management cache: batch deleting ${keysToRemove.length} keys...');
+      logger.i('App management cache: batch deleting ${keysToRemove.length} keys...');
 
       // ⚡ 优化：使用clear()然后重建非应用管理的键（如果需要保留其他缓存）
       // 或者直接逐个删除但使用更高效的方式
       // 方案：收集所有要保留的键值对，clear()后重建
 
       // 收集要保留的键值对
-      final keysToKeep =
-          allKeys.where((key) => !keysToRemove.contains(key)).toList();
+      final keysToKeep = allKeys.where((key) => !keysToRemove.contains(key)).toList();
       final preservedData = <String, dynamic>{};
       for (final key in keysToKeep) {
         final value = prefs.get(key);
@@ -705,8 +749,8 @@ class CacheManagerService {
         }
       }
 
-      logger.i(
-          'App management cache cleared: ${keysToRemove.length} keys removed (${keysToKeep.length} keys preserved)');
+      logger
+          .i('App management cache cleared: ${keysToRemove.length} keys removed (${keysToKeep.length} keys preserved)');
       return true;
     } catch (e) {
       logger.e('Failed to clear app management cache: $e');
@@ -735,8 +779,7 @@ class CacheManagerService {
         }
       }
 
-      logger.d(
-          'MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
+      logger.d('MediaStore cache: $count keys, estimated size: ${_formatSize(totalSize)}');
       return totalSize;
     } catch (e) {
       logger.e('Error calculating MediaStore cache size: $e');
@@ -759,6 +802,43 @@ class CacheManagerService {
       return false;
     }
   }
+
+  /// 获取应用文件列表缓存大小
+  Future<int> _getAppFileListCacheSize() async {
+    try {
+      await _appFileListCache.initialize();
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      final appCacheKeys = keys.where((key) => key.startsWith('app_file_list_'));
+
+      int totalSize = 0;
+      for (final key in appCacheKeys) {
+        final value = prefs.getString(key);
+        if (value != null) {
+          // 估算JSON字符串大小（UTF-8编码）
+          totalSize += value.length;
+        }
+      }
+
+      return totalSize;
+    } catch (e) {
+      logger.e('Failed to get app file list cache size: $e');
+      return 0;
+    }
+  }
+
+  /// 获取应用文件列表缓存的应用数量
+  Future<int> _getAppFileListCacheCount() async {
+    try {
+      await _appFileListCache.initialize();
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      return keys.where((key) => key.startsWith('app_file_list_')).length;
+    } catch (e) {
+      logger.e('Failed to get app file list cache count: $e');
+      return 0;
+    }
+  }
 }
 
 /// 缓存类型
@@ -774,6 +854,7 @@ enum CacheType {
   mediaStore, // 媒体库扫描缓存（照片、视频、录音）
   junkScan, // 垃圾文件扫描缓存（垃圾文件清理+系统回收站扫描）
   archivePreview, // 压缩包预览缓存
+  appFileList, // 应用文件列表缓存（微信/QQ等应用的完整文件列表）
 }
 
 extension CacheTypeExtension on CacheType {
@@ -801,6 +882,8 @@ extension CacheTypeExtension on CacheType {
         return '垃圾文件扫描缓存';
       case CacheType.archivePreview:
         return '压缩包预览缓存';
+      case CacheType.appFileList:
+        return '应用文件列表缓存';
     }
   }
 }

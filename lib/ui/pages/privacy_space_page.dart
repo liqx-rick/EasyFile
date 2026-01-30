@@ -130,23 +130,43 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
   }
 
   Future<void> _moveOut(FileItem file) async {
-    // 显示目录选择对话框
-    final targetDir = await showDialog<String>(
-      context: context,
-      builder: (context) => FolderPickerDialog(
-        title: '选择目标位置',
-        currentPath: '/storage/emulated/0',
-        sourceFileName: file.name,
-        operationType: '移动',
-      ),
-    );
-
-    if (targetDir == null || !mounted) return;
-
-    final targetPath = '$targetDir/${file.name}';
-
     try {
-      final success = await _privacyService.moveFromPrivate(file, targetPath);
+      // 1. 先尝试自动恢复到原位置（不传userSelectedPath）
+      final autoRestored = await _privacyService.moveFromPrivate(file);
+
+      if (autoRestored) {
+        // 成功恢复到原位置
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ 已恢复到原位置')),
+          );
+          _loadFiles();
+        }
+        return;
+      }
+
+      // 2. 原位置不可用，提示用户选择目录
+      if (!mounted) return;
+
+      final targetDir = await showDialog<String>(
+        context: context,
+        builder: (context) => FolderPickerDialog(
+          title: '选择目标位置',
+          currentPath: '/storage/emulated/0',
+          sourceFileName: file.name,
+          operationType: '移动',
+        ),
+      );
+
+      if (targetDir == null || !mounted) return;
+
+      final targetPath = '$targetDir/${file.name}';
+
+      // 3. 使用用户选择的路径
+      final success = await _privacyService.moveFromPrivate(
+        file,
+        userSelectedPath: targetPath,
+      );
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

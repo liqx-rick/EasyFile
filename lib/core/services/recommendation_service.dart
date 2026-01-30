@@ -125,9 +125,10 @@ class RecommendationService {
   ///
   /// 流程：
   /// 1. 获取所有启用的应用配置（按priority排序）
-  /// 2. 遍历检测：应用是否安装 + 文件数量是否满足阈值
-  /// 3. 保存符合条件的应用Key列表
-  /// 4. 返回已选定的应用Key列表
+  /// 2. 遍历检测：应用是否安装
+  /// 3. 对已安装的应用执行扫描并写入缓存
+  /// 4. 保存符合条件的应用Key列表
+  /// 5. 返回已选定的应用Key列表
   Future<List<String>> _performInitialScan() async {
     final threshold = AppConfig.instance.fileScan.recommendationFileCountThreshold;
     logger.i('🔍 初始化扫描，阈值: $threshold');
@@ -150,21 +151,20 @@ class RecommendationService {
         continue;
       }
 
-      // 获取文件数量
+      // 应用已安装，扫描文件数量
+      logger.d('  已安装，扫描文件数量...');
       final scanResult = await _scanner.scanApp(
         appKey: appConfig.appKey,
-        withIcon: false,
-        updateCache: true,
-        forceRefresh: false,
+        withIcon: false, // 不获取图标，提升速度
+        updateCache: true, // 写入缓存
       );
-      final fileCount = scanResult.totalCount;
-      logger.d('  文件数量: $fileCount');
 
-      if (fileCount >= threshold) {
+      // 判断是否达到阈值
+      if (scanResult.totalCount >= threshold) {
         selectedAppKeys.add(appConfig.appKey);
-        logger.d('  ✅ 满足阈值条件，添加到列表');
+        logger.d('  ✅ 文件数量 ${scanResult.totalCount} >= $threshold，添加到列表');
       } else {
-        logger.d('  ❌ 不满足阈值条件 ($fileCount < $threshold)');
+        logger.d('  文件数量 ${scanResult.totalCount} < $threshold，不符合条件');
       }
     }
 
@@ -220,10 +220,20 @@ class RecommendationService {
         appIcon = await _detectionService.getAppIcon(detectionResult.packageName!);
       }
 
+      // 从持久化缓存获取文件数量（如果可用）
+      int fileCount = 0;
+      final cachedCount = await _scanner.getFileCountFast(appKey: appKey);
+      if (cachedCount != null && cachedCount > 0) {
+        fileCount = cachedCount;
+        logger.d('  使用持久化缓存文件数: $fileCount');
+      } else {
+        logger.d('  持久化缓存未命中，文件数显示为0');
+      }
+
       // 生成卡片
       final card = RecommendationCard.fromConfig(
         uiConfig,
-        fileCount: 0, // 不显示统计数据
+        fileCount: fileCount, // 使用持久化缓存的文件数量
         appIcon: appIcon,
       );
 

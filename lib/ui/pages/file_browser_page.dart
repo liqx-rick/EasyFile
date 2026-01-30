@@ -6,7 +6,9 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/permission_service.dart';
@@ -388,8 +390,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final detectionService = AppDetectionService();
       await detectionService.initialize();
 
-      // 创建扫描器
-      final scanner = UnifiedAppScanner(detectionService);
+      // 创建扫描器（使用全局FileCountCache）
+      final fileCountCache = await locator.getAsync<FileCountCache>();
+      final fileListCache = await locator.getAsync<AppFileListCache>();
+      final scanner = UnifiedAppScanner(
+        detectionService,
+        fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
+      );
 
       // 创建推荐服务（方案A优化：无需statisticsCache）
       _recommendationService = RecommendationService(

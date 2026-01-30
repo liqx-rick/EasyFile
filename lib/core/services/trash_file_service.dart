@@ -644,6 +644,9 @@ class TrashFileService {
   Future<Map<String, dynamic>> restoreFile(TrashFileItem item) async {
     try {
       logger.i('开始恢复文件: ${item.name}');
+      logger.d('回收站路径: ${item.path}');
+      logger.d('原始路径: ${item.originalPath ?? "(无)"}');
+
       final trashFile = File(item.path);
 
       if (!await trashFile.exists()) {
@@ -658,10 +661,30 @@ class TrashFileService {
       String targetPath;
       if (item.originalPath != null && item.originalPath!.isNotEmpty) {
         targetPath = item.originalPath!;
-        logger.d('使用原始路径: $targetPath');
+        logger.d('尝试恢复到原始路径: $targetPath');
+
+        // 检查原始目录是否存在，如果不存在则回退到上层目录
+        final targetFile = File(targetPath);
+        final targetDir = targetFile.parent;
+
+        if (!await targetDir.exists()) {
+          logger.w('原始目录不存在: ${targetDir.path}，尝试回退到上层目录');
+          // 回退到上层目录
+          final parentDir = targetDir.parent;
+          if (await parentDir.exists()) {
+            targetPath = '${parentDir.path}/${item.name}';
+            logger.i('回退到上层目录: $targetPath');
+          } else {
+            // 上层目录也不存在，使用默认恢复路径
+            logger.w('上层目录也不存在，使用默认恢复路径');
+            targetPath = _getDefaultRestorePath(item);
+          }
+        } else {
+          logger.d('原始目录存在，将恢复到: ${targetDir.path}');
+        }
       } else {
         targetPath = _getDefaultRestorePath(item);
-        logger.d('使用默认恢复路径: $targetPath');
+        logger.d('无原始路径信息，使用默认恢复路径: $targetPath');
       }
 
       // 2. 处理文件名冲突（自动重命名）
