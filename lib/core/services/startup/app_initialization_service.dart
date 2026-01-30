@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/initialization_stage.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
@@ -9,20 +10,27 @@ import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_category.dart';
+import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cache_service.dart';
 import 'first_install_service.dart';
+import 'robust_progress_calculator.dart';
 
 /// 应用初始化服务
 ///
 /// 执行三阶段初始化过程：
-/// - P0：基础初始化（快速访问菜单、收藏夹）- 2秒
-/// - P1：分类初始化（分类文件统计缓存）- 2秒
-/// - P2：深度扫描（完整文件系统扫描）- 30秒
-typedef InitializationProgressCallback = void Function(double progress);
+/// - P0：基础初始化（快速访问菜单、收藏夹）
+/// - P1：分类初始化（分类文件统计缓存）
+/// - P2：深度扫描（完整文件系统扫描）
+///
+/// 进度回调会传递进度值和阶段信息，UI可以显示详细的进度和实时计数
+typedef InitializationProgressCallback = void Function(
+  double progress,
+  InitializationStage? stage,
+);
 
 class AppInitializationService {
   final FilePresenter filePresenter;
@@ -31,6 +39,12 @@ class AppInitializationService {
   final CacheService cacheService;
 
   InitializationProgressCallback? onProgress;
+
+  /// 进度计算器
+  final _progressCalculator = RobustProgressCalculator();
+
+  /// 已完成的阶段列表
+  final List<String> _completedPhases = [];
 
   AppInitializationService({
     required this.filePresenter,
@@ -43,31 +57,24 @@ class AppInitializationService {
   /// 从头开始完整初始化
   ///
   /// 按三个阶段顺序执行：
-  /// 1. 加载基础资源（快速访问、收藏等） - 2秒
-  /// 2. 加载分类统计缓存 - 2秒
-  /// 3. 执行完整文件系统扫描 - 30秒
-  /// 总耗时约37秒，过程中调用 onProgress 更新UI进度
+  /// 1. P0: 加载基础资源（快速访问、收藏等）
+  /// 2. P1: 加载分类统计缓存（分类扫描 + 推荐应用）
+  /// 3. P2: 执行完整文件系统扫描（文件夹检测）
   Future<void> initializeFromScratch() async {
     logger.i('[AppInitService] Starting full initialization...');
 
     try {
-      // 阶段1: 加载基础资源（2秒）
-      logger.i('[AppInitService] Loading basic resources...');
-      _reportProgress(0.05);
+      // 阶段P0: 加载基础资源
+      logger.i('[AppInitService] P0: Loading basic resources...');
       await _loadBasicResources();
-      _reportProgress(0.15);
 
-      // 阶段2: 加载分类统计缓存（2秒）
-      logger.i('[AppInitService] Loading category statistics cache...');
-      _reportProgress(0.20);
+      // 阶段P1: 加载分类统计缓存（分类扫描 + 应用扫描）
+      logger.i('[AppInitService] P1: Loading category statistics cache...');
       await _loadCategoryStatisticsCache();
-      _reportProgress(0.30);
 
-      // 阶段3: 执行完整文件系统扫描（30秒）
-      logger.i('[AppInitService] Executing full file system scan...');
-      _reportProgress(0.35);
+      // 阶段P2: 执行文件夹检测
+      logger.i('[AppInitService] P2: Executing folder detection...');
       await _executeFullFileSystemScan();
-      _reportProgress(0.95);
 
       // 更新缓存时间戳
       await cacheService.updateLastScanTime();
@@ -75,8 +82,19 @@ class AppInitializationService {
       // 标记为已初始化（重要：必须在P2完成后）
       await firstInstallService.markInitialized();
 
-      _reportProgress(1.0);
+      // 显示完成消息并停顿，让用户看到完成状态
+      _reportProgress(
+        1.0,
+        const InitializationStage(
+          phase: 'completed',
+          message: '✅ 初始化完成，开始探索吧',
+          detail: null,
+        ),
+      );
       logger.i('[AppInitService] Full initialization completed');
+
+      // 停顿1.5秒让用户看到完成消息
+      await Future.delayed(const Duration(milliseconds: 1500));
     } catch (e) {
       logger.e('[AppInitService] Error during initialization: $e');
       // 即使失败，仍然标记为已初始化（P2已完成大部分工作）
@@ -91,37 +109,63 @@ class AppInitializationService {
 
   /// 加载基础资源
   ///
-  /// 第一阶段初始化，加载快速访问菜单、收藏夹、主题等基本数据
-  /// 耗时约2秒
-  ///
-  /// 这些资源加载速度快，用户期望首先看到这些基础功能可用
-  /// 注意：主题初始化在 FileBrowserPage._initializeAppWithPermission() 中已完成
+  /// P0阶段：加载快速访问菜单、收藏夹等基本数据
   Future<void> _loadBasicResources() async {
+    final phase = 'p0_init';
+
     try {
+      // 开始阶段：0%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          currentPhase: phase,
+          stageProgress: 0.0,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+      );
+
       // 加载快速访问文件夹
       await quickAccessPresenter.loadQuickAccessFolders();
       logger.i('[AppInitService] P0: Quick access folders loaded');
+
+      // 中间进度：50%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          currentPhase: phase,
+          stageProgress: 0.5,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 1),
+      );
 
       // 加载收藏文件
       await filePresenter.initializeFavoriteFiles();
       logger.i('[AppInitService] P0: Favorite files loaded');
 
+      // 完成阶段：95%（不到100%，防止卡死）
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          currentPhase: phase,
+          stageProgress: 0.95,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 2),
+      );
+
+      // 标记阶段完成
+      _completedPhases.add(phase);
       logger.i('[AppInitService] P0: Basic resources loading completed');
     } catch (e) {
       logger.e('[AppInitService] Basic resources loading failed: $e');
-      // 基础资源加载失败时使用默认值继续
+      // 标记阶段完成（即使失败也继续）
+      _completedPhases.add(phase);
       logger.w('[AppInitService] Using default values for basic resources');
     }
   }
 
   /// 加载分类统计缓存
   ///
-  /// 第二阶段初始化，扫描并统计各分类文件数，缓存到 SharedPreferences
-  /// 耗时约2秒
-  ///
-  /// 这一阶段为分类页面提供文件统计数据，加快分类页面打开速度
-  /// 注意：这是一个快速扫描，仅统计数据不发现新文件夹
-  /// 第三阶段会做完整的文件系统扫描
+  /// P1阶段：扫描并统计各分类文件数，缓存结果
+  /// 包含两个子阶段：
+  /// - P1.1: 分类文件扫描（images, video, music, documents, downloads, apk, archive）
+  /// - P1.2: 推荐应用扫描
   Future<void> _loadCategoryStatisticsCache() async {
     try {
       final Map<FileCategory, int> counts = {};
@@ -131,45 +175,107 @@ class AppInitializationService {
         counts[category] = 0;
       }
 
-      // 要扫描的分类类型
+      // 要扫描的分类类型（对应阶段权重）
       final categoriesToScan = [
-        CategoryType.images,
-        CategoryType.video,
-        CategoryType.music,
-        CategoryType.documents,
-        CategoryType.downloads,
+        (CategoryType.images, 'p1_images'),
+        (CategoryType.video, 'p1_video'),
+        (CategoryType.music, 'p1_music'),
+        (CategoryType.documents, 'p1_documents'),
+        (CategoryType.downloads, 'p1_downloads'),
+        (CategoryType.apk, 'p1_apk'),
+        (CategoryType.archive, 'p1_archive'),
       ];
 
       int totalFiles = 0;
 
-      // P1.1: 分类统计扫描（占用 0.20-0.28 的进度）
-      for (int i = 0; i < categoriesToScan.length; i++) {
-        final categoryType = categoriesToScan[i];
+      // P1.1: 分类统计扫描
+      for (var i = 0; i < categoriesToScan.length; i++) {
+        final (categoryType, phase) = categoriesToScan[i];
 
         try {
-          // 更新进度（P1.1 阶段的进度范围是 0.20-0.28）
-          final categoryProgress = 0.20 + (i / categoriesToScan.length) * 0.08;
-          _reportProgress(categoryProgress);
+          // 扫描开始：当前分类0%
+          _reportProgress(
+            _progressCalculator.calculateProgress(
+              completedPhases: _completedPhases,
+              currentPhase: phase,
+              stageProgress: 0.0,
+            ),
+            _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+          );
 
-          // 🔥 使用混合扫描模式（MediaStore + 路径扫描），确保完整性
-          final files = await filePresenter.scanFilesByCategory(
+          // 使用Future来并行执行扫描和进度动画
+          List<FileItem>? files;
+          var isScanning = true;
+
+          logger.d('[AppInitService] Starting scan for $phase with animation');
+
+          // 启动扫描任务
+          final scanFuture = filePresenter
+              .scanFilesByCategory(
             categoryType,
             useHybridScan: true,
+          )
+              .then((result) {
+            files = result;
+            isScanning = false;
+            logger.d('[AppInitService] Scan completed for $phase: ${result.length} files');
+            return result;
+          });
+
+          // 同时运行进度动画（模拟扫描进度）
+          var animationProgress = 0.1; // 从10%开始
+          var updateCount = 0;
+          while (isScanning && animationProgress < 0.9) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            if (isScanning) {
+              updateCount++;
+              logger.d(
+                  '[AppInitService] Animation update #$updateCount for $phase: ${(animationProgress * 100).toStringAsFixed(0)}%');
+              _reportProgress(
+                _progressCalculator.calculateProgress(
+                  completedPhases: _completedPhases,
+                  currentPhase: phase,
+                  stageProgress: animationProgress,
+                ),
+                _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+              );
+              animationProgress += 0.1;
+            }
+          }
+
+          logger.d('[AppInitService] Animation ended for $phase after $updateCount updates (isScanning: $isScanning)');
+
+          // 等待扫描完成
+          await scanFuture;
+          final count = files?.length ?? 0;
+
+          // 扫描完成：当前分类95%
+          _reportProgress(
+            _progressCalculator.calculateProgress(
+              completedPhases: _completedPhases,
+              currentPhase: phase,
+              stageProgress: 0.95,
+            ),
+            _progressCalculator.buildStage(phase: phase, scannedCount: count),
           );
-          final count = files.length;
 
           // 💾 将文件列表保存到分类页面的缓存（避免用户首次进入时重新扫描）
-          await _saveToCategoryPageCache(categoryType, files);
+          if (files != null) {
+            await _saveToCategoryPageCache(categoryType, files!);
 
-          // 映射到 FileCategory
-          final fileCategory = _mapCategoryType(categoryType);
-          counts[fileCategory] = count;
-          totalFiles += count;
+            // 映射到 FileCategory
+            final fileCategory = _mapCategoryType(categoryType);
+            counts[fileCategory] = count;
+            totalFiles += count;
+          }
 
-          logger.i('[AppInitService] Category statistics: ${categoryType.name} = $count files (cached)');
+          // 标记当前分类完成
+          _completedPhases.add(phase);
+          logger.i('[AppInitService] $phase completed: $count files (cached)');
         } catch (e) {
-          logger.e('[AppInitService] Error scanning $categoryType: $e');
-          // 某个分类扫描失败，使用该分类的零值继续
+          logger.e('[AppInitService] Error scanning ${categoryType.name}: $e');
+          // 标记阶段完成（即使失败也继续）
+          _completedPhases.add(phase);
         }
       }
 
@@ -177,12 +283,10 @@ class AppInitializationService {
       counts[FileCategory.all] = totalFiles;
       await _cacheCategoryCounts(counts);
 
-      logger.i('[AppInitService] Category statistics cache: Total files = $totalFiles, cached successfully');
+      logger.i('[AppInitService] P1.1 completed: Total files = $totalFiles, cached successfully');
 
-      // P1.2: 首页推荐应用扫描（占用 0.28-0.30 的进度）
-      _reportProgress(0.28);
+      // P1.2: 首页推荐应用扫描
       await _scanRecommendedApps();
-      _reportProgress(0.30);
     } catch (e) {
       logger.e('[AppInitService] Category statistics loading failed: $e');
       // 分类统计加载失败时使用零值继续
@@ -193,14 +297,35 @@ class AppInitializationService {
   /// 扫描推荐应用（P1.2 阶段）
   ///
   /// 在首次启动时预扫描推荐应用，避免用户进入主页后看到loading状态
-  /// 耗时约100ms
   Future<void> _scanRecommendedApps() async {
+    final phase = 'p1_apps';
+
     try {
       logger.i('[AppInitService] P1.2: Starting recommended apps scan...');
+
+      // 扫描开始：0%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.0,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+      );
 
       // 创建应用检测服务
       final appDetectionService = AppDetectionService();
       await appDetectionService.initialize();
+
+      // 中间进度：30%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.3,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+      );
 
       // 创建统一扫描器（使用全局FileCountCache）
       final fileCountCache = await locator.getAsync<FileCountCache>();
@@ -217,47 +342,102 @@ class AppInitializationService {
         scanner: scanner,
       );
 
-      // 调用getRecommendations触发初始化扫描（如果需要）
-      await recommendationService.getRecommendations();
+      // 中间进度：60%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.6,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+      );
 
-      logger.i('[AppInitService] P1.2: Recommended apps scan completed');
+      // 调用getRecommendations触发初始化扫描（如果需要）
+      final recommendations = await recommendationService.getRecommendations();
+
+      // 扫描完成：95%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.95,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: recommendations.length),
+      );
+
+      // 标记阶段完成
+      _completedPhases.add(phase);
+      logger.i('[AppInitService] P1.2 completed: ${recommendations.length} apps detected');
     } catch (e) {
       logger.e('[AppInitService] Error scanning recommended apps: $e');
-      // 推荐应用扫描失败不影响整体初始化流程
+      // 标记阶段完成（即使失败也继续）
+      _completedPhases.add(phase);
       logger.w('[AppInitService] Continuing initialization despite recommendation scan failure');
     }
   }
 
-  /// 执行完整文件系统扫描
+  /// 执行文件系统扫描
   ///
-  /// 第三阶段初始化，检测快速访问文件夹
-  /// 耗时约2-3秒（已优化：移除P1.1的重复分类扫描）
-  ///
-  /// 这是最后阶段，主要完成快速访问文件夹的自动检测
+  /// P2阶段：检测快速访问文件夹
   /// P1.1已完成所有分类文件扫描和缓存，此阶段不再重复扫描
   Future<void> _executeFullFileSystemScan() async {
+    final phase = 'p2_folders';
+
     try {
-      logger.i('[AppInitService] Starting quick access folder detection...');
+      logger.i('[AppInitService] P2: Starting quick access folder detection...');
+
+      // 扫描开始：0%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.0,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: 0),
+      );
+
+      // 用于跟踪文件夹数量
+      int foldersFound = 0;
 
       // 使用 QuickAccessPresenter 检测快速访问文件夹
-      // 优化说明：
-      // 1. ✅ 检测快速访问文件夹（~2-3秒）
-      // 2. ❌ 移除重复分类扫描（P1.1已完成，节省~45秒）
-      // 3. ✅ 使用P1.1的分类统计缓存
-
       final scanResult = await quickAccessPresenter.performFirstTimeComprehensiveScan(
         onProgress: (progress) {
-          // 将 quickAccessPresenter 的进度 (0.35-1.0) 映射到我们的进度范围
-          final mappedProgress = 0.35 + (progress * 0.6);
-          _reportProgress(mappedProgress);
+          // 将 quickAccessPresenter 的进度映射到当前阶段
+          _reportProgress(
+            _progressCalculator.calculateProgress(
+              completedPhases: _completedPhases,
+              currentPhase: phase,
+              stageProgress: progress,
+            ),
+            _progressCalculator.buildStage(
+              phase: phase,
+              scannedCount: foldersFound,
+            ),
+          );
         },
         scanCategoryFiles: null, // ⚡ 优化：移除重复扫描，使用P1.1的缓存数据
       );
 
-      logger.i('[AppInitService] Quick access folder detection completed: ${scanResult.foldersFound} folders found');
+      // 更新文件夹数量
+      foldersFound = scanResult.foldersFound;
+
+      // 扫描完成：95%
+      _reportProgress(
+        _progressCalculator.calculateProgress(
+          completedPhases: _completedPhases,
+          currentPhase: phase,
+          stageProgress: 0.95,
+        ),
+        _progressCalculator.buildStage(phase: phase, scannedCount: foldersFound),
+      );
+
+      // 标记阶段完成
+      _completedPhases.add(phase);
+      logger.i('[AppInitService] P2 completed: ${scanResult.foldersFound} folders found');
     } catch (e) {
       logger.e('[AppInitService] File system scan failed: $e');
-      // 即使扫描失败也标记为已初始化（前两个阶段已完成）
+      // 标记阶段完成（即使失败也继续）
+      _completedPhases.add(phase);
       logger.w('[AppInitService] Scan failed but marking as initialized (previous stages complete)');
     }
   }
@@ -303,7 +483,7 @@ class AppInitializationService {
   /// 这样用户首次进入分类页面时可以直接使用，无需重新扫描
   Future<void> _saveToCategoryPageCache(
     CategoryType categoryType,
-    List<dynamic> files,
+    List<FileItem> files,
   ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -332,7 +512,9 @@ class AppInitializationService {
   }
 
   /// 报告进度
-  void _reportProgress(double progress) {
-    onProgress?.call(progress);
+  void _reportProgress(double progress, InitializationStage? stage) {
+    logger.d(
+        '[AppInitService] _reportProgress: progress=${(progress * 100).toStringAsFixed(1)}%, stage.message=${stage?.message}, stage.detail=${stage?.detail}');
+    onProgress?.call(progress, stage);
   }
 }
