@@ -4,9 +4,12 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
+import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/privacy_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
@@ -883,7 +886,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     widget.fileViewModel.setCurrentTab(TabView.browse);
   }
 
-  void _navigateToRecommendation(RecommendationCard card) {
+  void _navigateToRecommendation(RecommendationCard card) async {
     logger.d('导航到推荐详情: ${card.title}');
 
     // 埋点：点击快速访问推荐卡片
@@ -892,9 +895,15 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     // 根据推荐卡片生成页面配置
     final config = RecommendPageConfigFactory.fromRecommendationCard(card);
 
-    // 创建必要的服务依赖
+    // 创建必要的服务依赖（使用全局FileCountCache实例）
     final detectionService = AppDetectionService();
-    final scanner = UnifiedAppScanner(detectionService);
+    final fileCountCache = await locator.getAsync<FileCountCache>();
+    final fileListCache = await locator.getAsync<AppFileListCache>();
+    final scanner = UnifiedAppScanner(
+      detectionService,
+      fileCountCache: fileCountCache,
+      fileListCache: fileListCache,
+    );
 
     // 创建数据源工厂（注入依赖）
     final dataSourceFactory = DataSourceFactory(
@@ -904,6 +913,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     );
 
     // 跳转到统一的推荐聚合页面（方案A：无需等待返回值）
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(

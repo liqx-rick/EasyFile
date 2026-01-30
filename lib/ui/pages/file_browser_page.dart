@@ -4,9 +4,12 @@ import 'dart:math' as math;
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/initialization_stage.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/permission_service.dart';
@@ -91,6 +94,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   PermissionState _permissionState = PermissionState.unknown;
   bool _isFirstScan = false;
   double _scanProgress = 0.0; // 扫描进度 (0.0 - 1.0)
+  InitializationStage? _currentStage; // 当前初始化阶段信息
+  final List<String> _completedScanResults = []; // 累积已完成的扫描结果
 
   // 文件显示设置缓存
   bool _hideEmptyFolders = true; // 默认隐藏空文件夹
@@ -388,8 +393,14 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final detectionService = AppDetectionService();
       await detectionService.initialize();
 
-      // 创建扫描器
-      final scanner = UnifiedAppScanner(detectionService);
+      // 创建扫描器（使用全局FileCountCache）
+      final fileCountCache = await locator.getAsync<FileCountCache>();
+      final fileListCache = await locator.getAsync<AppFileListCache>();
+      final scanner = UnifiedAppScanner(
+        detectionService,
+        fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
+      );
 
       // 创建推荐服务（方案A优化：无需statisticsCache）
       _recommendationService = RecommendationService(
@@ -507,11 +518,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
-  /// 使用 StartupOrchestrator 进行三场景初始化
+  /// 使用 StartupOrchestrator 进行两场景初始化
   ///
   /// 检测启动场景并路由到相应的初始化流程：
   /// - freshInstall：执行完整初始化（P0→P1→P2）
-  /// - reinstall：加载缓存数据（3秒）
   /// - normalOpen：直接加载数据库（2秒）
   Future<void> _initializeAppWithOrchestrator() async {
     logger.i('[FileBrowser] Starting startup orchestration...');
@@ -521,12 +531,25 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       final orchestrator = await locator.getAsync<StartupOrchestrator>();
       final appInitService = await locator.getAsync<AppInitializationService>();
 
-      // 设置进度回调（用于首次安装时显示进度）
-      appInitService.onProgress = (progress) {
+      // 设置进度回调（用于首次安装时显示进度和阶段信息）
+      appInitService.onProgress = (progress, stage) {
         if (mounted) {
           setState(() {
             _isScanning = true;
             _scanProgress = progress;
+
+            // 如果有文件计数且与之前的阶段不同，添加到完成结果列表
+            if (stage != null && (stage.current ?? 0) > 0 && stage.detail != null) {
+              final result = stage.detail!;
+              // 只添加"已找到"的结果，避免重复
+              if (result.contains('已找到') || result.contains('已检测') || result.contains('已发现')) {
+                if (_completedScanResults.isEmpty || _completedScanResults.last != result) {
+                  _completedScanResults.add(result);
+                }
+              }
+            }
+
+            _currentStage = stage;
           });
         }
       };
@@ -539,14 +562,12 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         setState(() {
           _isScanning = false;
           _scanProgress = 0.0;
+          _completedScanResults.clear(); // 清空结果列表
         });
       }
 
       // 加载初始目录
       await _loadInitialDirectory();
-
-      // ⚡ 性能优化：后台预扫描新文件，避免首次点击Tab时延迟
-      _preloadNewFilesInBackground();
 
       logger.i('[FileBrowser] Orchestration completed successfully');
     } catch (e) {
@@ -563,22 +584,6 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       // 降级处理：仍然尝试加载初始目录
       await _loadInitialDirectory();
     }
-  }
-
-  /// 后台预加载新文件（避免首次点击Tab时的延迟）
-  void _preloadNewFilesInBackground() {
-    logger.i('[PERF] 开始后台预扫描新文件...');
-
-    // 异步执行，不阻塞UI
-    Future.microtask(() async {
-      try {
-        // 使用Presenter的后台刷新方法（静默扫描+更新缓存）
-        presenter.refreshNewFilesInBackground();
-        logger.i('[PERF] 新文件后台预扫描已启动');
-      } catch (e) {
-        logger.e('[PERF] 新文件预扫描失败: $e');
-      }
-    });
   }
 
   /// 请求权限并重新初始化
@@ -3228,6 +3233,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           FirstScanCardOverlay(
             isScanning: _isScanning,
             progress: _scanProgress,
+            stage: _currentStage,
             onComplete: () {
               if (mounted) {
                 setState(() {
@@ -3577,6 +3583,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           FirstScanCardOverlay(
             isScanning: _isScanning,
             progress: _scanProgress,
+            stage: _currentStage,
             onComplete: () {
               if (mounted) {
                 setState(() {
@@ -3616,41 +3623,86 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // 如果正在执行首次初始化扫描，显示进度UI
+    // 如果正在执行首次初始化扫描，显示进度UI（使用stage信息）
     if (_isScanning && _scanProgress > 0) {
+      final isLandscape = MediaQuery.of(context).size.width > MediaQuery.of(context).size.height;
+      final topPadding = isLandscape ? 120.0 : 200.0;
+
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: CircularProgressIndicator(
-                  value: _scanProgress,
-                  strokeWidth: 8,
+        body: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height,
+            ),
+            child: Column(
+              children: [
+                // 固定在中上部的进度指示器
+                SizedBox(height: topPadding), // 竖屏200px，横屏120px
+                Center(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: CircularProgressIndicator(
+                          value: _scanProgress,
+                          strokeWidth: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        _currentStage?.message ?? '应用初始化中...',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${(_scanProgress * 100).toInt()}%',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      if (_currentStage?.detail != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          _currentStage!.detail!,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                '应用初始化中...',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${(_scanProgress * 100).toInt()}%',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                // 显示累积的扫描结果
+                if (_completedScanResults.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Divider(color: Colors.grey[300]),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: _completedScanResults.map((result) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            result,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey[500],
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      }).toList(),
                     ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _getInitStageDescription(_scanProgress),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-              ),
-            ],
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ],
+            ),
           ),
         ),
       );
@@ -3698,11 +3750,11 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                         children: [
                           Image.asset(
                             'assets/images/logo.png',
-                            width: 24,
-                            height: 24,
+                            width: 36,
+                            height: 36,
                           ),
                           const SizedBox(width: 8),
-                          const Text('EasyFile'),
+                          const Text('易览文件'),
                         ],
                       ),
                       actions: [
@@ -3833,18 +3885,5 @@ class _FileBrowserPageState extends State<FileBrowserPage>
         exitEditMode();
       },
     );
-  }
-
-  /// 根据初始化进度返回阶段描述
-  String _getInitStageDescription(double progress) {
-    if (progress < 0.15) {
-      return '正在加载基础资源...';
-    } else if (progress < 0.30) {
-      return '正在加载分类统计...';
-    } else if (progress < 0.95) {
-      return '正在扫描文件系统...';
-    } else {
-      return '即将完成...';
-    }
   }
 }

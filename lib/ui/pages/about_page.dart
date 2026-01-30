@@ -55,18 +55,21 @@ class _AboutPageState extends State<AboutPage> {
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Icon(
-                    Icons.folder_rounded,
-                    size: 60,
-                    color: colorScheme.primary,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/icon/app_icon.png',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'EasyFile',
+                  '易览文件',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.primary,
@@ -74,7 +77,7 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '简洁高效的文件管理器',
+                  '一款简洁高效的文件浏览器',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -153,29 +156,11 @@ class _AboutPageState extends State<AboutPage> {
             children: [
               _buildInfoRow('版本号', 'v$_version'),
               const Divider(height: 24),
-              _buildInfoRow(
-                  '构建号', _buildNumber.isNotEmpty ? _buildNumber : 'N/A'),
+              _buildInfoRow('构建号', _buildNumber.isNotEmpty ? _buildNumber : 'N/A'),
               const Divider(height: 24),
               _buildInfoRow('发布日期', '2025-11'),
               const Divider(height: 24),
               _buildInfoRow('适用平台', 'Android'),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // 开发信息
-          _buildSectionTitle('开发信息', Icons.code),
-          const SizedBox(height: 12),
-          _buildInfoCard(
-            children: [
-              _buildInfoRow('开发框架', 'Flutter 3.x'),
-              const Divider(height: 24),
-              _buildInfoRow('开发语言', 'Dart'),
-              const Divider(height: 24),
-              _buildInfoRow('设计规范', 'Material Design 3'),
-              const Divider(height: 24),
-              _buildInfoRow('架构模式', 'MVVM + Provider'),
             ],
           ),
 
@@ -187,7 +172,7 @@ class _AboutPageState extends State<AboutPage> {
           _buildInfoCard(
             children: [
               Text(
-                '© 2025 EasyFile Team',
+                '© 2026 易览文件 Team',
                 style: TextStyle(
                   fontSize: 14,
                   color: colorScheme.onSurfaceVariant,

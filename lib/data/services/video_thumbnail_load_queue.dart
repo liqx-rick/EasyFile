@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
-import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/utils/thumbnail_cache_manager.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:video_player/video_player.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 /// 视频缩略图加载队列服务
 ///
@@ -19,8 +20,7 @@ import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 /// 3. 其他请求等待，直到有空闲槽位
 /// 4. 优先从磁盘缓存加载，只有缓存未命中时才解码视频
 class VideoThumbnailLoadQueue {
-  static final VideoThumbnailLoadQueue _instance =
-      VideoThumbnailLoadQueue._internal();
+  static final VideoThumbnailLoadQueue _instance = VideoThumbnailLoadQueue._internal();
   factory VideoThumbnailLoadQueue() => _instance;
   VideoThumbnailLoadQueue._internal();
 
@@ -56,8 +56,7 @@ class VideoThumbnailLoadQueue {
 
     // 加入队列
     _queue.add(request);
-    logger.d(
-        'Thumbnail load request queued: $videoPath (queue size: ${_queue.length})');
+    logger.d('Thumbnail load request queued: $videoPath (queue size: ${_queue.length})');
 
     // 尝试处理队列
     _processQueue();
@@ -90,8 +89,7 @@ class VideoThumbnailLoadQueue {
       );
 
       _queue.add(request);
-      logger.d(
-          'Duration load request queued: $videoPath (queue size: ${_queue.length})');
+      logger.d('Duration load request queued: $videoPath (queue size: ${_queue.length})');
 
       _processQueue();
 
@@ -125,14 +123,12 @@ class VideoThumbnailLoadQueue {
     final request = _queue.removeFirst();
     _activeLoads++;
 
-    logger.d(
-        'Processing request (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
+    logger.d('Processing request (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
 
     // 异步处理请求
     _handleRequest(request).then((_) {
       _activeLoads--;
-      logger.d(
-          'Request completed (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
+      logger.d('Request completed (active: $_activeLoads/$_maxConcurrent, queued: ${_queue.length})');
 
       // 处理下一个请求
       _processQueue();
@@ -181,13 +177,12 @@ class VideoThumbnailLoadQueue {
       }
 
       // 3. 缓存未命中，生成新缩略图
-      logger.d(
-          'Generating thumbnail: ${request.videoPath} (file size: $fileSize bytes)');
+      logger.d('Generating thumbnail: ${request.videoPath} (file size: $fileSize bytes)');
 
       final thumbnailData = await VideoThumbnail.thumbnailData(
         video: request.videoPath,
         imageFormat: ImageFormat.JPEG,
-        maxWidth: (request.size * 3).toInt().clamp(200, 600),
+        maxWidth: (request.size * 4).toInt().clamp(200, 800),
         quality: 90,
       ).timeout(
         const Duration(seconds: 5),
@@ -207,19 +202,15 @@ class VideoThumbnailLoadQueue {
         }
 
         // 5. 保存到缓存（只在数据有效时保存）
-        final saved =
-            await _cacheManager.saveCache(request.videoPath, thumbnailData);
+        final saved = await _cacheManager.saveCache(request.videoPath, thumbnailData);
         if (saved) {
-          logger.d(
-              'Thumbnail generated and cached: ${request.videoPath} (${thumbnailData.length} bytes)');
+          logger.d('Thumbnail generated and cached: ${request.videoPath} (${thumbnailData.length} bytes)');
         } else {
-          logger.w(
-              'Thumbnail generated but failed to cache: ${request.videoPath}');
+          logger.w('Thumbnail generated but failed to cache: ${request.videoPath}');
         }
         request.completer.complete(thumbnailData);
       } else {
-        logger.w(
-            'Failed to generate thumbnail or empty data: ${request.videoPath}');
+        logger.w('Failed to generate thumbnail or empty data: ${request.videoPath}');
         request.completer.complete(null);
       }
     } catch (e) {
@@ -305,8 +296,7 @@ class VideoThumbnailLoadQueue {
 
           // 保存到缓存
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(
-              'video_duration_${request.videoPath}', formattedDuration);
+          await prefs.setString('video_duration_${request.videoPath}', formattedDuration);
 
           logger.d('Duration read and cached: ${request.videoPath}');
           request.completer.complete(formattedDuration);
@@ -317,8 +307,7 @@ class VideoThumbnailLoadQueue {
         request.completer.complete(null);
       }
     } on PlatformException catch (e) {
-      logger.w(
-          'Platform error reading duration: ${request.videoPath} - ${e.code}');
+      logger.w('Platform error reading duration: ${request.videoPath} - ${e.code}');
       request.completer.complete(null);
     } catch (e) {
       logger.e('Error reading duration: $e');

@@ -1,17 +1,21 @@
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+import 'package:easyfile/core/models/initialization_stage.dart';
+import 'package:flutter/material.dart';
+
 /// 首次扫描全屏卡片覆盖层
-/// 极简设计风格，展示扫描进度和品牌标语
+/// 显示扫描进度、阶段信息和实时文件计数
 class FirstScanCardOverlay extends StatefulWidget {
   final bool isScanning;
   final double progress; // 0.0 - 1.0
+  final InitializationStage? stage; // 当前阶段信息
   final VoidCallback? onComplete;
 
   const FirstScanCardOverlay({
     super.key,
     required this.isScanning,
     required this.progress,
+    this.stage,
     this.onComplete,
   });
 
@@ -19,8 +23,7 @@ class FirstScanCardOverlay extends StatefulWidget {
   State<FirstScanCardOverlay> createState() => _FirstScanCardOverlayState();
 }
 
-class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
-    with SingleTickerProviderStateMixin {
+class _FirstScanCardOverlayState extends State<FirstScanCardOverlay> with SingleTickerProviderStateMixin {
   late AnimationController _rotationController;
   bool _isCompleting = false;
 
@@ -56,32 +59,17 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
     }
   }
 
-  /// 根据进度获取状态文案
-  String _getStatusText(double progress) {
-    if (progress >= 1.0) {
-      return '✅ 初始化完成，开始探索吧';
-    } else if (progress >= 0.91) {
-      return '✨ 正在完成最后的准备';
-    } else if (progress >= 0.71) {
-      return '⚡ 正在优化访问体验';
-    } else if (progress >= 0.51) {
-      return '🎵 正在分类音乐和文档';
-    } else if (progress >= 0.31) {
-      return '🖼️ 正在整理图片和视频';
-    } else if (progress >= 0.11) {
-      return '📂 正在发现常用目录';
-    } else {
-      return '🔍 正在准备文件空间';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!widget.isScanning) {
       return const SizedBox.shrink();
     }
 
-    final statusText = _getStatusText(widget.progress);
+    // 获取当前阶段信息
+    final stage = widget.stage;
+    final statusText = stage?.message ?? '正在初始化...';
+    final detailText = stage?.detail;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenSize = MediaQuery.of(context).size;
     final screenWidth = screenSize.width;
@@ -89,9 +77,8 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
     final isLandscape = screenWidth > screenHeight;
 
     // 横屏模式下使用更小的尺寸
-    final cardWidth = isLandscape
-        ? math.min(screenWidth * 0.6, 480.0)
-        : (screenWidth > 600 ? 360.0 : screenWidth * 0.85);
+    final cardWidth =
+        isLandscape ? math.min(screenWidth * 0.6, 480.0) : (screenWidth > 600 ? 360.0 : screenWidth * 0.85);
     final circleSize = isLandscape ? 80.0 : (screenWidth > 600 ? 140.0 : 120.0);
     final verticalPadding = isLandscape ? 20.0 : 40.0;
     final horizontalPadding = isLandscape ? 24.0 : 32.0;
@@ -139,11 +126,11 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
 
                   SizedBox(height: isLandscape ? 12 : 24),
 
-                  // 状态文案
+                  // 状态文案（主标题）
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
                     child: Text(
-                      statusText,
+                      widget.progress >= 1.0 ? '✅ 初始化完成，开始探索吧' : statusText,
                       key: ValueKey(statusText),
                       style: TextStyle(
                         fontSize: isLandscape ? 14 : 18,
@@ -153,6 +140,23 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                       textAlign: TextAlign.center,
                     ),
                   ),
+
+                  // 详细信息（实时文件计数）
+                  if (detailText != null && widget.progress < 1.0) ...[
+                    SizedBox(height: isLandscape ? 6 : 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        detailText,
+                        key: ValueKey(detailText),
+                        style: TextStyle(
+                          fontSize: isLandscape ? 12 : 14,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
 
                   SizedBox(height: isLandscape ? 12 : 20),
 
@@ -166,8 +170,7 @@ class _FirstScanCardOverlayState extends State<FirstScanCardOverlay>
                       builder: (context, value, child) {
                         return LinearProgressIndicator(
                           value: value,
-                          backgroundColor:
-                              isDark ? Colors.grey[700] : Colors.grey[200],
+                          backgroundColor: isDark ? Colors.grey[700] : Colors.grey[200],
                           valueColor: AlwaysStoppedAnimation(
                             _getProgressColor(value),
                           ),

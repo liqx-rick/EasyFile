@@ -3,9 +3,11 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
@@ -56,10 +58,23 @@ class _SettingsPageState extends State<SettingsPage> {
     final enhancedScanService = EnhancedDuplicateFileScanService(duplicateFileService);
     CacheManagerService().setDuplicateFileScanService(enhancedScanService);
 
+    // 初始化统一应用扫描器：注入依赖到CacheManagerService
+    _initAppScanner();
+
     // 初始化系统回收站服务：注入依赖到CacheManagerService
     _initTrashFileService();
 
     _loadSettings();
+  }
+
+  /// 初始化统一应用扫描器
+  Future<void> _initAppScanner() async {
+    try {
+      final appScanner = await locator.getAsync<UnifiedAppScanner>();
+      CacheManagerService().setAppScanner(appScanner);
+    } catch (e) {
+      logger.e('Failed to initialize UnifiedAppScanner for cache management: $e');
+    }
   }
 
   /// 初始化系统回收站服务
@@ -90,7 +105,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadRecommendationSelectionInfo() async {
     try {
       final detectionService = AppDetectionService();
-      final scanner = UnifiedAppScanner(detectionService);
+      final fileCountCache = await locator.getAsync<FileCountCache>();
+      final fileListCache = await locator.getAsync<AppFileListCache>();
+      final scanner = UnifiedAppScanner(
+        detectionService,
+        fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
+      );
       final recommendationService = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,
@@ -807,7 +828,13 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       // 执行重置
       final detectionService = AppDetectionService();
-      final scanner = UnifiedAppScanner(detectionService);
+      final fileCountCache = await locator.getAsync<FileCountCache>();
+      final fileListCache = await locator.getAsync<AppFileListCache>();
+      final scanner = UnifiedAppScanner(
+        detectionService,
+        fileCountCache: fileCountCache,
+        fileListCache: fileListCache,
+      );
       final recommendationService = RecommendationService(
         detectionService: detectionService,
         scanner: scanner,

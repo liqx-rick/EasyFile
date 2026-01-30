@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:easyfile/data/models/file_item.dart';
 
 /// 应用扫描结果
@@ -108,6 +109,17 @@ class AppScanResult {
     return AppScanResult(
       appName: appName,
       isInstalled: false,
+    );
+  }
+
+  /// 创建已取消扫描的结果
+  factory AppScanResult.cancelled(String appName) {
+    return AppScanResult(
+      appName: appName,
+      isInstalled: true,
+      allFiles: const [],
+      mediaStoreFiles: const [],
+      pathScanFiles: const [],
     );
   }
 

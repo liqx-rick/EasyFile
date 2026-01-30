@@ -3,6 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/core/utils/cancellation_token.dart';
 
 /// 应用缓存预热器
 ///
@@ -103,31 +104,55 @@ class AppCachePrewarmer {
             }
           }
 
-          // 执行扫描（带超时保护）
+          // 执行扫描（带超时保护和取消机制）
           logger.i('预热扫描: ${config.appName} (${config.appKey})...');
           final stopwatch = Stopwatch()..start();
+          final cancellationToken = CancellationToken();
+          bool scanTimedOut = false;
+          bool scanCancelled = false;
 
-          await _scanner
-              .scanApp(
-            appKey: config.appKey,
-            updateCache: true,
-            useMediaStore: true,
-            forceRefresh: forceAll,
-          )
-              .timeout(
-            _singleAppTimeout,
-            onTimeout: () {
-              throw TimeoutException('扫描超时: ${config.appName}');
-            },
-          );
+          try {
+            await _scanner
+                .scanApp(
+              appKey: config.appKey,
+              updateCache: true,
+              useMediaStore: true,
+              forceRefresh: forceAll,
+              cancellationToken: cancellationToken,
+            )
+                .timeout(
+              _singleAppTimeout,
+              onTimeout: () {
+                scanTimedOut = true;
+                cancellationToken.cancel();
+                throw TimeoutException('扫描超时: ${config.appName}');
+              },
+            );
 
-          stopwatch.stop();
-          scanned++;
-          logger.i('✅ ${config.appName} 预热完成 (${stopwatch.elapsedMilliseconds}ms)');
+            stopwatch.stop();
 
-          // 短暂休息，避免CPU占用过高
-          await Future.delayed(Duration(milliseconds: 100));
+            // 仅在扫描成功且未超时的情况下计为成功
+            if (!scanTimedOut && !scanCancelled) {
+              scanned++;
+              logger.i('✅ ${config.appName} 预热完成 (${stopwatch.elapsedMilliseconds}ms)');
+            }
+          } on TimeoutException {
+            stopwatch.stop();
+            failed++;
+            logger.e('预热失败: ${config.appName} - 超时 (${stopwatch.elapsedMilliseconds}ms)');
+            logger.w('⚠️ 超时扫描已取消，未写入缓存');
+          } on CancelledException {
+            stopwatch.stop();
+            scanCancelled = true;
+            failed++;
+            logger.e('预热失败: ${config.appName} - 已取消 (${stopwatch.elapsedMilliseconds}ms)');
+          } catch (e) {
+            stopwatch.stop();
+            failed++;
+            logger.e('预热失败: ${config.appName} - $e');
+          }
         } catch (e) {
+          // 外层catch处理应用检测或缓存检查阶段的错误
           failed++;
           logger.e('预热失败: ${config.appName} - $e');
         }

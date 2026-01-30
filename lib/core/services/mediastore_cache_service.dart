@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
+
 import 'package:easyfile/core/data_sources/media_store_data_source.dart';
+import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
+import 'package:easyfile/data/models/file_item.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// MediaStore 缓存服务
 ///
@@ -212,8 +213,7 @@ class MediaStoreCacheService {
         final cachedTime = _prefs!.getInt(timeKey);
         if (cachedTime != null) {
           final cacheAge = DateTime.now().millisecondsSinceEpoch - cachedTime;
-          final validDuration =
-              _cacheValidDuration[type] ?? const Duration(hours: 1);
+          final validDuration = _cacheValidDuration[type] ?? const Duration(hours: 1);
 
           if (cacheAge < validDuration.inMilliseconds) {
             final count = _prefs!.getInt(countKey) ?? 0;
@@ -403,6 +403,60 @@ class MediaStoreCacheService {
   // 缓存清理
   // ========================================
 
+  /// 从缓存中移除特定文件（增量更新）
+  ///
+  /// [type] MediaStore 类型
+  /// [filePath] 要移除的文件路径
+  Future<void> removeFileFromCache(MediaStoreType type, String filePath) async {
+    try {
+      logger.d('从缓存中移除文件: ${type.name}, $filePath');
+
+      // 1. 更新内存缓存
+      if (_memoryCache.containsKey(type)) {
+        final files = _memoryCache[type]!.toList();
+        final initialLength = files.length;
+        files.removeWhere((f) => f.path == filePath);
+        final removed = initialLength - files.length;
+
+        if (removed > 0) {
+          _memoryCache[type] = files;
+          logger.d('从内存缓存移除: ${type.name}, 剩余 ${files.length} 个文件');
+        }
+      }
+
+      // 2. 更新持久化缓存
+      if (_prefs != null) {
+        final cacheKey = '$_cacheKeyPrefix${type.name}';
+        final cachedJson = _prefs!.getString(cacheKey);
+
+        if (cachedJson != null) {
+          // 缓存格式是List，不是Map
+          final filesData = json.decode(cachedJson) as List<dynamic>;
+          final initialLength = filesData.length;
+
+          // 移除匹配的文件
+          filesData.removeWhere((fileJson) {
+            final map = fileJson as Map<String, dynamic>;
+            return map['path'] == filePath;
+          });
+
+          if (filesData.length < initialLength) {
+            // 保存更新后的缓存
+            await _prefs!.setString(cacheKey, json.encode(filesData));
+
+            // 更新文件数量
+            final countKey = '$_cacheCountKeyPrefix${type.name}';
+            await _prefs!.setInt(countKey, filesData.length);
+
+            logger.d('从持久化缓存移除: ${type.name}, 剩余 ${filesData.length} 个文件');
+          }
+        }
+      }
+    } catch (e) {
+      logger.e('从缓存移除文件失败: ${type.name}, $filePath, $e');
+    }
+  }
+
   /// 清除特定类型的缓存
   Future<void> clearCache(MediaStoreType type) async {
     logger.i('清除缓存: ${type.name}');
@@ -438,9 +492,7 @@ class MediaStoreCacheService {
       final keys = _prefs!.getKeys();
       final cacheKeys = keys
           .where((k) =>
-              k.startsWith(_cacheKeyPrefix) ||
-              k.startsWith(_cacheTimeKeyPrefix) ||
-              k.startsWith(_cacheCountKeyPrefix))
+              k.startsWith(_cacheKeyPrefix) || k.startsWith(_cacheTimeKeyPrefix) || k.startsWith(_cacheCountKeyPrefix))
           .toList();
 
       for (final key in cacheKeys) {
@@ -475,8 +527,7 @@ class MediaStoreCacheService {
 
       if (hasMemoryCache) {
         cacheInfo['fileCount'] = _memoryCache[type]!.length;
-        cacheInfo['cacheAge'] =
-            DateTime.now().difference(_cacheTime[type]!).inMinutes;
+        cacheInfo['cacheAge'] = DateTime.now().difference(_cacheTime[type]!).inMinutes;
         cacheInfo['isValid'] = _isMemoryCacheValid(type);
       }
 

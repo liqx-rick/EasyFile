@@ -529,6 +529,7 @@ class _TrashPageState extends State<TrashPage> {
         final restoredPath = result['targetPath'] as String;
 
         // 显示恢复成功对话框
+        // 注：文件列表更新依赖UI层的didChangeDependencies自动刷新机制
         _showRestoreSuccessDialog(restoredPath);
 
         // 刷新列表
@@ -717,6 +718,7 @@ class _TrashPageState extends State<TrashPage> {
     }
   }
 
+  /// 从文件路径创建FileItem
   /// 显示错误对话框
   void _showErrorDialog(String title, String message) {
     showDialog(

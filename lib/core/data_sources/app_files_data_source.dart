@@ -1,9 +1,9 @@
-import 'package:easyfile/core/data_sources/file_list_data_source.dart';
 import 'package:easyfile/core/data_sources/data_source_helpers.dart';
-import 'package:easyfile/core/services/unified_app_scanner.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
-import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/core/data_sources/file_list_data_source.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/unified_app_scanner.dart';
+import 'package:easyfile/data/models/file_item.dart';
 
 /// 应用文件数据源（应用推荐模式专用）
 ///
@@ -59,9 +59,44 @@ class AppFilesDataSource implements FileListDataSource {
     final useMediaStore = params['useMediaStore'] as bool? ?? true;
     final forceRefresh = params['forceRefresh'] as bool? ?? false;
 
-    logger.i('$name.queryFiles - appKey: $appKey, fileTypes: $fileTypes');
+    logger.i('$name.queryFiles - appKey: $appKey, fileTypes: $fileTypes${forceRefresh ? ' (强制刷新)' : ''}');
 
-    // 3. 执行扫描（默认使用缓存，除非forceRefresh=true）
+    // 3. 快速路径：优先使用内存缓存（如果不是强制刷新）
+    if (!forceRefresh) {
+      final cachedResult = await scanner.getCachedScanResult(appKey: appKey);
+      if (cachedResult != null && cachedResult.isInstalled) {
+        logger.i('$name - ⚡ 使用内存缓存快速返回: ${cachedResult.totalCount} 个文件（未过滤）');
+
+        // 应用过滤逻辑
+        var files = cachedResult.allFiles;
+        final originalCount = files.length;
+
+        // 基础类型过滤
+        files = DataSourceHelpers.filterBySupportedTypes(files);
+        final filteredBySupport = originalCount - files.length;
+        if (filteredBySupport > 0) {
+          logger.d('$name - 内存缓存数据过滤: $originalCount -> ${files.length}');
+        }
+
+        // Tab类型过滤
+        if (fileTypes != null && fileTypes.isNotEmpty) {
+          final beforeTabFilter = files.length;
+          files = DataSourceHelpers.filterByFileTypes(files, fileTypes: fileTypes);
+          logger.d('$name - Tab 过滤: $beforeTabFilter -> ${files.length}');
+        }
+
+        logger.i('$name.queryFiles - ⚡ 内存缓存返回: ${files.length} 个文件 (原始: $originalCount)');
+        return files;
+      }
+
+      // 内存缓存不存在，检查持久化缓存
+      logger.d('$name - 内存缓存不存在，检查持久化缓存新鲜度');
+    } else {
+      logger.i('$name - 💪 forceRefresh=true，跳过内存缓存，执行完整扫描');
+    }
+
+    // 4. 慢速路径：执行完整扫描（用户强制刷新或无缓存时）
+    logger.d('$name - 执行完整扫描获取最新数据');
     final scanResult = await scanner.scanApp(
       appKey: appKey,
       useMediaStore: useMediaStore,
@@ -69,7 +104,7 @@ class AppFilesDataSource implements FileListDataSource {
       forceRefresh: forceRefresh, // 控制是否使用扫描结果缓存
     );
 
-    // 4. 检查应用是否安装
+    // 5. 检查应用是否安装
     if (!scanResult.isInstalled) {
       logger.w('$name - 应用未安装: $appKey');
       return [];
@@ -78,14 +113,14 @@ class AppFilesDataSource implements FileListDataSource {
     var files = scanResult.allFiles;
     final originalCount = files.length;
 
-    // 5. 基础文件类型过滤（使用 FileTypesConfig，确保只显示支持的文件类型）
+    // 6. 基础文件类型过滤（使用 FileTypesConfig，确保只显示支持的文件类型）
     files = DataSourceHelpers.filterBySupportedTypes(files);
     final filteredBySupport = originalCount - files.length;
     if (filteredBySupport > 0) {
       logger.d('$name - FileTypesConfig 过滤: $originalCount -> ${files.length} (过滤 $filteredBySupport 个不支持的文件)');
     }
 
-    // 6. Tab 文件类型过滤（如果指定了具体的文件类型）
+    // 7. Tab 文件类型过滤（如果指定了具体的文件类型）
     if (fileTypes != null && fileTypes.isNotEmpty) {
       final beforeTabFilter = files.length;
       files = DataSourceHelpers.filterByFileTypes(files, fileTypes: fileTypes);

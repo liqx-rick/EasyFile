@@ -97,16 +97,7 @@ UI: 显示进度条
 日志: "Starting full initialization..."
 ```
 
-### 2️⃣ reinstall (缓存重装)
-```
-条件: 有初始化标志 + 缓存有效
-路径: 直接加载缓存
-耗时: ~3 秒
-UI: 无进度条
-日志: "Cache valid, loading from cache"
-```
-
-### 3️⃣ normalOpen (正常打开)
+### 2️⃣ normalOpen (正常打开)
 ```
 条件: 已初始化
 路径: 直接从数据库加载
@@ -216,7 +207,6 @@ getIt<StartupOrchestrator>()        // SingletonAsync
 | 场景 | 预期 | 改进 |
 |------|------|------|
 | freshInstall | 37秒 | 基准 |
-| reinstall | 3秒 | -92% ⚡ |
 | normalOpen | 2秒 | -95% ⚡ |
 
 ---
@@ -227,7 +217,7 @@ getIt<StartupOrchestrator>()        // SingletonAsync
 ✅ 0 个编译错误
 ✅ 0 个新增警告
 ✅ 5 个服务类完整
-✅ 3 个场景正确路由
+✅ 2 个场景正确路由
 ✅ 进度 UI 正确显示
 ✅ 日志清晰完整
 ✅ 缓存机制工作
@@ -353,8 +343,8 @@ adb devices -l
 
 ---
 
-**版本**: 1.0  
-**更新日期**: 2025-12-22  
+**版本**: 1.0
+**更新日期**: 2025-12-22
 **状态**: ✅ READY FOR TESTING
 
 **下一步**: 打开 `REAL_DEVICE_TESTING_GUIDE.md` 开始详细测试 🚀

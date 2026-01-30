@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/ui/widgets/quick_access_section.dart';
+import 'package:flutter/material.dart';
 
 /// 缓存管理页面
 ///
@@ -137,6 +137,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
               const SizedBox(height: 8),
               const Text(
                 '⚠️ 清理后，垃圾清理和回收站提示需要重新扫描',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ],
+            if (item.type == CacheType.appFileList) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '⚠️ 清理后，首次打开主页应用文件列表会稍慢',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               ),
             ],
@@ -314,8 +321,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result?.message ?? '清理失败，请重试'),
-          backgroundColor:
-              result != null && !result.hasError ? Colors.green : Colors.orange,
+          backgroundColor: result != null && !result.hasError ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -359,6 +365,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.cleaning_services;
       case CacheType.archivePreview:
         return Icons.folder_zip;
+      case CacheType.appFileList:
+        return Icons.list_alt;
     }
   }
 
@@ -384,8 +392,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                         itemCount: _cacheItems.length,
                         itemBuilder: (context, index) {
                           final item = _cacheItems[index];
-                          final isClearing =
-                              _isClearing && _clearingItemName == item.name;
+                          final isClearing = _isClearing && _clearingItemName == item.name;
 
                           return ListTile(
                             leading: Icon(
@@ -414,16 +421,13 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                                       child: SizedBox(
                                         width: 20,
                                         height: 20,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2),
+                                        child: CircularProgressIndicator(strokeWidth: 2),
                                       ),
                                     ),
                                   )
                                 else
                                   OutlinedButton(
-                                    onPressed: item.size > 0 && !_isClearing
-                                        ? () => _clearCache(item)
-                                        : null,
+                                    onPressed: item.size > 0 && !_isClearing ? () => _clearCache(item) : null,
                                     style: OutlinedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 12,
@@ -431,8 +435,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                                       ),
                                       minimumSize: const Size(0, 32),
                                     ),
-                                    child: const Text('清理',
-                                        style: TextStyle(fontSize: 13)),
+                                    child: const Text('清理', style: TextStyle(fontSize: 13)),
                                   ),
                               ],
                             ),
@@ -466,9 +469,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                           ),
                           const Spacer(),
                           FilledButton.icon(
-                            onPressed: _totalSize > 0 && !_isClearing
-                                ? _clearAllCache
-                                : null,
+                            onPressed: _totalSize > 0 && !_isClearing ? _clearAllCache : null,
                             icon: const Icon(Icons.delete_sweep, size: 20),
                             label: const Text('全部清理'),
                           ),

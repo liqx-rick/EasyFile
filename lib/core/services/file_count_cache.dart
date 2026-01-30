@@ -90,6 +90,23 @@ class FileCountCache {
     return count;
   }
 
+  /// 获取缓存的年龄（分钟）
+  ///
+  /// [appKey] 应用Key
+  /// 返回缓存的年龄（分钟），如果缓存不存在则返回 null
+  Future<int?> getCacheAgeMinutes(String appKey) async {
+    if (!_initialized) await initialize();
+    if (_prefs == null) return null;
+
+    final timeKey = '$_timeKeyPrefix$appKey';
+
+    final cachedTime = _prefs!.getInt(timeKey);
+    if (cachedTime == null) return null;
+
+    final cacheAge = DateTime.now().millisecondsSinceEpoch - cachedTime;
+    return Duration(milliseconds: cacheAge).inMinutes;
+  }
+
   /// 设置文件数量缓存
   ///
   /// [appKey] 应用Key

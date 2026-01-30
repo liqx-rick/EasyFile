@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/services/cache_manager_service.dart';
 import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class MockCacheManagerService implements CacheManagerService {
   int totalCacheSize;
@@ -57,6 +57,9 @@ class MockCacheManagerService implements CacheManagerService {
 
   @override
   void setTrashFileService(dynamic service) {}
+
+  @override
+  void setAppScanner(dynamic scanner) {}
 
   @override
   String formatSize(int bytes) {
@@ -129,8 +132,7 @@ void main() {
       expect(find.text('清理完成'), findsNothing);
     });
 
-    testWidgets('Scenario 2: Partial success (7/9)',
-        (WidgetTester tester) async {
+    testWidgets('Scenario 2: Partial success (7/9)', (WidgetTester tester) async {
       mockCacheManager.clearResult = ClearAllResult(
         successCount: 7,
         failCount: 2,
@@ -148,8 +150,7 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     });
 
-    testWidgets('Scenario 3: Complete failure (0/9)',
-        (WidgetTester tester) async {
+    testWidgets('Scenario 3: Complete failure (0/9)', (WidgetTester tester) async {
       mockCacheManager.clearResult = ClearAllResult(
         successCount: 0,
         failCount: 9,
@@ -200,8 +201,7 @@ void main() {
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
 
-    testWidgets('Buttons disabled during clearing',
-        (WidgetTester tester) async {
+    testWidgets('Buttons disabled during clearing', (WidgetTester tester) async {
       mockCacheManager.clearDelay = const Duration(milliseconds: 500);
 
       await pumpDialog(tester);

@@ -1,14 +1,15 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:collection';
-import 'package:path/path.dart' as path;
-import 'package:uuid/uuid.dart';
+import 'dart:io';
+
 import 'package:easyfile/core/config/app_config.dart';
-import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/database/app_trash_database.dart';
+import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/settings/app_trash_settings.dart';
 import 'package:easyfile/data/models/app_trash_item.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
 
 /// EasyFile回收站管理服务
 ///
@@ -93,8 +94,7 @@ class AppTrashManager {
         final trashPath = '$trashDir/${timestamp}_$fileName';
 
         // 文件夹使用 inode/directory MIME类型
-        final mimeType =
-            file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+        final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
 
         final trashItem = AppTrashItem(
           id: id,
@@ -281,8 +281,7 @@ class AppTrashManager {
 
       // 保存元数据到数据库
       // 文件夹使用 inode/directory MIME类型
-      final mimeType =
-          file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
+      final mimeType = file.isDirectory ? 'inode/directory' : _inferMimeType(fileName);
 
       final trashItem = AppTrashItem(
         id: id,
@@ -348,8 +347,7 @@ class AppTrashManager {
   }
 
   /// 递归复制文件夹到回收站
-  Future<void> _copyDirectoryRecursive(
-      String sourcePath, String targetPath) async {
+  Future<void> _copyDirectoryRecursive(String sourcePath, String targetPath) async {
     final sourceDir = Directory(sourcePath);
     final targetDir = Directory(targetPath);
 
@@ -392,8 +390,7 @@ class AppTrashManager {
       // 确定恢复目标路径
       final targetPath = await _determineRestorePath(item);
       final isOriginalPath = targetPath == item.originalPath;
-      final wasRenamed = !isOriginalPath &&
-          path.dirname(targetPath) == path.dirname(item.originalPath);
+      final wasRenamed = !isOriginalPath && path.dirname(targetPath) == path.dirname(item.originalPath);
 
       // 确保目标目录存在
       final targetDir = Directory(path.dirname(targetPath));
@@ -547,8 +544,7 @@ class AppTrashManager {
       }
     }
 
-    logger.i(
-        'Batch delete completed: $successCount success, $failedCount failed');
+    logger.i('Batch delete completed: $successCount success, $failedCount failed');
 
     return {
       'success': successCount,
@@ -609,8 +605,7 @@ class AppTrashManager {
       // 删除过期文件
       final result = await deleteBatchPermanently(expiredItems);
 
-      logger.i(
-          'Expired files cleaned: ${result['success']} files, ${result['totalSize']} bytes');
+      logger.i('Expired files cleaned: ${result['success']} files, ${result['totalSize']} bytes');
 
       return {
         'deleted': result['success'],

@@ -5,7 +5,6 @@ import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_trash_manager.dart';
-import 'package:easyfile/core/services/cache_prewarm_coordinator.dart';
 import 'package:easyfile/core/services/category_group_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
@@ -70,21 +69,6 @@ Future<void> main() async {
   final trashManager = locator<AppTrashManager>();
   await trashManager.initialize();
   await trashManager.startAutoCleanup();
-
-  // 🚀 统一缓存预热协调器
-  // 阶段1（同步）：缩略图缓存初始化
-  // 阶段2（延迟3秒）：MediaStore 缓存预热
-  // 阶段3（延迟5秒）：应用文件缓存预热
-  await CachePrewarmCoordinator.instance.initialize();
-  CachePrewarmCoordinator.instance.startPrewarming();
-
-  // 可选：监听预热进度
-  CachePrewarmCoordinator.instance.progressStream.listen((progress) {
-    logger.d('预热进度: ${progress.taskName} - ${progress.progressPercent}%');
-    if (progress.isFailed) {
-      logger.e('预热失败: ${progress.error}');
-    }
-  });
 
   // ===== 合规步骤1: Analytics 预初始化（无需用户同意）=====
   try {

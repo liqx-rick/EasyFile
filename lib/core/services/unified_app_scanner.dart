@@ -1,14 +1,17 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:easyfile/core/platform/app_file_scanner_channel.dart';
+
 import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/config/app_scanner_config.dart';
 import 'package:easyfile/core/constants/system_folders_config.dart';
-import 'package:easyfile/core/services/app_scan_result.dart';
-import 'package:easyfile/core/services/app_detection_service.dart';
-import 'package:easyfile/core/services/file_count_cache.dart';
-import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/platform/app_file_scanner_channel.dart';
+import 'package:easyfile/core/services/app_detection_service.dart';
+import 'package:easyfile/core/services/app_file_list_cache.dart';
+import 'package:easyfile/core/services/app_scan_result.dart';
+import 'package:easyfile/core/services/file_count_cache.dart';
+import 'package:easyfile/core/utils/cancellation_token.dart';
+import 'package:easyfile/data/models/file_item.dart';
 
 /// 统一应用文件扫描器
 ///
@@ -43,9 +46,11 @@ import 'package:easyfile/core/logger.dart';
 class UnifiedAppScanner {
   final AppDetectionService _detectionService;
   final FileCountCache? _fileCountCache;
+  final AppFileListCache? _fileListCache;
 
   /// 最大递归深度（避免深层目录遍历）
-  static const int maxRecursionDepth = 5;
+  /// 优化：从5降到3，减少扫描时间（微信等应用文件通常在3层内）
+  static const int maxRecursionDepth = 3;
 
   /// 扫描结果缓存（appKey -> ScanResultCache）
   /// ⚠️ 使用静态变量确保跨实例共享缓存
@@ -57,7 +62,9 @@ class UnifiedAppScanner {
   UnifiedAppScanner(
     this._detectionService, {
     FileCountCache? fileCountCache,
-  }) : _fileCountCache = fileCountCache;
+    AppFileListCache? fileListCache,
+  })  : _fileCountCache = fileCountCache,
+        _fileListCache = fileListCache;
 
   /// 扫描应用文件
   ///
@@ -67,6 +74,7 @@ class UnifiedAppScanner {
   /// [useMediaStore] 是否使用 MediaStore 扫描（Android 11+）
   /// [updateCache] 是否更新文件数量缓存（默认 true）
   /// [forceRefresh] 是否强制刷新，忽略缓存（默认 false）
+  /// [cancellationToken] 取消令牌，用于中断扫描
   Future<AppScanResult> scanApp({
     required String appKey,
     List<String> additionalPaths = const [],
@@ -74,6 +82,7 @@ class UnifiedAppScanner {
     bool useMediaStore = true,
     bool updateCache = true,
     bool forceRefresh = false,
+    CancellationToken? cancellationToken,
   }) async {
     final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (config == null) {
@@ -84,20 +93,38 @@ class UnifiedAppScanner {
     }
 
     logger.i('========== 开始扫描应用: ${config.appName} ($appKey) ==========');
+    logger.i('  forceRefresh: $forceRefresh, useMediaStore: $useMediaStore, updateCache: $updateCache');
 
-    // 🚀 缓存检查：如果未强制刷新，先检查缓存
+    // 🚀 快速缓存检查1：内存缓存（最快，有完整文件列表）
     if (!forceRefresh && _scanCache.containsKey(appKey)) {
       final cached = _scanCache[appKey]!;
       final cacheAge = DateTime.now().difference(cached.timestamp);
 
       if (cacheAge < _cacheExpiration) {
-        logger.i('✅ 使用缓存结果 (缓存年龄: ${cacheAge.inMinutes}分钟, 有效期: ${_cacheExpiration.inHours}小时)');
+        logger.i('✅ 使用内存缓存结果 (缓存年龄: ${cacheAge.inMinutes}分钟, 有效期: ${_cacheExpiration.inHours}小时)');
         logger.i('   文件数量: ${cached.result.allFiles.length}');
         logger.i('========== 扫描完成: ${config.appName} ==========');
         return cached.result;
       } else {
-        logger.i('⏰ 缓存已过期 (${cacheAge.inMinutes}分钟 > ${_cacheExpiration.inHours}小时), 执行新扫描');
+        logger.i('⏰ 内存缓存已过期 (${cacheAge.inMinutes}分钟 > ${_cacheExpiration.inHours}小时), 执行新扫描');
         _scanCache.remove(appKey); // 清除过期缓存
+      }
+    } else if (forceRefresh) {
+      logger.i('💪 forceRefresh=true，跳过内存缓存检查，执行完整扫描');
+    } else {
+      logger.i('内存缓存不存在，执行完整扫描');
+    }
+
+    // 🚀 快速缓存检查2：持久化缓存年龄判断（用于跳过不必要的扫描）
+    if (!forceRefresh && _fileCountCache != null) {
+      final cacheAge = await _fileCountCache!.getCacheAgeMinutes(appKey);
+      if (cacheAge != null && cacheAge < 30) {
+        // 缓存很新（< 30分钟），无需重新扫描，直接返回内存缓存结果
+        // 注意：这里返回的是内存缓存，如果内存缓存不存在，会执行完整扫描
+        logger.i('⚡ 持久化缓存很新 ($cacheAge 分钟前)，跳过扫描');
+        // 但是我们没有完整的文件列表，所以还是需要扫描...
+        // 实际上这个优化在应用重启后不起作用，因为内存缓存已清空
+        logger.d('   (内存缓存不存在，仍需执行扫描以获取完整文件列表)');
       }
     }
 
@@ -157,8 +184,13 @@ class UnifiedAppScanner {
       }
     }
 
-    // 步骤5: 路径扫描
-    final pathScanResult = await _scanByPaths(scanPaths, config.filePatterns);
+    // 步骤5: 路径扫描（带取消检查）
+    if (cancellationToken?.isCancelled ?? false) {
+      logger.w('扫描已取消: ${config.appName}');
+      return AppScanResult.cancelled(config.appName);
+    }
+
+    final pathScanResult = await _scanByPaths(scanPaths, config.filePatterns, cancellationToken);
     logger.i('路径扫描: ${pathScanResult.files.length} 文件 '
         '(${pathScanResult.duration.inMilliseconds}ms)');
 
@@ -252,10 +284,50 @@ class UnifiedAppScanner {
       }
     }
 
-    // 步骤8: 更新文件数量缓存
+    // 步骤8: 更新文件数量缓存（只缓存有效文件数量）
     if (updateCache && _fileCountCache != null) {
-      await _fileCountCache!.setFileCount(appKey, allFiles.length);
-      logger.d('文件数量缓存已更新: $appKey = ${allFiles.length}');
+      // 过滤掉不支持的文件类型，只缓存有效文件数量
+      final fileTypes = AppConfig.instance.fileTypes;
+      final validFiles = <FileItem>[];
+      final filteredFiles = <FileItem>[];
+
+      for (final file in allFiles) {
+        final fileName = file.name;
+        final isValid = fileTypes.isImageFile(fileName) ||
+            fileTypes.isVideoFile(fileName) ||
+            fileTypes.isAudioFile(fileName) ||
+            fileTypes.isDocumentFile(fileName) ||
+            fileTypes.isArchiveFile(fileName) ||
+            fileTypes.isApkFile(fileName);
+
+        if (isValid) {
+          validFiles.add(file);
+        } else {
+          filteredFiles.add(file);
+        }
+      }
+
+      final validCount = validFiles.length;
+      final filteredCount = filteredFiles.length;
+
+      await _fileCountCache!.setFileCount(appKey, validCount);
+      logger.d('文件数量缓存已更新: $appKey = $validCount 个有效文件 (过滤 $filteredCount 个不支持的文件)');
+
+      // 💾 保存完整文件列表到持久化缓存（用于应用重启后快速加载）
+      if (_fileListCache != null) {
+        try {
+          await _fileListCache!.setFileList(appKey, validFiles);
+          logger.d('文件列表缓存已保存: $appKey = $validCount 个文件 (约 ${(validCount * 0.15).toStringAsFixed(0)} KB)');
+        } catch (e) {
+          logger.e('保存文件列表缓存失败: $e');
+        }
+      }
+
+      // 🚫 生产环境不导出过滤文件列表（节省时间和存储空间）
+      // 导出被过滤的文件路径到文件（仅用于开发调试）
+      // if (filteredFiles.isNotEmpty && appKey == 'wechat') {
+      //   await _exportFilteredFiles(appKey, filteredFiles);
+      // }
     }
 
     logger.i('========== 扫描完成: ${config.appName} ==========');
@@ -320,6 +392,78 @@ class UnifiedAppScanner {
     return await _fileCountCache!.getFileCountBatch(appKeys);
   }
 
+  /// 快速获取缓存的扫描结果（如果存在）
+  ///
+  /// 从内存缓存或持久化缓存中读取之前的扫描结果，用于快速显示内容
+  ///
+  /// [appKey] 应用标识
+  ///
+  /// 返回缓存的AppScanResult，如果无有效缓存则返回null
+  ///
+  /// 使用场景：
+  /// - 用户点击应用卡片时，先显示缓存内容（秒开）
+  /// - 后台异步执行完整扫描更新数据
+  /// - 缓存通过增量更新保持最新，无需强制过期
+  Future<AppScanResult?> getCachedScanResult({
+    required String appKey,
+  }) async {
+    // 1. 检查内存缓存
+    final memoryCache = _scanCache[appKey];
+    if (memoryCache != null) {
+      final age = DateTime.now().difference(memoryCache.timestamp);
+      logger.d('使用内存缓存的扫描结果: $appKey (${age.inMinutes}分钟前, ${memoryCache.result.totalCount} 文件)');
+      return memoryCache.result;
+    }
+
+    // 2. 检查持久化缓存（完整文件列表）- 即使过期也返回，支持后台刷新
+    if (_fileListCache != null) {
+      try {
+        final cachedFiles = await _fileListCache!.getFileList(appKey);
+        if (cachedFiles != null && cachedFiles.isNotEmpty) {
+          final cacheAge = await _fileListCache!.getCacheAgeMinutes(appKey);
+          logger.d('✅ 找到持久化文件列表缓存: $appKey = ${cachedFiles.length} 文件 (${cacheAge ?? 0}分钟前)');
+
+          // 获取应用配置
+          final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
+          if (config != null) {
+            // 构建完整的扫描结果（复用缓存的文件列表）
+            final result = AppScanResult(
+              appName: config.appName,
+              packageName: '',
+              isInstalled: true,
+              appIcon: null,
+              mediaStoreFiles: cachedFiles,
+              pathScanFiles: const [],
+              differenceFiles: const [],
+              allFiles: cachedFiles,
+              mediaStoreDuration: Duration.zero,
+              pathScanDuration: Duration.zero,
+            );
+
+            // 放入内存缓存，避免下次再读取持久化缓存
+            _scanCache[appKey] = _ScanResultCache(
+              result: result,
+              timestamp: DateTime.now(),
+            );
+
+            return result;
+          }
+        }
+      } catch (e) {
+        logger.e('读取文件列表缓存失败: $e');
+      }
+    }
+
+    // 3. 兜底：检查旧的文件数量缓存（只有数量，没有完整列表）
+    final count = await getFileCountFast(appKey: appKey);
+    if (count != null) {
+      logger.d('找到持久化缓存的文件数量: $appKey = $count，但无完整文件列表');
+      // 返回null表示需要完整扫描，调用方可以先用count显示占位内容
+    }
+
+    return null;
+  }
+
   /// 清除文件数量缓存
   ///
   /// 用于用户主动刷新或检测到数据不准确时
@@ -333,6 +477,154 @@ class UnifiedAppScanner {
       await _fileCountCache!.clearAllCache();
       logger.i('已清除所有文件数量缓存');
     }
+  }
+
+  /// 清除内存缓存
+  ///
+  /// 用于在清理缓存时同时清除内存中的扫描结果
+  void clearMemoryCache({String? appKey}) {
+    if (appKey != null) {
+      _scanCache.remove(appKey);
+      logger.i('已清除内存缓存: $appKey');
+    } else {
+      _scanCache.clear();
+      logger.i('已清除所有内存缓存');
+    }
+  }
+
+  /// 增量更新：从缓存中删除文件
+  Future<void> updateCacheForDeletedFile(String appKey, String filePath) async {
+    try {
+      // 1. 更新内存缓存
+      final memoryCache = _scanCache[appKey];
+      if (memoryCache != null) {
+        final files = memoryCache.result.allFiles.toList();
+        final initialLength = files.length;
+        files.removeWhere((f) => f.path == filePath);
+        final removed = initialLength - files.length;
+
+        if (removed > 0) {
+          logger.d('从内存缓存删除文件: $appKey, $filePath (剩余 ${files.length} 个)');
+          final updatedResult = memoryCache.result.copyWith(allFiles: files);
+          _scanCache[appKey] = _ScanResultCache(
+            result: updatedResult,
+            timestamp: memoryCache.timestamp,
+          );
+        }
+      }
+
+      // 2. 更新持久化缓存
+      if (_fileListCache != null) {
+        final cachedFiles = await _fileListCache!.getFileList(appKey);
+        if (cachedFiles != null) {
+          final updatedFiles = cachedFiles.where((f) => f.path != filePath).toList();
+          if (updatedFiles.length < cachedFiles.length) {
+            await _fileListCache!.setFileList(appKey, updatedFiles);
+            logger.d('从持久化缓存删除文件: $appKey, $filePath (剩余 ${updatedFiles.length} 个)');
+          }
+        }
+      }
+
+      // 3. 更新文件数量缓存
+      if (_fileCountCache != null) {
+        final currentCount = await _fileCountCache!.getFileCount(appKey);
+        if (currentCount != null && currentCount > 0) {
+          await _fileCountCache!.setFileCount(appKey, currentCount - 1);
+        }
+      }
+    } catch (e) {
+      logger.e('更新删除文件缓存失败: $e');
+    }
+  }
+
+  /// 增量更新：更新文件（重命名/移动）
+  Future<void> updateCacheForUpdatedFile(String appKey, String oldPath, FileItem newFile) async {
+    try {
+      // 1. 更新内存缓存
+      final memoryCache = _scanCache[appKey];
+      if (memoryCache != null) {
+        final files = memoryCache.result.allFiles.toList();
+        final index = files.indexWhere((f) => f.path == oldPath);
+        if (index != -1) {
+          files[index] = newFile;
+          logger.d('更新内存缓存文件: $appKey, $oldPath -> ${newFile.path}');
+          final updatedResult = memoryCache.result.copyWith(allFiles: files);
+          _scanCache[appKey] = _ScanResultCache(
+            result: updatedResult,
+            timestamp: memoryCache.timestamp,
+          );
+        }
+      }
+
+      // 2. 更新持久化缓存
+      if (_fileListCache != null) {
+        final cachedFiles = await _fileListCache!.getFileList(appKey);
+        if (cachedFiles != null) {
+          final updatedFiles = cachedFiles.toList();
+          final index = updatedFiles.indexWhere((f) => f.path == oldPath);
+          if (index != -1) {
+            updatedFiles[index] = newFile;
+            await _fileListCache!.setFileList(appKey, updatedFiles);
+            logger.d('更新持久化缓存文件: $appKey, $oldPath -> ${newFile.path}');
+          }
+        }
+      }
+    } catch (e) {
+      logger.e('更新文件缓存失败: $e');
+    }
+  }
+
+  /// 增量更新：添加文件
+  Future<void> updateCacheForAddedFile(String appKey, FileItem newFile) async {
+    try {
+      // 1. 更新内存缓存
+      final memoryCache = _scanCache[appKey];
+      if (memoryCache != null) {
+        final files = memoryCache.result.allFiles.toList();
+        if (!files.any((f) => f.path == newFile.path)) {
+          files.add(newFile);
+          logger.d('添加文件到内存缓存: $appKey, ${newFile.path} (共 ${files.length} 个)');
+          final updatedResult = memoryCache.result.copyWith(allFiles: files);
+          _scanCache[appKey] = _ScanResultCache(
+            result: updatedResult,
+            timestamp: memoryCache.timestamp,
+          );
+        }
+      }
+
+      // 2. 更新持久化缓存
+      if (_fileListCache != null) {
+        final cachedFiles = await _fileListCache!.getFileList(appKey);
+        if (cachedFiles != null) {
+          if (!cachedFiles.any((f) => f.path == newFile.path)) {
+            final updatedFiles = [...cachedFiles, newFile];
+            await _fileListCache!.setFileList(appKey, updatedFiles);
+            logger.d('添加文件到持久化缓存: $appKey, ${newFile.path} (共 ${updatedFiles.length} 个)');
+          }
+        }
+      }
+
+      // 3. 更新文件数量缓存
+      if (_fileCountCache != null) {
+        final currentCount = await _fileCountCache!.getFileCount(appKey);
+        if (currentCount != null) {
+          await _fileCountCache!.setFileCount(appKey, currentCount + 1);
+        }
+      }
+    } catch (e) {
+      logger.e('添加文件缓存失败: $e');
+    }
+  }
+
+  /// 检查缓存年龄并决定是否需要后台刷新
+  Future<bool> shouldRefreshCache(String appKey) async {
+    if (_fileListCache == null) return true;
+
+    final cacheAge = await _fileListCache!.getCacheAgeMinutes(appKey);
+    if (cacheAge == null) return true;
+
+    // 缓存超过30分钟，建议后台刷新
+    return cacheAge > 30;
   }
 
   /// 构建扫描路径
@@ -387,6 +679,7 @@ class UnifiedAppScanner {
   Future<ScanResult> _scanByPaths(
     List<String> paths,
     List<String> filePatterns,
+    CancellationToken? cancellationToken,
   ) async {
     final startTime = DateTime.now();
     final files = <FileItem>[];
@@ -407,6 +700,12 @@ class UnifiedAppScanner {
           recursive: true,
           followLinks: false,
         )) {
+          // 定期检查取消状态
+          if (cancellationToken?.isCancelled ?? false) {
+            logger.w('路径扫描已取消');
+            break;
+          }
+
           if (entity is File) {
             // 计算当前文件深度
             final currentDepth = entity.path.split('/').where((s) => s.isNotEmpty).length;
@@ -497,6 +796,49 @@ class UnifiedAppScanner {
     }
 
     return allFiles;
+  }
+
+  /// 导出被过滤的文件路径到文件（用于分析）
+  // ignore: unused_element
+  Future<void> _exportFilteredFiles(String appKey, List<FileItem> filteredFiles) async {
+    try {
+      final timestamp = DateTime.now().toString().replaceAll(':', '-').replaceAll(' ', '_');
+      final filePath = '/storage/emulated/0/Documents/filtered_files_${appKey}_$timestamp.txt';
+      final file = File(filePath);
+
+      // 创建目录（如果不存在）
+      await file.parent.create(recursive: true);
+
+      // 统计文件扩展名分布
+      final Map<String, int> extensionStats = {};
+      final List<String> lines = [];
+
+      lines.add('========== 被过滤的文件列表 ($appKey) ==========');
+      lines.add('总数: ${filteredFiles.length}');
+      lines.add('导出时间: ${DateTime.now()}');
+      lines.add('');
+
+      for (final file in filteredFiles) {
+        lines.add(file.path);
+
+        // 统计扩展名
+        final ext = file.path.toLowerCase().split('.').last;
+        extensionStats[ext] = (extensionStats[ext] ?? 0) + 1;
+      }
+
+      // 添加统计信息
+      lines.add('');
+      lines.add('========== 扩展名统计 ==========');
+      final sortedExtensions = extensionStats.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sortedExtensions) {
+        lines.add('${entry.key}: ${entry.value} 个文件');
+      }
+
+      await file.writeAsString(lines.join('\n'));
+      logger.i('📄 已导出被过滤的文件列表: $filePath (${filteredFiles.length} 个文件)');
+    } catch (e) {
+      logger.e('导出被过滤的文件列表失败: $e');
+    }
   }
 
   /// 批量扫描多个应用

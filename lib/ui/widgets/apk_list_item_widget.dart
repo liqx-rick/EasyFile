@@ -11,6 +11,7 @@ import '../../data/models/apk_info.dart';
 class ApkListItemWidget extends StatelessWidget {
   final ApkInfo apkInfo;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final VoidCallback? onStatusTap;
   final VoidCallback? onDelete;
 
@@ -18,6 +19,7 @@ class ApkListItemWidget extends StatelessWidget {
     super.key,
     required this.apkInfo,
     this.onTap,
+    this.onLongPress,
     this.onStatusTap,
     this.onDelete,
   });
@@ -28,6 +30,7 @@ class ApkListItemWidget extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -61,7 +64,7 @@ class ApkListItemWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // 文件大小和修改时间
+                  // 文件大小、修改时间和状态按钮
                   Row(
                     children: [
                       Icon(Icons.storage, size: 14, color: Colors.grey[600]),
@@ -81,6 +84,9 @@ class ApkListItemWidget extends StatelessWidget {
                           color: Colors.grey[600],
                         ),
                       ),
+                      const Spacer(),
+                      // 状态按钮
+                      _buildCompactStatusButton(theme),
                     ],
                   ),
                   if (apkInfo.isDebug) ...[
@@ -119,18 +125,6 @@ class ApkListItemWidget extends StatelessWidget {
                   ],
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            // 右侧操作按钮：状态按钮和删除按钮上下排列
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 状态按钮
-                _buildCompactStatusButton(theme),
-                const SizedBox(height: 6),
-                // 删除按钮
-                if (onDelete != null) _buildCompactDeleteButton(theme),
-              ],
             ),
           ],
         ),
@@ -203,29 +197,7 @@ class ApkListItemWidget extends StatelessWidget {
     );
   }
 
-  /// 构建紧凑的删除按钮
-  Widget _buildCompactDeleteButton(ThemeData theme) {
-    return InkWell(
-      onTap: onDelete,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withOpacity(0.3), width: 1),
-        ),
-        child: const Text(
-          '删   除',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.red,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+
 
   /// 格式化文件大小
   String _formatFileSize(int bytes) {

@@ -96,11 +96,20 @@ class VideoThumbnailPrewarmer {
         final results = await Future.wait(
           batch.map((file) async {
             try {
+              logger.d('🔥 预热视频: ${file.path}');
               final queue = VideoThumbnailLoadQueue();
-              final thumbnail = await queue.loadThumbnail(file.path, 80.0);
-              return thumbnail != null;
+              // 使用96.0匹配实际显示的最大尺寸（普通模式）
+              // 生成分辨率: 96*4=384px，足以覆盖各种屏幕尺寸
+              final thumbnail = await queue.loadThumbnail(file.path, 96.0);
+              if (thumbnail != null) {
+                logger.d('✅ 预热成功: ${file.name} (${thumbnail.length} bytes)');
+                return true;
+              } else {
+                logger.w('❌ 预热失败（null）: ${file.name}');
+                return false;
+              }
             } catch (e) {
-              logger.e('预热失败: ${file.path} - $e');
+              logger.e('❌ 预热异常: ${file.path} - $e');
               return false;
             }
           }),
