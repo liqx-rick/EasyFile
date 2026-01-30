@@ -47,8 +47,6 @@ class AppInitializationService {
   /// 2. 加载分类统计缓存 - 2秒
   /// 3. 执行完整文件系统扫描 - 30秒
   /// 总耗时约37秒，过程中调用 onProgress 更新UI进度
-  ///
-  /// 注意：方法名按功能而非优先级命名，允许未来灵活调整顺序和优先级
   Future<void> initializeFromScratch() async {
     logger.i('[AppInitService] Starting full initialization...');
 
@@ -232,20 +230,20 @@ class AppInitializationService {
 
   /// 执行完整文件系统扫描
   ///
-  /// 第三阶段初始化，执行完整的文件系统扫描，发现新文件夹和文件
-  /// 耗时约30秒
+  /// 第三阶段初始化，检测快速访问文件夹
+  /// 耗时约2-3秒（已优化：移除P1.1的重复分类扫描）
   ///
-  /// 这是最耗时的阶段，但前两个阶段已完成，用户已可使用基本功能
-  /// 此阶段完成后标记初始化为完成
+  /// 这是最后阶段，主要完成快速访问文件夹的自动检测
+  /// P1.1已完成所有分类文件扫描和缓存，此阶段不再重复扫描
   Future<void> _executeFullFileSystemScan() async {
     try {
-      logger.i('[AppInitService] Starting full file system scan...');
+      logger.i('[AppInitService] Starting quick access folder detection...');
 
-      // 使用 QuickAccessPresenter 的完整扫描方法
-      // 这个方法会：
-      // 1. 检测快速访问文件夹
-      // 2. 扫描分类文件（使用我们提供的 scanCategoryFiles 回调）
-      // 3. 缓存分类统计数据
+      // 使用 QuickAccessPresenter 检测快速访问文件夹
+      // 优化说明：
+      // 1. ✅ 检测快速访问文件夹（~2-3秒）
+      // 2. ❌ 移除重复分类扫描（P1.1已完成，节省~45秒）
+      // 3. ✅ 使用P1.1的分类统计缓存
 
       final scanResult = await quickAccessPresenter.performFirstTimeComprehensiveScan(
         onProgress: (progress) {
@@ -253,86 +251,14 @@ class AppInitializationService {
           final mappedProgress = 0.35 + (progress * 0.6);
           _reportProgress(mappedProgress);
         },
-        scanCategoryFiles: _performCompleteCategoryScan,
+        scanCategoryFiles: null, // ⚡ 优化：移除重复扫描，使用P1.1的缓存数据
       );
 
-      logger.i(
-          '[AppInitService] File system scan completed: ${scanResult.foldersFound} folders found, ${scanResult.filesScanned} files scanned');
+      logger.i('[AppInitService] Quick access folder detection completed: ${scanResult.foldersFound} folders found');
     } catch (e) {
       logger.e('[AppInitService] File system scan failed: $e');
       // 即使扫描失败也标记为已初始化（前两个阶段已完成）
       logger.w('[AppInitService] Scan failed but marking as initialized (previous stages complete)');
-    }
-  }
-
-  /// 执行完整的分类扫描
-  ///
-  /// 这个方法被 performFirstTimeComprehensiveScan 调用
-  /// 用于扫描并统计所有分类文件数，然后缓存结果
-  Future<Map<FileCategory, int>> _performCompleteCategoryScan() async {
-    try {
-      logger.i('[AppInitService] Performing complete category scan...');
-
-      final Map<FileCategory, int> counts = {};
-
-      // 初始化所有分类计数
-      for (final category in FileCategory.values) {
-        counts[category] = 0;
-      }
-
-      // 要扫描的分类类型（与第二阶段相同）
-      final categoriesToScan = [
-        CategoryType.images,
-        CategoryType.video,
-        CategoryType.music,
-        CategoryType.documents,
-        CategoryType.downloads,
-      ];
-
-      int totalFiles = 0;
-
-      for (int i = 0; i < categoriesToScan.length; i++) {
-        final categoryType = categoriesToScan[i];
-
-        try {
-          // 注意：这里不更新进度，因为整体进度由 performFirstTimeComprehensiveScan 管理
-
-          // 🔥 使用混合扫描模式（MediaStore + 路径扫描），确保完整性
-          final files = await filePresenter.scanFilesByCategory(
-            categoryType,
-            useHybridScan: true,
-          );
-          final count = files.length;
-
-          // 💾 将文件列表保存到分类页面的缓存
-          await _saveToCategoryPageCache(categoryType, files);
-
-          // 映射到 FileCategory
-          final fileCategory = _mapCategoryType(categoryType);
-          counts[fileCategory] = count;
-          totalFiles += count;
-
-          logger.i('[AppInitService] Category scan: ${categoryType.name} = $count files (cached)');
-        } catch (e) {
-          logger.e('[AppInitService] Error scanning $categoryType: $e');
-          // 某个分类扫描失败，使用该分类的零值继续
-        }
-      }
-
-      // 设置总文件数
-      counts[FileCategory.all] = totalFiles;
-
-      logger.i('[AppInitService] Complete category scan finished: $totalFiles total files');
-
-      return counts;
-    } catch (e) {
-      logger.e('[AppInitService] Complete category scan failed: $e');
-      // 返回空的统计（所有分类都是0）
-      final emptyCounts = <FileCategory, int>{};
-      for (final category in FileCategory.values) {
-        emptyCounts[category] = 0;
-      }
-      return emptyCounts;
     }
   }
 
@@ -372,7 +298,7 @@ class AppInitializationService {
   }
 
   /// 保存文件列表到分类页面的缓存
-  /// 
+  ///
   /// 使用与 CategoryFilePage._saveToCache() 相同的格式和缓存键
   /// 这样用户首次进入分类页面时可以直接使用，无需重新扫描
   Future<void> _saveToCategoryPageCache(

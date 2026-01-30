@@ -1,7 +1,7 @@
 # 微信文件刷新问题修复报告
 
-> **问题日期**: 2026-01-30  
-> **分析方法**: Template E - 完整代码流程分析  
+> **问题日期**: 2026-01-30
+> **分析方法**: Template E - 完整代码流程分析
 > **修复状态**: ✅ 已修复
 
 ---
@@ -92,7 +92,7 @@ Future<void> _smartBackgroundRefresh() async {
     logger.d('RecommendAggregatePage: 调用 queryFiles with forceRefresh=true');
     // ❌ BUG: 只传递了 forceRefresh，没有传递 appKey
     final newFiles = await _dataSource.queryFiles({'forceRefresh': true});
-    
+
     // ... 后续处理代码 ...
   }
 }
@@ -127,7 +127,7 @@ Future<void> _loadFilesAndInitTabs() async {
 
     // 查询文件
     final files = await _dataSource.queryFiles(params);
-    
+
     // ...
   }
 }
@@ -138,7 +138,7 @@ Future<void> _loadFilesAndInitTabs() async {
 ```dart
 Future<void> _loadFiles({bool forceRefresh = false}) async {
   // ...
-  
+
   try {
     // 获取查询参数
     Map<String, dynamic> params;
@@ -164,7 +164,7 @@ Future<void> _loadFiles({bool forceRefresh = false}) async {
 
     // 查询文件（会优先使用缓存）
     final files = await _dataSource.queryFiles(params);
-    
+
     // ...
   }
 }
@@ -192,7 +192,7 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   if (appKey == null || appKey.isEmpty) {
     throw ArgumentError('appKey is required');  // ⚠️ 参数验证失败
   }
-  
+
   // ...
 }
 ```
@@ -227,13 +227,13 @@ Future<void> _smartBackgroundRefresh() async {
     // ✅ FIX: 使用 Mapper 获取完整查询参数（包含 appKey）
     final params = RecommendConfigDataSourceMapper.getDefaultQueryParams(widget.config.type);
     params['forceRefresh'] = true;
-    
+
     // 后台扫描（不阻塞UI）
     logger.d('RecommendAggregatePage: 调用 queryFiles with params: $params');
     final newFiles = await _dataSource.queryFiles(params);
 
     logger.i('RecommendAggregatePage: 扫描完成，获得 ${newFiles.length} 个文件');
-    
+
     // ... 后续处理逻辑保持不变 ...
   }
 }
@@ -241,11 +241,11 @@ Future<void> _smartBackgroundRefresh() async {
 
 ### 修复要点
 
-1. **使用标准Mapper**: 
+1. **使用标准Mapper**:
    ```dart
    // ❌ 错误：手动构建不完整的参数
    final newFiles = await _dataSource.queryFiles({'forceRefresh': true});
-   
+
    // ✅ 正确：使用Mapper获取完整参数
    final params = RecommendConfigDataSourceMapper.getDefaultQueryParams(widget.config.type);
    params['forceRefresh'] = true;
@@ -274,7 +274,7 @@ Future<void> _smartBackgroundRefresh() async {
   ↓
 500ms后触发后台刷新
   ↓
-_smartBackgroundRefresh() 
+_smartBackgroundRefresh()
   ↓
 ✅ 正确传递参数: {'appKey': 'wechat', 'useMediaStore': true, 'forceRefresh': true}
   ↓
@@ -323,7 +323,7 @@ MediaStore 扫描获取最新文件列表
 
 ### 经验教训
 
-1. **遵循架构模式**: 
+1. **遵循架构模式**:
    - 项目中已有 `RecommendConfigDataSourceMapper` 来统一管理参数构建
    - 应该在所有地方使用，而不是手动构建参数
 

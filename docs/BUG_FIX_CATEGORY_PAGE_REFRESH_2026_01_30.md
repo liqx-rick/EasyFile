@@ -1,6 +1,6 @@
 # 分类页面后台刷新问题修复报告
 
-> **问题日期**: 2026-01-30  
+> **问题日期**: 2026-01-30
 > **修复状态**: ✅ 已修复
 
 ---
@@ -39,7 +39,7 @@
 
 **错误代码** (第211行):
 ```dart
-class _CategoryFilePageState extends State<CategoryFilePage> 
+class _CategoryFilePageState extends State<CategoryFilePage>
     with EditModeMixin, PopScopeHandlerMixin {
   // ❌ 缺少 WidgetsBindingObserver
   // ...
@@ -75,11 +75,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
 
 ```dart
 // ❌ 修复前
-class _CategoryFilePageState extends State<CategoryFilePage> 
+class _CategoryFilePageState extends State<CategoryFilePage>
     with EditModeMixin, PopScopeHandlerMixin {
 
 // ✅ 修复后
-class _CategoryFilePageState extends State<CategoryFilePage> 
+class _CategoryFilePageState extends State<CategoryFilePage>
     with EditModeMixin, PopScopeHandlerMixin, WidgetsBindingObserver {
 ```
 
@@ -106,9 +106,9 @@ void initState() {
 @override
 void didChangeAppLifecycleState(AppLifecycleState state) {
   super.didChangeAppLifecycleState(state);
-  
+
   logger.i('CategoryFilePage: didChangeAppLifecycleState called - state: $state, category: ${widget.categoryType.name}');
-  
+
   // 应用从后台恢复时触发刷新
   if (state == AppLifecycleState.resumed && mounted) {
     logger.i('CategoryFilePage: ✅ 应用从后台恢复，触发后台刷新');
@@ -123,7 +123,7 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
 
 ```dart
 /// 后台静默刷新（应用从后台恢复时调用）
-/// 
+///
 /// 策略：
 /// - 不阻塞UI，后台静默刷新
 /// - 发现新文件时自动更新UI
@@ -189,7 +189,7 @@ Future<void> _backgroundRefresh() async {
 
       if (addedPaths.isNotEmpty || removedPaths.isNotEmpty) {
         logger.i('✨ 发现文件内容变化（数量相同但文件不同）');
-        
+
         // 更新数据和缓存
         setState(() {
           _files = newFiles;

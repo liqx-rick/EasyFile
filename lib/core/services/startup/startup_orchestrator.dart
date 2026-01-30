@@ -1,7 +1,8 @@
 import 'package:easyfile/core/logger.dart';
-import 'first_install_service.dart';
+
 import 'app_initialization_service.dart';
 import 'data_load_service.dart';
+import 'first_install_service.dart';
 
 /// 启动编排器
 ///

@@ -49,7 +49,8 @@ class UnifiedAppScanner {
   final AppFileListCache? _fileListCache;
 
   /// 最大递归深度（避免深层目录遍历）
-  static const int maxRecursionDepth = 5;
+  /// 优化：从5降到3，减少扫描时间（微信等应用文件通常在3层内）
+  static const int maxRecursionDepth = 3;
 
   /// 扫描结果缓存（appKey -> ScanResultCache）
   /// ⚠️ 使用静态变量确保跨实例共享缓存
@@ -322,10 +323,11 @@ class UnifiedAppScanner {
         }
       }
 
-      // 导出被过滤的文件路径到文件（仅用于分析）
-      if (filteredFiles.isNotEmpty && appKey == 'wechat') {
-        await _exportFilteredFiles(appKey, filteredFiles);
-      }
+      // 🚫 生产环境不导出过滤文件列表（节省时间和存储空间）
+      // 导出被过滤的文件路径到文件（仅用于开发调试）
+      // if (filteredFiles.isNotEmpty && appKey == 'wechat') {
+      //   await _exportFilteredFiles(appKey, filteredFiles);
+      // }
     }
 
     logger.i('========== 扫描完成: ${config.appName} ==========');
@@ -797,6 +799,7 @@ class UnifiedAppScanner {
   }
 
   /// 导出被过滤的文件路径到文件（用于分析）
+  // ignore: unused_element
   Future<void> _exportFilteredFiles(String appKey, List<FileItem> filteredFiles) async {
     try {
       final timestamp = DateTime.now().toString().replaceAll(':', '-').replaceAll(' ', '_');

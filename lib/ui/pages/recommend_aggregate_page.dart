@@ -143,7 +143,8 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    logger.i('RecommendAggregatePage: didChangeDependencies called - mounted: $mounted, _isFirstLoad: $_isFirstLoad, mode: ${widget.config.mode}');
+    logger.i(
+        'RecommendAggregatePage: didChangeDependencies called - mounted: $mounted, _isFirstLoad: $_isFirstLoad, mode: ${widget.config.mode}');
 
     // 所有加载场景（包括首次）都触发刷新检查
     if (mounted) {
@@ -151,8 +152,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       _checkAndReloadIfCacheCleared();
 
       // content模式和application模式：智能后台刷新（检查是否有新文件）
-      if (widget.config.mode == RecommendMode.content || 
-          widget.config.mode == RecommendMode.application) {
+      if (widget.config.mode == RecommendMode.content || widget.config.mode == RecommendMode.application) {
         // 延迟执行，避免阻塞首次渲染
         if (_isFirstLoad) {
           // 首次加载：延迟500ms后刷新
@@ -175,16 +175,15 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     logger.i('RecommendAggregatePage: didChangeAppLifecycleState called - state: $state, mode: ${widget.config.mode}');
-    
+
     // 应用从后台恢复时触发刷新
     if (state == AppLifecycleState.resumed && mounted) {
       logger.i('RecommendAggregatePage: ✅ 应用从后台恢复，触发后台刷新');
-      
+
       // content模式和application模式：智能后台刷新
-      if (widget.config.mode == RecommendMode.content || 
-          widget.config.mode == RecommendMode.application) {
+      if (widget.config.mode == RecommendMode.content || widget.config.mode == RecommendMode.application) {
         _smartBackgroundRefresh();
       }
     }
@@ -563,7 +562,7 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       // 获取正确的查询参数（包含必需的 appKey）
       final params = RecommendConfigDataSourceMapper.getDefaultQueryParams(widget.config.type);
       params['forceRefresh'] = true;
-      
+
       // 后台扫描（不阻塞UI）
       logger.d('RecommendAggregatePage: 调用 queryFiles with params: $params');
       final newFiles = await _dataSource.queryFiles(params);

@@ -913,6 +913,7 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     );
 
     // 跳转到统一的推荐聚合页面（方案A：无需等待返回值）
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
