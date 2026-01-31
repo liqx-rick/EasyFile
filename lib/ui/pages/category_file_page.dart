@@ -164,7 +164,8 @@ enum DownloadFileType implements FileTypeFilter {
     final config = AppConfig.instance.fileTypes;
     switch (this) {
       case DownloadFileType.installer:
-        return config.isInstallerFile(filename);
+        // 只匹配APK文件，其他安装包（EXE/MSI等）移至“其他”Tab
+        return config.isApkFile(filename);
       case DownloadFileType.archive:
         return config.isArchiveFile(filename);
       case DownloadFileType.document:
@@ -177,8 +178,9 @@ enum DownloadFileType implements FileTypeFilter {
         return config.isAudioFile(filename);
       case DownloadFileType.other:
         // 其他：动态判断，不属于已知分类的都是其他类型
+        // 注意：APK之外的安装包（EXE/MSI等）会在这里显示
         // 这样可以尊重用户意愿，支持任意文件类型
-        return !config.isInstallerFile(filename) &&
+        return !config.isApkFile(filename) &&
             !config.isArchiveFile(filename) &&
             !config.isDocumentFile(filename) &&
             !config.isImageFile(filename) &&
@@ -276,8 +278,11 @@ class _CategoryFilePageState extends State<CategoryFilePage>
     // 按文件类型筛选
     if (widget.categoryType == CategoryType.documents && _documentTypeFilter != DocumentFileType.all) {
       result = result.where((f) => _documentTypeFilter.matches(f.name)).toList();
-    } else if (widget.categoryType == CategoryType.downloads && _downloadTypeFilter != DownloadFileType.all) {
-      result = result.where((f) => _downloadTypeFilter.matches(f.name)).toList();
+    } else if (widget.categoryType == CategoryType.downloads) {
+      // 应用子类型筛选
+      if (_downloadTypeFilter != DownloadFileType.all) {
+        result = result.where((f) => _downloadTypeFilter.matches(f.name)).toList();
+      }
     }
 
     // 按搜索关键词筛选
@@ -1086,7 +1091,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       // 显示扫描进度
       if (_isLoading || _isRefreshing) {
         setState(() {
-          _loadingProgress = _isRefreshing ? '正在为您刷新页面列表，请稍等...' : '正在扫描${categoryInfo.name}文件...';
+          _loadingProgress = _isRefreshing ? '正在为您刷新页面列表，请稍等...' : '正在扫描${categoryInfo.name}文件，这可能需要一些时间...';
         });
       }
 
@@ -1311,7 +1316,12 @@ class _CategoryFilePageState extends State<CategoryFilePage>
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text(_loadingProgress.isEmpty ? '正在扫描文件...' : _loadingProgress),
+            Text(_loadingProgress.isEmpty ? '正在扫描文件，这可能需要一些时间...' : _loadingProgress),
+            const SizedBox(height: 8),
+            Text(
+              '扫描时间取决于文件数量',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
             if (_files.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(

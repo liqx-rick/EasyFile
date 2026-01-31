@@ -1,27 +1,30 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+
 import 'package:charset_converter/charset_converter.dart';
-import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/ui/widgets/video_player_widget.dart';
+import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/pages/apk_management_page.dart';
+import 'package:easyfile/ui/pages/archive_viewer_page.dart';
+import 'package:easyfile/ui/services/single_file_operations_service.dart';
 import 'package:easyfile/ui/widgets/background_audio_player_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
+import 'package:easyfile/ui/widgets/video_player_widget.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
-import 'package:easyfile/ui/services/single_file_operations_service.dart';
-import 'package:easyfile/ui/pages/archive_viewer_page.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_file/open_file.dart';
-import 'package:pdfx/pdfx.dart';
-import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart' as pw_pdf;
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdfx/pdfx.dart';
+import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FilePreviewPage extends StatefulWidget {
@@ -91,6 +94,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
 
     // 保存当前预览文件路径（用于后台恢复）
     _saveCurrentFilePath();
+
+    // 检查是否是APK文件，如果是则不进行预览（会在UI中显示提示信息）
+    // APK文件应该在安装包管理页面进行操作
 
     // 检查是否是压缩包文件，如果是则自动导航到压缩包查看器
     if (!widget.isReadOnly && FileUtils.isArchiveFile(widget.file.name)) {
@@ -190,9 +196,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
   Future<void> _saveCurrentFilePath() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final currentFile = widget.fileList != null && widget.fileList!.isNotEmpty
-          ? widget.fileList![_currentIndex]
-          : widget.file;
+      final currentFile =
+          widget.fileList != null && widget.fileList!.isNotEmpty ? widget.fileList![_currentIndex] : widget.file;
       await prefs.setString('last_viewed_file_path', currentFile.path);
       logger.d('Saved current file path: ${currentFile.path}');
     } catch (e) {
@@ -203,16 +208,16 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
   /// 导航到压缩包查看器
   Future<void> _navigateToArchiveViewer() async {
     logger.i('🗜️ Navigating to ArchiveViewerPage for: ${widget.file.name}');
-    
+
     final needsRefresh = await Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => ArchiveViewerPage(
           archiveFile: widget.file,
-          isReadOnly: true,  // 从预览入口进入，设置为只读模式
+          isReadOnly: true, // 从预览入口进入，设置为只读模式
         ),
       ),
     );
-    
+
     // 如果压缩包查看器返回需要刷新，则通知父页面
     if (needsRefresh == true && mounted) {
       Navigator.of(context).pop(true);
@@ -425,8 +430,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                       ],
                     ),
                     child: IconButton(
-                      icon:
-                          const Icon(Icons.chevron_right, color: Colors.white),
+                      icon: const Icon(Icons.chevron_right, color: Colors.white),
                       iconSize: 32,
                       onPressed: () {
                         if (_currentIndex < widget.fileList!.length - 1) {
@@ -453,9 +457,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
     final isDark = theme.brightness == Brightness.dark;
 
     // 判断是否为媒体文件（图片/视频/PDF）
-    final isMediaFile = FileUtils.isImageFile(file.name) ||
-        FileUtils.isVideoFile(file.name) ||
-        FileUtils.isPdfFile(file.name);
+    final isMediaFile =
+        FileUtils.isImageFile(file.name) || FileUtils.isVideoFile(file.name) || FileUtils.isPdfFile(file.name);
 
     return PopScope(
       canPop: !_fileModified,
@@ -494,9 +497,8 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
 
   /// 构建浮动半透明AppBar
   PreferredSizeWidget _buildFloatingAppBar(BuildContext context) {
-    final currentFile = widget.fileList != null && widget.fileList!.isNotEmpty
-        ? widget.fileList![_currentIndex]
-        : widget.file;
+    final currentFile =
+        widget.fileList != null && widget.fileList!.isNotEmpty ? widget.fileList![_currentIndex] : widget.file;
 
     // 尝试获取 ViewModel 和 Presenter（优先使用参数，否则尝试从 context 获取）
     FileViewModel? viewModel = widget.viewModel;
@@ -509,8 +511,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
         presenter ??= context.read<FilePresenter>();
       } catch (e) {
         // Provider 不可用，功能按钮将被隐藏
-        logger.d(
-            'Provider not available in FilePreviewPage, operation buttons will be hidden');
+        logger.d('Provider not available in FilePreviewPage, operation buttons will be hidden');
       }
     }
 
@@ -549,8 +550,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
         FileUtils.isPdfFile(currentFile.name);
 
     // If previewing media (black background) keep icons white for visibility.
-    final iconColor =
-        (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
+    final iconColor = (isDark || isMediaFile) ? Colors.white : theme.colorScheme.onSurface;
 
     return AppBar(
       backgroundColor: Colors.black.withValues(alpha: 0.6), // 半透明黑色背景（60%不透明度）
@@ -573,28 +573,21 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
       iconTheme: IconThemeData(color: iconColor),
       actions: [
         // 打印按钮（只对支持打印的文件显示，且服务可用时，非只读模式）
-        if (!widget.isReadOnly &&
-            !currentFile.isDirectory &&
-            _operationsService != null &&
-            _canPrint(currentFile))
+        if (!widget.isReadOnly && !currentFile.isDirectory && _operationsService != null && _canPrint(currentFile))
           IconButton(
             icon: const Icon(Icons.print),
             onPressed: () => _printFile(currentFile),
             tooltip: '打印',
           ),
         // 分享按钮（只对文件显示，且服务可用时，非只读模式）
-        if (!widget.isReadOnly && 
-            !currentFile.isDirectory && 
-            _operationsService != null)
+        if (!widget.isReadOnly && !currentFile.isDirectory && _operationsService != null)
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: () => _operationsService?.shareFile(currentFile),
             tooltip: '分享',
           ),
         // 收藏/取消收藏按钮（只对文件显示，且服务可用时，非只读模式）
-        if (!widget.isReadOnly && 
-            !currentFile.isDirectory && 
-            _operationsService != null)
+        if (!widget.isReadOnly && !currentFile.isDirectory && _operationsService != null)
           IconButton(
             icon: Icon(_isFavorite ? Icons.star : Icons.star_border),
             onPressed: () => _operationsService?.toggleFavorite(currentFile),
@@ -618,11 +611,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline,
-                          size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.info_outline, size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('文件详情',
-                          style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('文件详情', style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -633,11 +624,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.edit,
-                          size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.edit, size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('重命名',
-                          style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('重命名', style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -648,11 +637,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.drive_file_move,
-                          size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.drive_file_move, size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('移动',
-                          style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('移动', style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -663,11 +650,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(Icons.content_copy,
-                          size: 20, color: theme.colorScheme.onSurface),
+                      Icon(Icons.content_copy, size: 20, color: theme.colorScheme.onSurface),
                       SizedBox(width: 16),
-                      Text('复制',
-                          style: TextStyle(color: theme.colorScheme.onSurface)),
+                      Text('复制', style: TextStyle(color: theme.colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -714,8 +699,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
             final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
             if (updatedFile != null && widget.fileList != null) {
               // 更新 fileList 中的文件对象
-              final index =
-                  widget.fileList!.indexWhere((f) => f.path == file.path);
+              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
               if (index != -1) {
                 widget.fileList![index] = updatedFile;
               }
@@ -734,8 +718,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
             final updatedFile = widget.viewModel!.getUpdatedFile(file.path);
             if (updatedFile != null && widget.fileList != null) {
               // 更新 fileList 中的文件对象（路径已更新）
-              final index =
-                  widget.fileList!.indexWhere((f) => f.path == file.path);
+              final index = widget.fileList!.indexWhere((f) => f.path == file.path);
               if (index != -1) {
                 widget.fileList![index] = updatedFile;
               }
@@ -761,9 +744,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
 
   /// 判断文件是否支持打印
   bool _canPrint(FileItem file) {
-    return FileUtils.isImageFile(file.name) ||
-        FileUtils.isPdfFile(file.name) ||
-        FileUtils.isTextFile(file.name);
+    return FileUtils.isImageFile(file.name) || FileUtils.isPdfFile(file.name) || FileUtils.isTextFile(file.name);
   }
 
   /// 打印文件
@@ -923,8 +904,7 @@ class _FilePreviewItem extends StatefulWidget {
   State<_FilePreviewItem> createState() => __FilePreviewItemState();
 }
 
-class __FilePreviewItemState extends State<_FilePreviewItem>
-    with AutomaticKeepAliveClientMixin {
+class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepAliveClientMixin {
   String? _fileContent;
   bool _isLoading = true;
   String? _error;
@@ -954,6 +934,15 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
     try {
       logger.d('Loading file content for: ${widget.file.path}');
 
+      // APK 文件特殊处理：不加载内容，直接标记为加载完成
+      // 在 build 方法中会显示特殊的提示信息
+      if (AppConfig.instance.fileTypes.isApkFile(widget.file.name)) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
       // 图片、视频、音频不需要预加载
       if (FileUtils.isImageFile(widget.file.name) ||
           FileUtils.isVideoFile(widget.file.name) ||
@@ -982,8 +971,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
           // UTF-16 LE BOM: FF FE (Windows记事本常用)
           if (bytes[0] == 0xFF && bytes[1] == 0xFE) {
             try {
-              content = String.fromCharCodes(
-                  Uint16List.view(Uint8List.fromList(bytes.sublist(2)).buffer));
+              content = String.fromCharCodes(Uint16List.view(Uint8List.fromList(bytes.sublist(2)).buffer));
               decoded = true;
             } catch (e) {
               logger.w('UTF-16 LE decode failed: $e');
@@ -998,18 +986,14 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                 swapped.add(data[i + 1]);
                 swapped.add(data[i]);
               }
-              content = String.fromCharCodes(
-                  Uint16List.view(Uint8List.fromList(swapped).buffer));
+              content = String.fromCharCodes(Uint16List.view(Uint8List.fromList(swapped).buffer));
               decoded = true;
             } catch (e) {
               logger.w('UTF-16 BE decode failed: $e');
             }
           }
           // UTF-8 BOM: EF BB BF
-          else if (bytes.length >= 3 &&
-              bytes[0] == 0xEF &&
-              bytes[1] == 0xBB &&
-              bytes[2] == 0xBF) {
+          else if (bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
             try {
               content = utf8.decode(bytes.sublist(3));
               decoded = true;
@@ -1090,7 +1074,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         final file = File(widget.file.path);
         final bytes = await file.readAsBytes();
         logger.i('📄 File type detection - Name: ${widget.file.name}, Size: ${bytes.length} bytes');
-        
+
         // 检查文件是否过大（超过5MB不尝试作为文本打开）
         if (bytes.length > 5 * 1024 * 1024) {
           logger.w('❌ File too large for text detection: ${(bytes.length / 1024 / 1024).toStringAsFixed(2)} MB');
@@ -1105,11 +1089,11 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         logger.i('🔍 Running text content detection...');
         bool isLikelyText = _isLikelyTextContent(bytes);
         logger.i('📊 Detection result: ${isLikelyText ? "✅ TEXT" : "❌ BINARY"}');
-        
+
         if (isLikelyText) {
           // 尝试作为文本文件解码
           String? content;
-          
+
           // 尝试 UTF-8
           try {
             content = utf8.decode(bytes, allowMalformed: false);
@@ -1122,7 +1106,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
               content = utf8.decode(bytes, allowMalformed: true);
             }
           }
-          
+
           logger.i('✅ Successfully loaded as text file (${content.length} characters)');
           setState(() {
             _fileContent = content;
@@ -1157,14 +1141,14 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
   }
 
   /// 检测字节内容是否可能是文本文件
-  /// 
+  ///
   /// 检测策略：
   /// 1. 检查是否有BOM（UTF-8/UTF-16）
   /// 2. 统计不可打印字符的比例
   /// 3. 如果不可打印字符 < 5%，判定为文本
   bool _isLikelyTextContent(Uint8List bytes) {
     if (bytes.isEmpty) return false;
-    
+
     // 检查 BOM（如果有 BOM，肯定是文本）
     if (bytes.length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) {
       logger.i('   ✓ UTF-8 BOM detected');
@@ -1178,14 +1162,14 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       logger.i('   ✓ UTF-16 BE BOM detected');
       return true; // UTF-16 BE BOM
     }
-    
+
     // 采样检测（检查前1000字节或全部）
     final sampleSize = bytes.length > 1000 ? 1000 : bytes.length;
     int nonPrintableCount = 0;
-    
+
     for (int i = 0; i < sampleSize; i++) {
       final byte = bytes[i];
-      
+
       // 允许的字符：
       // - 可打印 ASCII (32-126)
       // - 常见控制字符：TAB(9), LF(10), CR(13)
@@ -1198,10 +1182,11 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         nonPrintableCount++;
       }
     }
-    
+
     // 如果不可打印字符比例 < 5%，认为是文本
     final nonPrintableRatio = nonPrintableCount / sampleSize;
-    logger.i('   📈 Statistics: sampled $sampleSize bytes, non-printable: $nonPrintableCount (${(nonPrintableRatio * 100).toStringAsFixed(2)}%)');
+    logger.i(
+        '   📈 Statistics: sampled $sampleSize bytes, non-printable: $nonPrintableCount (${(nonPrintableRatio * 100).toStringAsFixed(2)}%)');
     final isText = nonPrintableRatio < 0.05;
     logger.i('   ${isText ? "✓" : "✗"} Threshold check: ${(nonPrintableRatio * 100).toStringAsFixed(2)}% < 5.00%');
     return isText;
@@ -1227,7 +1212,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       // 先 await 打开 PDF 以捕获加密/损坏等错误
       // 成功后用 Future.value() 包装传给 PdfController
       final document = await PdfDocument.openFile(widget.file.path);
-      
+
       setState(() {
         _pdfController = PdfController(document: Future.value(document));
         _isLoading = false;
@@ -1244,8 +1229,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
         errorMessage = '无法读取文件，请检查应用权限';
       } else if (e.toString().contains("Can't open file")) {
         errorMessage = 'PDF文件已损坏或格式不正确';
-      } else if (e.toString().contains('channel-error') ||
-          e.toString().contains('PlatformException')) {
+      } else if (e.toString().contains('channel-error') || e.toString().contains('PlatformException')) {
         // pdfx 插件平台通道错误，通常是插件初始化失败
         errorMessage = 'PDF 预览功能暂不可用\n请使用其他应用打开';
       } else {
@@ -1280,7 +1264,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
     if (_error != null) {
       // 判断是否是"不支持的文件类型"错误
       final isUnsupportedType = _error!.contains('不支持预览此文件类型');
-      
+
       return GestureDetector(
         onTapUp: (details) {
           widget.onTap?.call();
@@ -1344,6 +1328,62 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
       );
     }
 
+    // APK 文件特殊处理：显示提示信息引导用户前往安装包管理页面
+    if (AppConfig.instance.fileTypes.isApkFile(widget.file.name)) {
+      return GestureDetector(
+        onTapUp: (details) {
+          widget.onTap?.call();
+        },
+        child: Container(
+          color: isDark ? Colors.black : theme.colorScheme.surface,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.android,
+                  size: 64,
+                  color: isDark ? Colors.white70 : Colors.grey[600],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  '当前文件是安装包',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '请前往安装包管理页面进行操作',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white70 : Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // 导航到安装包管理页面
+                    Navigator.of(context).pop(); // 先返回
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const ApkManagementPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.apps),
+                  label: const Text('前往安装包管理'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // 根据文件类型显示不同预览
     if (FileUtils.isImageFile(widget.file.name)) {
       return _buildImagePreview();
@@ -1380,8 +1420,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.broken_image,
-                          size: 64, color: Colors.grey),
+                      const Icon(Icons.broken_image, size: 64, color: Colors.grey),
                       const SizedBox(height: 16),
                       const Text(
                         '图片加载失败',
@@ -1389,8 +1428,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                       ),
                       Text(
                         '$error',
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.white70),
+                        style: const TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -1491,9 +1529,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
 
                 // 文件信息卡片
                 Card(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : theme.colorScheme.surfaceContainerHighest,
+                  color: isDark ? Colors.white.withValues(alpha: 0.1) : theme.colorScheme.surfaceContainerHighest,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -1502,8 +1538,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
                         const SizedBox(height: 8),
                         _buildDocInfoRow(
                           '大小',
-                          FileSizeFormatter.formatBytesWithSpace(
-                              widget.file.size),
+                          FileSizeFormatter.formatBytesWithSpace(widget.file.size),
                         ),
                         const SizedBox(height: 8),
                         _buildDocInfoRow(

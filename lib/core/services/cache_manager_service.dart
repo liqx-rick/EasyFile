@@ -1,6 +1,7 @@
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_file_list_cache.dart';
+import 'package:easyfile/core/services/archive_cache_service.dart';
 import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
 import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
@@ -392,6 +393,27 @@ class CacheManagerService {
       ));
     }
 
+    // 13. 压缩包列表缓存
+    try {
+      final archiveListSize = await _getArchiveListCacheSize();
+      final description = archiveListSize > 0 ? '压缩包扫描结果缓存' : '无缓存';
+
+      items.add(CacheItem(
+        name: '压缩包列表缓存',
+        description: description,
+        size: archiveListSize,
+        type: CacheType.archiveList,
+      ));
+    } catch (e) {
+      logger.e('Failed to get archive list cache info: $e');
+      items.add(CacheItem(
+        name: '压缩包列表缓存',
+        description: '获取信息失败',
+        size: 0,
+        type: CacheType.archiveList,
+      ));
+    }
+
     return items;
   }
 
@@ -505,6 +527,12 @@ class CacheManagerService {
           }
 
           logger.i('App file list cache cleared');
+          return true;
+
+        case CacheType.archiveList:
+          final archiveCacheService = ArchiveCacheService();
+          await archiveCacheService.clearCache();
+          logger.i('Archive list cache cleared');
           return true;
       }
     } catch (e) {
@@ -827,6 +855,22 @@ class CacheManagerService {
     }
   }
 
+  /// 获取压缩包列表缓存大小
+  Future<int> _getArchiveListCacheSize() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheJson = prefs.getString('archive_scan_cache');
+      if (cacheJson != null) {
+        // 估算JSON字符串大小（UTF-8编码）
+        return cacheJson.length;
+      }
+      return 0;
+    } catch (e) {
+      logger.e('Failed to get archive list cache size: $e');
+      return 0;
+    }
+  }
+
   /// 获取应用文件列表缓存的应用数量
   Future<int> _getAppFileListCacheCount() async {
     try {
@@ -855,6 +899,7 @@ enum CacheType {
   junkScan, // 垃圾文件扫描缓存（垃圾文件清理+系统回收站扫描）
   archivePreview, // 压缩包预览缓存
   appFileList, // 应用文件列表缓存（微信/QQ等应用的完整文件列表）
+  archiveList, // 压缩包列表缓存
 }
 
 extension CacheTypeExtension on CacheType {
@@ -884,6 +929,8 @@ extension CacheTypeExtension on CacheType {
         return '压缩包预览缓存';
       case CacheType.appFileList:
         return '应用文件列表缓存';
+      case CacheType.archiveList:
+        return '压缩包列表缓存';
     }
   }
 }

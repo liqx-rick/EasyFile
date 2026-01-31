@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:easyfile/analytics/analytics_helper.dart';
+import 'package:easyfile/core/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
@@ -31,7 +32,11 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
-  Timer? _refreshTimer;
+
+  // 扫描状态显示
+  bool _isScanning = false;
+  String? _scanResultMessage;
+  Timer? _scanResultTimer;
 
   @override
   void initState() {
@@ -39,14 +44,7 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
     final filePresenter = GetIt.I<FilePresenter>();
     _apkManagerService = ApkManagerService(filePresenter: filePresenter);
-    _loadApkFiles(); // 首次加载优先使用缓存
-
-    // 启动定时器，每60秒后台刷新（不阻塞UI）
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (mounted) {
-        _loadApkFilesInBackground(); // 后台静默刷新
-      }
-    });
+    _loadApkFilesWithCache(); // 优先显示缓存，3秒后后台全量扫描
 
     // 启动包管理器监听（页面级）
     _apkManagerService.startPackageListener(_onPackageChanged);
@@ -58,7 +56,7 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _refreshTimer?.cancel();
+    _scanResultTimer?.cancel();
     _apkManagerService.stopPackageListener(); // 停止包监听
     super.dispose();
   }
@@ -67,10 +65,10 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // 当应用从后台返回前台时（如从设置页卸载后返回），自动刷新
+    // 当应用从后台返回前台时（如从安装页面返回），快速更新安装状态
     if (state == AppLifecycleState.resumed) {
       if (mounted) {
-        _loadApkFilesInBackground(); // 后台刷新，不阻塞UI
+        _quickUpdateInstallStatus(); // 快速更新安装状态，不重新扫描
       }
     }
   }
@@ -80,20 +78,113 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
     if (!mounted) return;
 
     // 实时更新安装状态
-    _loadApkFilesInBackground();
+    _quickUpdateInstallStatus();
+  }
+
+  /// 快速更新安装状态（不重新扫描文件）
+  Future<void> _quickUpdateInstallStatus() async {
+    if (_apkList.isEmpty) return;
+
+    try {
+      final updatedList = await _apkManagerService.updateInstallStatus(_apkList);
+      if (mounted) {
+        setState(() {
+          _apkList = updatedList;
+        });
+      }
+    } catch (e) {
+      logger.e('[ApkManagementPage] 快速更新状态失败: $e');
+    }
   }
 
   /// 后台加载APK文件（不显示loading，静默更新）
   Future<void> _loadApkFilesInBackground() async {
+    // 取消之前的扫描结果定时器
+    _scanResultTimer?.cancel();
+
+    if (mounted) {
+      setState(() {
+        _isScanning = true;
+        _scanResultMessage = null;
+      });
+    }
+
     try {
       final apkList = await _apkManagerService.scanApkFiles(forceRefresh: true);
       if (mounted) {
         setState(() {
-          _apkList = apkList; // 只更新数据，不设置loading状态
+          _apkList = apkList;
+          _isScanning = false;
+          _scanResultMessage = '扫描完成，发现 ${apkList.length} 个APK';
+        });
+
+        // 5秒后隐藏扫描结果
+        _scanResultTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _scanResultMessage = null;
+            });
+          }
         });
       }
     } catch (e) {
-      // 后台刷新失败不影响UI，静默处理
+      // 记录错误但不影响UI
+      logger.e('[ApkManagementPage] 后台刷新失败: $e');
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _scanResultMessage =
+              '扫描失败: ${e.toString().length > 30 ? '${e.toString().substring(0, 30)}...' : e.toString()}';
+        });
+
+        // 5秒后隐藏错误消息
+        _scanResultTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _scanResultMessage = null;
+            });
+          }
+        });
+      }
+    }
+  }
+
+  /// 优先加载缓存，然后后台全量扫描
+  Future<void> _loadApkFilesWithCache() async {
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+      _errorMessage = null;
+    });
+
+    try {
+      // 尝试从缓存加载
+      final apkList = await _apkManagerService.scanApkFiles(forceRefresh: false);
+
+      if (mounted) {
+        setState(() {
+          _apkList = apkList;
+          _isLoading = false;
+        });
+
+        // 如果有缓存数据，3秒后后台触发全量扫描
+        if (apkList.isNotEmpty) {
+          Timer(const Duration(seconds: 3), () {
+            if (mounted) {
+              _loadApkFilesInBackground(); // 后台全量扫描
+            }
+          });
+        } else {
+          // 如果没有缓存，立即触发全量扫描
+          _loadApkFiles(forceRefresh: true);
+        }
+      }
+    } catch (e) {
+      logger.e('[ApkManagementPage] 加载缓存失败: $e');
+      // 缓存加载失败，立即触发全量扫描
+      if (mounted) {
+        _loadApkFiles(forceRefresh: true);
+      }
     }
   }
 
@@ -170,6 +261,10 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
     } else if (apkInfo.status == ApkInstallStatus.installed ||
         apkInfo.status == ApkInstallStatus.upgradable ||
         apkInfo.status == ApkInstallStatus.signatureMismatch) {
+      // 禁止访问易览文件自身的应用信息页面
+      if (apkInfo.packageName == 'com.guangqi.easyfile') {
+        return;
+      }
       await _handleOpenSettings(apkInfo);
     }
   }
@@ -265,7 +360,8 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
                   _handleInstall(apkInfo);
                 },
               )
-            else
+            else if (apkInfo.packageName != 'com.guangqi.easyfile')
+              // 禁止易览文件自身打开应用设置
               ListTile(
                 leading: const Icon(Icons.settings),
                 title: const Text('应用设置'),
@@ -303,7 +399,10 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
           ),
         ],
       ),
-      body: _buildBody(),
+      body: RefreshIndicator(
+        onRefresh: _loadApkFilesInBackground,
+        child: _buildBody(),
+      ),
     );
   }
 
@@ -344,23 +443,69 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
     }
 
     if (_apkList.isEmpty) {
-      return Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.inbox, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('未发现APK文件', style: TextStyle(color: Colors.grey)),
-            ],
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          SizedBox(height: 100),
+          Icon(Icons.inbox, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Center(
+            child: Text('未发现APK文件', style: TextStyle(color: Colors.grey)),
           ),
-        ),
+          SizedBox(height: 16),
+          Center(
+            child: Text(
+              '下拉刷新',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ),
+        ],
       );
     }
 
     return Column(
       children: [
+        // 扫描状态显示区域
+        if (_isScanning || _scanResultMessage != null)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: _isScanning
+                ? Colors.blue.shade50
+                : (_scanResultMessage?.contains('失败') ?? false)
+                    ? Colors.red.shade50
+                    : Colors.green.shade50,
+            child: Row(
+              children: [
+                if (_isScanning)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(
+                    (_scanResultMessage?.contains('失败') ?? false) ? Icons.error_outline : Icons.check_circle_outline,
+                    size: 16,
+                    color: (_scanResultMessage?.contains('失败') ?? false) ? Colors.red : Colors.green,
+                  ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _isScanning ? '正在扫描APK文件...' : _scanResultMessage!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _isScanning
+                          ? Colors.blue.shade700
+                          : (_scanResultMessage?.contains('失败') ?? false)
+                              ? Colors.red.shade700
+                              : Colors.green.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // 统计信息
         Container(
           padding: const EdgeInsets.all(16),

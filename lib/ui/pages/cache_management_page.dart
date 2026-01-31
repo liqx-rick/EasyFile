@@ -367,6 +367,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
         return Icons.folder_zip;
       case CacheType.appFileList:
         return Icons.list_alt;
+      case CacheType.archiveList:
+        return Icons.archive;
     }
   }
 

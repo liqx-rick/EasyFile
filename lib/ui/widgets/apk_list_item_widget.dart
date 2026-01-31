@@ -175,29 +175,37 @@ class ApkListItemWidget extends StatelessWidget {
       int.parse(apkInfo.status.colorHex.substring(1), radix: 16) + 0xFF000000,
     );
 
+    // 检查是否是易览文件自身的安装包且已安装
+    final isSelfPackage = apkInfo.packageName == 'com.guangqi.easyfile';
+    final isInstalled = apkInfo.status == ApkInstallStatus.installed ||
+        apkInfo.status == ApkInstallStatus.upgradable ||
+        apkInfo.status == ApkInstallStatus.signatureMismatch;
+    final shouldDisable = isSelfPackage && isInstalled;
+
     return InkWell(
-      onTap: onStatusTap,
+      onTap: shouldDisable ? null : onStatusTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.12),
+          color: shouldDisable ? Colors.grey.withOpacity(0.12) : statusColor.withOpacity(0.12),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: statusColor.withOpacity(0.5), width: 1),
+          border: Border.all(
+            color: shouldDisable ? Colors.grey.withOpacity(0.3) : statusColor.withOpacity(0.5),
+            width: 1,
+          ),
         ),
         child: Text(
           apkInfo.status.displayName,
           style: TextStyle(
             fontSize: 11,
-            color: statusColor,
+            color: shouldDisable ? Colors.grey : statusColor,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
     );
   }
-
-
 
   /// 格式化文件大小
   String _formatFileSize(int bytes) {

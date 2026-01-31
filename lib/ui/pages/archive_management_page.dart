@@ -4,6 +4,7 @@ import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
+import 'package:easyfile/core/services/archive_cache_service.dart';
 import 'package:easyfile/core/services/archive_preview_cache_manager.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/extraction_notification_manager.dart';
@@ -31,7 +32,6 @@ import 'package:easyfile/ui/widgets/unified_view_config.dart';
 import 'package:easyfile/utils/file_utils.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// 压缩包管理页面
 ///
@@ -72,14 +72,19 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
   Map<String, bool> _recordFolderExistsMap = {};
   bool _isLoadingRecords = true;
 
-  // 已解压压缩包标记（用于显示角标）
-  Set<String> _extractedArchives = {};
-  static const String _extractedArchivesKey = 'extracted_archives';
+  // 已解压压缩包标记（从解压记录派生，用于显示角标）
+  Set<String> get _extractedArchives {
+    return _extractionRecords
+        .where((r) => r.targetPath.isNotEmpty)
+        .map((r) => r.archivePath)
+        .toSet();
+  }
 
   // 数据源和依赖
   late final FilePresenter _presenter;
   late final FileViewModel _viewModel;
   late final PageSettingsService _pageSettingsService;
+  final ArchiveCacheService _archiveCacheService = ArchiveCacheService();
 
   // 加载状态
   bool _isScanning = true;
@@ -166,9 +171,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
           if (isEditMode && _selectionController.contains(deletedPath)) {
             _selectionController.deselect(deletedPath);
           }
-          // 从已解压标记中移除
-          _extractedArchives.remove(deletedPath);
-          _saveExtractedArchives();
+          // 注：已解压标记现在从_extractionRecords派生，无需手动维护
         }
       });
       return;
@@ -231,9 +234,6 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       setState(() {});
     });
 
-    // 加载已解压标记
-    _loadExtractedArchives();
-
     // 初始化依赖
     _presenter = locator<FilePresenter>();
     _viewModel = locator<FileViewModel>();
@@ -275,34 +275,11 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
     // 先加载排序偏好，再扫描压缩包（确保使用正确的排序）
     _loadSortPreferences().then((_) {
-      _scanArchives();
+      _loadArchivesWithCache(); // 优先显示缓存，3秒后后台扫描
     });
 
     // 埋点：进入归档管理页面
     AnalyticsHelper.logArchiveManagementEnter();
-  }
-
-  /// 加载已解压压缩包标记
-  Future<void> _loadExtractedArchives() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final List<String> paths = prefs.getStringList(_extractedArchivesKey) ?? [];
-      setState(() {
-        _extractedArchives = Set.from(paths);
-      });
-    } catch (e) {
-      debugPrint('加载已解压标记失败: $e');
-    }
-  }
-
-  /// 保存已解压压缩包标记
-  Future<void> _saveExtractedArchives() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_extractedArchivesKey, _extractedArchives.toList());
-    } catch (e) {
-      debugPrint('保存已解压标记失败: $e');
-    }
   }
 
   /// 加载记录数量
@@ -468,6 +445,75 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     }
   }
 
+  /// 优先加载缓存，然后后台全量扫描
+  Future<void> _loadArchivesWithCache() async {
+    setState(() {
+      _isScanning = true;
+      _errorMessage = '';
+    });
+
+    try {
+      // 尝试从缓存加载
+      final cachedArchives = await _archiveCacheService.getCachedArchiveList();
+
+      if (cachedArchives != null && cachedArchives.isNotEmpty) {
+        // 使用缓存数据
+        logger.i('[ArchiveManagementPage] 使用缓存数据: ${cachedArchives.length}个压缩包');
+
+        if (mounted) {
+          setState(() {
+            allFiles = cachedArchives;
+            _applySorting();
+            _isScanning = false;
+          });
+        }
+
+        // 3秒后后台触发全量扫描
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _scanArchivesInBackground(); // 后台全量扫描
+          }
+        });
+      } else {
+        // 没有缓存，立即触发全量扫描
+        logger.i('[ArchiveManagementPage] 无缓存数据，执行全量扫描');
+        await _scanArchives();
+      }
+    } catch (e) {
+      logger.e('[ArchiveManagementPage] 加载缓存失败: $e');
+      // 缓存加载失败，立即触发全量扫描
+      if (mounted) {
+        await _scanArchives();
+      }
+    }
+  }
+
+  /// 后台扫描压缩包（不显示loading，静默更新）
+  Future<void> _scanArchivesInBackground() async {
+    logger.i('[ArchiveManagementPage] 开始后台扫描');
+
+    try {
+      // 后台扫描
+      final scannedFiles = await _presenter.scanFilesByCategory(CategoryType.archive);
+      await _fixIncompleteFileMetadata(scannedFiles);
+
+      // 保存到缓存
+      await _archiveCacheService.saveArchiveListCache(scannedFiles);
+
+      if (mounted) {
+        setState(() {
+          allFiles = scannedFiles;
+          _applySorting();
+        });
+      }
+
+      logger.i('[ArchiveManagementPage] 后台扫描完成: ${scannedFiles.length}个压缩包');
+    } catch (e) {
+      logger.e('[ArchiveManagementPage] 后台扫描失败: $e');
+      // 后台扫描失败不影响用户，静默处理
+    }
+  }
+
   /// 扫描压缩包列表
   Future<void> _scanArchives() async {
     setState(() {
@@ -524,6 +570,9 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
         totalSizeMb: totalSizeMb,
         durationMs: durationMs,
       );
+
+      // 保存到缓存
+      await _archiveCacheService.saveArchiveListCache(allFiles);
 
       if (mounted) {
         setState(() {
@@ -1068,11 +1117,8 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
     final sizeMb = archive.size / (1024 * 1024);
     AnalyticsHelper.logArchiveExtract(format, sizeMb, true);
 
-    // 标记为已解压（点击开始解压按钮时立即标记）
-    setState(() {
-      _extractedArchives.add(archive.path);
-    });
-    _saveExtractedArchives();
+    // 注：解压标记现在从_extractionRecords派生，无需手动添加
+    // 解压完成后，ExtractionRecordService会自动记录，_extractedArchives getter会反映更新
 
     singleFileOperationsService.extractArchive(archive);
   }
