@@ -1,7 +1,7 @@
 # APK管理混合扫描优化实施报告
 
-> **实施日期**: 2026-01-31  
-> **优化目标**: 修复APK管理页面无法扫描到特定权限APK的问题  
+> **实施日期**: 2026-01-31
+> **优化目标**: 修复APK管理页面无法扫描到特定权限APK的问题
 > **分支**: `feature/apk-management-hybrid-scan`
 
 ---
@@ -106,11 +106,11 @@ import 'package:easyfile/core/platform/mediastore_scanner_channel.dart';
 try {
   logger.i('[ApkManagerService] 📱 阶段1: MediaStore扫描...');
   final mediaStoreFiles = await MediaStoreScannerChannel.scanApks();
-  
+
   for (final file in mediaStoreFiles) {
     apkFilePaths.add(file.path); // 使用Set自动去重
   }
-  
+
   mediaStoreCount = apkFilePaths.length;
   logger.i('[ApkManagerService] ✅ MediaStore扫描完成: $mediaStoreCount 个APK');
 } catch (e) {
@@ -124,16 +124,16 @@ try {
 // ========== 阶段2: 文件系统扫描补充 ==========
 try {
   logger.i('[ApkManagerService] 📁 阶段2: 文件系统扫描补充...');
-  
+
   final scanPaths = await _filePresenter.getCommonScanPaths();
   final priorityPaths = _getPriorityApkPaths(scanPaths);
-  
+
   final beforeCount = apkFilePaths.length;
   for (final scanPath in priorityPaths) {
     final pathApks = await _findApkFilesInPath(scanPath);
     apkFilePaths.addAll(pathApks); // Set自动去重
   }
-  
+
   fileSystemCount = apkFilePaths.length - beforeCount;
   logger.i('[ApkManagerService] ✅ 文件系统补充: $fileSystemCount 个APK');
 } catch (e) {
@@ -350,6 +350,6 @@ Future<void> _loadApkFilesInBackground() async {
 
 ---
 
-**实施状态**: ✅ 已完成  
-**测试状态**: ⏳ 待测试  
+**实施状态**: ✅ 已完成
+**测试状态**: ⏳ 待测试
 **发布状态**: ⏳ 待发布

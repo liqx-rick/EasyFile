@@ -11,7 +11,7 @@ import '../logger.dart';
 class ApkCacheService {
   static const String _cacheKey = 'apk_scan_cache';
   static const String _timestampKey = 'apk_scan_timestamp';
-  static const Duration _cacheExpiration = Duration(minutes: 30); // 30分钟过期
+  static const Duration _cacheExpiration = Duration(hours: 24); // 24小时过期
 
   /// 获取缓存的APK列表
   ///

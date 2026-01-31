@@ -571,12 +571,12 @@ class FilePresenter {
             if (rf.isDirectory) return false;
 
             // **类型过滤**：只显示支持的文件类型（过滤缓存中的旧数据）
+            // 排除APK文件（有单独的安装包管理模块）
             return fileTypes.isImageFile(rf.name) ||
                 fileTypes.isVideoFile(rf.name) ||
                 fileTypes.isAudioFile(rf.name) ||
                 fileTypes.isDocumentFile(rf.name) ||
-                fileTypes.isArchiveFile(rf.name) ||
-                fileTypes.isApkFile(rf.name);
+                fileTypes.isArchiveFile(rf.name);
           })
           .map((rf) => rf.toFileItem())
           .toList();
@@ -1248,20 +1248,10 @@ class FilePresenter {
     final paths = <String>[];
 
     try {
-      debugPrint('\n========== getCommonScanPaths() 开始 ==========');
-
       // 阶段1: 添加系统预定义目录（已知的高价值路径）
       final systemPaths = await _getSystemPaths();
       paths.addAll(systemPaths);
       logger.d('System paths: ${systemPaths.length}');
-      debugPrint('[路径发现] 阶段1-系统路径: ${systemPaths.length} 个');
-      if (systemPaths.length <= 5) {
-        for (var i = 0; i < systemPaths.length; i++) {
-          debugPrint('  系统路径示例 ${i + 1}: ${systemPaths[i]}');
-        }
-      } else {
-        debugPrint('  系统路径示例 1-3: ${systemPaths.take(3).join(', ')}');
-      }
 
       // 阶段2: 添加根目录本身（❌ 已废弃 - 会导致路径重叠）
       // 原因分析：
@@ -1269,33 +1259,14 @@ class FilePresenter {
       // 2. 如果再添加根目录并递归扫描，会导致所有文件被扫描2次
       // 3. 根目录直接放置的文件场景极少，可以接受不扫描
       // 结论：删除此阶段，避免2倍重复扫描
-      /*
-      String? rootPath;
-      if (Platform.isAndroid) {
-        rootPath = '/storage/emulated/0';
-      } else if (Platform.isWindows) {
-        rootPath = Platform.environment['USERPROFILE'];
-      } else {
-        rootPath = Platform.environment['HOME'];
-      }
-      if (rootPath != null && Directory(rootPath).existsSync()) {
-        paths.add(rootPath);
-        logger.d('Added root path itself: $rootPath');
-        debugPrint('[路径发现] 阶段2-根目录本身: $rootPath');
-      }
-      */
-      debugPrint('[路径发现] 阶段2-根目录本身: 已禁用（避免与子目录重复扫描）');
 
       // 阶段3: 发现用户自定义文件夹（根目录第一层扫描）
       final discoveredPaths = await _discoverUserFolders();
       paths.addAll(discoveredPaths);
       logger.d('Discovered user folders: ${discoveredPaths.length}');
-      debugPrint('[路径发现] 阶段3-用户文件夹: ${discoveredPaths.length} 个');
     } catch (e) {
       logger.w('Error getting common scan paths: $e');
     }
-
-    debugPrint('[路径发现] 合并前总数: ${paths.length} 个');
 
     // 去重并过滤存在的路径
     final existingPaths = <String>[];
@@ -1308,16 +1279,6 @@ class FilePresenter {
     }
 
     logger.i('Total scan paths: ${existingPaths.length}');
-    debugPrint('[路径发现] 最终结果: ${existingPaths.length} 个有效路径');
-
-    // 🔍🔍🔍 实验：打印所有扫描路径
-    debugPrint('\n📋📋📋 [实验] getCommonScanPaths() 返回的完整路径列表:');
-    for (var i = 0; i < existingPaths.length; i++) {
-      debugPrint('  [$i] ${existingPaths[i]}');
-    }
-    debugPrint('📋 总计: ${existingPaths.length} 个路径\n');
-
-    debugPrint('==========================================\n');
     return existingPaths;
   }
 
@@ -1392,8 +1353,6 @@ class FilePresenter {
     final discovered = <String>[];
 
     try {
-      debugPrint('\n[用户文件夹发现] 开始扫描根目录...');
-
       // 确定扫描根目录
       String? rootPath;
       if (Platform.isAndroid) {
@@ -1406,21 +1365,13 @@ class FilePresenter {
 
       if (rootPath == null || !Directory(rootPath).existsSync()) {
         logger.w('Root path not found or not exists');
-        debugPrint('[用户文件夹发现] ⚠️ 根目录不存在: $rootPath');
         return discovered;
       }
 
       logger.d('Discovering user folders in: $rootPath');
-      debugPrint('[用户文件夹发现] 扫描根目录: $rootPath');
 
       // 扫描根目录第一层（只扫描一层，不递归）
       final entities = Directory(rootPath).listSync(followLinks: false);
-      debugPrint('[用户文件夹发现] listSync() 返回了 ${entities.length} 个项目');
-
-      var skippedHidden = 0;
-      var skippedSystem = 0;
-      var skippedExcluded = 0;
-      var foundCount = 0;
 
       for (final entity in entities) {
         if (entity is! Directory) continue;
@@ -1429,7 +1380,6 @@ class FilePresenter {
 
         // 跳过隐藏文件夹
         if (folderName.startsWith('.')) {
-          skippedHidden++;
           continue;
         }
 
@@ -1437,35 +1387,28 @@ class FilePresenter {
         // 根据平台选择对应的系统目录列表
         final systemFolders = Platform.isAndroid ? _androidSystemFolderNames : _desktopSystemFolderNames;
         if (systemFolders.contains(folderName)) {
-          skippedSystem++;
           continue;
         }
 
         // 跳过应用/系统数据目录
         if (excludedFolders.contains(folderName)) {
-          skippedExcluded++;
           continue;
         }
 
         // 跳过16进制临时文件夹（下载缓存等）
         if (_isHexTempFolder(folderName)) {
-          skippedExcluded++;
           logger.d('Skipping hex temp folder in root: $folderName');
           continue;
         }
 
         // 这是用户自定义文件夹，添加到列表
         discovered.add(entity.path);
-        foundCount++;
         logger.d('Found user folder: ${entity.path}');
       }
 
-      debugPrint(
-          '[用户文件夹发现] 统计: 总计=${entities.length}, 隐藏=$skippedHidden, 系统=$skippedSystem, 排除=$skippedExcluded, 发现=$foundCount');
       logger.i('Discovered ${discovered.length} user-defined folders');
     } catch (e) {
       logger.w('Error discovering user folders: $e');
-      debugPrint('[用户文件夹发现] ❌ 错误: $e');
     }
 
     return discovered;
@@ -1682,13 +1625,13 @@ class FilePresenter {
 
         // **关键过滤**: 只显示 FileTypesConfig 支持的文件类型
         // 注意：直接传入文件名，让 FileTypesConfig 内部提取扩展名
+        // 排除APK文件（有单独的安装包管理模块）
         final fileName = newFileItem.path.split('/').last;
         final isSupported = fileTypes.isImageFile(fileName) ||
             fileTypes.isVideoFile(fileName) ||
             fileTypes.isAudioFile(fileName) ||
             fileTypes.isDocumentFile(fileName) ||
-            fileTypes.isArchiveFile(fileName) ||
-            fileTypes.isApkFile(fileName);
+            fileTypes.isArchiveFile(fileName);
 
         if (isSupported) {
           fileItems.add(FileItem.fromEntity(file));
