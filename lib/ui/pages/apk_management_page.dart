@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:easyfile/analytics/analytics_helper.dart';
+import 'package:easyfile/core/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 

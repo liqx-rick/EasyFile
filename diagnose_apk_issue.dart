@@ -1,8 +1,5 @@
 import 'dart:io';
 import 'package:easyfile/core/config/file_types_config.dart';
-import 'package:easyfile/core/services/apk_manager_service.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/core/di/locator.dart';
 
 /// APK识别问题诊断脚本
 /// 

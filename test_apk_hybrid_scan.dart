@@ -104,7 +104,7 @@ void main() {
   print('');
   print('2. 检查文件是否被MediaStore索引:');
   print('   adb shell content query --uri content://media/external/file \\');
-  print('     --where "_data LIKE \\'%app-release.apk%\\'"');
+  print('     --where "_data LIKE \'%app-release.apk%\'"');
   print('');
   print('3. 手动触发MediaStore扫描:');
   print('   adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \\');
