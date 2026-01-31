@@ -93,7 +93,17 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
         });
       }
     } catch (e) {
-      // 后台刷新失败不影响UI，静默处理
+      // 记录错误但不影响UI
+      logger.e('[ApkManagementPage] 后台刷新失败: $e');
+      // 可选：显示错误提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('刷新失败: ${e.toString().length > 50 ? e.toString().substring(0, 50) + '...' : e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
