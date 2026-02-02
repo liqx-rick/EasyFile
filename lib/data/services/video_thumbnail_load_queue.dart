@@ -26,15 +26,16 @@ class VideoThumbnailLoadQueue {
 
   // 最大并发加载数量（关键参数：防止MediaCodec资源耗尽）
   static const int _maxConcurrent = 3;
+  static const int _maxConcurrentDuringPlayback = 1;  // 播放时降低并发，节省MediaCodec资源
 
   // 当前正在处理的加载数量
   int _activeLoads = 0;
 
   // 等待队列（混合类型：缩略图和时长请求）
   final Queue<dynamic> _queue = Queue();
-
-  // 是否暂停队列处理（进入视频播放器时暂停）
-  bool _isPaused = false;
+  
+  // 是否处于播放模式（降低并发而非完全暂停）
+  bool _isPlaybackMode = false;
 
   // 缓存管理器
   final _cacheManager = ThumbnailCacheManager();
@@ -125,15 +126,12 @@ class VideoThumbnailLoadQueue {
 
   /// 处理队列中的请求
   void _processQueue() {
-    // 如果暂停，不处理
-    if (_isPaused) {
-      logger.d('Queue is paused, skipping processing');
-      return;
-    }
+    // 动态获取当前最大并发数
+    final currentMaxConcurrent = _isPlaybackMode ? _maxConcurrentDuringPlayback : _maxConcurrent;
 
     // 如果已达到最大并发数，不处理
-    if (_activeLoads >= _maxConcurrent) {
-      logger.d('Max concurrent loads reached ($_activeLoads/$_maxConcurrent)');
+    if (_activeLoads >= currentMaxConcurrent) {
+      logger.d('Max concurrent loads reached ($_activeLoads/$currentMaxConcurrent)');
       return;
     }
 
@@ -242,40 +240,18 @@ class VideoThumbnailLoadQueue {
     }
   }
 
-  /// 暂停队列处理（进入视频播放器时调用）
-  void pause() {
-    logger.i('VideoThumbnailLoadQueue paused');
-    _isPaused = true;
+  /// ⚡ 进入播放模式（降低并发而非完全暂停）
+  void pauseForPlayback() {
+    logger.i('VideoThumbnailLoadQueue: Entering playback mode (reducing concurrency to $_maxConcurrentDuringPlayback)');
+    _isPlaybackMode = true;
+    // 不设置 _isPaused，继续处理队列但降低并发数
   }
 
-  /// 恢复队列处理（退出视频播放器时调用）
-  void resume() {
-    logger.i('VideoThumbnailLoadQueue resumed');
-    _isPaused = false;
+  /// ⚡ 退出播放模式（恢复正常并发）
+  void resumeFromPlayback() {
+    logger.i('VideoThumbnailLoadQueue: Exiting playback mode (restoring concurrency to $_maxConcurrent)');
+    _isPlaybackMode = false;
     _processQueue(); // 立即处理队列中的请求
-  }
-
-  /// 清空队列（用于页面销毁等场景）
-  void clearQueue() {
-    logger.i('Clearing load queue (${_queue.length} items)');
-    while (_queue.isNotEmpty) {
-      final request = _queue.removeFirst();
-      if (request is _LoadRequest) {
-        request.completer.complete(null);
-      } else if (request is _DurationRequest) {
-        request.completer.complete(null);
-      }
-    }
-  }
-
-  /// 获取队列状态信息（用于调试）
-  Map<String, dynamic> getQueueStatus() {
-    return {
-      'activeLoads': _activeLoads,
-      'queuedLoads': _queue.length,
-      'maxConcurrent': _maxConcurrent,
-      'isPaused': _isPaused,
-    };
   }
 
   /// 格式化视频时长

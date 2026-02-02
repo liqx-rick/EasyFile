@@ -148,39 +148,4 @@ class ThumbnailPreGenerationService {
       'failed': _failedVideos,
     };
   }
-
-  /// 预生成单个视频缩略图
-  ///
-  /// 用于新扫描到单个视频时的即时预生成
-  Future<bool> preGenerateSingle(String videoPath) async {
-    try {
-      // 检查缓存
-      final cached = await _cacheManager.getCached(videoPath);
-      if (cached != null) {
-        logger.d('[ThumbnailPreGeneration] 单个预生成跳过（已缓存）: $videoPath');
-        return true;
-      }
-
-      // 生成
-      final result = await _loadQueue.loadThumbnail(videoPath, 200.0);
-      if (result != null) {
-        logger.d('[ThumbnailPreGeneration] 单个预生成成功: $videoPath');
-        return true;
-      } else {
-        logger.w('[ThumbnailPreGeneration] 单个预生成失败: $videoPath');
-        return false;
-      }
-    } catch (e) {
-      logger.e('[ThumbnailPreGeneration] 单个预生成异常: $videoPath, error: $e');
-      return false;
-    }
-  }
-
-  /// 取消预生成（预留，当前队列不支持取消）
-  void cancel() {
-    if (_isGenerating) {
-      logger.w('[ThumbnailPreGeneration] 请求取消预生成（当前队列不支持取消，将在下个视频后停止）');
-      _isGenerating = false;
-    }
-  }
 }
