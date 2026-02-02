@@ -39,12 +39,26 @@ class VideoThumbnailLoadQueue {
   // 缓存管理器
   final _cacheManager = ThumbnailCacheManager();
 
+  // ⚡ 时长内存缓存（避免重复的SharedPreferences异步操作）
+  final Map<String, String> _durationMemoryCache = {};
+  
+  // SharedPreferences实例缓存
+  SharedPreferences? _prefsCache;
+
   /// 加载视频缩略图（带队列控制）
   ///
   /// [videoPath] 视频文件路径
   /// [size] 缩略图显示大小（用于优化生成尺寸）
   /// Returns: 缩略图数据，失败返回null
   Future<Uint8List?> loadThumbnail(String videoPath, double size) async {
+    // ⚡ 优化：先检查缓存，缓存命中直接返回，避免排队等待
+    final cachedData = await _cacheManager.getCached(videoPath);
+    if (cachedData != null) {
+      logger.d('⚡ Fast cache hit (bypass queue): $videoPath');
+      return cachedData;
+    }
+
+    // 缓存未命中，加入队列等待生成
     final completer = Completer<Uint8List?>();
 
     // 创建加载请求
@@ -70,17 +84,26 @@ class VideoThumbnailLoadQueue {
   /// Returns: 格式化的时长字符串，失败返回null
   Future<String?> loadDuration(String videoPath) async {
     try {
-      // 1. 优先从SharedPreferences缓存加载
-      final prefs = await SharedPreferences.getInstance();
+      // 1. ⚡ 优先从内存缓存读取（最快，避免异步操作）
+      final memoryCached = _durationMemoryCache[videoPath];
+      if (memoryCached != null) {
+        logger.d('⚡ Fast duration hit (memory): $videoPath');
+        return memoryCached;
+      }
+
+      // 2. 从SharedPreferences缓存加载
+      _prefsCache ??= await SharedPreferences.getInstance();
       final cacheKey = 'video_duration_$videoPath';
-      final cachedDuration = prefs.getString(cacheKey);
+      final cachedDuration = _prefsCache!.getString(cacheKey);
 
       if (cachedDuration != null) {
-        logger.d('Loaded duration from cache: $videoPath');
+        // 保存到内存缓存，下次直接返回
+        _durationMemoryCache[videoPath] = cachedDuration;
+        logger.d('Duration loaded from SharedPreferences: $videoPath');
         return cachedDuration;
       }
 
-      // 2. 缓存未命中，使用队列读取
+      // 3. 缓存未命中，使用队列读取
       final completer = Completer<String?>();
 
       final request = _DurationRequest(
@@ -294,9 +317,12 @@ class VideoThumbnailLoadQueue {
         if (duration != Duration.zero) {
           final formattedDuration = _formatDuration(duration);
 
-          // 保存到缓存
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('video_duration_${request.videoPath}', formattedDuration);
+          // 保存到SharedPreferences
+          _prefsCache ??= await SharedPreferences.getInstance();
+          await _prefsCache!.setString('video_duration_${request.videoPath}', formattedDuration);
+
+          // ⚡ 同时保存到内存缓存，下次访问时直接返回
+          _durationMemoryCache[request.videoPath] = formattedDuration;
 
           logger.d('Duration read and cached: ${request.videoPath}');
           request.completer.complete(formattedDuration);

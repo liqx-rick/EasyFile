@@ -9,6 +9,7 @@ import 'package:easyfile/core/services/category_file_cache_service.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/thumbnail_pre_generation_service.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
@@ -1115,12 +1116,32 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       }
       final sizeStr = FileSizeFormatter.formatBytes(totalSize);
 
-      setState(() {
-        _files = files;
-        _isLoading = false;
-        _isRefreshing = false;
-        _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
-      });
+      // 🎬 视频缩略图预生成：前台阻塞生成（测试用）
+      if (widget.categoryType == CategoryType.video && files.isNotEmpty) {
+        // 保持loading状态，显示预生成进度
+        setState(() {
+          _files = files;
+          _isLoading = true;
+          _isRefreshing = false;
+          _loadingProgress = '正在预生成视频缩略图 (0/${files.length})...';
+        });
+
+        // 同步等待预生成完成
+        await _preGenerateVideoThumbnailsSync(files);
+
+        // 预生成完成，显示列表
+        setState(() {
+          _isLoading = false;
+          _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
+        });
+      } else {
+        setState(() {
+          _files = files;
+          _isLoading = false;
+          _isRefreshing = false;
+          _loadingProgress = '找到 ${files.length} 个${categoryInfo.name}文件    $sizeStr';
+        });
+      }
 
       // 保存到缓存
       await _saveToCache(files);
@@ -2054,6 +2075,52 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         service: _singleFileOperationsService,
       ),
     );
+  }
+
+  /// 前台同步预生成视频缩略图（测试用）
+  ///
+  /// 在视频扫描完成后，前台阻塞预生成所有视频缩略图
+  /// 用于测试和确认缩略图生成流程
+  Future<void> _preGenerateVideoThumbnailsSync(List<FileItem> videoFiles) async {
+    logger.i('[CategoryFilePage] 开始前台预生成 ${videoFiles.length} 个视频缩略图');
+
+    final service = ThumbnailPreGenerationService();
+
+    // 同步等待预生成完成，实时更新进度
+    final stats = await service.preGenerateThumbnails(
+      videoFiles,
+      onProgress: (current, total) {
+        logger.i('[CategoryFilePage] 缩略图预生成进度: $current/$total');
+        
+        // 实时更新UI进度
+        if (mounted) {
+          setState(() {
+            _loadingProgress = '正在预生成视频缩略图 ($current/$total)...\n'
+                '已完成: $current | 剩余: ${total - current}';
+          });
+        }
+      },
+    );
+
+    logger.i(
+      '[CategoryFilePage] 视频缩略图预生成完成: '
+      '总数=${stats['total']}, 成功=${stats['completed']}, '
+      '跳过=${stats['skipped']}, 失败=${stats['failed']}',
+    );
+
+    // 显示完成提示
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '缩略图预生成完成\n'
+            '成功: ${stats['completed']} | 跳过: ${stats['skipped']} | 失败: ${stats['failed']}',
+          ),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
