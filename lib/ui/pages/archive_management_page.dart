@@ -74,10 +74,7 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
 
   // 已解压压缩包标记（从解压记录派生，用于显示角标）
   Set<String> get _extractedArchives {
-    return _extractionRecords
-        .where((r) => r.targetPath.isNotEmpty)
-        .map((r) => r.archivePath)
-        .toSet();
+    return _extractionRecords.where((r) => r.targetPath.isNotEmpty).map((r) => r.archivePath).toSet();
   }
 
   // 数据源和依赖
@@ -768,6 +765,8 @@ class _ArchiveManagementPageState extends State<ArchiveManagementPage>
       },
       child: Scaffold(
         appBar: AppBar(
+          backgroundColor: const Color(0xFF0978FE),
+          foregroundColor: Colors.white,
           leading: isEditMode && _tabController.index == 0
               ? SelectAllButton(
                   selectedCount: _selectionController.selected.length,
@@ -1353,28 +1352,34 @@ class _NotificationAndTabBar extends StatelessWidget implements PreferredSizeWid
 
   @override
   Widget build(BuildContext context) {
-    return TabBar(
-      controller: tabController,
-      tabs: [
-        Tab(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('压缩包'),
-              if (!isScanning) Text(' ($filteredFilesLength)'),
-            ],
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: TabBar(
+        controller: tabController,
+        labelColor: Theme.of(context).colorScheme.primary,
+        unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        indicatorColor: Theme.of(context).colorScheme.primary,
+        tabs: [
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('压缩包'),
+                if (!isScanning) Text(' ($filteredFilesLength)'),
+              ],
+            ),
           ),
-        ),
-        Tab(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('解压记录'),
-              if (recordCount > 0) Text(' ($recordCount)'),
-            ],
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('解压记录'),
+                if (recordCount > 0) Text(' ($recordCount)'),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

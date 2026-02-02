@@ -213,6 +213,8 @@ class _StorageManagementPageState extends State<StorageManagementPage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0978FE),
+        foregroundColor: Colors.white,
         title: const Text('存储管理'),
         centerTitle: true,
       ),

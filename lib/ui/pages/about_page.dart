@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../widgets/app_icon.dart';
+
 /// 关于页面
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -51,21 +53,8 @@ class _AboutPageState extends State<AboutPage> {
           Center(
             child: Column(
               children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.asset(
-                      'assets/icon/app_icon.png',
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                const AppIcon(
+                  size: 100,
                 ),
                 const SizedBox(height: 16),
                 Text(

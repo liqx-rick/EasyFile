@@ -960,6 +960,8 @@ class _AppManagementPageState extends State<AppManagementPage> with WidgetsBindi
       },
       child: Scaffold(
         appBar: AppBar(
+          backgroundColor: const Color(0xFF0978FE),
+          foregroundColor: Colors.white,
           title: const Text('应用管理'),
           actions: [
             IconButton(

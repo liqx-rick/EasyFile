@@ -1164,6 +1164,8 @@ class _CategoryFilePageState extends State<CategoryFilePage>
           return wrapWithPopScope(
             child: Scaffold(
               appBar: AppBar(
+                backgroundColor: const Color(0xFF0978FE),
+                foregroundColor: Colors.white,
                 leading: isEditMode
                     ? SelectAllButton(
                         selectedCount: _selectionController.selected.length,

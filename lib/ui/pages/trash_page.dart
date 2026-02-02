@@ -54,6 +54,8 @@ class _TrashPageState extends State<TrashPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0978FE),
+        foregroundColor: Colors.white,
         title: const Text('回收站'),
       ),
       body: _isLoading

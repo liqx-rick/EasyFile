@@ -335,6 +335,8 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0978FE),
+        foregroundColor: Colors.white,
         title: const Text('垃圾文件清理'),
         actions: [
           // 刷新按钮（扫描时隐藏）

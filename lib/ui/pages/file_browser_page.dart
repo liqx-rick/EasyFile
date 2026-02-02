@@ -3745,6 +3745,8 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     preferredSize: Size.fromHeight(appBarHeight),
                     child: AppBar(
                       toolbarHeight: appBarHeight,
+                      backgroundColor: const Color(0xFF0978FE),
+                      foregroundColor: Colors.white,
                       title: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -3759,37 +3761,38 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                       ),
                       actions: [
                         PopupMenuButton<String>(
+                          offset: Offset(0, appBarHeight),
                           onSelected: _handleMenuAction,
                           itemBuilder: (context) => [
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'settings',
                               child: Row(
                                 children: [
-                                  Icon(Icons.settings),
-                                  SizedBox(width: 8),
-                                  Text('设置'),
+                                  Icon(Icons.settings, color: Theme.of(context).iconTheme.color),
+                                  const SizedBox(width: 8),
+                                  const Text('设置'),
                                 ],
                               ),
                             ),
                             const PopupMenuDivider(),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'manage_quick_access',
                               child: Row(
                                 children: [
-                                  Icon(Icons.folder_special),
-                                  SizedBox(width: 8),
-                                  Text('快速访问管理'),
+                                  Icon(Icons.folder_special, color: Theme.of(context).iconTheme.color),
+                                  const SizedBox(width: 8),
+                                  const Text('快速访问管理'),
                                 ],
                               ),
                             ),
                             const PopupMenuDivider(),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'about',
                               child: Row(
                                 children: [
-                                  Icon(Icons.info_outline),
-                                  SizedBox(width: 8),
-                                  Text('关于'),
+                                  Icon(Icons.info_outline, color: Theme.of(context).iconTheme.color),
+                                  const SizedBox(width: 8),
+                                  const Text('关于'),
                                 ],
                               ),
                             ),

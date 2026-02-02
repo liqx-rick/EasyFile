@@ -315,6 +315,8 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0978FE),
+        foregroundColor: Colors.white,
         title: const Text('隐私空间'),
         actions: [
           // 有文件时显示帮助图标

@@ -389,6 +389,8 @@ class _ApkManagementPageState extends State<ApkManagementPage> with WidgetsBindi
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color(0xFF0978FE),
+        foregroundColor: Colors.white,
         title: const Text('安装包管理'),
         actions: [
           // 刷新按钮

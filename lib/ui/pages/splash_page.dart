@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/logger.dart';
 import '../../presenter/splash_presenter.dart';
 import '../../viewmodel/splash_viewmodel.dart';
+import '../widgets/app_icon.dart';
 
 /// 启动页界面
 class SplashPage extends StatefulWidget {
@@ -140,21 +141,8 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       mainAxisSize: MainAxisSize.min,
       children: [
         // Logo图标
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Image.asset(
-              'assets/icon/app_icon.png',
-              width: 120,
-              height: 120,
-              fit: BoxFit.cover,
-            ),
-          ),
+        const AppIcon(
+          size: 120,
         ),
 
         const SizedBox(height: 24),
