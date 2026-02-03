@@ -25,7 +25,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class FilePreviewPage extends StatefulWidget {
   final FileItem file;
@@ -91,9 +90,6 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
     if (widget.fileList != null && widget.fileList!.length > 1) {
       _scheduleIndicatorFadeOut();
     }
-
-    // 保存当前预览文件路径（用于后台恢复）
-    _saveCurrentFilePath();
 
     // 检查是否是APK文件，如果是则不进行预览（会在UI中显示提示信息）
     // APK文件应该在安装包管理页面进行操作
@@ -184,24 +180,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.paused) {
-      // 进入后台时保存当前文件路径
-      _saveCurrentFilePath();
-      logger.d('FilePreviewPage: Saved file path on pause');
+      logger.d('FilePreviewPage: App paused');
     } else if (state == AppLifecycleState.resumed) {
       logger.d('FilePreviewPage: App resumed in preview page');
-    }
-  }
-
-  /// 保存当前预览文件路径
-  Future<void> _saveCurrentFilePath() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final currentFile =
-          widget.fileList != null && widget.fileList!.isNotEmpty ? widget.fileList![_currentIndex] : widget.file;
-      await prefs.setString('last_viewed_file_path', currentFile.path);
-      logger.d('Saved current file path: ${currentFile.path}');
-    } catch (e) {
-      logger.e('Failed to save current file path: $e');
     }
   }
 

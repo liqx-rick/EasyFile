@@ -243,7 +243,6 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
             logger.i('_initializeApp: Clearing saved state...');
             final prefs = await SharedPreferences.getInstance();
             await Future.wait([
-              prefs.remove('last_viewed_file_path'),
               prefs.remove('current_tab'),
               prefs.remove('last_browse_path'),
             ]);

@@ -1,57 +1,64 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:easyfile/services/background_audio_service.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/utils/file_utils.dart';
-import 'package:easyfile/services/background_audio_service.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
 
 /// 后台文件恢复混入
 ///
-/// 提供统一的后台恢复逻辑，用于从通知栏点击后恢复上次查看的文件
+/// 提供统一的后台恢复逻辑，用于从通知栏点击后恢复音频播放器
 /// 主要用于音频播放的后台恢复功能
 mixin BackgroundRestorationMixin<T extends StatefulWidget> on State<T> {
+  /// 最近一次恢复的时间戳，用于防止重复触发
+  DateTime? _lastRestorationTime;
+
   /// 检查并恢复上次查看的文件
   ///
-  /// 从 SharedPreferences 读取 'last_viewed_file_path'，如果存在且音频正在后台播放则自动打开该文件
+  /// 当音频在后台播放时，从 BackgroundAudioService 读取当前播放的音频路径并打开预览页面
   /// 对于音频文件，会自动构建播放列表（同目录的所有音频文件）
+  ///
+  /// 防重复保护：如果在1秒内重复调用，会被忽略
   Future<void> checkAndRestoreFilePreview({
     required BuildContext context,
     required FileViewModel viewModel,
     required FilePresenter presenter,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastViewedPath = prefs.getString('last_viewed_file_path');
-
-      if (lastViewedPath == null || lastViewedPath.isEmpty) {
-        return;
+      // 防重复保护：如果在1秒内重复调用，忽略本次调用
+      final now = DateTime.now();
+      if (_lastRestorationTime != null) {
+        final timeSinceLastRestore = now.difference(_lastRestorationTime!);
+        if (timeSinceLastRestore.inMilliseconds < 1000) {
+          return;
+        }
       }
-
-      logger.d('Found last viewed file: $lastViewedPath');
 
       // 检查音频播放器状态：只有在真的有音频在后台播放时才恢复
       final audioService = BackgroundAudioService();
       if (audioService.player == null || !audioService.isPlaying) {
-        logger.d('Audio player not playing, clearing restoration flag');
-        await prefs.remove('last_viewed_file_path');
         return;
       }
 
-      logger.d('Audio is playing in background, restoring preview');
+      // 从 BackgroundAudioService 获取当前播放的音频路径
+      final currentAudioPath = audioService.currentAudioPath;
+      if (currentAudioPath == null || currentAudioPath.isEmpty) {
+        logger.w('Audio is playing but no audio path found');
+        return;
+      }
 
-      final file = File(lastViewedPath);
+      // 记录本次恢复时间（在检查通过后，实际执行前记录）
+      _lastRestorationTime = now;
+
+      final file = File(currentAudioPath);
       if (!file.existsSync()) {
-        logger.w('Last viewed file does not exist: $lastViewedPath');
-        await prefs.remove('last_viewed_file_path');
+        logger.w('Current audio file does not exist: $currentAudioPath');
         return;
       }
-
-      // 清除恢复标记
-      await prefs.remove('last_viewed_file_path');
 
       final stat = file.statSync();
       final fileItem = FileItem(
@@ -139,10 +146,9 @@ mixin BackgroundRestorationMixin<T extends StatefulWidget> on State<T> {
     audioFiles.sort((a, b) => a.name.compareTo(b.name));
 
     // 找到当前文件的索引
-    int initialIndex = audioFiles.indexWhere((f) => f.path == currentFileItem.path);
+    int initialIndex =
+        audioFiles.indexWhere((f) => f.path == currentFileItem.path);
     if (initialIndex == -1) initialIndex = 0;
-
-    logger.d('Built audio playlist: ${audioFiles.length} items, index: $initialIndex');
 
     return (audioFiles, initialIndex);
   }
