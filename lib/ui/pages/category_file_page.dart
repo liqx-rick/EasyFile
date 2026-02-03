@@ -269,13 +269,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
   List<FileItem> get _filteredFiles {
     var result = _files;
 
-    // 🔍 调试：检查目标文件在过滤前是否存在
-    const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-    final hasTargetBefore = result.any((f) => f.path == targetFile);
-    if (hasTargetBefore) {
-      logger.d('🔍 过滤前：_files中包含目标文件');
-    }
-
     // 按文件类型筛选
     if (widget.categoryType == CategoryType.documents && _documentTypeFilter != DocumentFileType.all) {
       result = result.where((f) => _documentTypeFilter.matches(f.name)).toList();
@@ -293,17 +286,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
             (f) => f.name.toLowerCase().contains(_searchQuery.toLowerCase()),
           )
           .toList();
-    }
-
-    // 🔍 调试：检查目标文件在过滤后是否存在
-    final hasTargetAfter = result.any((f) => f.path == targetFile);
-    if (hasTargetBefore && !hasTargetAfter) {
-      logger.w('⚠️ 目标文件被过滤器移除了！');
-      logger.w('   documentTypeFilter: $_documentTypeFilter');
-      logger.w('   downloadTypeFilter: $_downloadTypeFilter');
-      logger.w('   searchQuery: $_searchQuery');
-    } else if (hasTargetAfter) {
-      logger.d('✅ 过滤后：目标文件仍在结果中');
     }
 
     return result;
@@ -554,45 +536,9 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       final oldCount = _files.length;
       final newCount = newFiles.length;
 
-      // 🔍 特别检查目标文件
-      const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-      final hasTargetInNew = newFiles.any((f) => f.path == targetFile);
-      final hasTargetInOld = _files.any((f) => f.path == targetFile);
-      logger.i('🔍 后台刷新结果: 旧=$oldCount, 新=$newCount');
-      logger.i('🔍 目标文件检查: 旧列表${hasTargetInOld ? "有" : "无"}, 新列表${hasTargetInNew ? "有" : "无"}');
-
-      if (hasTargetInNew) {
-        final file = newFiles.firstWhere((f) => f.path == targetFile);
-        logger.i('   文件详情: name=${file.name}, size=${file.size}, modified=${file.modified}');
-      }
-
       // 方法1：数量不同，肯定有变化
       if (newCount != oldCount) {
         logger.i('✨ 发现文件变化: $oldCount → $newCount');
-
-        // 🔍 调试：打印新增的文件路径
-        if (newCount > oldCount) {
-          final oldPaths = _files.map((f) => f.path).toSet();
-          final newPaths = newFiles.map((f) => f.path).toSet();
-          final addedPaths = newPaths.difference(oldPaths);
-          logger.i('📁 新增文件列表 (${addedPaths.length}个):');
-          for (final path in addedPaths.take(5)) {
-            final file = newFiles.firstWhere((f) => f.path == path);
-            logger.i('  + ${file.name} (修改时间: ${file.modified})');
-          }
-
-          // 🔍 特别检查用户报告的文件
-          const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-          if (addedPaths.contains(targetFile)) {
-            logger.i('🎯 找到目标文件: $targetFile');
-            final file = newFiles.firstWhere((f) => f.path == targetFile);
-            logger.i('   文件详情: name=${file.name}, size=${file.size}, modified=${file.modified}');
-          } else if (newPaths.contains(targetFile)) {
-            logger.i('⚠️ 目标文件在newFiles中，但不在addedPaths中（已存在于旧列表）');
-          } else {
-            logger.i('❌ 目标文件不在newFiles中（扫描未找到）');
-          }
-        }
 
         // 更新数据和缓存
         setState(() {
@@ -688,32 +634,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
           }
         } else {
           logger.d('CategoryFilePage - 🔄 后台刷新完成: 数据无变化');
-
-          // 🔍 检查目标文件是否在新扫描的数据中
-          const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-          final hasTargetInNew = newFiles.any((f) => f.path == targetFile);
-          final hasTargetInOld = _files.any((f) => f.path == targetFile);
-          logger.i('🔍 文件对比: 旧列表${hasTargetInOld ? "有" : "无"}目标文件, 新列表${hasTargetInNew ? "有" : "无"}目标文件');
-
-          if (hasTargetInNew && !hasTargetInOld) {
-            logger.w('⚠️ 警告: 新扫描找到了目标文件，但旧列表中没有！这是缓存数据不一致！');
-            logger.w('   强制更新数据...');
-
-            // 强制更新
-            setState(() {
-              _files = newFiles;
-              _loadingProgress = '';
-            });
-
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {});
-                logger.i('✅ 强制UI重建完成（修复缓存不一致），当前显示文件数: ${_filteredFiles.length}');
-              }
-            });
-
-            await _saveToCache(newFiles);
-          }
 
           // 即使没有变化，也清除加载提示
           if (mounted) {
@@ -826,11 +746,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         'Loaded ${files.length} files from cache for ${widget.categoryType.name} (${Duration(milliseconds: cacheAge).inMinutes}分钟前)',
       );
 
-      // 🔍 检查目标文件是否在缓存中
-      const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-      final hasTargetFile = files.any((f) => f.path == targetFile);
-      logger.i('🔍 缓存中${hasTargetFile ? "包含" : "不包含"}目标文件: $targetFile');
-
       return files;
     } catch (e) {
       logger.e('Failed to load cache: $e');
@@ -861,11 +776,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
 
       await prefs.setString(key, json.encode(cacheData));
       logger.i('Cached ${files.length} files for ${widget.categoryType.name}');
-
-      // 🔍 检查目标文件是否被保存到缓存
-      const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-      final hasTargetFile = files.any((f) => f.path == targetFile);
-      logger.i('💾 保存缓存时${hasTargetFile ? "包含" : "不包含"}目标文件: $targetFile');
     } catch (e) {
       logger.e('Failed to save cache: $e');
     }
@@ -1051,13 +961,7 @@ class _CategoryFilePageState extends State<CategoryFilePage>
         });
         logger.i('✅ 显示缓存数据 (${cached.length} 个文件)，立即启动后台刷新验证...');
 
-        // � 检查目标文件是否在缓存的数据中
-        const targetFile = '/storage/emulated/0/Pictures/WeiXin/mmexport1769768197662.jpg';
-        final hasTargetInCached = cached.any((f) => f.path == targetFile);
-        logger.i('🔍 setState后 _files中${hasTargetInCached ? "包含" : "不包含"}目标文件');
-        logger.i('🔍 当前 _files.length = ${_files.length}, cached.length = ${cached.length}');
-
-        // �🔥 关键修复：立即启动后台刷新来验证和更新数据
+        // 关键修复：立即启动后台刷新来验证和更新数据
         // 这样可以捕获到从回收站恢复等操作导致的文件变化
         Future.delayed(Duration(milliseconds: 100), () {
           if (mounted && !_isRefreshing) {
@@ -1818,8 +1722,8 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       config: config, // 图片/视频分类使用全局配置
       viewConfigBuilder: viewConfigBuilder, // 下载分类使用动态配置
       padding: _isGridView ? const EdgeInsets.symmetric(vertical: 4) : const EdgeInsets.symmetric(vertical: 0),
-      // 增加预构建范围以改善滚动体验（视频分类增至2000以避免KeepAlive失效）
-      cacheExtent: _isGridView ? 2000.0 : 600.0,
+      // 优化预构建范围：图片分类3500px（提前解码更多图片），视频分类2000px，列表模式600px
+      cacheExtent: _isGridView ? (widget.categoryType == CategoryType.images ? 3500.0 : 2000.0) : 600.0,
       selectionController: _selectionController,
       showCheckbox: isEditMode, // 编辑模式下显示复选框
       // 显示选项
@@ -2085,17 +1989,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
       },
       onComplete: () {
         logger.i('[CategoryFilePage] 后台预生成完成');
-        
-        // 可选：显示静默提示
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✨ 视频缩略图已优化完成，滚动将更流畅'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
       },
     );
   }

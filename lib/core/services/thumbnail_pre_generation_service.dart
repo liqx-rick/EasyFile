@@ -119,6 +119,7 @@ class ThumbnailPreGenerationService {
           // ⚡ 同时预加载视频时长（避免滚动时卡顿）
           _loadQueue.loadDuration(video.path).catchError((e) {
             logger.d('[ThumbnailPreGeneration] 时长加载失败: ${video.name}');
+            return null;
           });
 
           // 回调进度

@@ -26,14 +26,14 @@ class VideoThumbnailLoadQueue {
 
   // 最大并发加载数量（关键参数：防止MediaCodec资源耗尽）
   static const int _maxConcurrent = 3;
-  static const int _maxConcurrentDuringPlayback = 1;  // 播放时降低并发，节省MediaCodec资源
+  static const int _maxConcurrentDuringPlayback = 1; // 播放时降低并发，节省MediaCodec资源
 
   // 当前正在处理的加载数量
   int _activeLoads = 0;
 
   // 等待队列（混合类型：缩略图和时长请求）
   final Queue<dynamic> _queue = Queue();
-  
+
   // 是否处于播放模式（降低并发而非完全暂停）
   bool _isPlaybackMode = false;
 
@@ -42,7 +42,7 @@ class VideoThumbnailLoadQueue {
 
   // ⚡ 时长内存缓存（避免重复的SharedPreferences异步操作）
   final Map<String, String> _durationMemoryCache = {};
-  
+
   // SharedPreferences实例缓存
   SharedPreferences? _prefsCache;
 
@@ -55,7 +55,8 @@ class VideoThumbnailLoadQueue {
     // ⚡ 优化：先检查缓存，缓存命中直接返回，避免排队等待
     final cachedData = await _cacheManager.getCached(videoPath);
     if (cachedData != null) {
-      logger.d('⚡ Fast cache hit (bypass queue): $videoPath');
+      // 性能优化：移除滚动时频繁触发的日志输出
+      // logger.d('⚡ Fast cache hit (bypass queue): $videoPath');
       return cachedData;
     }
 
@@ -88,7 +89,8 @@ class VideoThumbnailLoadQueue {
       // 1. ⚡ 优先从内存缓存读取（最快，避免异步操作）
       final memoryCached = _durationMemoryCache[videoPath];
       if (memoryCached != null) {
-        logger.d('⚡ Fast duration hit (memory): $videoPath');
+        // 性能优化：移除滚动时频繁触发的日志输出
+        // logger.d('⚡ Fast duration hit (memory): $videoPath');
         return memoryCached;
       }
 
