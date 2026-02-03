@@ -12,6 +12,7 @@ import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/mediastore_cache_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
+import 'package:easyfile/core/services/thumbnail_pre_generation_service.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
@@ -120,6 +121,9 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
   /// 标记页面是否首次加载
   bool _isFirstLoad = true;
+
+  /// 标记是否已预生成缩略图（应用模式Tab切换用）
+  bool _hasPregenerated = false;
 
   @override
   void initState() {
@@ -505,6 +509,14 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
               vsync: this,
             );
             _tabController!.addListener(_onTabChanged);
+
+            // 添加Tab切换监听，处理视频Tab的预生成
+            _tabController!.addListener(() {
+              if (_shouldPreGenerateThumbnails() && !_hasPregenerated) {
+                _preGenerateVideoThumbnailsAsync(_files);
+                _hasPregenerated = true;
+              }
+            });
           }
 
           logger.d('初始化可见Tabs: ${_visibleTabs!.length} 个 (原${widget.config.tabs!.length}个)');
@@ -518,6 +530,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       }
 
       logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+
+      // ⚡ 视频缩略图预生成（应用模式/content模式视频列表）
+      if (_shouldPreGenerateThumbnails()) {
+        _preGenerateVideoThumbnailsAsync(_files);
+        _hasPregenerated = true;
+      }
 
       // content模式：首次加载后立即触发后台刷新（检查是否有新文件）
       if (widget.config.mode == RecommendMode.content && !_isBackgroundRefreshing) {
@@ -738,21 +756,11 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
 
     try {
       // 获取查询参数
-      Map<String, dynamic> params;
-
-      if (widget.config.mode == RecommendMode.application && _tabController != null) {
-        // 应用模式：根据当前 Tab 获取参数
-        final currentTab = _visibleTabs![_tabController!.index];
-        params = RecommendConfigDataSourceMapper.getTabQueryParams(
-          widget.config.type,
-          fileTypes: currentTab.fileTypes,
-        );
-      } else {
-        // 内容/清理模式：使用默认参数
-        params = RecommendConfigDataSourceMapper.getDefaultQueryParams(
-          widget.config.type,
-        );
-      }
+      // ⚡ 修复：刷新时始终获取所有文件，而不是只获取当前Tab的文件
+      // 避免刷新后切换Tab时其他Tab没有数据的问题
+      Map<String, dynamic> params = RecommendConfigDataSourceMapper.getDefaultQueryParams(
+        widget.config.type,
+      );
 
       // 添加强制刷新标志（用于缓存控制）
       if (forceRefresh) {
@@ -773,6 +781,12 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       }
 
       logger.i('RecommendAggregatePage - 加载完成: ${_allFiles.length} 个文件，显示 ${_files.length} 个');
+
+      // ⚡ 视频缩略图预生成（应用模式/content模式视频列表）
+      if (_shouldPreGenerateThumbnails() && !_hasPregenerated) {
+        _preGenerateVideoThumbnailsAsync(_files);
+        _hasPregenerated = true;
+      }
 
       // 后台刷新策略
       if (!forceRefresh && files.isNotEmpty && !_isBackgroundRefreshing) {
@@ -923,6 +937,18 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
       ),
     );
 
+    // 从预览返回后，检查并恢复视频缩略图预生成
+    if (_shouldPreGenerateThumbnails()) {
+      final service = ThumbnailPreGenerationService();
+      // 如果预生成已停止（isGenerating=false），重新启动
+      if (!service.isGenerating) {
+        logger.i('[RecommendAggregatePage] 预览返回后重新启动预生成');
+        _preGenerateVideoThumbnailsAsync(_files);
+      } else {
+        logger.d('[RecommendAggregatePage] 预览返回，预生成仍在进行中');
+      }
+    }
+
     // 如果文件被修改，刷新列表
     if (needsRefresh == true) {
       await _loadFiles();
@@ -945,6 +971,58 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         file: file,
         service: _singleFileOperationsService,
       ),
+    );
+  }
+
+  /// 判断当前页面是否需要预生成视频缩略图
+  bool _shouldPreGenerateThumbnails() {
+    // 1. 应用模式 - 视频Tab
+    if (widget.config.mode == RecommendMode.application &&
+        _tabController != null &&
+        _visibleTabs != null &&
+        _visibleTabs!.isNotEmpty) {
+      final currentTab = _visibleTabs![_tabController!.index];
+      if (currentTab.title == '视频') {
+        logger.d('[PreGeneration] 应用模式 - 视频Tab，需要预生成');
+        return true;
+      }
+    }
+
+    // 2. Content模式 - 生活剪影（相机视频）
+    if (widget.config.mode == RecommendMode.content && widget.config.type == RecommendationType.videos) {
+      logger.d('[PreGeneration] Content模式 - 生活剪影，需要预生成');
+      return true;
+    }
+
+    return false;
+  }
+
+  /// 异步后台预生成视频缩略图（不阻塞UI）
+  void _preGenerateVideoThumbnailsAsync(List<FileItem> files) {
+    // 过滤出视频文件
+    final videoFiles = files.where((f) => !f.isDirectory && AppConfig.instance.fileTypes.isVideoFile(f.name)).toList();
+
+    if (videoFiles.isEmpty) {
+      logger.d('[PreGeneration] 没有视频文件，跳过预生成');
+      return;
+    }
+
+    logger.i('[RecommendAggregatePage] 启动后台预生成 ${videoFiles.length} 个视频缩略图');
+
+    final service = ThumbnailPreGenerationService();
+
+    // 后台执行，不等待完成
+    service.preGenerateThumbnails(
+      videoFiles,
+      onProgress: (current, total) {
+        // 可选：记录进度日志
+        if (current % 10 == 0 || current == total) {
+          logger.i('[RecommendAggregatePage] 后台预生成进度: $current/$total');
+        }
+      },
+      onComplete: () {
+        logger.i('[RecommendAggregatePage] 后台预生成完成');
+      },
     );
   }
 
@@ -1393,50 +1471,42 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
     final pageId = _getPageIdForCurrentTab();
     final isGroupEnabled = PageSettingsService().getGroupEnabled(pageId);
 
-    // 为所有文件构建视图配置（应用网格模式显示文件信息的设置）
+    // 判断当前Tab是否为纯图片/视频Tab（所有文件类型相同）
+    bool isPureImageOrVideoTab = false;
+    if (widget.config.mode == RecommendMode.application &&
+        _tabController != null &&
+        _visibleTabs != null &&
+        _visibleTabs!.isNotEmpty) {
+      final currentTab = _visibleTabs![_tabController!.index];
+      isPureImageOrVideoTab = currentTab.title == '图片' || currentTab.title == '视频';
+    } else if (widget.config.mode == RecommendMode.content) {
+      isPureImageOrVideoTab =
+          widget.config.type == RecommendationType.memories || widget.config.type == RecommendationType.videos;
+    }
+
+    // ⚡ 性能优化：纯图片/视频Tab使用全局config，混合Tab使用viewConfigBuilder
+    UnifiedViewConfig? config;
     UnifiedViewConfig? Function(FileItem)? viewConfigBuilder;
-    if (isGridView) {
+
+    if (isGridView && isPureImageOrVideoTab) {
+      // 纯图片/视频Tab：所有文件配置相同，使用全局config（避免每个item都调用函数）
       final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
-
-      // 判断当前Tab是否为图片/视频Tab
-      bool isImageOrVideoTab = false;
-      if (widget.config.mode == RecommendMode.application &&
-          _tabController != null &&
-          _visibleTabs != null &&
-          _visibleTabs!.isNotEmpty) {
-        final currentTab = _visibleTabs![_tabController!.index];
-        // 检查Tab标题或fileTypes是否表明这是图片/视频Tab
-        isImageOrVideoTab = currentTab.title == '图片' || currentTab.title == '视频';
-        logger.d('应用模式 - 当前Tab: ${currentTab.title}, 是否图片/视频Tab: $isImageOrVideoTab');
-      } else if (widget.config.mode == RecommendMode.content) {
-        // 时光记忆（照片）和生活剪影（视频）也是图片/视频类型
-        isImageOrVideoTab =
-            widget.config.type == RecommendationType.memories || widget.config.type == RecommendationType.videos;
-        logger.d('内容模式 - 类型: ${widget.config.type}, 是否图片/视频Tab: $isImageOrVideoTab');
-      }
-
-      logger.d('网格显示配置 - showFileInfo: $showFileInfo, isImageOrVideoTab: $isImageOrVideoTab');
-
+      final useCompactMode = !showFileInfo;
+      config = UnifiedViewConfig.fromContext(context, compactMode: useCompactMode);
+      logger.d('⚡ 使用全局config (compactMode: $useCompactMode) - 纯图片/视频Tab');
+    } else if (isGridView) {
+      // 混合Tab（如下载Tab）：文件类型不同，使用viewConfigBuilder
+      final showFileInfo = PageSettingsService().getGridShowFileInfo(pageId);
       viewConfigBuilder = (file) {
-        logger.d('viewConfigBuilder被调用 - 文件: ${file.name}, 类别: ${file.category}');
-
-        // 对于图片/视频Tab，根据设置决定是否使用简洁模式
-        if (isImageOrVideoTab && !file.isDirectory) {
-          // 根据文件扩展名判断是否为图片/视频
+        if (!file.isDirectory) {
           final fileTypes = AppConfig.instance.fileTypes;
           final isImage = fileTypes.isImageFile(file.name);
           final isVideo = fileTypes.isVideoFile(file.name);
-          final isFileImageOrVideo = isImage || isVideo;
-
-          if (isFileImageOrVideo) {
-            // 只有在设置为简洁模式（不显示文件信息）时才使用 compactMode
+          if (isImage || isVideo) {
             final useCompactMode = !showFileInfo;
-            logger.d('文件 ${file.name} - 是图片: $isImage, 是视频: $isVideo, 使用简洁模式: $useCompactMode');
             return UnifiedViewConfig.fromContext(context, compactMode: useCompactMode);
           }
         }
-
-        // 非图片/视频Tab，或非图片/视频文件，使用默认配置
         return UnifiedViewConfig.fromContext(context, compactMode: false);
       };
     }
@@ -1461,8 +1531,10 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
           return FileCollectionView(
             groups: fileGroups,
             gridMode: isGridView,
+            config: config,
             padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
-            cacheExtent: isGridView ? 1000.0 : 600.0,
+            // 优化预构建范围：图片Tab/时光记忆3500px，视频Tab/生活剪影2000px，混合Tab1000px，列表600px
+            cacheExtent: isGridView ? _getCacheExtent() : 600.0,
             selectionController: _selectionController,
             showCheckbox: isEditMode,
             showFavoriteButton: true,
@@ -1483,8 +1555,10 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         return FileCollectionView(
           items: files,
           gridMode: isGridView,
+          config: config,
           padding: isGridView ? const EdgeInsets.all(8) : const EdgeInsets.symmetric(vertical: 0),
-          cacheExtent: isGridView ? 1000.0 : 600.0,
+          // 优化预构建范围：图片Tab/时光记忆3500px，视频Tab/生活剪影2000px，混合Tab1000px，列表600px
+          cacheExtent: isGridView ? _getCacheExtent() : 600.0,
           selectionController: _selectionController,
           showCheckbox: isEditMode,
           showFavoriteButton: true,
@@ -1502,6 +1576,39 @@ class _RecommendAggregatePageState extends State<RecommendAggregatePage>
         );
       },
     );
+  }
+
+  /// 获取智能预构建范围
+  ///
+  /// 根据当前Tab类型返回最优的cacheExtent值：
+  /// - 图片Tab/时光记忆：3500px（图片解码快，预构建更多）
+  /// - 视频Tab/生活剪影：2000px（视频解码慢，适度预构建）
+  /// - 其他混合Tab：1000px（默认值）
+  double _getCacheExtent() {
+    // 应用模式：根据当前Tab判断
+    if (widget.config.mode == RecommendMode.application &&
+        _tabController != null &&
+        _visibleTabs != null &&
+        _visibleTabs!.isNotEmpty) {
+      final currentTab = _visibleTabs![_tabController!.index];
+      if (currentTab.title == '图片') {
+        return 3500.0; // 图片Tab：大幅提升预构建范围
+      } else if (currentTab.title == '视频') {
+        return 2000.0; // 视频Tab：保持适度预构建
+      }
+    }
+
+    // 内容模式：根据推荐类型判断
+    if (widget.config.mode == RecommendMode.content) {
+      if (widget.config.type == RecommendationType.memories) {
+        return 3500.0; // 时光记忆（照片）：大幅提升预构建范围
+      } else if (widget.config.type == RecommendationType.videos) {
+        return 2000.0; // 生活剪影（视频）：保持适度预构建
+      }
+    }
+
+    // 其他情况：使用默认值
+    return 1000.0;
   }
 
   /// 构建批量操作底部栏

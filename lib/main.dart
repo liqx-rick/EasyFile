@@ -29,9 +29,12 @@ Future<void> main() async {
   ]);
   logger.i('✓ Screen orientations: all enabled');
 
-  // 配置图片缓存，限制内存使用
-  PaintingBinding.instance.imageCache.maximumSize = 100;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20;
+  // 配置图片缓存，优化图片分类浏览体验
+  // maximumSize: 缓存图片数量上限（100 → 500张，支持更多图片常驻内存）
+  // maximumSizeBytes: 缓存大小上限（50MB → 200MB，适配高分辨率设备）
+  PaintingBinding.instance.imageCache.maximumSize = 500;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20;
+  logger.i('✓ ImageCache configured: 500 images, 200MB');
 
   // Initialize logger before other startup
   await logger.init();

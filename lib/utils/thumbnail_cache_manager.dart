@@ -1,17 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:crypto/crypto.dart';
-import 'dart:convert';
 import 'package:easyfile/core/logger.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 缩略图缓存管理器
 ///
 /// 负责视频缩略图和音频封面的缓存管理
 /// 使用文件系统缓存，通过MD5生成唯一键
 class ThumbnailCacheManager {
-  static final ThumbnailCacheManager _instance =
-      ThumbnailCacheManager._internal();
+  static final ThumbnailCacheManager _instance = ThumbnailCacheManager._internal();
   factory ThumbnailCacheManager() => _instance;
   ThumbnailCacheManager._internal();
 
@@ -27,8 +27,7 @@ class ThumbnailCacheManager {
 
     // 如果已经尝试多次失败，不再重试
     if (_initAttempts >= _maxInitAttempts) {
-      logger.w(
-          'Thumbnail cache initialization failed after $_initAttempts attempts, giving up');
+      logger.w('Thumbnail cache initialization failed after $_initAttempts attempts, giving up');
       return;
     }
 
@@ -38,20 +37,18 @@ class ThumbnailCacheManager {
       final appDir = await getApplicationDocumentsDirectory();
       _cacheDir = Directory('${appDir.path}/media_thumbnails');
 
-      logger.d(
-          'Attempting to initialize thumbnail cache (attempt $_initAttempts/$_maxInitAttempts): ${_cacheDir!.path}');
+      logger
+          .d('Attempting to initialize thumbnail cache (attempt $_initAttempts/$_maxInitAttempts): ${_cacheDir!.path}');
 
       if (!await _cacheDir!.exists()) {
         await _cacheDir!.create(recursive: true);
         logger.d('Thumbnail cache directory created: ${_cacheDir!.path}');
       } else {
-        logger
-            .d('Thumbnail cache directory already exists: ${_cacheDir!.path}');
+        logger.d('Thumbnail cache directory already exists: ${_cacheDir!.path}');
       }
 
       // 验证目录是否可写
-      final testFile = File(
-          '${_cacheDir!.path}/.test_${DateTime.now().millisecondsSinceEpoch}');
+      final testFile = File('${_cacheDir!.path}/.test_${DateTime.now().millisecondsSinceEpoch}');
       try {
         await testFile.writeAsString('test', flush: true);
         final content = await testFile.readAsString();
@@ -71,11 +68,9 @@ class ThumbnailCacheManager {
       }
 
       _initialized = true;
-      logger.i(
-          'Thumbnail cache initialized successfully: ${_cacheDir!.path} (attempt $_initAttempts)');
+      logger.i('Thumbnail cache initialized successfully: ${_cacheDir!.path} (attempt $_initAttempts)');
     } catch (e, stackTrace) {
-      logger.e(
-          'Failed to initialize thumbnail cache (attempt $_initAttempts/$_maxInitAttempts): $e');
+      logger.e('Failed to initialize thumbnail cache (attempt $_initAttempts/$_maxInitAttempts): $e');
       logger.e('Stack trace: $stackTrace');
       _cacheDir = null;
       _initialized = false;
@@ -125,13 +120,13 @@ class ThumbnailCacheManager {
         }
 
         if (fileSize < 100) {
-          logger.w(
-              'Cached thumbnail too small ($fileSize bytes), possibly corrupted, deleting: $filePath');
+          logger.w('Cached thumbnail too small ($fileSize bytes), possibly corrupted, deleting: $filePath');
           await cacheFile.delete();
           return null;
         }
 
-        logger.d('Loading thumbnail from cache: $filePath ($fileSize bytes)');
+        // 性能优化：移除滚动时频繁触发的日志输出
+        // logger.d('Loading thumbnail from cache: $filePath ($fileSize bytes)');
         return await cacheFile.readAsBytes();
       }
     } catch (e) {
@@ -150,16 +145,13 @@ class ThumbnailCacheManager {
     // 验证缓存目录是否正常初始化
     if (_cacheDir == null || !_initialized) {
       // 如果普通初始化失败，尝试强制重新初始化一次
-      logger.w(
-          'Cache directory not initialized, attempting force reinitialization...');
+      logger.w('Cache directory not initialized, attempting force reinitialization...');
       final success = await forceReinitialize();
 
       if (!success) {
-        logger.e(
-            'Cache directory not initialized after force reinitialization, cannot save thumbnail');
+        logger.e('Cache directory not initialized after force reinitialization, cannot save thumbnail');
         logger.e('File path: $filePath');
-        logger.e(
-            '_initialized: $_initialized, _cacheDir: $_cacheDir, _initAttempts: $_initAttempts');
+        logger.e('_initialized: $_initialized, _cacheDir: $_cacheDir, _initAttempts: $_initAttempts');
         return false;
       }
 
@@ -174,8 +166,7 @@ class ThumbnailCacheManager {
 
     // 验证数据大小：至少应该有一些字节（JPEG头部至少需要几百字节）
     if (thumbnailData.length < 100) {
-      logger.w(
-          'Thumbnail data too small (${thumbnailData.length} bytes), possibly corrupted: $filePath');
+      logger.w('Thumbnail data too small (${thumbnailData.length} bytes), possibly corrupted: $filePath');
       return false;
     }
 
@@ -193,14 +184,12 @@ class ThumbnailCacheManager {
       // 验证写入是否成功
       final writtenSize = await cacheFile.length();
       if (writtenSize != thumbnailData.length) {
-        logger.e(
-            'Thumbnail write incomplete: expected ${thumbnailData.length} bytes, got $writtenSize bytes');
+        logger.e('Thumbnail write incomplete: expected ${thumbnailData.length} bytes, got $writtenSize bytes');
         await cacheFile.delete(); // 删除不完整的文件
         return false;
       }
 
-      logger.d(
-          'Thumbnail saved to cache: $filePath (${thumbnailData.length} bytes)');
+      logger.d('Thumbnail saved to cache: $filePath (${thumbnailData.length} bytes)');
       return true;
     } catch (e, stackTrace) {
       logger.e('Failed to save thumbnail to cache: $e');
@@ -280,8 +269,7 @@ class ThumbnailCacheManager {
 
         if (await _cacheDir!.exists()) {
           // 测试写入权限
-          final testFile = File(
-              '${_cacheDir!.path}/.diagnostic_test_${DateTime.now().millisecondsSinceEpoch}');
+          final testFile = File('${_cacheDir!.path}/.diagnostic_test_${DateTime.now().millisecondsSinceEpoch}');
           try {
             await testFile.writeAsString('diagnostic test', flush: true);
             result['writable'] = true;
@@ -374,8 +362,7 @@ class ThumbnailCacheManager {
               await entity.delete();
               cleanedCount++;
             } else if (fileSize < 100) {
-              logger.d(
-                  'Deleting corrupted cache file (${fileSize}B): ${entity.path}');
+              logger.d('Deleting corrupted cache file (${fileSize}B): ${entity.path}');
               await entity.delete();
               cleanedCount++;
             }

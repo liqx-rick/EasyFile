@@ -144,9 +144,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void initState() {
     super.initState();
 
-    // 暂停缩略图加载队列，为视频播放释放MediaCodec资源
-    VideoThumbnailLoadQueue().pause();
-    logger.i('Paused thumbnail load queue for video playback');
+    // ⚡ 降低缩略图加载并发（3→1），为视频播放释放MediaCodec资源，同时继续预生成
+    VideoThumbnailLoadQueue().pauseForPlayback();
+    logger.i('Reduced thumbnail load queue concurrency for video playback');
 
     // 提前获取主题色，避免在 async 方法中使用 BuildContext
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -604,9 +604,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void dispose() {
     logger.i('Disposing video player');
 
-    // 恢复缩略图加载队列
-    VideoThumbnailLoadQueue().resume();
-    logger.i('Resumed thumbnail load queue after video playback');
+    // ⚡ 恢复缩略图加载并发（1→3）
+    VideoThumbnailLoadQueue().resumeFromPlayback();
+    logger.i('Restored thumbnail load queue concurrency after video playback');
 
     // 恢复系统设置
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

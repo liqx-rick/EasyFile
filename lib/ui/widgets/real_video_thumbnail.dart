@@ -105,9 +105,7 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> with AutomaticK
 
       // 2. 使用队列加载缩略图（自动处理缓存和并发控制）
       // 如果缓存命中，通常在100ms内返回
-      final startTime = DateTime.now();
       final thumbnailData = await _loadQueue.loadThumbnail(widget.videoPath, widget.size);
-      final loadDuration = DateTime.now().difference(startTime);
 
       if (thumbnailData != null) {
         // 只在数据真正改变时才 setState
@@ -123,7 +121,8 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> with AutomaticK
             _isLoading = false;
           });
         }
-        logger.d('Thumbnail loaded in ${loadDuration.inMilliseconds}ms');
+        // 性能优化：移除滚动时频繁触发的日志输出
+        // logger.d('Thumbnail loaded in ${loadDuration.inMilliseconds}ms');
       } else {
         throw Exception('Failed to load thumbnail');
       }
@@ -216,12 +215,6 @@ class _RealVideoThumbnailState extends State<RealVideoThumbnail> with AutomaticK
       final dpr = MediaQuery.of(context).devicePixelRatio;
       final rawWidth = widget.size * dpr;
       _cachedCacheWidth = rawWidth.toInt().clamp(150, 800);
-
-      // 调试：打印渲染参数
-      logger.d('[ImageCache] 🎬渲染视频缩略图: ${widget.videoPath}');
-      logger.d(
-          '[ImageCache] 🎬  原始: ${rawWidth.toStringAsFixed(2)} → toInt: ${rawWidth.toInt()} → clamp: $_cachedCacheWidth');
-      logger.d('[ImageCache] 🎬  参数: widget.size=${widget.size}, dpr=$dpr');
     }
 
     return ClipRRect(
