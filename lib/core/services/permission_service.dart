@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
+
 import '../logger.dart';
 
 /// 权限状态枚举
@@ -41,14 +42,14 @@ class PermissionService extends ChangeNotifier {
       logger.d('PermissionService: Checking permission status...');
 
       // 首先检查 MANAGE_EXTERNAL_STORAGE (All files access)
-      final manageStorageStatus = await Permission.manageExternalStorage.status;
+      final manageStorageStatus = await ph.Permission.manageExternalStorage.status;
 
       // 检查存储权限
-      final storageStatus = await Permission.storage.status;
+      final storageStatus = await ph.Permission.storage.status;
 
       // Android 13+ 需要额外检查媒体权限
-      final photosStatus = await Permission.photos.status;
-      final videosStatus = await Permission.videos.status;
+      final photosStatus = await ph.Permission.photos.status;
+      final videosStatus = await ph.Permission.videos.status;
 
       logger.d(
           'Permission status - manage: $manageStorageStatus, storage: $storageStatus, photos: $photosStatus, videos: $videosStatus');
@@ -57,16 +58,13 @@ class PermissionService extends ChangeNotifier {
       // 优先使用 MANAGE_EXTERNAL_STORAGE（最高权限）
       if (manageStorageStatus.isGranted) {
         _setState(PermissionState.granted);
-      } else if (storageStatus.isGranted ||
-          (photosStatus.isGranted && videosStatus.isGranted)) {
+      } else if (storageStatus.isGranted || (photosStatus.isGranted && videosStatus.isGranted)) {
         _setState(PermissionState.granted);
       } else if (storageStatus.isPermanentlyDenied ||
           photosStatus.isPermanentlyDenied ||
           videosStatus.isPermanentlyDenied) {
         _setState(PermissionState.permanentlyDenied);
-      } else if (storageStatus.isDenied ||
-          photosStatus.isDenied ||
-          videosStatus.isDenied) {
+      } else if (storageStatus.isDenied || photosStatus.isDenied || videosStatus.isDenied) {
         _setState(PermissionState.denied);
       } else {
         _setState(PermissionState.unknown);
@@ -88,8 +86,7 @@ class PermissionService extends ChangeNotifier {
       logger.i('PermissionService: Requesting permissions...');
 
       // 先尝试请求 MANAGE_EXTERNAL_STORAGE (All files access)
-      final manageStorageStatus =
-          await Permission.manageExternalStorage.request();
+      final manageStorageStatus = await ph.Permission.manageExternalStorage.request();
       logger.i('MANAGE_EXTERNAL_STORAGE status: $manageStorageStatus');
 
       // 如果获得了完全访问权限，直接返回
@@ -100,15 +97,14 @@ class PermissionService extends ChangeNotifier {
       }
 
       // 否则请求基本存储权限
-      final storageStatus = await Permission.storage.request();
+      final storageStatus = await ph.Permission.storage.request();
 
       // Android 13+ 请求媒体权限
-      final photosStatus = await Permission.photos.request();
-      final videosStatus = await Permission.videos.request();
+      final photosStatus = await ph.Permission.photos.request();
+      final videosStatus = await ph.Permission.videos.request();
 
       // 判断结果
-      if (storageStatus.isGranted ||
-          (photosStatus.isGranted && videosStatus.isGranted)) {
+      if (storageStatus.isGranted || (photosStatus.isGranted && videosStatus.isGranted)) {
         _setState(PermissionState.granted);
         logger.i('PermissionService: Storage/Media permission granted');
       } else if (storageStatus.isPermanentlyDenied ||
@@ -133,7 +129,7 @@ class PermissionService extends ChangeNotifier {
   Future<void> openAppSettings() async {
     try {
       logger.i('PermissionService: Opening app settings...');
-      await openAppSettings();
+      await ph.openAppSettings();
     } catch (e) {
       logger.e('PermissionService: Error opening app settings: $e');
     }
