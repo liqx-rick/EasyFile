@@ -146,8 +146,7 @@ mixin BackgroundRestorationMixin<T extends StatefulWidget> on State<T> {
     audioFiles.sort((a, b) => a.name.compareTo(b.name));
 
     // 找到当前文件的索引
-    int initialIndex =
-        audioFiles.indexWhere((f) => f.path == currentFileItem.path);
+    int initialIndex = audioFiles.indexWhere((f) => f.path == currentFileItem.path);
     if (initialIndex == -1) initialIndex = 0;
 
     return (audioFiles, initialIndex);
