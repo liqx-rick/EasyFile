@@ -8,6 +8,9 @@
 
 ## 📋 执行摘要
 
+> 注意：本文档侧重于不同扫描方案的性能与实现对比；关于运行时的“应用推荐模块”（首页推荐卡片、RecommendationService、推荐缓存与页面驱动等）的事实性说明，请参阅 [docs/RECOMMENDATION_MODULE_REFERENCE.md](docs/RECOMMENDATION_MODULE_REFERENCE.md)。
+
+
 ### 核心功能
 本模块用于对比测试两种应用文件扫描方案的性能和效果：
 1. **方案1: 路径扫描 + 文件名模式匹配** - 兼容所有Android版本

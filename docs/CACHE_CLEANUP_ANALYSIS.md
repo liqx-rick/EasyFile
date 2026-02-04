@@ -12,6 +12,9 @@
 
 ### 1.1 应用缓存使用情况
 
+> 注意：本文档关注缓存清理场景与策略；若需要关于“应用推荐模块”运行时行为（首页推荐卡片、推荐页、RecommendationService 的实现等）的权威事实说明，请参阅 [docs/RECOMMENDATION_MODULE_REFERENCE.md](docs/RECOMMENDATION_MODULE_REFERENCE.md)。
+
+
 通过代码审查，发现应用当前使用以下几种缓存机制：
 
 #### 1.1.1 视频/音频缩略图缓存
