@@ -12,6 +12,9 @@
 
 ---
 
+> 注意：本文档聚焦缓存优化技术与使用示例；关于“应用推荐模块”的运行时行为（推荐卡片生成、RecommendationService 流程、首页与推荐页如何工作等）的权威说明请参阅 [docs/RECOMMENDATION_MODULE_REFERENCE.md](docs/RECOMMENDATION_MODULE_REFERENCE.md)。
+
+
 ## 🚀 快速开始
 
 ### 1. 初始化服务
