@@ -1,7 +1,7 @@
 # EasyFile 文件类型支持能力审计报告
 
-**审计日期**: 2026-01-01  
-**审计范围**: 完整代码库文件类型过滤与支持机制  
+**审计日期**: 2026-01-01
+**审计范围**: 完整代码库文件类型过滤与支持机制
 **审计目标**: 验证 `FileTypesConfig` 作为唯一权威来源的有效性
 
 ---
@@ -16,12 +16,12 @@
 
 2. **多层过滤架构已落实** ✓
    - 数据源层：`AppFilesDataSource` 使用 `DataSourceHelpers.filterBySupportedTypes()`
-   - 服务层：`RecommendationService` 在统计前进行过滤
+  - 扫描/缓存层：`UnifiedAppScanner.scanApp()` 在写入 `FileCountCache` 前过滤不支持类型（首页推荐卡片的 `fileCount` 取自该缓存）
    - UI层：通过数据源过滤，不再需要额外过滤
 
-3. **缓存版本控制已实现** ✓
-   - `AppStatisticsCache` 使用 v2 版本标记
-   - 旧缓存（v1）自动失效，确保统计数据准确
+3. **文件数量缓存已实现** ✓
+  - `FileCountCache` 持久化存储“支持类型”的文件数量
+  - 缓存过期或未命中时，调用方可选择触发完整扫描（首页推荐卡片当前不回退实时扫描）
 
 ### ⚠️ 潜在风险点
 1. **CategoryFileDataSource 依赖 MediaStore**
@@ -52,12 +52,12 @@ class FileTypesConfig {
   List<String> documentExtensions => [14种]
   List<String> archiveExtensions => [12种]
   List<String> apkExtensions => [1种]
-  
+
   // 会员专享（预留，当前为空）
   List<String> premiumImageExtensions => []
   List<String> premiumVideoExtensions => []
   List<String> premiumAudioExtensions => []
-  
+
   // 核心方法
   FileCategory getCategoryByExtension(String extension)
   bool isImageFile(String fileName)
@@ -82,7 +82,7 @@ class FileTypesConfig {
 ```dart
 class FileUtils {
   static FileTypesConfig get _config => AppConfig.instance.fileTypes;
-  
+
   // 所有判断方法都委托给 FileTypesConfig
   static bool isImageFile(String fileName) => _config.isImageFile(fileName);
   static bool isVideoFile(String fileName) => _config.isVideoFile(fileName);
@@ -106,15 +106,15 @@ class FileUtils {
 ```dart
 Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   var files = scanResult.allFiles;
-  
+
   // ✅ 第一层：FileTypesConfig 基础过滤
   files = DataSourceHelpers.filterBySupportedTypes(files);
-  
+
   // ✅ 第二层：Tab 类型过滤（可选）
   if (fileTypes != null && fileTypes.isNotEmpty) {
     files = DataSourceHelpers.filterByFileTypes(files, fileTypes: fileTypes);
   }
-  
+
   return files;
 }
 ```
@@ -129,10 +129,10 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
 ```dart
 Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   final categoryType = params['categoryType'] as CategoryType;
-  
+
   // ⚠️ 直接调用 Presenter，依赖 MediaStore 原生过滤
   final files = await presenter.scanFilesByCategory(categoryType);
-  
+
   return files;
 }
 ```
@@ -186,48 +186,30 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
 ### 4. 服务层过滤
 
 #### 4.1 推荐服务 ✅
-**文件**: `lib/core/services/recommendation_service.dart`
+**文件**: `lib/core/services/recommendation_service.dart` / `lib/core/services/unified_app_scanner.dart`
 
 ```dart
-Future<RecommendationCard?> _generateApplicationCard(String appKey) async {
-  final scanResult = await _scanner.scanApp(appKey: appKey);
-  
-  // ✅ 在统计前过滤
-  final originalCount = scanResult.allFiles.length;
-  final filteredFiles = DataSourceHelpers.filterBySupportedTypes(scanResult.allFiles);
-  final fileCount = filteredFiles.length;
-  
-  // 统计基于过滤后的文件
-  int totalSize = filteredFiles.fold<int>(0, (sum, file) => sum + file.size);
-  
-  return RecommendationCard(...);
-}
+// 首次使用（或 reset 后）：RecommendationService 会触发一次 scanApp 写缓存
+final scanResult = await _scanner.scanApp(
+  appKey: appConfig.appKey,
+  withIcon: false,
+  updateCache: true,
+);
+
+// 首页生成卡片阶段：仅从 FileCountCache 快速读取
+final cachedCount = await _scanner.getFileCountFast(appKey: appKey);
 ```
 
-**评估**: ✅ **统计数据准确**
-- 在卡片生成前进行过滤
-- 确保推荐卡片上的数量和大小只统计支持的文件
+**评估**: ✅ **首页推荐卡片的 fileCount 与“支持类型过滤”一致**
+- `UnifiedAppScanner.scanApp()` 在写入 `FileCountCache` 前会过滤掉不支持的文件类型，只缓存“有效文件数量”
+- `RecommendationCard` 当前仅展示 `fileCount`（不包含 `totalSize` / `weeklyGrowth` 等统计字段）
 
-#### 4.2 缓存版本控制 ✅
-**文件**: `lib/core/services/app_statistics_cache.dart`
+#### 4.2 文件数量缓存（持久化）✅
+**文件**: `lib/core/services/file_count_cache.dart` / `lib/core/services/unified_app_scanner.dart`
 
-```dart
-class AppStatistics {
-  static const int currentVersion = 2; // v1=未过滤, v2=已过滤
-  final int version;
-  
-  bool isValid() {
-    if (version != currentVersion) {
-      return false; // 版本不匹配，缓存失效
-    }
-    // ... 其他验证
-  }
-}
-```
-
-**评估**: ✅ **自动失效机制**
-- 旧版本（v1）缓存自动失效
-- 新扫描结果自动使用 v2 标记
+**评估**: ✅ **缓存可控、不会阻塞首页**
+- 有效期由 `FileCountCache` 控制（当前实现为 24 小时）
+- 缓存未命中时首页会显示 0，且不会在生成卡片时自动回退到实时扫描（避免首页卡顿）
 
 ---
 
@@ -240,7 +222,7 @@ class AppStatistics {
 Future<void> _loadFiles() async {
   // ✅ 通过数据源获取文件（已过滤）
   final files = await _dataSource.queryFiles(params);
-  
+
   setState(() {
     _files = files; // 直接使用，无需额外过滤
   });
@@ -275,25 +257,23 @@ return FileCollectionView(
 首页 QuickAccessSection
   ↓ 调用
 RecommendationService.getRecommendations()
-  ↓ 内部调用
-UnifiedAppScanner.scanApp(appKey)
-  ↓ 扫描结果
-scanResult.allFiles (原始文件列表)
-  ↓ 过滤
-DataSourceHelpers.filterBySupportedTypes()
-  ↓ 使用
-FileTypesConfig.isXXXFile() 判断
-  ↓ 结果
-filteredFiles (只包含支持的文件)
-  ↓ 统计
-计算 fileCount, totalSize, weeklyGrowth
+  ↓ （首次使用/重置时）
+RecommendationService._performInitialScan()
+  ↓ 写缓存
+UnifiedAppScanner.scanApp(updateCache: true)
+  ↓
+过滤不支持类型后写入 FileCountCache（只缓存“有效文件数量”）
+  ↓ （展示阶段）
+UnifiedAppScanner.getFileCountFast()
   ↓ 生成
-RecommendationCard
+RecommendationCard(fileCount)
   ↓ 展示
-首页推荐卡片（数量和大小准确）
+首页推荐卡片（仅展示数量）
 ```
 
-**评估**: ✅ **完整过滤链路，无遗漏**
+**评估**: ✅ **fileCount 与过滤一致，但统计维度有限**
+- 过滤发生在 `UnifiedAppScanner.scanApp()` 写入缓存阶段（不是通过 `DataSourceHelpers`）
+- 首页卡片仅展示 `fileCount`，不包含大小/增长等统计
 
 ### 路径 2: 应用文件列表
 ```
@@ -384,19 +364,19 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   if (categoryType == null) {
     throw ArgumentError('categoryType is required');
   }
-  
+
   logger.i('$name.queryFiles - categoryType: ${categoryType.name}');
-  
+
   // 调用现有扫描方法
   final files = await presenter.scanFilesByCategory(categoryType);
-  
+
   // ⭐ 添加二次过滤，确保与 FileTypesConfig 一致
   final filteredFiles = DataSourceHelpers.filterBySupportedTypes(files);
-  
+
   if (filteredFiles.length != files.length) {
     logger.w('$name - MediaStore 返回了 ${files.length - filteredFiles.length} 个不支持的文件，已过滤');
   }
-  
+
   logger.i('$name.queryFiles - 完成: ${filteredFiles.length} 个文件');
   return filteredFiles;
 }
@@ -410,23 +390,23 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
 // lib/core/data_sources/media_store_data_source.dart
 Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   logger.i('$name.queryFiles - type: ${type.name}, params: $params');
-  
+
   final forceRefresh = params['forceRefresh'] as bool? ?? false;
-  
+
   final cacheService = MediaStoreCacheService();
   final files = await cacheService.getCachedOrScan(
     type: type,
     forceRefresh: forceRefresh,
     params: params,
   );
-  
+
   // ⭐ 添加过滤，确保只返回支持的文件
   final filteredFiles = DataSourceHelpers.filterBySupportedTypes(files);
-  
+
   if (filteredFiles.length != files.length) {
     logger.d('$name - 过滤了 ${files.length - filteredFiles.length} 个不支持的文件');
   }
-  
+
   logger.i('$name.queryFiles - 完成: ${filteredFiles.length} 个文件');
   return filteredFiles;
 }
@@ -440,23 +420,23 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
 // lib/core/data_sources/large_files_data_source.dart
 Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
   final minSize = params['minSize'] as int? ?? (100 * 1024 * 1024);
-  final includeTypes = params['includeTypes'] as List<String>? ?? 
+  final includeTypes = params['includeTypes'] as List<String>? ??
                        ['image', 'video', 'audio', 'document'];
-  
+
   logger.i('$name.queryFiles - minSize: ${DataSourceHelpers.formatSize(minSize)}, types: $includeTypes');
-  
+
   final files = await MediaStoreScannerChannel.scanLargeFiles(
     minSize: minSize,
     includeTypes: includeTypes,
   );
-  
+
   // ⭐ 添加过滤，确保只返回支持的文件
   final filteredFiles = DataSourceHelpers.filterBySupportedTypes(files);
-  
+
   if (filteredFiles.length != files.length) {
     logger.d('$name - 过滤了 ${files.length - filteredFiles.length} 个不支持的大文件');
   }
-  
+
   logger.i('$name.queryFiles - 完成: ${filteredFiles.length} 个大文件');
   return filteredFiles;
 }
@@ -471,7 +451,7 @@ Future<List<FileItem>> queryFiles(Map<String, dynamic> params) async {
 static List<FileItem> filterBySupportedTypes(List<FileItem> files) {
   final fileTypes = AppConfig.instance.fileTypes;
   final unsupportedFiles = <String>[]; // 收集不支持的文件
-  
+
   final result = files.where((file) {
     final fileName = file.name;
     final isSupported = fileTypes.isImageFile(fileName) ||
@@ -480,18 +460,18 @@ static List<FileItem> filterBySupportedTypes(List<FileItem> files) {
         fileTypes.isDocumentFile(fileName) ||
         fileTypes.isArchiveFile(fileName) ||
         fileTypes.isApkFile(fileName);
-    
+
     if (!isSupported) {
       unsupportedFiles.add(fileName);
     }
-    
+
     return isSupported;
   }).toList();
-  
+
   if (unsupportedFiles.isNotEmpty) {
     logger.d('过滤了 ${unsupportedFiles.length} 个不支持的文件: ${unsupportedFiles.take(5).join(", ")}${unsupportedFiles.length > 5 ? "..." : ""}');
   }
-  
+
   return result;
 }
 ```
@@ -509,12 +489,12 @@ void main() {
         FileItem(name: 'video.mp4', ...),
         FileItem(name: 'doc.pdf', ...),
       ];
-      
+
       final filtered = DataSourceHelpers.filterBySupportedTypes(files);
-      
+
       expect(filtered.length, 3);
     });
-    
+
     test('应该过滤不支持的文件类型', () {
       final files = [
         FileItem(name: 'photo.jpg', ...),
@@ -522,21 +502,21 @@ void main() {
         FileItem(name: '1001_s_200', ...),      // 不支持
         FileItem(name: 'file.unknown', ...),    // 不支持
       ];
-      
+
       final filtered = DataSourceHelpers.filterBySupportedTypes(files);
-      
+
       expect(filtered.length, 1);
       expect(filtered[0].name, 'photo.jpg');
     });
-    
+
     test('应该正确识别双扩展名', () {
       final files = [
         FileItem(name: 'app.apk.1', ...),      // 应识别为 apk
         FileItem(name: 'photo.jpg.bak', ...),  // 应识别为 jpg
       ];
-      
+
       final filtered = DataSourceHelpers.filterBySupportedTypes(files);
-      
+
       expect(filtered.length, 2);
     });
   });
@@ -555,7 +535,7 @@ class DataSourceHelpers {
     _cachedConfig ??= AppConfig.instance.fileTypes;
     return _cachedConfig!;
   }
-  
+
   static List<FileItem> filterBySupportedTypes(List<FileItem> files) {
     final fileTypes = _config; // 使用缓存
     // ... 过滤逻辑
@@ -572,8 +552,8 @@ class DataSourceHelpers {
 **优点**:
 1. ✅ **FileTypesConfig 是唯一权威来源**，无硬编码判断
 2. ✅ **AppFilesDataSource 双重过滤**，逻辑严密
-3. ✅ **RecommendationService 统计前过滤**，数据准确
-4. ✅ **缓存版本控制**，自动失效旧数据
+3. ✅ **UnifiedAppScanner 写缓存前过滤**，首页推荐卡片数量与支持类型一致
+4. ✅ **FileCountCache 持久化 + TTL**，降低重复扫描成本
 5. ✅ **架构清晰**，职责分离良好
 
 **不足**:
@@ -629,5 +609,5 @@ apk
 
 ---
 
-**审计完成时间**: 2026-01-01  
+**审计完成时间**: 2026-01-01
 **下次审计建议**: 修复建议实施后 1 周

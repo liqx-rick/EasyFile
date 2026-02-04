@@ -18,7 +18,7 @@
 ### 关键发现
 - ⚠️ **缓存写入条件**: `updateCache=true` 且 `_fileCountCache != null`
 - ⚠️ **缓存依赖**: 需要在 `UnifiedAppScanner` 构造时注入 `FileCountCache` 实例
-- ⚠️ **缓存内容**: 仅存储文件数量，不存储文件列表
+- ⚠️ **缓存内容**: 默认必有文件数量（FileCountCache）；若注入了 `AppFileListCache`，还会持久化保存“支持类型”的文件列表用于快速加载
 - ⚠️ **缓存键格式**: `file_count_wechat` (数量) + `file_count_time_wechat` (时间戳)
 
 ---
@@ -166,10 +166,20 @@ Future<List<String>> _performInitialScan() async {
       continue;
     }
 
-    // 方案A：应用已安装即添加，不检查文件数量
-    // ⚠️ 注意：这里不调用 scanApp，所以不会触发缓存写入！
-    selectedAppKeys.add(appConfig.appKey);
-    logger.d('  ✅ 已安装，添加到列表');
+    // 应用已安装，扫描文件数量并写入缓存
+    final scanResult = await _scanner.scanApp(
+      appKey: appConfig.appKey,
+      withIcon: false,
+      updateCache: true,
+    );
+
+    // 判断是否达到阈值
+    if (scanResult.totalCount >= threshold) {
+      selectedAppKeys.add(appConfig.appKey);
+      logger.d('  ✅ 文件数量 ${scanResult.totalCount} >= $threshold，添加到列表');
+    } else {
+      logger.d('  文件数量 ${scanResult.totalCount} < $threshold，不符合条件');
+    }
   }
 
   // 保存已选定列表
@@ -181,9 +191,9 @@ Future<List<String>> _performInitialScan() async {
 ```
 
 **关键发现**:
-- ❌ `_performInitialScan()` 只检测应用是否安装
-- ❌ **不调用** `scanner.scanApp()`，所以**不会触发缓存写入**
-- ⚠️ 仅保存已选定的应用Key列表到 SharedPreferences
+- ✅ `_performInitialScan()` 会调用 `scanner.scanApp(updateCache: true)` 并写入缓存
+- ✅ 是否加入推荐列表仍受阈值（`recommendationFileCountThreshold`）控制
+- ✅ 持久化保存“已选定应用Key列表”（用于后续固定推荐）
 
 #### 代码位置 4: recommendation_service.dart (生成卡片)
 **文件**: `lib/core/services/recommendation_service.dart:167-232`
@@ -243,8 +253,8 @@ Future<List<RecommendationCard>> _generateCardsFromSelection(List<String> select
 
 **关键发现**:
 - ✅ 尝试通过 `getFileCountFast()` 读取缓存
-- ❌ **缓存未命中** → 文件数显示为 0
-- ❌ **不调用** `scanner.scanApp()` 补充缓存
+- ⚠️ **缓存未命中** 时 → 文件数显示为 0
+- ⚠️ 当前实现 **不会** 在生成卡片时自动回退到 `scanner.scanApp()`（避免首页阻塞），因此“是否已写入缓存”决定了首页展示是否为 0
 
 ---
 
@@ -283,10 +293,25 @@ Future<AppScanResult> scanApp({
 
   // ... 执行扫描逻辑 ...
 
-  // 步骤8: 更新文件数量缓存
-  if (updateCache && _fileCountCache != null) {  // ✅ 关键条件
-    await _fileCountCache!.setFileCount(appKey, allFiles.length);
-    logger.d('文件数量缓存已更新: $appKey = ${allFiles.length}');
+  // 步骤8: 更新文件数量缓存（只缓存“支持的文件类型”数量）
+  if (updateCache && _fileCountCache != null) {
+    final fileTypes = AppConfig.instance.fileTypes;
+
+    // 过滤不支持的类型（图片/视频/音频/文档/压缩包/APK）
+    final validFiles = allFiles.where((file) {
+      final fileName = file.name;
+      return fileTypes.isImageFile(fileName) ||
+          fileTypes.isVideoFile(fileName) ||
+          fileTypes.isAudioFile(fileName) ||
+          fileTypes.isDocumentFile(fileName) ||
+          fileTypes.isArchiveFile(fileName) ||
+          fileTypes.isApkFile(fileName);
+    }).toList();
+
+    await _fileCountCache!.setFileCount(appKey, validFiles.length);
+
+    // （可选）如果注入了 AppFileListCache，还会持久化保存 validFiles 供“秒开”加载
+    // if (_fileListCache != null) await _fileListCache!.setFileList(appKey, validFiles);
   }
 
   logger.i('========== 扫描完成: ${config.appName} ==========');
@@ -301,8 +326,8 @@ Future<AppScanResult> scanApp({
 - ✅ 扫描完成后调用 `setFileCount()` 写入缓存
 
 **⚠️ 问题根源**:
-- `RecommendationService._performInitialScan()` **从不调用** `scanner.scanApp()`
-- 因此**缓存永远不会被写入**！
+- ✅ 当前代码中 `RecommendationService._performInitialScan()` **会调用** `scanner.scanApp(updateCache: true)`。
+- 若首页仍出现 **缓存未命中**，需要从“缓存是否成功注入/写入/是否被清除/是否过期”维度排查；同时注意首页生成卡片阶段不会主动触发实时扫描。
 
 ---
 
@@ -436,25 +461,24 @@ class FileCountCache {
 ✅ RecommendationService.getRecommendations()
   ↓
 ✅ RecommendationService._performInitialScan()
-  → 只调用 detectApp() ✅
-  → 不调用 scanApp() ❌ <-- 问题根源！
+  → detectApp() ✅
+  → scanApp(updateCache: true) ✅（写入 FileCountCache；并可能写入 AppFileListCache）
   ↓
 ✅ RecommendationService._generateCardsFromSelection()
   → 调用 getFileCountFast() ✅
-  → 缓存未命中，返回 null ❌
-  → 不调用 scanApp() 补充缓存 ❌
+  → 缓存未命中，返回 null ⚠️
+  → 不回退 scanApp() 补充缓存（避免首页阻塞）⚠️
 ```
 
 ### 根本原因
 
-#### 设计逻辑
-- **方案A**: 应用已安装即显示，不检查文件数量（避免首次加载慢）
-- **实现**: `_performInitialScan()` 只检测安装状态，不扫描文件
+#### 现状说明（以当前代码为准）
+- `_performInitialScan()` 会调用 `scanApp(updateCache: true)`，因此**正常情况下缓存会被写入**。
+- 首页生成卡片阶段仅调用 `getFileCountFast()`，当缓存未命中时会显示 0，且当前实现不会自动回退到实时扫描。
 
-#### 副作用
-- 首次使用时不会写入缓存
-- 后续 `getFileCountFast()` 永远返回 `null`
-- 文件数量永远显示为 `0`
+#### 因此“显示为 0”的触发条件
+- 缓存未命中（未写入 / 被清理 / 已过期 / 扫描异常提前退出）
+- 且首页不回退扫描
 
 ### 预期的缓存写入时机
 
@@ -471,6 +495,8 @@ class FileCountCache {
 ## 💡 解决方案建议
 
 ### 方案1: 在初始化扫描时写入缓存（推荐）
+
+> ✅ 当前代码中已包含该思路：`RecommendationService._performInitialScan()` 会调用 `UnifiedAppScanner.scanApp(updateCache: true)`。
 
 #### 修改 `_performInitialScan()`
 ```dart
@@ -510,7 +536,7 @@ Future<List<String>> _performInitialScan() async {
 - ✅ 后续加载秒开
 
 **缺点**:
-- ❌ 首次启动变慢（4个应用 × 3-5秒 = 12-20秒）
+- ❌ 首次启动可能增加扫描耗时（具体取决于 `scanApp` 的实际耗时与设备性能）
 
 ---
 
@@ -585,7 +611,7 @@ void _scanAppInBackground(String appKey) {
 - ✅ 符合"应用已安装即显示"的设计
 
 **缺点**:
-- ❌ 首次使用体验差（文件数永远是0）
+- ❌ 缓存未命中时体验一般（文件数可能显示为0，且首页不会自动回退实时扫描）
 - ❌ 需要用户主动刷新
 
 ---
@@ -604,14 +630,12 @@ void _scanAppInBackground(String appKey) {
 ### 首次初始化时的实际情况
 ```
 ✅ FileCountCache 已注入
-  BUT
-❌ _performInitialScan() 从不调用 scanApp()
+  AND
+✅ _performInitialScan() 会调用 scanApp(updateCache: true)
   ==>
-❌ 缓存永远不会被写入
-  ==>
-❌ getFileCountFast() 永远返回 null
-  ==>
-❌ 文件数量永远显示为 0
+✅ 正常情况下会写入 FileCountCache（写入的是“支持类型”的文件数量）
+
+⚠️ 若仍出现缓存未命中：需要排查注入/初始化是否成功、缓存是否被清理/过期、或扫描是否异常提前退出。
 ```
 
 ### 推荐解决方案

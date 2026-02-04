@@ -1,7 +1,7 @@
 # 应用文件扫描方案对比 - Template E 完整代码流程分析
 
-> **分析日期**: 2025-12-19  
-> **功能**: 应用文件扫描方案对比测试  
+> **分析日期**: 2025-12-19
+> **功能**: 应用文件扫描方案对比测试
 > **分析方法**: Template E - 完整代码流程分析
 
 ---
@@ -76,7 +76,7 @@ AppFileScanTestPage._runComparisonTest()
 // 动态查找或使用已知路径
 List<String> paths = [];
 
-if (_selectedAppKey == 'weixin' || _selectedAppKey == 'qq' || 
+if (_selectedAppKey == 'weixin' || _selectedAppKey == 'qq' ||
     _selectedAppKey == 'telegram' || _selectedAppKey == 'wps') {
   // 动态查找: 在标准目录下搜索匹配关键字的文件夹
   final basePaths = [
@@ -87,14 +87,14 @@ if (_selectedAppKey == 'weixin' || _selectedAppKey == 'qq' ||
     '/storage/emulated/0/Movies/',
     '/storage/emulated/0/Documents/',
   ];
-  
+
   final keyword = keywordMap[_selectedAppKey]!; // 如 "WeiXin"
   paths = await AppFileScannerChannel.findFoldersContaining(basePaths, keyword);
-  
+
 } else {
   // 微信使用固定已知路径
   paths = await AppFileScannerChannel.getKnownAppPaths(_selectedAppKey);
-  // 返回: ['/storage/emulated/0/Download/WeiXin/', 
+  // 返回: ['/storage/emulated/0/Download/WeiXin/',
   //        '/storage/emulated/0/Pictures/WeiXin/', ...]
 }
 ```
@@ -129,7 +129,7 @@ final patterns = await AppFileScannerChannel.getAppFileNamePatterns(_selectedApp
 
 if (patterns.isNotEmpty) {
   final patternFiles = await AppFileScannerChannel.scanByFileNamePattern(patterns);
-  
+
   // 合并结果并去重
   for (final file in patternFiles) {
     if (!pathSet.contains(file.path)) {
@@ -151,12 +151,12 @@ fun scanByFileNamePattern(patterns: List<String>): List<Map<String, Any>> {
         MediaStore.Files.FileColumns.SIZE,
         // ...
     )
-    
+
     // 构建 SQL: DISPLAY_NAME LIKE 'wx_camera_%' OR DISPLAY_NAME LIKE 'mmexport%'
     val selectionParts = patterns.map { "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?" }
     val selection = selectionParts.joinToString(" OR ")
     val selectionArgs = patterns.toTypedArray()
-    
+
     val cursor = context.contentResolver.query(
         MediaStore.Files.getContentUri("external"),
         projection,
@@ -164,15 +164,15 @@ fun scanByFileNamePattern(patterns: List<String>): List<Map<String, Any>> {
         selectionArgs,
         sortOrder
     )
-    
+
     // 遍历结果，过滤隐藏文件
     cursor?.use {
         while (it.moveToNext()) {
             val path = it.getString(pathColumn) ?: continue
             val name = it.getString(nameColumn) ?: continue
-            
+
             if (name.startsWith(".") || path.contains("/.")) continue
-            
+
             files.add(mapOf(
                 "path" to path,
                 "name" to name,
@@ -191,7 +191,7 @@ fun scanByFileNamePattern(patterns: List<String>): List<Map<String, Any>> {
     val basePaths = call.argument<List<String>>("basePaths")!!
     val keyword = call.argument<String>("keyword")!!
     val foundPaths = mutableListOf<String>()
-    
+
     // 在每个基础路径下查找匹配的子文件夹
     for (basePath in basePaths) {
         val baseDir = File(basePath)
@@ -204,7 +204,7 @@ fun scanByFileNamePattern(patterns: List<String>): List<Map<String, Any>> {
             }
         }
     }
-    
+
     result.success(foundPaths)
 }
 ```
@@ -238,7 +238,7 @@ Future<void> _scanByOwnerPackage() async {
     );
     return;
   }
-  
+
   // 直接调用扫描
   final results = await AppFileScannerChannel.scanByOwnerPackage(_selectedPackageName);
   // _selectedPackageName = 'com.tencent.mm'
@@ -254,18 +254,18 @@ fun scanByOwnerPackage(packageName: String): List<Map<String, Any>> {
         Log.w(TAG, "OWNER_PACKAGE_NAME requires Android 11+")
         return emptyList()
     }
-    
+
     val projection = arrayOf(
         MediaStore.Files.FileColumns.DATA,
         MediaStore.Files.FileColumns.DISPLAY_NAME,
         MediaStore.Files.FileColumns.SIZE,
         MediaStore.Files.FileColumns.OWNER_PACKAGE_NAME  // Android 11+
     )
-    
+
     // SQL: OWNER_PACKAGE_NAME = 'com.tencent.mm'
     val selection = "${MediaStore.Files.FileColumns.OWNER_PACKAGE_NAME} = ?"
     val selectionArgs = arrayOf(packageName)
-    
+
     val cursor = context.contentResolver.query(
         MediaStore.Files.getContentUri("external"),
         projection,
@@ -273,15 +273,15 @@ fun scanByOwnerPackage(packageName: String): List<Map<String, Any>> {
         selectionArgs,
         sortOrder
     )
-    
+
     cursor?.use {
         while (it.moveToNext()) {
             val path = it.getString(pathColumn) ?: continue
             val name = it.getString(nameColumn) ?: continue
-            
+
             // 过滤隐藏文件
             if (name.startsWith(".") || path.contains("/.")) continue
-            
+
             files.add(mapOf(
                 "path" to path,
                 "name" to name,
@@ -290,7 +290,7 @@ fun scanByOwnerPackage(packageName: String): List<Map<String, Any>> {
             ))
         }
     }
-    
+
     Log.i(TAG, "扫描完成: ${files.size} 个文件")
 }
 ```
@@ -317,14 +317,14 @@ fun scanByOwnerPackage(packageName: String): List<Map<String, Any>> {
 ```dart
 class AppFileScannerChannel {
   static const _channel = MethodChannel('easyfile/app_file_scanner');
-  
+
   // 方案2入口
   static Future<List<FileItem>> scanByOwnerPackage(String packageName) async {
     final List<dynamic> result = await _channel.invokeMethod(
       'scanByOwnerPackage',
       {'packageName': packageName},
     );
-    
+
     // 将原生返回的Map转换为FileItem
     return result.map((item) {
       final map = Map<String, dynamic>.from(item as Map);
@@ -337,7 +337,7 @@ class AppFileScannerChannel {
       );
     }).toList();
   }
-  
+
   // 方案1辅助方法
   static Future<List<String>> getKnownAppPaths(String appKey) async {
     final List<dynamic> result = await _channel.invokeMethod(
@@ -346,19 +346,19 @@ class AppFileScannerChannel {
     );
     return result.cast<String>();
   }
-  
+
   static Future<List<FileItem>> scanByFileNamePattern(List<String> patterns) async {
     final List<dynamic> result = await _channel.invokeMethod(
       'scanByFileNamePattern',
       {'patterns': patterns},
     );
-    
+
     return result.map((item) {
       final map = Map<String, dynamic>.from(item as Map);
       return FileItem(/* ... */);
     }).toList();
   }
-  
+
   static Future<List<String>> findFoldersContaining(
     List<String> basePaths,
     String keyword,
@@ -392,15 +392,15 @@ try {
 class _AppFileScanTestPageState extends State<AppFileScanTestPage> {
   bool _isScanning = false;               // 扫描进行中
   bool _isAndroid11Supported = false;     // Android版本检测
-  
+
   // 方案1结果
   List<FileItem>? _pathScanResults;
   int? _pathScanDuration;
-  
+
   // 方案2结果
   List<FileItem>? _ownerPackageResults;
   int? _ownerPackageDuration;
-  
+
   // 测试应用
   String _selectedAppKey = 'wechat';
   String _selectedPackageName = 'com.tencent.mm';
@@ -419,13 +419,13 @@ Future<void> _runComparisonTest() async {
 
   // 1. 执行方案1
   await _scanByPath();
-  
+
   // 2. 等待1秒
   await Future.delayed(const Duration(seconds: 1));
-  
+
   // 3. 执行方案2
   await _scanByOwnerPackage();
-  
+
   setState(() {
     _isScanning = false;
   });
@@ -436,12 +436,12 @@ Future<void> _runComparisonTest() async {
 ```dart
 Future<void> _scanByPath() async {
   final startTime = DateTime.now();
-  
+
   // 执行扫描逻辑...
-  
+
   final endTime = DateTime.now();
   final duration = endTime.difference(startTime);
-  
+
   setState(() {
     _pathScanResults = files;
     _pathScanDuration = duration.inMilliseconds;
@@ -463,9 +463,9 @@ Row(
         color: Colors.blue,
       ),
     ),
-    
+
     const SizedBox(width: 16),
-    
+
     // 方案2结果
     Expanded(
       child: _buildResultCard(
@@ -496,7 +496,7 @@ Row(
 
 ### 实际测试场景
 
-**测试设备**: Android 12+  
+**测试设备**: Android 12+
 **测试应用**: 微信 (约5000个文件)
 
 **方案1预期**:
@@ -522,7 +522,7 @@ Row(
 if (Build.VERSION.SDK_INT >= 30) {
   // Android 11+: 优先使用方案2
   files = await scanByOwnerPackage(packageName);
-  
+
   // 如果结果不足，补充方案1
   if (files.length < 100) {
     final pathFiles = await scanByPath();
@@ -565,7 +565,7 @@ Future<List<FileItem>> scanWithCache(String packageName) async {
       return cached; // 5分钟内使用缓存
     }
   }
-  
+
   final results = await scanByOwnerPackage(packageName);
   _cache[packageName] = results;
   return results;
@@ -578,7 +578,7 @@ Future<List<FileItem>> scanWithCache(String packageName) async {
 Future<List<FileItem>> scanIncremental(DateTime lastScanTime) async {
   final selection = "${MediaStore.Files.FileColumns.DATE_ADDED} > ?";
   final selectionArgs = [(lastScanTime.millisecondsSinceEpoch / 1000).toInt()];
-  
+
   // 查询新增文件
 }
 ```
@@ -643,18 +643,18 @@ final results = await Future.wait([
 
 ### 实现功能清单
 
-✅ Android版本检测  
-✅ 双方案并行测试  
-✅ 性能计时对比  
-✅ 结果数量统计  
-✅ 去重逻辑  
-✅ 文件名模式匹配  
-✅ 动态路径发现  
-✅ UI结果展示  
-✅ 错误处理  
-✅ 日志输出  
+✅ Android版本检测
+✅ 双方案并行测试
+✅ 性能计时对比
+✅ 结果数量统计
+✅ 去重逻辑
+✅ 文件名模式匹配
+✅ 动态路径发现
+✅ UI结果展示
+✅ 错误处理
+✅ 日志输出
 
 ---
 
-**分析完成日期**: 2025-12-19  
+**分析完成日期**: 2025-12-19
 **分析师**: GitHub Copilot (Claude Sonnet 4.5)

@@ -2,7 +2,9 @@
 
 ## 📋 概述
 
-实现了基于 MediaStore ContentObserver 的文件变化监听机制，当用户添加、修改或删除文件时，自动清除应用统计缓存，确保显示最新数据。
+本文为“设计/实现方案文档”。当前仓库代码中已存在 `AppFileScannerChannel.watchFileChangeEvents()` 的 Channel 接口，但 **Service/UI 层监听与缓存清理的完整落地实现并不存在**（例如文中提到的 `FileChangeListenerService`、`AppStatisticsCache`）。
+
+与“应用推荐模块”运行时行为相关的事实来源以代码为准，优先参考 `docs/RECOMMENDATION_MODULE_REFERENCE.md`。
 
 ## 🏗️ 架构设计
 
@@ -30,10 +32,10 @@
 ┌─────────────────────────────────────────────┐
 │         Service 层（业务逻辑）                │
 │  ┌───────────────────────────────────────┐  │
-│  │  FileChangeListenerService            │  │
+│  │  FileChangeListenerService（未实现）   │  │
 │  │  - 监听事件流                          │  │
 │  │  - 防抖处理（2秒）                     │  │
-│  │  - 清除 AppStatisticsCache            │  │
+│  │  - 触发缓存失效（需按现有缓存设计实现） │  │
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
                       ↓
@@ -67,7 +69,7 @@
 // 注册 MediaStore 监听
 private fun registerMediaStoreObserver() {
     val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    
+
     mediaStoreObserver = object : android.database.ContentObserver(handler) {
         override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
             uri?.let {
@@ -79,7 +81,7 @@ private fun registerMediaStoreObserver() {
             }
         }
     }
-    
+
     // 监听各种媒体类型
     contentResolver.registerContentObserver(
         MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver!!
@@ -109,7 +111,7 @@ static Stream<Map<String, dynamic>> watchFileChangeEvents() {
 
 ### 3. Service 层
 
-**新文件**: `lib/core/services/file_change_listener_service.dart`
+**建议文件（当前仓库未包含该实现）**: `lib/core/services/file_change_listener_service.dart`
 
 #### 功能特性：
 - ✅ 监听文件变化事件
@@ -120,20 +122,21 @@ static Stream<Map<String, dynamic>> watchFileChangeEvents() {
 #### 核心代码：
 ```dart
 class FileChangeListenerService {
-  final AppStatisticsCache statisticsCache;
+  // TODO: 结合现有缓存体系选择依赖（例如 FileCountCache / AppFileListCache / MediaStoreCacheService 等）
+  // final SomeCache statisticsCache;
   final int debounceMillis; // 防抖延迟
-  
+
   Future<void> startListening() async {
     _subscription = AppFileScannerChannel.watchFileChangeEvents().listen(
       _handleFileChange,
     );
   }
-  
+
   void _handleFileChange(Map<String, dynamic> event) {
     // 防抖：2秒内多次变化只触发一次缓存清除
     _debounceTimer?.cancel();
     _debounceTimer = Timer(
-      Duration(milliseconds: debounceMillis), 
+      Duration(milliseconds: debounceMillis),
       _clearAllCache
     );
   }
@@ -149,23 +152,23 @@ class FileChangeListenerService {
 ```dart
 class _AppManagementPageState extends State<AppManagementPage> {
   FileChangeListenerService? _fileChangeListener;
-  
+
   @override
   void initState() {
     super.initState();
     _initFileChangeListener();
   }
-  
+
   Future<void> _initFileChangeListener() async {
-    final statisticsCache = AppStatisticsCache();
-    await statisticsCache.initialize();
-    
+    // TODO: 结合现有缓存体系选择要失效/清理的缓存（例如 FileCountCache / AppFileListCache / MediaStoreCacheService 等）
+    // await cache.initialize();
+
     _fileChangeListener = FileChangeListenerService(
-      statisticsCache: statisticsCache,
+      // statisticsCache: cache,
     );
     await _fileChangeListener!.startListening();
   }
-  
+
   @override
   void dispose() {
     _fileChangeListener?.dispose();
@@ -179,10 +182,8 @@ class _AppManagementPageState extends State<AppManagementPage> {
 **文件**: `lib/ui/widgets/quick_access_section.dart`
 
 ```dart
-// 使用推荐服务中的 statisticsCache
-_fileChangeListener = FileChangeListenerService(
-  statisticsCache: _recommendationService.statisticsCache,
-);
+// 注意：当前代码中的 RecommendationService 不包含 statisticsCache。
+// 若实现监听服务，请根据实际需要清理/失效的缓存选择依赖（例如 FileCountCache、AppFileListCache 等）。
 ```
 
 ## 🔄 工作流程
@@ -208,8 +209,8 @@ FileChangeListenerService 处理
   - 防抖计时器启动（2秒）
   - 2秒内无新事件 → 执行清除
         ↓
-清除 AppStatisticsCache
-  statisticsCache.clearAll()
+清除相关缓存（按现有缓存设计实现）
+  cache.clearAll() / cache.invalidate()
         ↓
 下次查询时重新扫描
   获取最新统计数据
@@ -315,7 +316,7 @@ adb logcat | grep "MediaStore监听"
 
 ```dart
 // 1. 创建缓存服务
-final cache = AppStatisticsCache();
+// final cache = ...（按现有缓存设计实现）
 await cache.initialize();
 
 // 2. 创建监听服务
@@ -354,7 +355,7 @@ await listener.startListening();
 ```dart
 void _handleFileChange(Map<String, dynamic> event) {
   final uri = event['uri'] as String;
-  
+
   if (uri.contains('wechat')) {
     // 只清除微信缓存
     statisticsCache.clear('wechat');
@@ -388,7 +389,7 @@ void _handleFileChange(event) {
 ```dart
 class FileChangeListenerService {
   final Function()? onCacheCleared;
-  
+
   void _clearAllCache() {
     statisticsCache.clearAll();
     onCacheCleared?.call(); // 通知UI
@@ -423,4 +424,4 @@ class FileChangeListenerService {
 - [Android ContentObserver 文档](https://developer.android.com/reference/android/database/ContentObserver)
 - [MediaStore API 文档](https://developer.android.com/reference/android/provider/MediaStore)
 - [Flutter EventChannel 文档](https://api.flutter.dev/flutter/services/EventChannel-class.html)
-- [AppStatisticsCache 实现文档](../lib/core/services/app_statistics_cache.dart)
+<!-- 注：当前仓库未包含 AppStatisticsCache 实现文件 -->

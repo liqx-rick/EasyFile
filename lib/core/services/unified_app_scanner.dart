@@ -21,7 +21,7 @@ import 'package:easyfile/data/models/file_item.dart';
 /// 3. MediaStore扫描（Android 11+，快速）
 /// 4. 路径扫描（全版本兼容，全面）
 /// 5. 结果对比与去重
-/// 6. 文件数量缓存（6小时有效期）
+/// 6. 文件数量缓存（24小时有效期）
 ///
 /// 使用示例：
 /// ```dart

@@ -18,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ```
 /// RecommendationService
 ///   ├── AppDetectionService (应用安装检测 + 持久化缓存)
-///   ├── UnifiedAppScanner (文件数量查询 + 6小时缓存)
+///   ├── UnifiedAppScanner (文件数量查询 + 24小时缓存)
 ///   ├── SharedPreferences (已选定应用列表持久化)
 ///   └── RecommendationConfig (UI配置：图标、颜色、标题)
 /// ```

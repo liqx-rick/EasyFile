@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 针对文件扫描结果进行长期缓存，减少重复扫描
 ///
 /// 缓存策略：
-/// - 有效期：6小时（应用文件变化频率较低）
+/// - 有效期：24小时（应用文件变化频率较低）
 /// - 存储方式：SharedPreferences 持久化
 /// - 自动失效：超过有效期后自动重新扫描
 /// - 手动刷新：用户下拉刷新时清除缓存
