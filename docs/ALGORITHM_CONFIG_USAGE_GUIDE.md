@@ -6,6 +6,9 @@
 
 ---
 
+> 注意：关于运行时的“应用推荐模块”（首页推荐卡片、推荐页、RecommendationService、推荐缓存与页面驱动等）的事实性文档请参阅 [docs/RECOMMENDATION_MODULE_REFERENCE.md](docs/RECOMMENDATION_MODULE_REFERENCE.md)。本算法配置指南侧重于算法参数与实验策略，不作为运行时行为的权威来源。
+
+
 ## 🎯 推荐算法配置
 
 ### 配置位置
@@ -15,7 +18,7 @@
 
 #### 1. 时间衰减因子 (Time Decay Score Per Day)
 
-**默认值**: 5分/天  
+**默认值**: 5分/天
 **作用**: 控制文件修改时间对推荐结果的影响程度
 
 ```dart
@@ -33,7 +36,7 @@ await AppConfig.instance.duplicateFilesRec.setTimeDecayScorePerDay(10);
 
 #### 2. 大小相似度阈值 (Size Similarity Threshold)
 
-**默认值**: 1024字节 (1KB)  
+**默认值**: 1024字节 (1KB)
 **作用**: 小于此差异认为文件大小相同，不参与评分
 
 ```dart
@@ -50,7 +53,7 @@ await AppConfig.instance.duplicateFilesRec.setSizeSimilarityThreshold(2048);
 
 #### 3. 时间相似度阈值 (Time Similarity Threshold)
 
-**默认值**: 3600秒 (1小时)  
+**默认值**: 3600秒 (1小时)
 **作用**: 小于此差异认为修改时间相同，不参与评分
 
 ```dart
@@ -63,7 +66,7 @@ await AppConfig.instance.duplicateFilesRec.setTimeSimilarityThreshold(3600 * 3);
 
 #### 4. 路径深度阈值 (Path Depth Threshold)
 
-**默认值**: 9层  
+**默认值**: 9层
 **作用**: 超过此深度认为路径过深，扣除分数
 
 ```dart
@@ -114,7 +117,7 @@ await storage.setInt('scan_junk_scan_depth_app_data', 5);
 
 #### 2. 智能缓存大小限制
 
-**默认值**: 50MB  
+**默认值**: 50MB
 **作用**: 控制重复文件扫描缓存的最大大小
 
 ```dart
@@ -242,5 +245,5 @@ await AppConfig.instance.resetToDefaults();
 
 ---
 
-**最后更新**: 2026-01-08  
+**最后更新**: 2026-01-08
 **版本**: v1.0.0

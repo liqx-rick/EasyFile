@@ -12,9 +12,12 @@
      - `app_background` - 进入后台
 
 2. **首页推荐模块** ✅
-   - 文件：`lib/ui/pages/recommend_aggregate_page.dart`
-   - 事件：
-     - `home_recommend_view` - 推荐卡片浏览
+  - 文件：[lib/ui/pages/recommend_aggregate_page.dart](lib/ui/pages/recommend_aggregate_page.dart#L143) (调用 `AnalyticsHelper.logHomeRecommendView`，位于 `initState` 中)
+  - 事件：
+    - `home_recommend_view` - 推荐卡片浏览
+      - 参数说明：
+        - `content_type`：推荐内容类型，值为 `RecommendationType` 的 `toString()`（例如 `RecommendationType.wechat`）
+        - `item_count`：展示/检测到的条目数（整型）
 
 3. **扫描 & 清理功能** ✅
    - 文件：
@@ -44,7 +47,10 @@
      - `lib/presenter/quick_access_presenter.dart` - 业务逻辑
    - 事件：
      - `quick_access_enter` - 进入管理页面
-     - `quick_access_card_click` - 点击推荐卡片
+    - `quick_access_card_click` - 点击推荐卡片
+      - 触发位置：[lib/ui/widgets/quick_access_section.dart](lib/ui/widgets/quick_access_section.dart#L893)（方法 `_navigateToRecommendation` 中调用 `AnalyticsHelper.logQuickAccessCardClick`）
+      - 参数说明：
+        - `card_type`：卡片类型，值为 `RecommendationType` 的 `toString()`（例如 `RecommendationType.wechat`）
      - `quick_access_rename` - 重命名文件夹
 
 ---
