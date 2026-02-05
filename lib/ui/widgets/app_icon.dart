@@ -12,7 +12,7 @@ class AppIcon extends StatelessWidget {
   const AppIcon({
     super.key,
     this.size = 100,
-    this.iconPath = 'assets/icon/app_icon.png',
+    this.iconPath = 'assets/images/logo.png',
   });
 
   @override

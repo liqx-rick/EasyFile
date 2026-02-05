@@ -87,7 +87,7 @@ android {
 
         // NDK 配置 - 只打包真实Android设备需要的ARM架构
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a")
         }
 
         // Analytics 配置注入到 BuildConfig
@@ -108,7 +108,7 @@ android {
     // 限制CMake只编译指定的ABI
     defaultConfig.externalNativeBuild {
         cmake {
-            abiFilters("arm64-v8a", "armeabi-v7a")
+            abiFilters("arm64-v8a")
         }
     }
 
@@ -121,6 +121,15 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    // 自定义输出文件名
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "EasyFile-v${variant.versionName}-build${variant.versionCode}-${variant.buildType.name}.apk"
+        }
     }
 }
 

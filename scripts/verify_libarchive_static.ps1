@@ -22,7 +22,7 @@ Write-Host "╚═════════════════════�
 
 $allGood = $true
 
-foreach ($abi in @("arm64-v8a", "armeabi-v7a")) {
+foreach ($abi in @("arm64-v8a")) {
     $lib = "android\src\main\jniLibs\$abi\libarchive.so"
     
     Write-Host "`n" -NoNewline

@@ -140,7 +140,6 @@ if(NOT EXISTS ${LIBARCHIVE_PATH})
         "\n"
         "After compilation, place libarchive.so in:\n"
         "  android/src/main/jniLibs/arm64-v8a/libarchive.so\n"
-        "  android/src/main/jniLibs/armeabi-v7a/libarchive.so\n"
         "========================================\n"
     )
 endif()

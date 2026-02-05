@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -30,7 +31,7 @@ class _AboutPageState extends State<AboutPage> {
       });
     } catch (e) {
       setState(() {
-        _version = '1.1.0';
+        _version = '0.0.1';
         _buildNumber = '1';
       });
     }
@@ -82,7 +83,7 @@ class _AboutPageState extends State<AboutPage> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    'v$_version${_buildNumber.isNotEmpty ? " ($_buildNumber)" : ""}',
+                    'v$_version${_buildNumber.isNotEmpty ? " ($_buildNumber)" : ""}${kDebugMode ? " [调试版本]" : ""}',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
