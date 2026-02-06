@@ -29,6 +29,7 @@ import 'package:easyfile/ui/mixins/pop_scope_handler_mixin.dart';
 import 'package:easyfile/ui/pages/about_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
+import 'package:easyfile/ui/pages/help_center_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
 import 'package:easyfile/ui/pages/quick_access_manage_page.dart';
 import 'package:easyfile/ui/pages/settings_page.dart';
@@ -834,10 +835,22 @@ class _FileBrowserPageState extends State<FileBrowserPage>
           ),
         );
         break;
+      case 'help':
+        _navigateToHelp();
+        break;
       case 'about':
         _navigateToAbout();
         break;
     }
+  }
+
+  /// 导航到帮助中心页面
+  void _navigateToHelp() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const HelpCenterPage(),
+      ),
+    );
   }
 
   /// 导航到关于页面
@@ -3782,6 +3795,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                                   Icon(Icons.folder_special, color: Theme.of(context).iconTheme.color),
                                   const SizedBox(width: 8),
                                   const Text('快速访问管理'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            PopupMenuItem(
+                              value: 'help',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.help_outline, color: Theme.of(context).iconTheme.color),
+                                  const SizedBox(width: 8),
+                                  const Text('帮助与支持'),
                                 ],
                               ),
                             ),

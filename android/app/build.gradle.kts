@@ -18,51 +18,58 @@ buildscript {
 }
 
 // =============================================================================
-// Analytics 配置读取
+// Analytics 配置读取（优化版）
 // =============================================================================
-// 读取 YAML 配置文件
 import org.yaml.snakeyaml.Yaml
 import java.util.Properties
+
+// 延迟加载配置文件（减少不必要的 I/O）
 val analyticsConfigFile = file("../../config/analytics_config.yaml")
-val analyticsConfig = if (analyticsConfigFile.exists()) {
-    Yaml().load<Map<String, Any>>(analyticsConfigFile.readText())
-} else {
-    mapOf<String, Any>()
+val analyticsConfig: Map<String, Any> by lazy {
+    if (analyticsConfigFile.exists()) {
+        try {
+            Yaml().load<Map<String, Any>>(analyticsConfigFile.readText()) ?: emptyMap()
+        } catch (e: Exception) {
+            println("Warning: Failed to load analytics config: ${e.message}")
+            emptyMap()
+        }
+    } else {
+        emptyMap()
+    }
 }
 
-// 读取环境变量文件（密钥）
+// 延迟加载环境变量文件
 val envFile = file("../../config/.env.analytics")
-val envProps = Properties()
-if (envFile.exists()) {
-    envFile.inputStream().use { envProps.load(it) }
+val envProps: Properties by lazy {
+    Properties().apply {
+        if (envFile.exists()) {
+            try {
+                envFile.inputStream().use { load(it) }
+            } catch (e: Exception) {
+                println("Warning: Failed to load env file: ${e.message}")
+            }
+        }
+    }
 }
 
-// 提取配置值
+// 统一的配置提取函数（优化版 - 合并两个重复函数）
 fun getAnalyticsConfig(path: String, default: String = ""): String {
     var current: Any? = analyticsConfig
     for (key in path.split(".")) {
-        current = (current as? Map<*, *>)?.get(key)
+        current = (current as? Map<*, *>)?.get(key) ?: return default
     }
     return current?.toString() ?: default
 }
 
+// 提取配置值（由于 lazy，只在实际使用时才加载）
 val analyticsEnabled = getAnalyticsConfig("enabled", "true").toBoolean()
 val analyticsMarket = getAnalyticsConfig("market", "china")
 val umengChannel = getAnalyticsConfig("providers.china.umeng.channel", "GooglePlay")
 val umengAppKey = envProps.getProperty("UMENG_ANDROID_KEY", "")
 
-// 读取 SDK 版本号（支持嵌套路径）
-fun getNestedConfig(path: String, default: String = ""): String {
-    var current: Any? = analyticsConfig
-    for (key in path.split(".")) {
-        current = (current as? Map<*, *>)?.get(key)
-    }
-    return current?.toString() ?: default
-}
-
-val umengCommonVersion = getNestedConfig("providers.china.umeng.sdk_versions.common", "9.6.8")
-val umengAsmsVersion = getNestedConfig("providers.china.umeng.sdk_versions.asms", "1.8.3")
-val umengAbtestVersion = getNestedConfig("providers.china.umeng.sdk_versions.abtest", "1.0.3")
+val umengCommonVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.common", "9.6.8")
+val umengAsmsVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.asms", "1.8.3")
+val umengAbtestVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.abtest", "1.0.3")
 
 android {
     namespace = "com.guangqi.easyfile"
@@ -109,6 +116,20 @@ android {
     defaultConfig.externalNativeBuild {
         cmake {
             abiFilters("arm64-v8a")
+
+            // ======== CMake 编译性能优化 ========
+            // 注意：并行编译由 Ninja 自动处理，无需手动指定
+
+            // 启用 ccache 加速 C/C++ 编译（如果系统安装了 ccache）
+            // arguments("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+
+            // 优化编译速度（Debug 模式使用 -O1 而不是 -O0）
+            cFlags("-O1")
+            cppFlags("-O1")
+
+            // 减少调试信息大小（加快链接速度）
+            cFlags("-g1")
+            cppFlags("-g1")
         }
     }
 
