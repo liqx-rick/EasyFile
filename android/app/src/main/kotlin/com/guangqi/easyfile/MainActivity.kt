@@ -1673,8 +1673,34 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val channel = MethodChannel(messenger, APK_PARSER_CHANNEL)
-            packageChangeReceiver = com.guangqi.easyfile.receivers.PackageChangeReceiver(channel)
+            // 创建监听器，通过 EventChannel 发送事件到 Flutter
+            val listener = object : com.guangqi.easyfile.receivers.PackageChangeReceiver.PackageChangeListener {
+                override fun onPackageInstalled(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已安装 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "installed",
+                        "packageName" to packageName
+                    ))
+                }
+
+                override fun onPackageUninstalled(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已卸载 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "uninstalled",
+                        "packageName" to packageName
+                    ))
+                }
+
+                override fun onPackageReplaced(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已替换 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "replaced",
+                        "packageName" to packageName
+                    ))
+                }
+            }
+
+            packageChangeReceiver = com.guangqi.easyfile.receivers.PackageChangeReceiver(listener)
 
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -1685,7 +1711,7 @@ class MainActivity : FlutterFragmentActivity() {
 
             registerReceiver(packageChangeReceiver, filter)
             isPackageListenerRegistered = true
-            LogHelper.i(TAG, "APK包监听已启动（页面级）")
+            LogHelper.i(TAG, "应用事件监听已启动（连接到EventChannel）")
         } catch (e: Exception) {
             LogHelper.e(TAG, "启动APK包监听失败: ${e.message}")
             throw e

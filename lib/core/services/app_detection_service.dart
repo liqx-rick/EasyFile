@@ -108,10 +108,14 @@ class AppDetectionService {
           final packageName = event['packageName'] as String?;
 
           if (packageName != null) {
+            logger.i('📱 收到应用事件: $eventType - $packageName');
             if (eventType == 'installed') {
               onAppInstalled(packageName);
             } else if (eventType == 'uninstalled') {
               onAppUninstalled(packageName);
+            } else if (eventType == 'replaced') {
+              // 应用替换（更新），重新检测
+              onAppInstalled(packageName);
             }
           }
         },
@@ -293,15 +297,19 @@ class AppDetectionService {
     _iconCache.clear();
 
     // 清除持久化缓存
-    if (_prefs != null) {
-      final keys = _prefs!
-          .getKeys()
-          .where((k) => k.startsWith(_cacheKeyPrefix))
-          .toList();
-      for (final key in keys) {
-        await _prefs!.remove(key);
-      }
+    // 确保获取 SharedPreferences 实例
+    _prefs ??= await SharedPreferences.getInstance();
+    
+    final keys = _prefs!
+        .getKeys()
+        .where((k) => k.startsWith(_cacheKeyPrefix))
+        .toList();
+    for (final key in keys) {
+      await _prefs!.remove(key);
     }
+    
+    // 注意：不重置 _initialized，避免重新从 SharedPreferences 加载
+    // 因为我们已经清除了持久化缓存，保持服务初始化状态即可
   }
 
   /// 清除特定应用的缓存
@@ -319,6 +327,13 @@ class AppDetectionService {
       final key = '$_cacheKeyPrefix$packageName';
       await _prefs!.remove(key);
     }
+  }
+
+  /// 清除指定包名的缓存（用于强制重新检测）
+  ///
+  /// 用于在验证应用是否仍然安装时，确保获取最新状态
+  Future<void> clearPackageCache(String packageName) async {
+    await clearAppCache(packageName);
   }
 
   /// 刷新特定应用的缓存（强制重新检测）

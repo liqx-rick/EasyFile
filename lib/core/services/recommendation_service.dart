@@ -144,6 +144,13 @@ class RecommendationService {
 
       logger.d('扫描应用: ${appConfig.appName}');
 
+      // 清除缓存以确保获取最新的安装状态（特别是重新安装的应用）
+      if (appConfig.packageNames.isNotEmpty) {
+        for (final pkg in appConfig.packageNames) {
+          await _detectionService.clearPackageCache(pkg);
+        }
+      }
+
       // 检测应用是否安装
       final detectionResult = await _detectionService.detectApp(appConfig);
       if (!detectionResult.isInstalled) {
@@ -197,10 +204,17 @@ class RecommendationService {
         continue;
       }
 
-      // 检测应用是否仍然安装
+      // 清除缓存以确保获取最新的安装状态
+      if (appConfig.packageNames.isNotEmpty) {
+        for (final pkg in appConfig.packageNames) {
+          await _detectionService.clearPackageCache(pkg);
+        }
+      }
+
+      // 检测应用是否仍然安装（使用最新状态）
       final detectionResult = await _detectionService.detectApp(appConfig);
       if (!detectionResult.isInstalled) {
-        logger.d('应用 ${appConfig.appName} 已卸载，移除');
+        logger.i('✗ 应用 ${appConfig.appName} 已卸载，从推荐列表移除');
         continue;
       }
 
@@ -355,6 +369,10 @@ class RecommendationService {
       // 清除文件数量缓存
       await _scanner.clearFileCountCache();
       logger.d('已清除文件数量缓存');
+
+      // 清除应用安装状态缓存
+      await _detectionService.clearCache();
+      logger.d('已清除应用安装状态缓存');
 
       // 重新执行初始化扫描
       return await getRecommendations(forceRefresh: true);
