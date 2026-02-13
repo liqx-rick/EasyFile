@@ -937,15 +937,17 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
       _QuickAction(
         label: '压缩包管理',
         icon: Icons.archive_outlined,
-        enabled: true,
+        enabled: feature.isArchiveManagementEnabled,
         color: Colors.orange,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const ArchiveManagementPage(),
-            ),
-          );
-        },
+        onTap: feature.isArchiveManagementEnabled
+            ? () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ArchiveManagementPage(),
+                  ),
+                );
+              }
+            : null,
       ),
       _QuickAction(
         label: '回收站',
@@ -965,29 +967,33 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
       _QuickAction(
         label: '垃圾文件清理',
         icon: Icons.delete_sweep,
-        enabled: true,
+        enabled: feature.isJunkCleanupEnabled,
         color: Colors.orange,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const JunkFilesPage(),
-            ),
-          );
-        },
+        onTap: feature.isJunkCleanupEnabled
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const JunkFilesPage(),
+                  ),
+                );
+              }
+            : null,
       ),
       _QuickAction(
         label: '安装包管理',
         icon: Icons.file_download_done,
-        enabled: true,
+        enabled: feature.isApkManagementEnabled,
         color: Colors.deepPurple,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const ApkManagementPage(),
-            ),
-          );
-        },
+        onTap: feature.isApkManagementEnabled
+            ? () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ApkManagementPage(),
+                  ),
+                );
+              }
+            : null,
       ),
       _QuickAction(
         label: '应用管理',
@@ -1007,9 +1013,9 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
       _QuickAction(
         label: '隐私空间',
         icon: Icons.lock,
-        enabled: true,
+        enabled: feature.isPrivacySpaceEnabled,
         color: const Color.fromARGB(255, 31, 2, 250),
-        onTap: () => _navigateToPrivacySpace(context),
+        onTap: feature.isPrivacySpaceEnabled ? () => _navigateToPrivacySpace(context) : null,
       ),
     ];
   }

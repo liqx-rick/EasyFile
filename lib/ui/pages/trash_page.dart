@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import '../../core/di/locator.dart';
 import '../../core/logger.dart';
 import '../../core/services/app_trash_manager.dart';
+import '../../core/settings/app_trash_settings.dart';
 import '../../data/models/app_trash_item.dart';
 import '../widgets/file_list_item_builder.dart';
+import 'trash_config_page.dart';
 
 /// 回收站页面 - 极简版
 /// 功能：文件列表、单个操作（恢复/删除）、一键清空、统计信息
@@ -19,6 +21,7 @@ class TrashPage extends StatefulWidget {
 
 class _TrashPageState extends State<TrashPage> {
   final AppTrashManager _trashManager = locator<AppTrashManager>();
+  late final AppTrashSettings _trashSettings;
   List<AppTrashItem> _items = [];
   bool _isLoading = true;
   Map<String, dynamic>? _statistics;
@@ -26,6 +29,7 @@ class _TrashPageState extends State<TrashPage> {
   @override
   void initState() {
     super.initState();
+    _trashSettings = locator<AppTrashSettings>();
     _loadData();
 
     // 埋点：查看回收站
@@ -52,41 +56,73 @@ class _TrashPageState extends State<TrashPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settingEnabled = _trashSettings.isEnabled;
+    final hasFiles = _items.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF0978FE),
         foregroundColor: Colors.white,
         title: const Text('回收站'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _buildStatisticsCard(),
-                ),
-                _items.isEmpty
-                    ? SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _buildEmptyState(),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final item = _items[index];
-                            return Column(
-                              children: [
-                                _buildFileItem(item),
-                                if (index < _items.length - 1) const Divider(height: 1),
-                              ],
-                            );
-                          },
-                          childCount: _items.length,
-                        ),
-                      ),
-              ],
-            ),
+      body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildBody(settingEnabled, hasFiles),
     );
+  }
+
+  /// 根据状态显示不同的内容
+  Widget _buildBody(bool settingEnabled, bool hasFiles) {
+    if (!settingEnabled && hasFiles) {
+      // 情况1：功能关闭 + 有遗留文件
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildLegacyWarning()),
+          SliverToBoxAdapter(child: _buildStatisticsCard()),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final item = _items[index];
+                return Column(
+                  children: [
+                    _buildFileItem(item),
+                    if (index < _items.length - 1) const Divider(height: 1),
+                  ],
+                );
+              },
+              childCount: _items.length,
+            ),
+          ),
+        ],
+      );
+    } else if (!settingEnabled && !hasFiles) {
+      // 情况2：功能关闭 + 无文件
+      return _buildDisabledEmptyState();
+    } else {
+      // 情况3/4：功能开启（正常显示）
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildStatisticsCard()),
+          hasFiles
+              ? SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = _items[index];
+                      return Column(
+                        children: [
+                          _buildFileItem(item),
+                          if (index < _items.length - 1) const Divider(height: 1),
+                        ],
+                      );
+                    },
+                    childCount: _items.length,
+                  ),
+                )
+              : SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(),
+                ),
+        ],
+      );
+    }
   }
 
   /// 空状态
@@ -107,6 +143,112 @@ class _TrashPageState extends State<TrashPage> {
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 功能关闭时的空状态（无遗留文件）
+  Widget _buildDisabledEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.delete_outline,
+              size: 80,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '回收站功能未开启',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrashConfigPage(),
+                  ),
+                ).then((_) {
+                  // 从设置页返回后刷新状态
+                  _loadData();
+                });
+              },
+              icon: const Icon(Icons.settings),
+              label: const Text('前往设置'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF0978FE),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 功能关闭但有遗留文件时的警告提示
+  Widget _buildLegacyWarning() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        border: Border.all(color: Colors.orange[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber, color: Colors.orange[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '回收站功能已关闭',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange[900],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '以下是功能关闭前的遗留文件，您可以继续管理这些文件',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.orange[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TrashConfigPage(),
+                ),
+              ).then((_) {
+                // 从设置页返回后刷新状态
+                _loadData();
+              });
+            },
+            icon: const Icon(Icons.settings, size: 16),
+            label: const Text('开启回收站功能'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange[900],
+              padding: EdgeInsets.zero,
             ),
           ),
         ],

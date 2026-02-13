@@ -163,18 +163,18 @@ class _SettingsPageState extends State<SettingsPage> {
           // 存储与缓存管理
           _buildSectionHeader('存储与缓存', Icons.storage),
           _buildCacheManagementTile(context),
-          // 回收站设置（根据功能配置显示）
-          if (AppConfig.instance.feature.isTrashEnabled) ...[
-            const Divider(height: 1, indent: 56),
-            _buildTrashTile(context),
-          ],
 
           const Divider(height: 32),
 
           // 功能设置（至少有一个功能启用时才显示）
-          if (AppConfig.instance.feature.isNewFilesEnabled) ...[
+          if (AppConfig.instance.feature.isNewFilesEnabled || AppConfig.instance.feature.isTrashEnabled) ...[
             _buildSectionHeader('功能设置', Icons.tune),
-            _buildNewFilesPrivacyTile(context),
+            if (AppConfig.instance.feature.isNewFilesEnabled) ...[
+              _buildNewFilesPrivacyTile(context),
+              if (AppConfig.instance.feature.isTrashEnabled) const Divider(height: 1, indent: 56),
+            ],
+            // 回收站设置
+            if (AppConfig.instance.feature.isTrashEnabled) _buildTrashTile(context),
             const Divider(height: 32),
           ],
 

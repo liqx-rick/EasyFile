@@ -894,59 +894,20 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // 文案和按钮（Stack布局）
+                // 文案（可点击展开）
                 Expanded(
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // 文案（可点击展开）
-                      GestureDetector(
-                        onTap: () {
-                          setState(() => _expandSystemTrashDetails = !_expandSystemTrashDetails);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 18), // 为下方按钮留出空间
-                          child: Text(
-                            '检测到系统回收站中存在长期未清理的文件',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.red.shade900,
-                            ),
-                          ),
-                        ),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _expandSystemTrashDetails = !_expandSystemTrashDetails);
+                    },
+                    child: Text(
+                      '系统回收站中有长期未清理文件，展开了解详情',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red.shade900,
                       ),
-                      // 按钮（定位在折叠图标下方，靠右显示）
-                      Positioned(
-                        right: 0,
-                        top: 28, // 折叠图标下方位置
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TrashFilesPage(),
-                              ),
-                            );
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.cleaning_services, color: Color.fromARGB(255, 140, 141, 141), size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                '前往清理',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color.fromARGB(255, 140, 141, 141),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -1004,6 +965,36 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 前往清理按钮
+                  Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TrashFilesPage(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.cleaning_services, size: 18),
+                      label: const Text(
+                        '前往清理',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                     ),

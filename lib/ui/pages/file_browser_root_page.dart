@@ -270,6 +270,11 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
 
   // 判断是否可以返回上级目录
   bool _canNavigateUp(String currentPath) {
+    // 如果路径为空或等于根路径，不能再向上导航
+    if (currentPath.isEmpty || currentPath == _rootPath) {
+      return false;
+    }
+
     if (Platform.isWindows) {
       // Windows根目录如C:\
       final root = Platform.environment['USERPROFILE'] ?? 'C:\\';
@@ -848,13 +853,43 @@ class _FileBrowserRootPageState extends State<FileBrowserRootPage>
           _isLoading = false;
         });
       } else {
+        // 目录不存在的情况
+        logger.w('Directory does not exist: $path');
         setState(() {
+          _currentPath = path; // 仍然设置路径，以便返回键逻辑正常工作
+          // 确保 _rootPath 被初始化
+          if (_rootPath.isEmpty) {
+            if (Platform.isAndroid) {
+              _rootPath = '/storage/emulated/0';
+            } else if (Platform.isWindows) {
+              _rootPath = Platform.environment['USERPROFILE'] ?? 'C:\\';
+            } else {
+              _rootPath = Directory.current.path;
+            }
+          }
+          _files = [];
           _isLoading = false;
         });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('目录不存在或无法访问')),
+        );
       }
     } catch (e) {
       logger.e('Failed to load files in path: $e');
       setState(() {
+        _currentPath = path; // 设置路径以便返回键逻辑正常工作
+        // 确保 _rootPath 被初始化
+        if (_rootPath.isEmpty) {
+          if (Platform.isAndroid) {
+            _rootPath = '/storage/emulated/0';
+          } else if (Platform.isWindows) {
+            _rootPath = Platform.environment['USERPROFILE'] ?? 'C:\\';
+          } else {
+            _rootPath = Directory.current.path;
+          }
+        }
+        _files = [];
         _isLoading = false;
       });
       if (!mounted) return;
