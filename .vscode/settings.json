@@ -66,5 +66,6 @@
    "editor.rulers": [
       80,
       120
-   ]
+   ],
+   "cmake.sourceDirectory": "C:/dev/flutter/easyfile/linux"
 }
