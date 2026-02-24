@@ -1032,8 +1032,6 @@ class __FilePreviewItemState extends State<_FilePreviewItem>
     });
   }
 
-
-
   Future<void> _loadFileContent() async {
     try {
       logger.d('Loading file content for: ${widget.file.path}');

@@ -1471,9 +1471,39 @@ class MainActivity : FlutterFragmentActivity() {
             when (call.method) {
                 "getDeviceInfo" -> {
                     try {
+                        // 获取 ActivityManager
+                        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                        val memoryInfo = android.app.ActivityManager.MemoryInfo()
+                        activityManager.getMemoryInfo(memoryInfo)
+
+                        // 获取存储信息
+                        val statFs = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+                        val totalStorage = statFs.totalBytes
+                        val availableStorage = statFs.availableBytes
+
+                        // 获取屏幕信息
+                        val displayMetrics = resources.displayMetrics
+
                         val deviceInfo = mapOf(
                             "make" to android.os.Build.MANUFACTURER,
-                            "model" to android.os.Build.MODEL
+                            "model" to android.os.Build.MODEL,
+                            "brand" to android.os.Build.BRAND,
+                            "device" to android.os.Build.DEVICE,
+                            "androidVersion" to android.os.Build.VERSION.SDK_INT,
+                            "sdkVersion" to android.os.Build.VERSION.SDK_INT,
+                            "cpuAbi" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                android.os.Build.SUPPORTED_ABIS[0]
+                            } else {
+                                @Suppress("DEPRECATION")
+                                android.os.Build.CPU_ABI
+                            },
+                            "totalMemory" to memoryInfo.totalMem,
+                            "availableMemory" to memoryInfo.availMem,
+                            "totalStorage" to totalStorage,
+                            "availableStorage" to availableStorage,
+                            "screenWidth" to displayMetrics.widthPixels,
+                            "screenHeight" to displayMetrics.heightPixels,
+                            "screenDensity" to displayMetrics.densityDpi
                         )
                         result.success(deviceInfo)
                     } catch (e: Exception) {

@@ -16,6 +16,7 @@ import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/category_info.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/dialogs/quick_cache_clear_dialog.dart';
+import 'package:easyfile/ui/pages/device_info_page.dart';
 import 'package:easyfile/ui/pages/file_display_settings_page.dart';
 import 'package:easyfile/ui/pages/mediastore_scan_test_page.dart';
 import 'package:easyfile/ui/pages/new_files_settings_page.dart';
@@ -181,6 +182,8 @@ class _SettingsPageState extends State<SettingsPage> {
           // 开发者选项（根据配置决定是否显示）
           if (AppConfig.instance.feature.isDeveloperOptionsEnabled) ...[
             _buildSectionHeader('开发者选项', Icons.developer_mode),
+            _buildDeviceInfoTile(context),
+            const Divider(height: 1, indent: 56),
             _buildRecommendationThresholdTile(context),
             const Divider(height: 1, indent: 56),
             _buildDuplicateScanSettingTile(context),
@@ -889,6 +892,24 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
     }
+  }
+
+  /// 设备硬件信息
+  Widget _buildDeviceInfoTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.info_outline, color: Colors.blue),
+      title: const Text('设备硬件信息'),
+      subtitle: const Text('查看运行环境的硬件配置统计'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeviceInfoPage(),
+          ),
+        );
+      },
+    );
   }
 
   /// 系统回收站诊断

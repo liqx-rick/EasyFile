@@ -52,5 +52,4 @@ class PrivacyConsentService {
       // 清除失败不影响主流程
     }
   }
-
 }
