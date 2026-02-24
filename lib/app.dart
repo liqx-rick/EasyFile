@@ -83,7 +83,7 @@ class _EasyFileAppState extends State<EasyFileApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    logger.i('Building EasyFileApp');
+    logger.d('Building EasyFileApp');
 
     return MultiProvider(
       providers: [
@@ -187,31 +187,34 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
   }
 
   Future<void> _initializeApp() async {
+    // ===== 合规检查：在进入 try-finally 之前先检查隐私政策同意状态 =====
+    // 必须在请求任何权限之前先获得用户同意（符合《审核指南》7.5项要求）
+    // 注意：此处不在 try-finally 内，未同意时直接 return，不触发 finally 的 UI 更新，
+    // 确保 _isLoadingState 保持 true（显示 loading 界面）直到用户真正同意为止。
+    final hasConsented = await PrivacyConsentService.hasUserConsented();
+    logger.i('_initializeApp: Privacy consent status = $hasConsented');
+
+    if (!hasConsented) {
+      // 用户未同意隐私政策：保持 loading 状态，仅弹出隐私政策对话框
+      // _isLoadingState 维持 true，不执行任何初始化逻辑
+      logger.i('_initializeApp: Consent not given, showing privacy dialog...');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showPrivacyPolicyDialog();
+      });
+      // 移除 native splash，显示 loading spinner + 隐私政策弹窗
+      try {
+        FlutterNativeSplash.remove();
+      } catch (_) {}
+      return; // 不进入 try-finally，_isLoadingState 保持 true
+    }
+
+    // ===== 用户已同意隐私政策，执行完整初始化流程 =====
     try {
-      logger.i('_initializeApp: Starting initialization...');
+      logger.i('_initializeApp: Starting full initialization...');
 
-      // ===== 优先请求文件访问权限 =====
-      // 在显示隐私政策弹窗之前，先请求必要的文件访问权限
-      // 这样用户可以先授予权限，然后再阅读并同意隐私政策
+      // 用户已同意，请求存储权限并完成 Analytics 初始化
       await _requestStoragePermissionIfNeeded();
-
-      // ===== 合规检查：在应用初始化时检查隐私政策同意状态 =====
-      final hasConsented = await PrivacyConsentService.hasUserConsented();
-      logger.i('_initializeApp: Privacy consent status = $hasConsented');
-
-      if (!hasConsented) {
-        // 用户未同意隐私政策，显示弹窗
-        logger.i('_initializeApp: Showing privacy policy dialog...');
-        // 等待下一帧确保 context 可用
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showPrivacyPolicyDialog();
-        });
-        // 暂停后续初始化，等待用户同意
-        return;
-      } else {
-        // 用户已同意，继续完成 Analytics 初始化
-        await _completeAnalyticsInitialization();
-      }
+      await _completeAnalyticsInitialization();
 
       // 检查是否从后台恢复
       bool isRestoringFromBackground = false;
@@ -405,13 +408,9 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
           // 保存用户同意状态
           await PrivacyConsentService.setUserConsented();
 
-          // 完成 Analytics 初始化
-          await _completeAnalyticsInitialization();
-
-          // 继续应用初始化
-          setState(() {
-            _isLoadingState = false;
-          });
+          // 重新调用 _initializeApp()：此时 hasConsented=true，
+          // 将执行完整初始化流程并通过 finally 块更新 UI
+          // （不在此处手动 setState，避免在初始化完成前提前渲染页面）
           _initializeApp();
         },
         onDisagree: () {
