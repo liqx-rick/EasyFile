@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:easyfile/core/config/file_scan_config.dart';
 import 'package:easyfile/core/config/storage/mock_config_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FileScanConfig - Algorithm Parameters', () {
@@ -50,8 +50,7 @@ void main() {
       });
 
       test('should correctly convert MB to bytes', () {
-        expect(config.smartCacheMaxSizeBytes,
-            config.smartCacheMaxSizeMB * 1024 * 1024);
+        expect(config.smartCacheMaxSizeBytes, config.smartCacheMaxSizeMB * 1024 * 1024);
       });
     });
 
@@ -94,8 +93,7 @@ void main() {
       });
 
       test('should correctly convert bytes to KB', () {
-        expect(config.duplicateFileMinSizeInKB,
-            (config.duplicateFileMinSize / 1024).round());
+        expect(config.duplicateFileMinSizeInKB, (config.duplicateFileMinSize / 1024).round());
       });
     });
 
@@ -127,8 +125,7 @@ void main() {
     group('首页推荐配置', () {
       test('should return default recommendation threshold', () {
         expect(config.recommendationFileCountThreshold, 5);
-        expect(config.recommendationThresholdOptions,
-            [3, 5, 10, 20, 30, 50, 100, 1000, 3000]);
+        expect(config.recommendationThresholdOptions, [3, 5, 10, 50, 100]);
       });
 
       test('should update recommendation threshold', () async {
@@ -143,8 +140,7 @@ void main() {
         );
       });
 
-      test('should load custom recommendation threshold from storage',
-          () async {
+      test('should load custom recommendation threshold from storage', () async {
         await storage.setInt('scan_recommendation_file_count_threshold', 50);
 
         final newConfig = FileScanConfig(storage);
@@ -262,8 +258,7 @@ void main() {
     });
 
     group('实际场景测试', () {
-      test('should support performance optimization for low-end devices',
-          () async {
+      test('should support performance optimization for low-end devices', () async {
         // 低端设备：减少扫描深度，降低缓存大小
         await storage.setInt('scan_junk_scan_depth_default', 6);
         await storage.setInt('scan_junk_scan_depth_app_data', 2);
@@ -334,10 +329,8 @@ void main() {
         final config = FileScanConfig(storage);
 
         // 验证不同目录类型的深度配置
-        expect(config.junkScanDepthDefault,
-            greaterThan(config.junkScanDepthMedia));
-        expect(config.junkScanDepthMedia,
-            greaterThan(config.junkScanDepthAppData));
+        expect(config.junkScanDepthDefault, greaterThan(config.junkScanDepthMedia));
+        expect(config.junkScanDepthMedia, greaterThan(config.junkScanDepthAppData));
       });
 
       test('should maintain relationship between cache size units', () async {
@@ -346,8 +339,7 @@ void main() {
         final config = FileScanConfig(storage);
 
         // MB 和 Bytes 应该保持正确的换算关系
-        expect(config.smartCacheMaxSizeBytes,
-            config.smartCacheMaxSizeMB * 1024 * 1024);
+        expect(config.smartCacheMaxSizeBytes, config.smartCacheMaxSizeMB * 1024 * 1024);
       });
     });
   });

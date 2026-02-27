@@ -150,7 +150,7 @@ class FileScanConfig {
   int get recommendationFileCountThreshold => _getInt('recommendation_file_count_threshold', defaultValue: 5);
 
   /// 可选的推荐阈值列表（供UI使用）
-  List<int> get recommendationThresholdOptions => const [3, 5, 10, 20, 30, 50, 100, 1000, 3000];
+  List<int> get recommendationThresholdOptions => const [3, 5, 10, 50, 100];
 
   // ==================== 内部实现 ====================
 

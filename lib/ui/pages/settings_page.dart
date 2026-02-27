@@ -120,13 +120,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final info = await recommendationService.getSelectionInfo();
 
-      logger.d('📊 加载推荐选择信息:');
-      logger.d('  hasSelection: ${info['hasSelection']}');
-      logger.d('  selectedCount: ${info['selectedCount']}');
-      logger.d('  selectionTime: ${info['selectionTime']}');
-      logger.d('  selectionThreshold: ${info['selectionThreshold']}');
-      logger.d('  selectedAppKeys: ${info['selectedAppKeys']}');
-
       if (mounted) {
         setState(() {
           _hasRecommendationSelection = info['hasSelection'] as bool;
@@ -167,26 +160,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const Divider(height: 32),
 
-          // 功能设置（至少有一个功能启用时才显示）
-          if (AppConfig.instance.feature.isNewFilesEnabled || AppConfig.instance.feature.isTrashEnabled) ...[
-            _buildSectionHeader('功能设置', Icons.tune),
-            if (AppConfig.instance.feature.isNewFilesEnabled) ...[
-              _buildNewFilesPrivacyTile(context),
-              if (AppConfig.instance.feature.isTrashEnabled) const Divider(height: 1, indent: 56),
-            ],
-            // 回收站设置
-            if (AppConfig.instance.feature.isTrashEnabled) _buildTrashTile(context),
-            const Divider(height: 32),
+          // 功能设置
+          _buildSectionHeader('功能设置', Icons.tune),
+          if (AppConfig.instance.feature.isNewFilesEnabled) ...[
+            _buildNewFilesPrivacyTile(context),
+            const Divider(height: 1, indent: 56),
           ],
+          // 回收站设置
+          if (AppConfig.instance.feature.isTrashEnabled) ...[
+            _buildTrashTile(context),
+            const Divider(height: 1, indent: 56),
+          ],
+          _buildRecommendationThresholdTile(context),
+          const Divider(height: 1, indent: 56),
+          _buildDuplicateScanSettingTile(context),
+          const Divider(height: 32),
 
           // 开发者选项（根据配置决定是否显示）
           if (AppConfig.instance.feature.isDeveloperOptionsEnabled) ...[
             _buildSectionHeader('开发者选项', Icons.developer_mode),
             _buildDeviceInfoTile(context),
-            const Divider(height: 1, indent: 56),
-            _buildRecommendationThresholdTile(context),
-            const Divider(height: 1, indent: 56),
-            _buildDuplicateScanSettingTile(context),
             const Divider(height: 1, indent: 56),
             _buildSystemTrashDiagnosticsTile(context),
             const Divider(height: 1, indent: 56),
@@ -605,51 +598,51 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  /// 首页推荐文件数量阈值设置
+  /// 智能推荐显示数量设置
   Widget _buildRecommendationThresholdTile(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // 检查阈值是否与保存的选择阈值不同
-    final thresholdChanged = _hasRecommendationSelection &&
-        _savedSelectionThreshold != null &&
-        _savedSelectionThreshold != _recommendationThreshold;
-
-    // 调试日志
-    logger.d('🔍 推荐阈值调试信息:');
-    logger.d('  _hasRecommendationSelection: $_hasRecommendationSelection');
-    logger.d('  _savedSelectionThreshold: $_savedSelectionThreshold');
-    logger.d('  _recommendationThreshold: $_recommendationThreshold');
-    logger.d('  _selectedRecommendationCount: $_selectedRecommendationCount');
-    logger.d('  _recommendationSelectionTime: $_recommendationSelectionTime');
-    logger.d('  thresholdChanged: $thresholdChanged');
+    // 检查显示数量是否与保存的不同，用于显示橙色提示卡片
+    final thresholdChanged = _savedSelectionThreshold != null && _savedSelectionThreshold != _recommendationThreshold;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
           leading: Icon(Icons.filter_list, color: colorScheme.primary),
-          title: const Text('首页推荐应用文件数量阈值'),
+          title: const Text('智能推荐显示数量'),
           subtitle: Text(_hasRecommendationSelection
-              ? '当前阈值：$_recommendationThreshold 个文件\n已选定 $_selectedRecommendationCount 个应用'
-              : '当前阈值：$_recommendationThreshold 个文件\n将在首次打开首页时生效'),
-          isThreeLine: true,
+              ? '应用超过 $_recommendationThreshold 个文件时在首页显示\n已选定 $_selectedRecommendationCount 个应用'
+              : '应用超过 $_recommendationThreshold 个文件时在首页显示'),
+          isThreeLine: _hasRecommendationSelection,
           trailing: const Icon(Icons.chevron_right),
           onTap: () async {
             final selected = await showDialog<int>(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Text('选择文件数量阈值'),
+                title: const Text('设置显示数量'),
                 content: SizedBox(
                   width: double.maxFinite,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _hasRecommendationSelection ? '修改阈值后需要点击"重置推荐"才能重新选择应用' : '应用文件数量大于此阈值时才会显示在首页推荐',
-                        style: TextStyle(
-                          color: _hasRecommendationSelection ? Colors.orange : null,
-                        ),
+                      const Text(
+                        '应用文件达到此数量时，将显示在智能推荐区',
+                        style: TextStyle(fontSize: 14),
                       ),
                       const SizedBox(height: 16),
+                      if (_hasRecommendationSelection)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '修改后需要重置智能推荐才能重新选择应用',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
                       Flexible(
                         child: SingleChildScrollView(
                           child: RadioGroup<int>(
@@ -685,7 +678,7 @@ class _SettingsPageState extends State<SettingsPage> {
               // 保存设置到AppConfig
               await AppConfig.instance.fileScan.setRecommendationFileCountThreshold(selected);
 
-              logger.i('📌 开发者选项：阈值已修改为 $selected');
+              logger.i('📌 阈值已修改为 $selected');
 
               // 重新加载推荐选择信息（以便检测阈值变化）
               await _loadRecommendationSelectionInfo();
@@ -693,20 +686,6 @@ class _SettingsPageState extends State<SettingsPage> {
               setState(() {
                 _recommendationThreshold = selected;
               });
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('文件数量阈值已设置为 $selected'),
-                    action: _hasRecommendationSelection
-                        ? SnackBarAction(
-                            label: '重置推荐',
-                            onPressed: () => _resetRecommendations(),
-                          )
-                        : null,
-                  ),
-                );
-              }
             }
           },
         ),
@@ -727,7 +706,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '阈值已更改',
+                            '显示数量已调整',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.orange.shade900,
@@ -735,7 +714,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '需要重置推荐才能应用新阈值（$_savedSelectionThreshold → $_recommendationThreshold）',
+                            '需要重置智能推荐才能生效（$_savedSelectionThreshold 个 → $_recommendationThreshold 个）',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.orange.shade800,
@@ -762,19 +741,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-        // 重置推荐按钮（仅在有已选定列表时显示）
-        if (_hasRecommendationSelection)
-          ListTile(
-            leading: Icon(Icons.refresh, color: colorScheme.secondary),
-            title: const Text('重置首页推荐'),
-            subtitle: Text(
-              _recommendationSelectionTime != null
-                  ? '上次选择：${_formatDateTime(_recommendationSelectionTime!)}'
-                  : '清除已选定应用，重新扫描',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _resetRecommendations(),
+        // 重置推荐按钮（始终显示，允许用户随时触发重新扫描）
+        ListTile(
+          leading: Icon(Icons.refresh, color: colorScheme.secondary),
+          title: const Text('重置智能推荐'),
+          subtitle: Text(
+            _hasRecommendationSelection && _recommendationSelectionTime != null
+                ? '上次选择：${_formatDateTime(_recommendationSelectionTime!)} • 已选定 $_selectedRecommendationCount 个应用'
+                : '重新扫描并选择推荐应用',
           ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _resetRecommendations(),
+        ),
       ],
     );
   }
@@ -785,10 +763,10 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认重置推荐'),
+        title: const Text('确认重置智能推荐'),
         content: const Text(
-          '这将清除当前已选定的应用推荐，并根据当前阈值重新扫描所有应用。\n\n'
-          '此操作可能需要几秒钟时间。',
+          '这将清除当前已选定的应用，并根据当前设置重新扫描所有应用。\n\n'
+          '此操作可能需要几秒钟。',
         ),
         actions: [
           TextButton(
