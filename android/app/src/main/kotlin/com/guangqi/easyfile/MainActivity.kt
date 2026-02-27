@@ -1471,9 +1471,39 @@ class MainActivity : FlutterFragmentActivity() {
             when (call.method) {
                 "getDeviceInfo" -> {
                     try {
+                        // 获取 ActivityManager
+                        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                        val memoryInfo = android.app.ActivityManager.MemoryInfo()
+                        activityManager.getMemoryInfo(memoryInfo)
+
+                        // 获取存储信息
+                        val statFs = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+                        val totalStorage = statFs.totalBytes
+                        val availableStorage = statFs.availableBytes
+
+                        // 获取屏幕信息
+                        val displayMetrics = resources.displayMetrics
+
                         val deviceInfo = mapOf(
                             "make" to android.os.Build.MANUFACTURER,
-                            "model" to android.os.Build.MODEL
+                            "model" to android.os.Build.MODEL,
+                            "brand" to android.os.Build.BRAND,
+                            "device" to android.os.Build.DEVICE,
+                            "androidVersion" to android.os.Build.VERSION.SDK_INT,
+                            "sdkVersion" to android.os.Build.VERSION.SDK_INT,
+                            "cpuAbi" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                android.os.Build.SUPPORTED_ABIS[0]
+                            } else {
+                                @Suppress("DEPRECATION")
+                                android.os.Build.CPU_ABI
+                            },
+                            "totalMemory" to memoryInfo.totalMem,
+                            "availableMemory" to memoryInfo.availMem,
+                            "totalStorage" to totalStorage,
+                            "availableStorage" to availableStorage,
+                            "screenWidth" to displayMetrics.widthPixels,
+                            "screenHeight" to displayMetrics.heightPixels,
+                            "screenDensity" to displayMetrics.densityDpi
                         )
                         result.success(deviceInfo)
                     } catch (e: Exception) {
@@ -1673,8 +1703,34 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val channel = MethodChannel(messenger, APK_PARSER_CHANNEL)
-            packageChangeReceiver = com.guangqi.easyfile.receivers.PackageChangeReceiver(channel)
+            // 创建监听器，通过 EventChannel 发送事件到 Flutter
+            val listener = object : com.guangqi.easyfile.receivers.PackageChangeReceiver.PackageChangeListener {
+                override fun onPackageInstalled(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已安装 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "installed",
+                        "packageName" to packageName
+                    ))
+                }
+
+                override fun onPackageUninstalled(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已卸载 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "uninstalled",
+                        "packageName" to packageName
+                    ))
+                }
+
+                override fun onPackageReplaced(packageName: String) {
+                    LogHelper.i(TAG, "通知Flutter: 应用已替换 $packageName")
+                    appEventSink?.success(mapOf(
+                        "event" to "replaced",
+                        "packageName" to packageName
+                    ))
+                }
+            }
+
+            packageChangeReceiver = com.guangqi.easyfile.receivers.PackageChangeReceiver(listener)
 
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -1685,7 +1741,7 @@ class MainActivity : FlutterFragmentActivity() {
 
             registerReceiver(packageChangeReceiver, filter)
             isPackageListenerRegistered = true
-            LogHelper.i(TAG, "APK包监听已启动（页面级）")
+            LogHelper.i(TAG, "应用事件监听已启动（连接到EventChannel）")
         } catch (e: Exception) {
             LogHelper.e(TAG, "启动APK包监听失败: ${e.message}")
             throw e

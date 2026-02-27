@@ -70,6 +70,9 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
   // 文件是否被修改（重命名、移动、复制），用于返回时通知父页面刷新
   bool _fileModified = false;
 
+  // 图片是否被放大（用于禁用PageView切换，避免手势冲突）
+  bool _isImageZoomed = false;
+
   @override
   void initState() {
     super.initState();
@@ -136,6 +139,16 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
       SystemUiMode.edgeToEdge,
       overlays: SystemUiOverlay.values,
     );
+  }
+
+  /// 处理图片缩放状态变化
+  void _onImageZoomChanged(bool isZoomed) {
+    if (_isImageZoomed != isZoomed) {
+      setState(() {
+        _isImageZoomed = isZoomed;
+      });
+      logger.d('Image zoom state changed: $isZoomed');
+    }
   }
 
   /// 切换UI显示/隐藏
@@ -242,9 +255,12 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
         body: Stack(
           children: [
             // PageView 支持滑动切换
+            // 当图片被放大时，禁用切换以避免与InteractiveViewer的拖动手势冲突
             PageView.builder(
               controller: _pageController,
-              physics: const BouncingScrollPhysics(), // iOS 风格边缘回弹效果
+              physics: _isImageZoomed
+                  ? const NeverScrollableScrollPhysics() // 放大时禁用切换
+                  : const BouncingScrollPhysics(), // 未放大时允许切换
               itemCount: widget.fileList!.length,
               onPageChanged: (index) {
                 setState(() {
@@ -271,6 +287,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                       _scheduleUIHide();
                     }
                   },
+                  onZoomChanged: _onImageZoomChanged, // 传递缩放状态回调
                 );
               },
             ),
@@ -469,6 +486,7 @@ class _FilePreviewPageState extends State<FilePreviewPage> with WidgetsBindingOb
                   _scheduleUIHide();
                 }
               },
+              onZoomChanged: _onImageZoomChanged, // 传递缩放状态回调
             ),
           ],
         ),
@@ -872,6 +890,7 @@ class _FilePreviewItem extends StatefulWidget {
   final List<FileItem>? fileList; // 播放列表（用于音频播放器）
   final VoidCallback? onTap; // 点击回调，用于切换UI
   final Function(bool show)? onSetUIVisible; // 强制设置UI显示状态
+  final Function(bool isZoomed)? onZoomChanged; // 缩放状态变化回调
 
   const _FilePreviewItem({
     super.key,
@@ -879,17 +898,30 @@ class _FilePreviewItem extends StatefulWidget {
     this.fileList,
     this.onTap,
     this.onSetUIVisible,
+    this.onZoomChanged,
   });
 
   @override
   State<_FilePreviewItem> createState() => __FilePreviewItemState();
 }
 
-class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepAliveClientMixin {
+class __FilePreviewItemState extends State<_FilePreviewItem>
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   String? _fileContent;
   bool _isLoading = true;
   String? _error;
-  PdfController? _pdfController; // 仅在非 Windows 平台使用
+  PdfController? _pdfController;
+
+  // 图片和PDF的缩放控制器（用于监听缩放状态）
+  TransformationController? _imageTransformController;
+  TransformationController? _pdfTransformController;
+
+  // 图片双击放大的动画控制器
+  AnimationController? _animationController;
+  Animation<Matrix4>? _animation;
+
+  // 缩放状态跟踪（用于优化回调）
+  bool _lastZoomedState = false;
 
   @override
   // 保持图片、文本、PDF和音频文件的状态，视频不保持（避免内存问题）
@@ -902,13 +934,102 @@ class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepA
   @override
   void initState() {
     super.initState();
+
+    // 初始化动画控制器（图片双击缩放使用）
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+
+    // 根据文件类型初始化缩放控制器（用于监听缩放状态）
+    if (FileUtils.isImageFile(widget.file.name)) {
+      _imageTransformController = TransformationController();
+      _imageTransformController!.addListener(_onTransformChanged);
+    } else if (FileUtils.isPdfFile(widget.file.name)) {
+      _pdfTransformController = TransformationController();
+      _pdfTransformController!.addListener(_onTransformChanged);
+    }
+
     _loadFileContent();
   }
 
   @override
   void dispose() {
-    _pdfController?.dispose(); // 仅在非 Windows 平台初始化
+    // 移除监听器
+    _imageTransformController?.removeListener(_onTransformChanged);
+    _pdfTransformController?.removeListener(_onTransformChanged);
+
+    // 释放资源
+    _pdfController?.dispose();
+    _imageTransformController?.dispose();
+    _pdfTransformController?.dispose();
+    _animationController?.dispose();
     super.dispose();
+  }
+
+  /// 监听变换矩阵变化，检测缩放状态
+  void _onTransformChanged() {
+    final controller = _imageTransformController ?? _pdfTransformController;
+    if (controller == null) return;
+
+    // 获取当前缩放比例
+    final scale = controller.value.getMaxScaleOnAxis();
+    // 留一点误差空间，避免浮点数精度问题
+    final isZoomed = scale > 1.01;
+
+    // 只在状态变化时通知，避免频繁回调
+    if (_lastZoomedState != isZoomed) {
+      _lastZoomedState = isZoomed;
+      final fileType = FileUtils.isImageFile(widget.file.name) ? 'Image' : 'PDF';
+      logger.d('📊 $fileType zoom state changed: $isZoomed (scale=${scale.toStringAsFixed(2)})');
+      widget.onZoomChanged?.call(isZoomed);
+    }
+  }
+
+  /// 处理双击放大事件（图片）
+  void _handleImageDoubleTap(TapDownDetails details) {
+    if (_imageTransformController == null) return;
+
+    final controller = _imageTransformController!;
+    final position = details.localPosition;
+
+    // 获取当前缩放比例
+    final currentScale = controller.value.getMaxScaleOnAxis();
+
+    // 目标缩放比例：当前是1.0则放大到2.0，否则恢复到1.0
+    final targetScale = currentScale > 1.0 ? 1.0 : 2.0;
+
+    // 计算缩放矩阵
+    Matrix4 targetMatrix;
+    if (targetScale == 1.0) {
+      // 恢复原始状态
+      targetMatrix = Matrix4.identity();
+    } else {
+      // 放大到点击位置
+      final x = -position.dx * (targetScale - 1);
+      final y = -position.dy * (targetScale - 1);
+      targetMatrix = Matrix4.identity()
+        ..translate(x, y)
+        ..scale(targetScale);
+    }
+
+    // 创建动画
+    _animation = Matrix4Tween(
+      begin: controller.value,
+      end: targetMatrix,
+    ).animate(CurveTween(curve: Curves.easeInOut).animate(_animationController!));
+
+    // 监听动画并更新控制器
+    _animationController!
+      ..reset()
+      ..forward().then((_) {
+        // 动画完成后清理
+        _animation = null;
+      });
+
+    _animation!.addListener(() {
+      controller.value = _animation!.value;
+    });
   }
 
   Future<void> _loadFileContent() async {
@@ -1386,10 +1507,12 @@ class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepA
 
   Widget _buildImagePreview() {
     return GestureDetector(
-      onTap: widget.onTap, // 点击切换UI
+      onTap: widget.onTap, // 单击切换UI
+      onDoubleTapDown: _handleImageDoubleTap, // 双击放大
       child: Container(
         color: Colors.black, // 图片预览固定黑色背景
         child: InteractiveViewer(
+          transformationController: _imageTransformController,
           minScale: 0.5,
           maxScale: 4.0,
           child: Center(
@@ -1461,18 +1584,24 @@ class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepA
     }
 
     return GestureDetector(
-      onTap: widget.onTap, // 点击切换UI
+      onTap: widget.onTap, // 单击切换UI
       child: Container(
         color: Colors.black,
-        child: PdfView(
-          controller: _pdfController!,
-          scrollDirection: Axis.vertical,
-          onDocumentLoaded: (document) {
-            logger.i('PDF document loaded: ${document.pagesCount} pages');
-          },
-          onPageChanged: (page) {
-            logger.d('PDF page changed to: $page');
-          },
+        child: InteractiveViewer(
+          transformationController: _pdfTransformController,
+          minScale: 0.5,
+          maxScale: 4.0,
+          // 使用默认配置，用户可以通过双指pinch手势进行缩放
+          child: PdfView(
+            controller: _pdfController!,
+            scrollDirection: Axis.vertical,
+            onDocumentLoaded: (document) {
+              logger.i('PDF document loaded: ${document.pagesCount} pages');
+            },
+            onPageChanged: (page) {
+              logger.d('PDF page changed to: $page');
+            },
+          ),
         ),
       ),
     );
@@ -1483,7 +1612,7 @@ class __FilePreviewItemState extends State<_FilePreviewItem> with AutomaticKeepA
     final isDark = theme.brightness == Brightness.dark;
 
     return GestureDetector(
-      onTap: widget.onTap, // 点击切换UI
+      onTap: widget.onTap, // 单击切换UI
       child: Container(
         color: isDark ? Colors.black : theme.colorScheme.surface,
         child: Center(

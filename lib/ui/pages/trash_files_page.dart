@@ -46,6 +46,9 @@ class TrashFilesPage extends StatefulWidget {
 }
 
 class _TrashFilesPageState extends State<TrashFilesPage> {
+  // 文件恢复区路径常量
+  static const String _restoredFilesPath = '/storage/emulated/0/EasyFile/Restored';
+
   TrashFileService? _service;
 
   // 回收站列表
@@ -68,10 +71,29 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
   // 时间过滤器：默认只显示配置的月份以上的文件
   bool _showOldFilesOnly = true;
 
+  // 文件恢复区是否存在
+  bool _restoredFolderExists = false;
+
   @override
   void initState() {
     super.initState();
     _initializeService();
+    _checkRestoredFolderExists();
+  }
+
+  /// 检查文件恢复区目录是否存在
+  void _checkRestoredFolderExists() {
+    try {
+      final dir = Directory(_restoredFilesPath);
+      setState(() {
+        _restoredFolderExists = dir.existsSync();
+      });
+    } catch (e) {
+      logger.w('检查文件恢复区失败: $e');
+      setState(() {
+        _restoredFolderExists = false;
+      });
+    }
   }
 
   /// 异步初始化服务并开始扫描
@@ -562,6 +584,9 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
 
         // 显示恢复结果对话框
         if (success > 0) {
+          // 恢复成功后，重新检查文件恢复区是否存在
+          _checkRestoredFolderExists();
+
           // 收集恢复的文件名
           final restoredFileNames = <String>[];
           for (var item in restoredPaths) {
@@ -671,24 +696,29 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                         ),
                       );
                     } else {
-                      // 多个文件：跳转到文件恢复区
-                      Navigator.pop(context); // 关闭对话框
+                      // 多个文件：跳转到文件恢复区（如果存在）
+                      if (_restoredFolderExists) {
+                        Navigator.pop(context); // 关闭对话框
 
-                      // 打开文件恢复区（使用FileBrowserRootPage）
-                      final presenter = locator.get<FilePresenter>();
-                      final viewModel = locator.get<FileViewModel>();
+                        // 打开文件恢复区（使用FileBrowserRootPage）
+                        final presenter = locator.get<FilePresenter>();
+                        final viewModel = locator.get<FileViewModel>();
 
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FileBrowserRootPage(
-                            presenter: presenter,
-                            viewModel: viewModel,
-                            initialPath: '/storage/emulated/0/EasyFile/Restored',
-                            returnToSecondPage: false,
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FileBrowserRootPage(
+                              presenter: presenter,
+                              viewModel: viewModel,
+                              initialPath: _restoredFilesPath,
+                              returnToSecondPage: false,
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } else {
+                        // 文件恢复区不存在，只关闭对话框
+                        Navigator.pop(context);
+                      }
                     }
                   },
                   child: const Text('打开'),
@@ -1219,46 +1249,48 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        '前往查看已恢复文件？',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // 打开文件恢复区（使用FileBrowserRootPage）
-                          final presenter = locator.get<FilePresenter>();
-                          final viewModel = locator.get<FileViewModel>();
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => FileBrowserRootPage(
-                                presenter: presenter,
-                                viewModel: viewModel,
-                                initialPath: '/storage/emulated/0/EasyFile/Restored',
-                                returnToSecondPage: false,
-                              ),
-                            ),
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          '文件恢复区',
+                      if (_restoredFolderExists) ...[
+                        Text(
+                          '前往查看已恢复文件？',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue,
+                            fontSize: 11,
+                            color: Colors.grey[600],
                           ),
                         ),
-                      ),
+                        TextButton(
+                          onPressed: () {
+                            // 打开文件恢复区（使用FileBrowserRootPage）
+                            final presenter = locator.get<FilePresenter>();
+                            final viewModel = locator.get<FileViewModel>();
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FileBrowserRootPage(
+                                  presenter: presenter,
+                                  viewModel: viewModel,
+                                  initialPath: _restoredFilesPath,
+                                  returnToSecondPage: false,
+                                ),
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            '文件恢复区',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

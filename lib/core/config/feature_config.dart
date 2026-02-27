@@ -1,4 +1,5 @@
 import 'package:easyfile/core/logger.dart';
+
 import 'storage/config_storage.dart';
 
 /// 功能开关配置
@@ -20,21 +21,28 @@ class FeatureConfig {
   bool get isLargeFilesEnabled => _getBool('large_files', defaultValue: true);
 
   /// 重复文件扫描功能
-  bool get isDuplicateFilesEnabled =>
-      _getBool('duplicate_files', defaultValue: true);
+  bool get isDuplicateFilesEnabled => _getBool('duplicate_files', defaultValue: true);
 
   /// 垃圾文件清理功能
   bool get isJunkCleanupEnabled => _getBool('junk_cleanup', defaultValue: true);
 
   /// 应用管理功能
-  bool get isAppManagementEnabled =>
-      _getBool('app_management', defaultValue: true);
+  bool get isAppManagementEnabled => _getBool('app_management', defaultValue: true);
 
   /// 回收站功能
   bool get isTrashEnabled => _getBool('trash', defaultValue: true);
 
   /// 收藏功能
   bool get isFavoritesEnabled => _getBool('favorites', defaultValue: true);
+
+  /// 压缩包管理功能
+  bool get isArchiveManagementEnabled => _getBool('archive_management', defaultValue: true);
+
+  /// 安装包管理功能
+  bool get isApkManagementEnabled => _getBool('apk_management', defaultValue: true);
+
+  /// 隐私空间功能
+  bool get isPrivacySpaceEnabled => _getBool('privacy_space', defaultValue: true);
 
   // ==================== 实验性功能（预留，默认禁用） ====================
 
@@ -45,8 +53,7 @@ class FeatureConfig {
   bool get isPremiumEnabled => _getBool('premium', defaultValue: false);
 
   /// 开发者选项显示开关（默认隐藏）
-  bool get isDeveloperOptionsEnabled =>
-      _getBool('developer_options', defaultValue: true);
+  bool get isDeveloperOptionsEnabled => _getBool('developer_options', defaultValue: true);
 
   // ==================== 内部实现 ====================
 
@@ -90,10 +97,7 @@ class FeatureConfig {
   /// 重置所有功能开关为默认值
   Future<void> reset() async {
     try {
-      final keys = _storage
-          .getKeys()
-          .where((key) => key.startsWith(_keyPrefix))
-          .toList();
+      final keys = _storage.getKeys().where((key) => key.startsWith(_keyPrefix)).toList();
 
       for (final key in keys) {
         await _storage.remove(key);

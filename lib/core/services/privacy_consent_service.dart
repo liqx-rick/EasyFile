@@ -1,3 +1,4 @@
+import 'package:easyfile/core/content/privacy_policy_content.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 隐私政策同意状态管理服务
@@ -8,8 +9,9 @@ class PrivacyConsentService {
   static const String _privacyConsentKey = 'privacy_policy_consent';
   static const String _privacyConsentVersionKey = 'privacy_policy_consent_version';
 
-  // 当前隐私政策版本（修改隐私政策时需要更新此版本号）
-  static const String _currentPrivacyVersion = '1.0.0';
+  // 当前隐私政策版本——由 PrivacyPolicyContent.version 统一维护，
+  // 无需在此处单独修改。
+  static String get _currentPrivacyVersion => PrivacyPolicyContent.version;
 
   /// 检查用户是否已同意隐私政策
   ///
@@ -49,10 +51,5 @@ class PrivacyConsentService {
     } catch (e) {
       // 清除失败不影响主流程
     }
-  }
-
-  /// 获取当前隐私政策版本
-  static String getCurrentVersion() {
-    return _currentPrivacyVersion;
   }
 }

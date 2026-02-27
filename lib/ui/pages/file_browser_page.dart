@@ -2118,58 +2118,7 @@ class _FileBrowserPageState extends State<FileBrowserPage>
               ),
           textAlign: TextAlign.center,
         );
-        actionButton = TextButton.icon(
-          onPressed: () async {
-            // 跳转到浏览Tab并选择首页推荐区显示的第一个文件夹
-            viewModel.setCurrentTab(TabView.browse);
-            if (quickAccessViewModel != null && quickAccessViewModel!.folders.isNotEmpty) {
-              // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
-              final folders = quickAccessViewModel!.folders;
-              final userCustomizedHomeFolders = folders.where((f) => f.isAddedToQuickAccess && !f.isHidden).toList();
-
-              QuickAccessFolder? firstFolder;
-              if (userCustomizedHomeFolders.isNotEmpty) {
-                // 用户已定制过首页，使用用户定制的第一个
-                firstFolder = userCustomizedHomeFolders.first;
-              } else {
-                // 用户未定制，从系统目录中按优先级选择第一个
-                final systemFolders = folders.where((f) => f.type == QuickAccessFolderType.system).toList();
-                if (systemFolders.isNotEmpty) {
-                  systemFolders.sort((a, b) {
-                    int getPriority(QuickAccessFolder folder) {
-                      final path = folder.path.toLowerCase();
-                      if (path.contains('download')) return 99;
-                      if (path.contains('document')) return 1;
-                      if (path.contains('picture') || path.contains('photo')) {
-                        return 2;
-                      }
-                      if (path.contains('music')) return 3;
-                      if (path.contains('movie') || path.contains('video')) {
-                        return 4;
-                      }
-                      if (path.contains('dcim') || path.contains('camera')) {
-                        return 5;
-                      }
-                      return 98;
-                    }
-
-                    return getPriority(a).compareTo(getPriority(b));
-                  });
-                  firstFolder = systemFolders.where((f) => !f.path.toLowerCase().contains('download')).firstOrNull;
-                }
-              }
-
-              if (firstFolder != null) {
-                await presenter.navigateToFolder(firstFolder.path);
-              }
-            }
-          },
-          icon: const Icon(Icons.arrow_forward),
-          label: const Text('开始浏览'),
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.primary,
-          ),
-        );
+        actionButton = null;
         break;
 
       case TabView.newFiles:
@@ -2230,72 +2179,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                     color: Colors.grey[600],
                     height: 1.5,
                   ),
-              children: [
-                const TextSpan(text: '长按文件进入编辑模式，在底部操作栏点击 '),
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Icon(
-                    Icons.star_border,
-                    size: 18,
-                    color: Colors.grey[600],
-                  ),
+              children: const [
+                TextSpan(text: '长按文件，在弹出菜单上点击'),
+                TextSpan(
+                  text: '添加到收藏',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                const TextSpan(text: ' 图标即可收藏文件，方便快速访问'),
+                TextSpan(text: '即可收藏文件，方便快速访问。'),
               ],
             ),
           );
-          actionButton = TextButton.icon(
-            onPressed: () async {
-              // 跳转到浏览Tab并选择首页推荐区显示的第一个文件夹
-              viewModel.setCurrentTab(TabView.browse);
-              if (quickAccessViewModel != null && quickAccessViewModel!.folders.isNotEmpty) {
-                // 获取首页推荐区实际显示的文件夹（与QuickAccessSection逻辑一致）
-                final folders = quickAccessViewModel!.folders;
-                final userCustomizedHomeFolders = folders.where((f) => f.isAddedToQuickAccess && !f.isHidden).toList();
-
-                QuickAccessFolder? firstFolder;
-                if (userCustomizedHomeFolders.isNotEmpty) {
-                  // 用户已定制过首页，使用用户定制的第一个
-                  firstFolder = userCustomizedHomeFolders.first;
-                } else {
-                  // 用户未定制，从系统目录中按优先级选择第一个
-                  final systemFolders = folders.where((f) => f.type == QuickAccessFolderType.system).toList();
-                  if (systemFolders.isNotEmpty) {
-                    systemFolders.sort((a, b) {
-                      int getPriority(QuickAccessFolder folder) {
-                        final path = folder.path.toLowerCase();
-                        if (path.contains('download')) return 99;
-                        if (path.contains('document')) return 1;
-                        if (path.contains('picture') || path.contains('photo')) {
-                          return 2;
-                        }
-                        if (path.contains('music')) return 3;
-                        if (path.contains('movie') || path.contains('video')) {
-                          return 4;
-                        }
-                        if (path.contains('dcim') || path.contains('camera')) {
-                          return 5;
-                        }
-                        return 98;
-                      }
-
-                      return getPriority(a).compareTo(getPriority(b));
-                    });
-                    firstFolder = systemFolders.where((f) => !f.path.toLowerCase().contains('download')).firstOrNull;
-                  }
-                }
-
-                if (firstFolder != null) {
-                  await presenter.navigateToFolder(firstFolder.path);
-                }
-              }
-            },
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('去浏览文件'),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.primary,
-            ),
-          );
+          actionButton = null;
         }
         break;
 
@@ -2394,44 +2288,44 @@ class _FileBrowserPageState extends State<FileBrowserPage>
       onRefresh: () async {
         await presenter.refreshCurrent();
       },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height * 0.6,
-          ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  subtitleWidget,
-                  if (actionButton != null) ...[
-                    const SizedBox(height: 24),
-                    actionButton,
+      child: CustomScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    subtitleWidget,
+                    if (actionButton != null) ...[
+                      const SizedBox(height: 24),
+                      actionButton,
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

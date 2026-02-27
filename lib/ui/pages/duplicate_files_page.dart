@@ -15,7 +15,6 @@ import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/ui/pages/file_preview_page.dart';
 import 'package:easyfile/ui/widgets/audio_cover_widget.dart';
 import 'package:easyfile/ui/widgets/document_icon_widget.dart';
@@ -23,6 +22,7 @@ import 'package:easyfile/ui/widgets/image_thumbnail.dart';
 import 'package:easyfile/ui/widgets/real_video_thumbnail.dart';
 import 'package:easyfile/utils/file_size_formatter.dart';
 import 'package:easyfile/utils/file_utils.dart';
+import 'package:easyfile/utils/thumbnail_cache_manager.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:flutter/material.dart';
 
@@ -348,12 +348,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
         if (groups.isNotEmpty) {
           _initializeDefaultSelection();
-
-          // 如果是从缓存加载的，启动增量更新检查UI
-          if (isFromCache) {
-            logger.i('📦 Loaded from cache, starting incremental update UI');
-            _startIncrementalUpdateCheck();
-          }
+          // 注意：增量更新检测已由 smartScan 内部自动处理，UI层无需手动启动
+          logger.i('📦 Loaded from cache, incremental update managed by smartScan');
         } else if (_isScanning) {
           // 正在扫描中，groups为空是正常的（等待结果）
           logger.i('🔄 Scan in progress, waiting for results');
@@ -421,7 +417,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
       }
     }
 
-    logger.i('🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} uncached videos to prewarm (skipped $cachedVideosSkipped cached videos)');
+    logger.i(
+        '🔥 Found ${imagesToPrewarm.length} images and ${videosToPrewarm.length} uncached videos to prewarm (skipped $cachedVideosSkipped cached videos)');
 
     // 1. 预热图片（使用Flutter的precacheImage，快速）
     if (imagesToPrewarm.isNotEmpty) {
@@ -533,9 +530,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         forceFullScan: false, // 优先使用缓存
       );
 
-      // 计算扫描耗时，如果很快（< 1秒）说明使用了缓存
+      // 计算扫描耗时
       final scanDuration = DateTime.now().difference(scanStartTime);
-      final isFromCache = scanDuration.inMilliseconds < 1000;
 
       if (mounted) {
         setState(() {
@@ -573,16 +569,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
               duration: const Duration(seconds: 3),
             ),
           );
-        } else {
-          // 只有在使用缓存时才启动增量更新检测
-          // 如果是刚完成的完整扫描，数据已经是最新的，无需再检查更新
-          if (isFromCache) {
-            logger.i('📦 Loaded from cache in ${scanDuration.inMilliseconds}ms, starting incremental update');
-            _startIncrementalUpdateCheck();
-          } else {
-            logger.i('✅ Fresh scan completed in ${scanDuration.inSeconds}s, no need for incremental update');
-          }
         }
+        // 注意：增量更新检测已由 smartScan 内部自动处理，UI层无需手动启动
       }
     } catch (e) {
       logger.e('Error scanning duplicate files: $e');
@@ -596,30 +584,6 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
         );
       }
     }
-  }
-
-  /// 启动增量更新检测
-  void _startIncrementalUpdateCheck() {
-    if (!mounted) return;
-
-    logger.i('🔄 Starting incremental update check');
-
-    setState(() {
-      _isCheckingUpdates = true;
-      _updateStatus = '正在检查文件更新...';
-      _oldGroupsCount = _allGroups.length; // 保存当前组数
-      _filesDetected = 0;
-      _incrementalStage = '正在检查文件更新...';
-      _newGroupsCount = 0;
-      _newFilesCount = 0;
-      _showIncrementalSummary = false;
-    });
-
-    logger.i('🔄 After setState: _isCheckingUpdates=$_isCheckingUpdates, _oldGroupsCount=$_oldGroupsCount');
-
-    // 💡 监听器会在增量更新完成时自动清除状态
-    // 在Android设备上，文件系统扫描可能需要1-2分钟，不设置timeout
-    // _onScanComplete 或 _onScanError 会处理完成/错误情况
   }
 
   /// 按类型分组重复文件组（完整检测模式）

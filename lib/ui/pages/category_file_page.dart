@@ -572,13 +572,6 @@ class _CategoryFilePageState extends State<CategoryFilePage>
                 content: Text(message),
                 duration: const Duration(seconds: 3),
                 behavior: SnackBarBehavior.floating,
-                action: SnackBarAction(
-                  label: '查看',
-                  onPressed: () {
-                    // 滚动到顶部或显示新文件
-                    setState(() {});
-                  },
-                ),
               ),
             );
           } else {

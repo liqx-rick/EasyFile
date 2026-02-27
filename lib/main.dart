@@ -10,6 +10,7 @@ import 'package:easyfile/core/services/category_sort_service.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
+import 'package:easyfile/utils/device_info_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -41,6 +42,13 @@ Future<void> main() async {
 
   final processId = DateTime.now().millisecondsSinceEpoch;
   logger.i('NEW PROCESS: $processId');
+
+  // 打印设备硬件环境信息（用于统计和调试）
+  try {
+    await DeviceInfoPrinter.print();
+  } catch (e) {
+    logger.e('Failed to print device info: $e');
+  }
 
   // 初始化 AppConfig（必须在其他服务之前）
   await AppConfig.instance.initialize();
