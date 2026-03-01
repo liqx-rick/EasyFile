@@ -1060,8 +1060,66 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
         fileName: file.name,
         size: size,
       );
+    } else if (file.name.toLowerCase().endsWith('.apk')) {
+      // APK 安装包 - Android 绿色
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF3DDC84), // Android 绿色
+              const Color(0xFF3DDC84).withValues(alpha: 0.7),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(size * 0.15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF3DDC84).withValues(alpha: 0.2),
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.android,
+          color: Colors.white,
+          size: size * 0.6,
+        ),
+      );
+    } else if (file.name.toLowerCase().endsWith('.exe')) {
+      // Windows 安装包 - Windows 蓝色
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF0078D4), // Windows 蓝色
+              const Color(0xFF0078D4).withValues(alpha: 0.7),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(size * 0.15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0078D4).withValues(alpha: 0.2),
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.window,
+          color: Colors.white,
+          size: size * 0.6,
+        ),
+      );
     } else {
-      // APK 和其他文件类型显示灰色图标
+      // 其他文件类型显示灰色图标
       return Container(
         width: size,
         height: size,

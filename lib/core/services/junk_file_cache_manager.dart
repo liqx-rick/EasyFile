@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
 import 'package:easyfile/data/models/junk_file_item.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 垃圾文件扫描缓存管理器
 class JunkFileCacheManager {
@@ -12,8 +13,7 @@ class JunkFileCacheManager {
   static const int _cacheValidDays = 7; // 缓存有效期7天
 
   /// 保存缓存
-  Future<void> saveCache(
-      List<JunkFileItem> files, JunkFileScanConfig config) async {
+  Future<void> saveCache(List<JunkFileItem> files, JunkFileScanConfig config) async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
@@ -46,8 +46,7 @@ class JunkFileCacheManager {
       }
 
       final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
-      final isExpired =
-          DateTime.now().difference(cacheTime).inDays > _cacheValidDays;
+      final isExpired = DateTime.now().difference(cacheTime).inDays > _cacheValidDays;
       if (isExpired) {
         logger.d('垃圾文件缓存已过期');
         return null;
@@ -60,8 +59,7 @@ class JunkFileCacheManager {
         return null;
       }
 
-      final cachedConfig =
-          JunkFileScanConfig.fromJson(jsonDecode(cachedConfigJson));
+      final cachedConfig = JunkFileScanConfig.fromJson(jsonDecode(cachedConfigJson));
       if (cachedConfig.description != config.description) {
         logger.d('垃圾文件配置不匹配，忽略缓存');
         logger.d('缓存配置: ${cachedConfig.description}');
@@ -76,9 +74,7 @@ class JunkFileCacheManager {
         return null;
       }
 
-      final filesList = (jsonDecode(filesJson) as List)
-          .map((json) => JunkFileItem.fromJson(json))
-          .toList();
+      final filesList = (jsonDecode(filesJson) as List).map((json) => JunkFileItem.fromJson(json)).toList();
 
       logger.i('加载垃圾文件缓存成功: ${filesList.length} 个');
       return filesList;
@@ -121,8 +117,7 @@ class JunkFileCacheManager {
       }
 
       final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
-      final isExpired =
-          DateTime.now().difference(cacheTime).inDays > _cacheValidDays;
+      final isExpired = DateTime.now().difference(cacheTime).inDays > _cacheValidDays;
 
       final filesList = jsonDecode(filesJson) as List;
 

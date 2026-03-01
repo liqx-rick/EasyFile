@@ -43,7 +43,7 @@ class TrashFileService {
   }
 
   /// 获取缓存信息（调试用）
-  Map<String, dynamic> getCacheInfo() {
+  Future<Map<String, dynamic>> getCacheInfo() {
     return _cacheManager.getCacheInfo();
   }
 
@@ -57,10 +57,12 @@ class TrashFileService {
     bool forceRefresh = false,
   }) async {
     // 如果缓存有效且不强制刷新，直接返回缓存
-    if (!forceRefresh && _cacheManager.isCacheValid()) {
-      final cached = _cacheManager.getCachedResult()!;
-      logger.i('使用系统回收站缓存数据（${cached.allFiles.length}个文件）');
-      return cached;
+    if (!forceRefresh && await _cacheManager.isCacheValid()) {
+      final cached = await _cacheManager.getCachedResult();
+      if (cached != null) {
+        logger.i('使用系统回收站缓存数据（${cached.allFiles.length}个文件）');
+        return cached;
+      }
     }
 
     logger.i('========== 开始扫描回收站（多回收站模式） ==========');
@@ -278,7 +280,7 @@ class TrashFileService {
     );
 
     // 缓存结果
-    _cacheManager.saveCache(result);
+    await _cacheManager.saveCache(result);
 
     return result;
   }
@@ -895,12 +897,16 @@ class TrashFileService {
     logger.i('开始统计$effectiveMonths个月前的系统回收站文件');
 
     // 先尝试从缓存获取扫描结果
-    TrashScanResult result;
+    TrashScanResult? result;
 
-    if (!forceRefresh && _cacheManager.isCacheValid()) {
-      result = _cacheManager.getCachedResult()!;
-      logger.i('使用缓存数据统计旧文件（避免重复扫描）');
-    } else {
+    if (!forceRefresh && await _cacheManager.isCacheValid()) {
+      result = await _cacheManager.getCachedResult();
+      if (result != null) {
+        logger.i('使用缓存数据统计旧文件（避免重复扫描）');
+      }
+    }
+    
+    if (result == null) {
       logger.i('缓存无效，执行完整扫描');
       result = await scanTrashBinsWithFiles(forceRefresh: forceRefresh);
     }

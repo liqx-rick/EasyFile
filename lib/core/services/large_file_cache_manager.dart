@@ -25,6 +25,7 @@ class LargeFileCacheManager {
     required LargeFileScanConfig config,
   }) async {
     try {
+      logger.d('准备保存大文件缓存: ${files.length}个文件, 配置: minSize=${config.minSizeInMB}MB');
       final prefs = await SharedPreferences.getInstance();
 
       // 保存文件列表（转为简化的JSON格式）
@@ -41,28 +42,39 @@ class LargeFileCacheManager {
       await prefs.setString(_configKey, jsonEncode(config.toJson()));
       await prefs.setInt(_timestampKey, DateTime.now().millisecondsSinceEpoch);
 
-      logger.i('Large file cache saved: ${files.length} files');
+      logger.i('✅ 大文件缓存已保存: ${files.length} 个文件, 配置: minSize=${config.minSizeInMB}MB');
+      logger.d('缓存键: $_cacheKey, $_configKey, $_timestampKey');
     } catch (e) {
-      logger.e('Failed to save large file cache: $e');
+      logger.e('保存大文件缓存失败: $e');
     }
   }
 
   /// 从缓存加载扫描结果
   Future<LargeFileScanCache?> loadCache() async {
     try {
+      logger.d('尝试加载大文件缓存...');
       final prefs = await SharedPreferences.getInstance();
 
       final filesJson = prefs.getString(_cacheKey);
       final configJson = prefs.getString(_configKey);
       final timestamp = prefs.getInt(_timestampKey);
 
+      logger.d('缓存键检查: filesJson=${filesJson != null}, configJson=${configJson != null}, timestamp=${timestamp != null}');
+      
       if (filesJson == null || configJson == null || timestamp == null) {
-        logger.d('No cache found');
+        logger.d('缓存不完整 - filesJson: ${filesJson?.substring(0, filesJson.length > 50 ? 50 : filesJson.length)}, configJson: $configJson, timestamp: $timestamp');
+        
+        // 列出所有 SharedPreferences 的 key 用于调试
+        final allKeys = prefs.getKeys();
+        logger.d('SharedPreferences 中所有的key (${allKeys.length}个): ${allKeys.where((k) => k.contains("large") || k.contains("file")).toList()}');
+        
         return null;
       }
 
       final scanTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
       final age = DateTime.now().difference(scanTime);
+
+      logger.d('缓存时间: $scanTime, 年龄: ${age.inMinutes}分钟 (有效期: ${_cacheExpiration.inDays}天)');
 
       // 检查缓存是否过期
       if (age > _cacheExpiration) {
@@ -87,16 +99,15 @@ class LargeFileCacheManager {
       final config = LargeFileScanConfig.fromJson(
           jsonDecode(configJson) as Map<String, dynamic>);
 
-      logger.i(
-          'Cache loaded: ${filesList.length} files, age: ${age.inMinutes} minutes');
+      logger.i('✅ 缓存加载成功: ${filesList.length} 个文件, 年龄: ${age.inMinutes} 分钟, 配置: minSize=${config.minSizeInMB}MB');
 
       return LargeFileScanCache(
         files: filesList,
         config: config,
         scanTime: scanTime,
       );
-    } catch (e) {
-      logger.e('Failed to load large file cache: $e');
+    } catch (e, stackTrace) {
+      logger.e('加载大文件缓存失败: $e\n$stackTrace');
       await clearCache();
       return null;
     }

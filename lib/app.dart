@@ -9,7 +9,7 @@ import 'package:easyfile/core/services/privacy_consent_service.dart';
 import 'package:easyfile/core/services/privacy_session_manager.dart';
 import 'package:easyfile/core/services/theme_settings_service.dart';
 import 'package:easyfile/core/services/view_mode_service.dart';
-import 'package:easyfile/ui/pages/file_browser_page.dart';
+import 'package:easyfile/ui/pages/main_container_page.dart';
 import 'package:easyfile/ui/pages/splash_page.dart';
 import 'package:easyfile/ui/theme/app_theme.dart';
 import 'package:easyfile/ui/widgets/privacy_policy_dialog.dart';
@@ -430,6 +430,6 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return _hasCompletedSplash ? const FileBrowserPage() : SplashPage(onComplete: _onSplashComplete);
+    return _hasCompletedSplash ? const MainContainerPage() : SplashPage(onComplete: _onSplashComplete);
   }
 }

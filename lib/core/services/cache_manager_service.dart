@@ -286,11 +286,15 @@ class CacheManagerService {
       int trashFileCount = 0;
       DateTime? trashTimestamp;
       if (_trashFileService != null) {
-        final trashCacheInfo = _trashFileService!.getCacheInfo();
-        final hasTrashCache = trashCacheInfo['hasCache'] as bool? ?? false;
+        final trashCacheInfo = await _trashFileService!.getCacheInfo();
+        final hasTrashCache = trashCacheInfo['cached'] as bool? ?? false;
         if (hasTrashCache) {
           trashFileCount = trashCacheInfo['fileCount'] as int? ?? 0;
-          trashTimestamp = trashCacheInfo['cacheTime'] as DateTime?;
+          // 从时间戳转换为 DateTime
+          final cacheAge = trashCacheInfo['cacheAge'] as int? ?? 0;
+          if (cacheAge > 0) {
+            trashTimestamp = DateTime.now().subtract(Duration(minutes: cacheAge));
+          }
         }
       }
 

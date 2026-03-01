@@ -45,6 +45,7 @@ dependencies:
   local_auth: ^2.1.7  # 生物识别
   local_auth_android: ^1.0.34  # Android生物识别实现
   local_auth_ios: ^1.1.4  # iOS生物识别实现
+  intl: ^0.18.1  # 国际化和日期格式化
 
 dev_dependencies:
   flutter_test:

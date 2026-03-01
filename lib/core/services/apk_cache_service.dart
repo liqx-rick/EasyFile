@@ -83,4 +83,59 @@ class ApkCacheService {
       logger.e('[ApkCacheService] 清除缓存失败: $e');
     }
   }
+
+  /// 获取缓存信息（用于智能任务卡）
+  ///
+  /// 返回APK统计信息：
+  /// - apkCount: APK文件数量
+  /// - apkSize: APK总大小（字节）
+  /// - exists: 缓存是否存在
+  /// - isExpired: 缓存是否过期
+  Future<Map<String, dynamic>> getCacheInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final timestampMs = prefs.getInt(_timestampKey);
+      final cacheJson = prefs.getString(_cacheKey);
+
+      if (timestampMs == null || cacheJson == null) {
+        return {
+          'exists': false,
+          'isExpired': false,
+          'apkCount': 0,
+          'apkSize': 0,
+        };
+      }
+
+      final cacheTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+      final age = DateTime.now().difference(cacheTime);
+      final isExpired = age > _cacheExpiration;
+
+      // 解析APK列表
+      final List<dynamic> jsonList = json.decode(cacheJson);
+      final apkList = jsonList.map((item) => ApkInfo.fromJson(Map<String, dynamic>.from(item))).toList();
+
+      // 计算总大小
+      int totalSize = 0;
+      for (final apk in apkList) {
+        totalSize += apk.fileSize;
+      }
+
+      return {
+        'exists': true,
+        'isExpired': isExpired,
+        'apkCount': apkList.length,
+        'apkSize': totalSize,
+        'timestamp': cacheTime,
+      };
+    } catch (e) {
+      logger.e('[ApkCacheService] 获取缓存信息失败: $e');
+      return {
+        'exists': false,
+        'isExpired': false,
+        'apkCount': 0,
+        'apkSize': 0,
+      };
+    }
+  }
 }
