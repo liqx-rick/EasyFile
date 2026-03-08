@@ -59,11 +59,8 @@ class UnifiedAppScanner {
   /// 缓存有效期（24小时）
   static const Duration _cacheExpiration = Duration(hours: 24);
 
-  UnifiedAppScanner(
-    this._detectionService, {
-    FileCountCache? fileCountCache,
-    AppFileListCache? fileListCache,
-  })  : _fileCountCache = fileCountCache,
+  UnifiedAppScanner(this._detectionService, {FileCountCache? fileCountCache, AppFileListCache? fileListCache})
+      : _fileCountCache = fileCountCache,
         _fileListCache = fileListCache;
 
   /// 扫描应用文件
@@ -87,9 +84,7 @@ class UnifiedAppScanner {
     final config = await AppConfig.instance.appScanner.getAppConfig(appKey);
     if (config == null) {
       final enabledApps = await AppConfig.instance.appScanner.getEnabledApps();
-      throw ArgumentError(
-        '未知应用: $appKey，支持的应用: ${enabledApps.map((a) => a.appKey).toList()}',
-      );
+      throw ArgumentError('未知应用: $appKey，支持的应用: ${enabledApps.map((a) => a.appKey).toList()}');
     }
 
     logger.i('========== 开始扫描应用: ${config.appName} ($appKey) ==========');
@@ -151,10 +146,7 @@ class UnifiedAppScanner {
     logger.i('扫描路径: ${scanPaths.length} 个');
 
     // 步骤4: MediaStore 扫描（Android 11+）
-    ScanResult mediaStoreResult = ScanResult(
-      files: const [],
-      duration: Duration.zero,
-    );
+    ScanResult mediaStoreResult = ScanResult(files: const [], duration: Duration.zero);
 
     if (useMediaStore) {
       try {
@@ -169,12 +161,16 @@ class UnifiedAppScanner {
           final newCount = mediaStoreResult.files.length;
           if (oldCount != null && oldCount > 0) {
             final delta = newCount - oldCount;
-            logger.i('MediaStore扫描: $newCount 文件 '
-                '(${mediaStoreResult.duration.inMilliseconds}ms) '
-                '[上次: $oldCount, 增量: ${delta > 0 ? '+' : ''}$delta]');
+            logger.i(
+              'MediaStore扫描: $newCount 文件 '
+              '(${mediaStoreResult.duration.inMilliseconds}ms) '
+              '[上次: $oldCount, 增量: ${delta > 0 ? '+' : ''}$delta]',
+            );
           } else {
-            logger.i('MediaStore扫描: $newCount 文件 '
-                '(${mediaStoreResult.duration.inMilliseconds}ms)');
+            logger.i(
+              'MediaStore扫描: $newCount 文件 '
+              '(${mediaStoreResult.duration.inMilliseconds}ms)',
+            );
           }
         } else {
           logger.w('MediaStore OWNER_PACKAGE_NAME 不支持（需要 Android 11+）');
@@ -191,22 +187,18 @@ class UnifiedAppScanner {
     }
 
     final pathScanResult = await _scanByPaths(scanPaths, config.filePatterns, cancellationToken);
-    logger.i('路径扫描: ${pathScanResult.files.length} 文件 '
-        '(${pathScanResult.duration.inMilliseconds}ms)');
+    logger.i(
+      '路径扫描: ${pathScanResult.files.length} 文件 '
+      '(${pathScanResult.duration.inMilliseconds}ms)',
+    );
 
     // 步骤6: 计算差异文件
-    final differenceFiles = _calculateDifference(
-      pathScanResult.files,
-      mediaStoreResult.files,
-    );
+    final differenceFiles = _calculateDifference(pathScanResult.files, mediaStoreResult.files);
     logger.i('差异文件: ${differenceFiles.length} 个');
 
     // 步骤7: 合并去重
     final totalBeforeMerge = mediaStoreResult.files.length + pathScanResult.files.length;
-    final allFiles = _mergeAndDeduplicate(
-      mediaStoreResult.files,
-      pathScanResult.files,
-    );
+    final allFiles = _mergeAndDeduplicate(mediaStoreResult.files, pathScanResult.files);
     final duplicates = totalBeforeMerge - allFiles.length;
     logger.i('总文件数: ${allFiles.length} (去重后), 去重前: $totalBeforeMerge, 重复: $duplicates 个');
 
@@ -225,10 +217,7 @@ class UnifiedAppScanner {
     );
 
     // 步骤9: 更新缓存
-    _scanCache[appKey] = _ScanResultCache(
-      result: scanResult,
-      timestamp: DateTime.now(),
-    );
+    _scanCache[appKey] = _ScanResultCache(result: scanResult, timestamp: DateTime.now());
     logger.i('💾 扫描结果已缓存 (有效期: ${_cacheExpiration.inHours}小时)');
 
     // 调试：检查PDF文件的路径格式
@@ -384,9 +373,7 @@ class UnifiedAppScanner {
   ///
   /// [appKeys] 应用Key列表
   /// 返回映射表（appKey -> 文件数量），未缓存的不包含在结果中
-  Future<Map<String, int>> getFileCountBatchFast({
-    required List<String> appKeys,
-  }) async {
+  Future<Map<String, int>> getFileCountBatchFast({required List<String> appKeys}) async {
     if (_fileCountCache == null) return {};
 
     return await _fileCountCache!.getFileCountBatch(appKeys);
@@ -404,9 +391,7 @@ class UnifiedAppScanner {
   /// - 用户点击应用卡片时，先显示缓存内容（秒开）
   /// - 后台异步执行完整扫描更新数据
   /// - 缓存通过增量更新保持最新，无需强制过期
-  Future<AppScanResult?> getCachedScanResult({
-    required String appKey,
-  }) async {
+  Future<AppScanResult?> getCachedScanResult({required String appKey}) async {
     // 1. 检查内存缓存
     final memoryCache = _scanCache[appKey];
     if (memoryCache != null) {
@@ -441,10 +426,7 @@ class UnifiedAppScanner {
             );
 
             // 放入内存缓存，避免下次再读取持久化缓存
-            _scanCache[appKey] = _ScanResultCache(
-              result: result,
-              timestamp: DateTime.now(),
-            );
+            _scanCache[appKey] = _ScanResultCache(result: result, timestamp: DateTime.now());
 
             return result;
           }
@@ -506,10 +488,7 @@ class UnifiedAppScanner {
         if (removed > 0) {
           logger.d('从内存缓存删除文件: $appKey, $filePath (剩余 ${files.length} 个)');
           final updatedResult = memoryCache.result.copyWith(allFiles: files);
-          _scanCache[appKey] = _ScanResultCache(
-            result: updatedResult,
-            timestamp: memoryCache.timestamp,
-          );
+          _scanCache[appKey] = _ScanResultCache(result: updatedResult, timestamp: memoryCache.timestamp);
         }
       }
 
@@ -549,10 +528,7 @@ class UnifiedAppScanner {
           files[index] = newFile;
           logger.d('更新内存缓存文件: $appKey, $oldPath -> ${newFile.path}');
           final updatedResult = memoryCache.result.copyWith(allFiles: files);
-          _scanCache[appKey] = _ScanResultCache(
-            result: updatedResult,
-            timestamp: memoryCache.timestamp,
-          );
+          _scanCache[appKey] = _ScanResultCache(result: updatedResult, timestamp: memoryCache.timestamp);
         }
       }
 
@@ -585,10 +561,7 @@ class UnifiedAppScanner {
           files.add(newFile);
           logger.d('添加文件到内存缓存: $appKey, ${newFile.path} (共 ${files.length} 个)');
           final updatedResult = memoryCache.result.copyWith(allFiles: files);
-          _scanCache[appKey] = _ScanResultCache(
-            result: updatedResult,
-            timestamp: memoryCache.timestamp,
-          );
+          _scanCache[appKey] = _ScanResultCache(result: updatedResult, timestamp: memoryCache.timestamp);
         }
       }
 
@@ -630,10 +603,7 @@ class UnifiedAppScanner {
   /// 构建扫描路径
   ///
   /// 结合基础路径、文件夹关键字和附加路径
-  Future<List<String>> _buildScanPaths(
-    AppConfigData config,
-    List<String> additionalPaths,
-  ) async {
+  Future<List<String>> _buildScanPaths(AppConfigData config, List<String> additionalPaths) async {
     final paths = <String>[];
 
     // 动态查找：在基础路径中查找匹配的文件夹
@@ -696,10 +666,7 @@ class UnifiedAppScanner {
       try {
         final baseDepth = path.split('/').where((s) => s.isNotEmpty).length;
 
-        await for (final entity in dir.list(
-          recursive: true,
-          followLinks: false,
-        )) {
+        await for (final entity in dir.list(recursive: true, followLinks: false)) {
           // 定期检查取消状态
           if (cancellationToken?.isCancelled ?? false) {
             logger.w('路径扫描已取消');
@@ -757,10 +724,7 @@ class UnifiedAppScanner {
   /// 计算差异文件（路径扫描 - MediaStore）
   ///
   /// 这些文件只能通过路径扫描找到，MediaStore 未索引
-  List<FileItem> _calculateDifference(
-    List<FileItem> pathScanFiles,
-    List<FileItem> mediaStoreFiles,
-  ) {
+  List<FileItem> _calculateDifference(List<FileItem> pathScanFiles, List<FileItem> mediaStoreFiles) {
     // 使用小写路径进行比较
     final mediaStorePathSet = mediaStoreFiles.map((f) => f.path.toLowerCase()).toSet();
 
@@ -770,10 +734,7 @@ class UnifiedAppScanner {
   }
 
   /// 合并去重（优先 MediaStore，补充路径扫描）
-  List<FileItem> _mergeAndDeduplicate(
-    List<FileItem> mediaStoreFiles,
-    List<FileItem> pathScanFiles,
-  ) {
+  List<FileItem> _mergeAndDeduplicate(List<FileItem> mediaStoreFiles, List<FileItem> pathScanFiles) {
     final pathSet = <String>{}; // 使用小写路径进行去重
     final allFiles = <FileItem>[];
 
@@ -845,10 +806,7 @@ class UnifiedAppScanner {
   ///
   /// [appKeys] 应用Key列表
   /// 返回扫描结果映射表（appKey -> AppScanResult）
-  Future<Map<String, AppScanResult>> scanMultipleApps(
-    List<String> appKeys, {
-    bool withIcon = false,
-  }) async {
+  Future<Map<String, AppScanResult>> scanMultipleApps(List<String> appKeys, {bool withIcon = false}) async {
     final results = <String, AppScanResult>{};
 
     for (final appKey in appKeys) {
@@ -868,8 +826,5 @@ class _ScanResultCache {
   final AppScanResult result;
   final DateTime timestamp;
 
-  _ScanResultCache({
-    required this.result,
-    required this.timestamp,
-  });
+  _ScanResultCache({required this.result, required this.timestamp});
 }

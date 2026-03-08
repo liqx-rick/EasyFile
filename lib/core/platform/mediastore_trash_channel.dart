@@ -1,7 +1,8 @@
 import 'dart:io';
-import 'package:flutter/services.dart';
+
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/trash_file_item.dart';
+import 'package:flutter/services.dart';
 
 /// MediaStore回收站平台通道
 ///
@@ -48,9 +49,9 @@ class MediaStoreTrashChannel {
           modified: DateTime.fromMillisecondsSinceEpoch(
             (map['modified'] as num).toInt(),
           ),
-          trashedTime: DateTime.fromMillisecondsSinceEpoch(
-            (map['modified'] as num).toInt(),
-          ),
+          trashedTime: map['trashedTime'] != null
+              ? DateTime.fromMillisecondsSinceEpoch((map['trashedTime'] as num).toInt())
+              : DateTime.fromMillisecondsSinceEpoch((map['modified'] as num).toInt()), // 兜底使用 modified
           isDirectory: false,
           // 存储MediaStore ID，用于删除
           mediaStoreId: (map['id'] as num).toInt(),

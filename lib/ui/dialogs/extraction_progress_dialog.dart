@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:easyfile/data/models/file_item.dart';
-import 'package:easyfile/core/services/archive_service.dart' as archive_svc;
-import 'package:easyfile/core/services/extraction_record_service.dart';
-import 'package:easyfile/core/services/extraction_notification_manager.dart';
-import 'package:easyfile/core/models/extraction_completion_info.dart';
-import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
-import 'package:provider/provider.dart';
+import 'package:easyfile/core/models/extraction_completion_info.dart';
+import 'package:easyfile/core/services/archive_service.dart' as archive_svc;
+import 'package:easyfile/core/services/extraction_notification_manager.dart';
+import 'package:easyfile/core/services/extraction_record_service.dart';
+import 'package:easyfile/data/models/file_item.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/extracted_files_browser_page.dart';
 import 'package:easyfile/ui/widgets/password_input_dialog.dart';
+import 'package:easyfile/viewmodel/file_viewmodel.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// 解压进度对话框
 ///
@@ -36,18 +36,15 @@ class ExtractionProgressDialog extends StatefulWidget {
   }
 
   @override
-  State<ExtractionProgressDialog> createState() =>
-      _ExtractionProgressDialogState();
+  State<ExtractionProgressDialog> createState() => _ExtractionProgressDialogState();
 }
 
 class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
-  final archive_svc.ArchiveService _archiveService =
-      archive_svc.ArchiveService();
+  final archive_svc.ArchiveService _archiveService = archive_svc.ArchiveService();
   final ExtractionRecordService _recordService = ExtractionRecordService();
 
   // 使用 getter 获取单例，确保和 ArchiveViewerPage 使用同一个实例
-  ExtractionNotificationManager get _notificationManager =>
-      ExtractionNotificationManager();
+  ExtractionNotificationManager get _notificationManager => ExtractionNotificationManager();
 
   bool _isExtracting = true;
   bool _isStopped = false;
@@ -56,8 +53,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
 
   /// 获取根目录显示名称
   String _getRootDisplayName(String path) {
-    if (path == '/storage/emulated/0' ||
-        path.startsWith('/storage/emulated/0/')) {
+    if (path == '/storage/emulated/0' || path.startsWith('/storage/emulated/0/')) {
       return '内部存储';
     }
     return '根目录';
@@ -78,7 +74,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
   void _stopExtraction() {
     final lowerPath = widget.archiveFile.path.toLowerCase();
     final isRarOrZip = lowerPath.endsWith('.rar') || lowerPath.endsWith('.zip');
-    
+
     if (!isRarOrZip) {
       // libarchive格式：真正停止解压进程
       final success = _archiveService.stopExtraction();
@@ -89,7 +85,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
       // RAR/ZIP格式：只关闭进度显示（解压继续在后台）
       logger.i('RAR/ZIP格式：关闭进度对话框，解压将继续在后台完成');
     }
-    
+
     // 统一更新UI为停止状态
     if (mounted) {
       setState(() {
@@ -143,7 +139,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
 
         // 检查是否被用户停止（错误消息包含 "cancelled"）
         final wasStopped = result.errorMessage.toLowerCase().contains('cancelled');
-        
+
         if (wasStopped) {
           // 停止：添加记录，不发送通知
           if (result.targetPath.isNotEmpty && mounted) {
@@ -153,7 +149,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               fileCount: result.extractedFiles ?? 0,
             );
           }
-          
+
           if (mounted) {
             setState(() {
               _isExtracting = false;
@@ -173,7 +169,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
             targetPath: result.targetPath,
             fileCount: result.extractedFiles ?? 0,
           );
-          
+
           // 只有在对话框已关闭（后台完成）时才添加通知
           // 如果用户还在看对话框，说明没有后台运行，不需要通知
           if (!mounted) {
@@ -189,7 +185,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               ),
             );
           }
-          
+
           needRetry = false;
         }
 
@@ -204,7 +200,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
           debugPrint('[密码检测] 解压结果: success=${result.success}, errorMessage=${result.errorMessage}');
           final needsPwd = _needsPassword(result.errorMessage);
           debugPrint('[密码检测] 是否需要密码: $needsPwd');
-          
+
           if (!result.success && needsPwd) {
             attempts++;
             debugPrint('[密码检测] 检测到需要密码，尝试次数: $attempts/$maxAttempts');
@@ -213,20 +209,13 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
             password = await showDialog<String>(
               context: context,
               barrierDismissible: false,
-              builder: (context) => PasswordInputDialog(
-                remainingAttempts: maxAttempts - attempts,
-              ),
+              builder: (context) => PasswordInputDialog(remainingAttempts: maxAttempts - attempts),
             );
 
-            debugPrint('[密码对话框] 返回值: ${password == null ? "null (用户取消)" : "已输入密码"}');
+            debugPrint('[密码对话框] 返回值: ${"已输入密码"}');
 
             // 用户取消
-            if (password == null) {
-              debugPrint('[密码对话框] 用户取消输入密码');
-              needRetry = false;
-            } else {
-              debugPrint('[密码对话框] 将使用密码重试解压，尝试次数: $attempts/$maxAttempts');
-            }
+            debugPrint('[密码对话框] 将使用密码重试解压，尝试次数: $attempts/$maxAttempts');
           } else if (!result.success) {
             // 非密码错误，不重试
             needRetry = false;
@@ -236,9 +225,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
         if (mounted) {
           setState(() {
             _isExtracting = false;
-            _result = archive_svc.ExtractResult.failure(
-              errorMessage: e.toString(),
-            );
+            _result = archive_svc.ExtractResult.failure(errorMessage: e.toString());
             _statusMessage = '解压失败';
           });
         }
@@ -251,9 +238,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
   bool _needsPassword(String? errorMessage) {
     if (errorMessage == null) return false;
     final lowerError = errorMessage.toLowerCase();
-    return lowerError.contains('password') ||
-        lowerError.contains('encrypted') ||
-        lowerError.contains('密码');
+    return lowerError.contains('password') || lowerError.contains('encrypted') || lowerError.contains('密码');
   }
 
   /// 查看解压后的文件
@@ -289,30 +274,22 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
       title: _isExtracting
           ? const Text('正在解压')
           : _isStopped
-              ? Row(
-                  children: [
-                    Icon(
-                      Icons.stop_circle,
-                      color: Colors.orange[600],
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('已停止'),
-                  ],
-                )
-              : (_result?.success == true
-                  ? Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.green[600],
-                          size: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('解压成功'),
-                      ],
-                    )
-                  : const Text('解压失败')),
+          ? Row(
+              children: [
+                Icon(Icons.stop_circle, color: Colors.orange[600], size: 24),
+                const SizedBox(width: 8),
+                const Text('已停止'),
+              ],
+            )
+          : (_result?.success == true
+                ? Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green[600], size: 24),
+                      const SizedBox(width: 8),
+                      const Text('解压成功'),
+                    ],
+                  )
+                : const Text('解压失败')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,11 +298,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
             // 文件信息
             Row(
               children: [
-                Icon(
-                  Icons.folder_zip,
-                  color: Colors.amber[700],
-                  size: 20,
-                ),
+                Icon(Icons.folder_zip, color: Colors.amber[700], size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -339,22 +312,13 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
             ),
             const SizedBox(height: 16),
             // 不确定进度条（后台解压中）
-            const LinearProgressIndicator(
-              minHeight: 8,
-            ),
+            const LinearProgressIndicator(minHeight: 8),
             const SizedBox(height: 12),
-            Text(
-              _statusMessage,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            Text(_statusMessage, style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             Text(
               '大文件解压可能需要较长时间，请耐心等待',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-              ),
+              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant.withOpacity(0.7)),
             ),
           ] else if (_result != null) ...[
             // 结果显示
@@ -362,11 +326,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               // 停止状态
               Row(
                 children: [
-                  Icon(
-                    Icons.folder_zip,
-                    color: Colors.amber[700],
-                    size: 20,
-                  ),
+                  Icon(Icons.folder_zip, color: Colors.amber[700], size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -385,27 +345,16 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
                 decoration: BoxDecoration(
                   color: Colors.orange[50],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.orange[300]!,
-                    width: 1,
-                  ),
+                  border: Border.all(color: Colors.orange[300]!, width: 1),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange[700],
-                      size: 20,
-                    ),
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        widget._isRarOrZip
-                            ? '由于技术限制，停止信号可能延迟生效。请稍后到"解压记录"查看结果。'
-                            : '解压已停止，部分文件已保存到目标位置。请稍后到"解压记录"查看结果。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.orange[900],
-                        ),
+                        widget._isRarOrZip ? '由于技术限制，停止信号可能延迟生效。请稍后到"解压记录"查看结果。' : '解压已停止，部分文件已保存到目标位置。请稍后到"解压记录"查看结果。',
+                        style: theme.textTheme.bodySmall?.copyWith(color: Colors.orange[900]),
                       ),
                     ),
                   ],
@@ -415,18 +364,13 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
                 const SizedBox(height: 16),
                 Text(
                   '位置（${_getRootDisplayName(_result!.targetPath)}）：',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
                   child: Text(
                     _formatPathDisplay(_result!.targetPath),
                     style: theme.textTheme.bodyMedium,
@@ -439,11 +383,7 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               // 成功 - 文件流向
               Row(
                 children: [
-                  Icon(
-                    Icons.folder_zip,
-                    color: Colors.amber[700],
-                    size: 20,
-                  ),
+                  Icon(Icons.folder_zip, color: Colors.amber[700], size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -459,18 +399,13 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               // 位置 - 灰色背景
               Text(
                 '位置（${_getRootDisplayName(_result!.targetPath)}）：',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
                 child: Text(
                   _formatPathDisplay(_result!.targetPath),
                   style: theme.textTheme.bodyMedium,
@@ -479,35 +414,21 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
                 ),
               ),
               // 部分失败提示
-              if (!_result!.success &&
-                  _result!.extractedFiles != null &&
-                  _result!.extractedFiles! > 0) ...[
+              if (!_result!.success && _result!.extractedFiles != null && _result!.extractedFiles! > 0) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.orange[50],
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: Colors.orange[300]!,
-                      width: 1,
-                    ),
+                    border: Border.all(color: Colors.orange[300]!, width: 1),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.warning_amber,
-                        color: Colors.orange[700],
-                        size: 20,
-                      ),
+                      Icon(Icons.warning_amber, color: Colors.orange[700], size: 20),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          '部分文件解压失败',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.orange[900],
-                          ),
-                        ),
+                        child: Text('部分文件解压失败', style: theme.textTheme.bodySmall?.copyWith(color: Colors.orange[900])),
                       ),
                     ],
                   ),
@@ -519,18 +440,12 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.error,
-                    color: Colors.red[600],
-                    size: 28,
-                  ),
+                  Icon(Icons.error, color: Colors.red[600], size: 28),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       _result!.errorMessage,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -545,20 +460,12 @@ class _ExtractionProgressDialogState extends State<ExtractionProgressDialog> {
         if (_isExtracting) ...[
           TextButton(
             onPressed: _stopExtraction,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.orange[700],
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange[700]),
             child: const Text('停止'),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('后台运行'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('后台运行')),
         ] else ...[
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
           if (_result?.success == true)
             FilledButton.icon(
               onPressed: _viewExtractedFiles,

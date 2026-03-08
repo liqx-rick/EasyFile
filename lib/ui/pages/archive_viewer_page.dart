@@ -18,11 +18,7 @@ class ArchiveViewerPage extends StatefulWidget {
   final FileItem archiveFile;
   final bool isReadOnly; // 只读模式（从文件预览进入，禁止解压等操作）
 
-  const ArchiveViewerPage({
-    super.key,
-    required this.archiveFile,
-    this.isReadOnly = false,
-  });
+  const ArchiveViewerPage({super.key, required this.archiveFile, this.isReadOnly = false});
 
   @override
   State<ArchiveViewerPage> createState() => _ArchiveViewerPageState();
@@ -50,8 +46,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     });
 
     try {
-      final result =
-          await _archiveService.listArchiveContents(widget.archiveFile.path);
+      final result = await _archiveService.listArchiveContents(widget.archiveFile.path);
 
       if (result.success) {
         // 埋点：压缩包密码检测
@@ -68,8 +63,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         final mayNeedPassword = _needsPassword(errorMsg);
 
         // 检查是否是 libarchive 不支持的加密文件
-        final isUnsupportedEncryption =
-            errorMsg.toLowerCase().contains('currently not supported');
+        final isUnsupportedEncryption = errorMsg.toLowerCase().contains('currently not supported');
 
         // 埋点：压缩包密码检测
         if (isUnsupportedEncryption || mayNeedPassword) {
@@ -107,10 +101,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         if (_currentPath.isNotEmpty) {
           setState(() {
             if (_currentPath.contains('/')) {
-              _currentPath = _currentPath.substring(
-                0,
-                _currentPath.lastIndexOf('/'),
-              );
+              _currentPath = _currentPath.substring(0, _currentPath.lastIndexOf('/'));
             } else {
               _currentPath = '';
             }
@@ -128,10 +119,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
                     setState(() {
                       // 返回上级目录
                       if (_currentPath.contains('/')) {
-                        _currentPath = _currentPath.substring(
-                          0,
-                          _currentPath.lastIndexOf('/'),
-                        );
+                        _currentPath = _currentPath.substring(0, _currentPath.lastIndexOf('/'));
                       } else {
                         _currentPath = '';
                       }
@@ -142,16 +130,11 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.archiveFile.name,
-                style: const TextStyle(fontSize: 16),
-              ),
+              Text(widget.archiveFile.name, style: const TextStyle(fontSize: 16)),
               if (_entries != null)
                 Text(
                   '${_entries!.length} 个项目${widget.isReadOnly ? ' · 只读模式' : ''}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
             ],
           ),
@@ -163,9 +146,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
 
   Widget _buildBody(ThemeData theme) {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_errorMessage != null) {
@@ -175,17 +156,9 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.error_outline,
-                size: 64,
-                color: theme.colorScheme.error,
-              ),
+              Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
               const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge,
-              ),
+              Text(_errorMessage!, textAlign: TextAlign.center, style: theme.textTheme.bodyLarge),
               const SizedBox(height: 24),
               // 如果是编码问题，显示"用其他应用打开"按钮
               if (_canOpenWithOtherApp) ...[
@@ -193,56 +166,36 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
                   onPressed: () async {
                     try {
                       // 使用 type 参数指定 MIME 类型，强制显示应用选择器
-                      final result = await OpenFile.open(
-                        widget.archiveFile.path,
-                        type: 'application/vnd.rar',
-                      );
+                      final result = await OpenFile.open(widget.archiveFile.path, type: 'application/vnd.rar');
 
                       // 如果返回 noAppToOpen，尝试使用通用的 zip 类型
                       if (result.type == ResultType.noAppToOpen) {
-                        final result2 = await OpenFile.open(
-                          widget.archiveFile.path,
-                          type: 'application/zip',
-                        );
+                        final result2 = await OpenFile.open(widget.archiveFile.path, type: 'application/zip');
 
                         // 如果还是没有应用，尝试使用通配符
                         if (result2.type == ResultType.noAppToOpen) {
-                          final result3 = await OpenFile.open(
-                            widget.archiveFile.path,
-                            type: '*/*',
-                          );
+                          final result3 = await OpenFile.open(widget.archiveFile.path, type: '*/*');
 
                           if (result3.type != ResultType.done && mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('未找到可以打开此文件的应用')),
-                            );
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('未找到可以打开此文件的应用')));
                           }
                         } else if (result2.type != ResultType.done && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('打开失败: ${result2.message}')),
-                          );
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('打开失败: ${result2.message}')));
                         }
                       } else if (result.type == ResultType.error && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('打开失败: ${result.message}')),
-                        );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开失败: ${result.message}')));
                       }
                     } catch (e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('打开失败: $e')),
-                        );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开失败: $e')));
                       }
                     }
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: const Text('用其他应用打开'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                  ),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
                 ),
               ],
             ],
@@ -251,8 +204,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       );
     }
 
-    if (_entries == null ||
-        (_entries!.isEmpty && (_allEntries == null || _allEntries!.isEmpty))) {
+    if (_entries == null || (_entries!.isEmpty && (_allEntries == null || _allEntries!.isEmpty))) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -262,23 +214,12 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
               Icon(
                 Icons.folder_zip_outlined,
                 size: 64,
-                color:
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
-              Text(
-                '无法读取压缩包内容',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
+              Text('无法读取压缩包内容', style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
-              Text(
-                '可能的原因：',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+              Text('可能的原因：', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 8),
               Text(
                 '• 压缩包需要密码\n'
@@ -286,9 +227,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
                 '• 不支持的压缩格式版本\n'
                 '• RAR 5.0 及以上版本',
                 textAlign: TextAlign.left,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -311,36 +250,23 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-            border: Border(
-              bottom: BorderSide(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
+            border: Border(bottom: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.2), width: 1)),
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.folder_zip,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.folder_zip, size: 20, color: theme.colorScheme.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   '当前页面仅支持预览，如需更多操作，请先解压',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface),
                 ),
               ),
             ],
           ),
         ),
         // 文件列表
-        Expanded(
-          child: _buildEntriesList(theme),
-        ),
+        Expanded(child: _buildEntriesList(theme)),
       ],
     );
   }
@@ -400,8 +326,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       return directEntries;
     } else {
       // 显示当前路径下的内容
-      final prefix =
-          _currentPath.endsWith('/') ? _currentPath : '$_currentPath/';
+      final prefix = _currentPath.endsWith('/') ? _currentPath : '$_currentPath/';
       return _allEntries!.where((entry) {
         final path = entry.path;
         // 排除目录自身
@@ -454,18 +379,13 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       return widget.archiveFile.name;
     }
     // 移除末尾的 '/'
-    final path = _currentPath.endsWith('/')
-        ? _currentPath.substring(0, _currentPath.length - 1)
-        : _currentPath;
+    final path = _currentPath.endsWith('/') ? _currentPath.substring(0, _currentPath.length - 1) : _currentPath;
     return '${widget.archiveFile.name}/$path';
   }
 
   Future<void> _previewFile(ArchiveEntryInfo entry) async {
     // 检查文件大小限制
-    final maxSizeBytes =
-        AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB *
-            1024 *
-            1024;
+    final maxSizeBytes = AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB * 1024 * 1024;
     if (entry.size > maxSizeBytes) {
       if (!mounted) return;
       _showSizeExceedDialog(entry);
@@ -481,11 +401,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         builder: (context) => const AlertDialog(
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('正在提取文件...'),
-            ],
+            children: [CircularProgressIndicator(), SizedBox(height: 16), Text('正在提取文件...')],
           ),
         ),
       );
@@ -525,15 +441,8 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         password = await showDialog<String>(
           context: context,
           barrierDismissible: false,
-          builder: (context) => PasswordInputDialog(
-            remainingAttempts: maxAttempts - attempts,
-          ),
+          builder: (context) => PasswordInputDialog(remainingAttempts: maxAttempts - attempts),
         );
-
-        // 用户取消
-        if (password == null) {
-          needRetry = false;
-        }
       } else {
         // 非密码错误，直接退出
         needRetry = false;
@@ -552,11 +461,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
       String displayError = errorMessage ?? '提取文件失败';
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(displayError),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
+        SnackBar(content: Text(displayError), backgroundColor: Colors.red, duration: const Duration(seconds: 4)),
       );
       return;
     }
@@ -573,11 +478,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     // 打开预览页面（只读模式）
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => FilePreviewPage(
-          file: tempFile,
-          isReadOnly: true,
-          archiveName: widget.archiveFile.name,
-        ),
+        builder: (context) => FilePreviewPage(file: tempFile, isReadOnly: true, archiveName: widget.archiveFile.name),
       ),
     );
   }
@@ -592,12 +493,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
           '超过 ${AppConfig.instance.cacheConfig.archivePreviewMaxFileSizeMB}MB 限制。\n\n'
           '请解压整个压缩包后操作。',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('知道了'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('知道了'))],
       ),
     );
   }
@@ -615,19 +511,13 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
   Widget _buildEntryItem(ArchiveEntryInfo entry, ThemeData theme) {
     return ListTile(
       leading: _buildEntryIcon(entry, theme),
-      title: Text(
-        entry.fileName.isEmpty ? entry.path : entry.fileName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(entry.fileName.isEmpty ? entry.path : entry.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: _buildEntrySubtitle(entry, theme),
       trailing: entry.isDirectory
           ? const Icon(Icons.chevron_right)
           : Text(
               FileSizeFormatter.formatBytes(entry.size),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
       onTap: () => _handleEntryTap(entry),
     );
@@ -635,20 +525,14 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
 
   Widget _buildEntryIcon(ArchiveEntryInfo entry, ThemeData theme) {
     if (entry.isDirectory) {
-      return Icon(
-        Icons.folder,
-        color: theme.colorScheme.primary,
-      );
+      return Icon(Icons.folder, color: theme.colorScheme.primary);
     }
 
     // 使用 AppConfig 获取文件图标
     final iconData = _getFileIcon(entry.fileName);
     // 判断文件是否支持预览，不支持的显示灰色
     final isSupported = _canPreviewFile(entry.fileName);
-    return Icon(
-      iconData,
-      color: isSupported ? theme.colorScheme.primary : Colors.grey,
-    );
+    return Icon(iconData, color: isSupported ? theme.colorScheme.primary : Colors.grey);
   }
 
   IconData _getFileIcon(String fileName) {
@@ -691,9 +575,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
         entry.path,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       );
     }
 
@@ -725,8 +607,7 @@ class _ArchiveViewerPageState extends State<ArchiveViewerPage> {
     return lowerError.contains('password') ||
         lowerError.contains('encrypted') ||
         lowerError.contains('密码') ||
-        lowerError
-            .contains('error code: -108') || // minizip-ng密码错误码（entry_open）
+        lowerError.contains('error code: -108') || // minizip-ng密码错误码（entry_open）
         lowerError.contains('error code: -3') || // minizip-ng密码错误码（read）
         lowerError.contains('error code: -10') || // CRC错误（也可能是密码问题）
         lowerError.contains('(error code: -108)') ||

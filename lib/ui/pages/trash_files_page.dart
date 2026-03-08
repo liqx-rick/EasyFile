@@ -150,6 +150,36 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
           _allFiles = result.allFiles;
         });
 
+        logger.i('📊 系统回收站数据已加载:');
+        logger.i('   回收站数量: ${_trashBins.length}');
+        logger.i('   总文件数: ${_allFiles.length}');
+
+        // 统计文件时间分布
+        if (_allFiles.isNotEmpty) {
+          final months = AppConfig.instance.fileScan.systemTrashOldFileMonths;
+          final cutoffDate = DateTime.now().subtract(Duration(days: months * 30));
+          final oldFileCount = _allFiles.where((f) {
+            final fileDate = f.trashedTime ?? f.modified;
+            return fileDate.isBefore(cutoffDate);
+          }).length;
+          logger.i('   - $months个月以上的文件: $oldFileCount 个');
+          logger.i('   - $months个月以内的文件: ${_allFiles.length - oldFileCount} 个');
+
+          // 🔍 调试：显示最近3个文件的删除时间
+          final recentFiles = _allFiles.toList()
+            ..sort((a, b) {
+              final aTime = a.trashedTime ?? a.modified;
+              final bTime = b.trashedTime ?? b.modified;
+              return bTime.compareTo(aTime); // 最新的在前
+            });
+          logger.d('   最近删除的3个文件:');
+          for (int i = 0; i < 3 && i < recentFiles.length; i++) {
+            final file = recentFiles[i];
+            final trashedTime = file.trashedTime ?? file.modified;
+            logger.d('     ${i + 1}. ${file.name} - 删除于: $trashedTime');
+          }
+        }
+
         // 延迟关闭加载状态，确保UI完全构建完成后再停止动画
         await Future.delayed(const Duration(milliseconds: 100));
 
@@ -329,10 +359,14 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       final cutoffDate = DateTime.now().subtract(
         Duration(days: months * 30),
       );
+      final beforeFilter = files.length;
       files = files.where((f) {
         final fileDate = f.trashedTime ?? f.modified;
         return fileDate.isBefore(cutoffDate);
       }).toList();
+      logger.d('时间过滤: $beforeFilter 个文件 -> ${files.length} 个文件 (cutoffDate: $cutoffDate)');
+    } else {
+      logger.d('显示全部文件: ${files.length} 个 (_showOldFilesOnly = false)');
     }
 
     // 4. 按删除时间倒序排序（最新删除的在前）
@@ -905,159 +939,165 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                         )
                       else
                         // 文件列表
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final files = _getDisplayedFiles();
-                              final file = files[index];
-                              final isSelected = _selectedPaths.contains(file.path);
+                        Builder(
+                          builder: (context) {
+                            // ⚡ 性能优化：缓存过滤后的文件列表，避免在每个 itemBuilder 中重复调用
+                            final displayedFiles = _getDisplayedFiles();
 
-                              return InkWell(
-                                onLongPress: () {
-                                  FileDetailsHelper.showTrashFileDetailsBottomSheet(
-                                    context,
-                                    file,
-                                    trashBinName: _getTrashBinName(file),
-                                    fileTypeLabel: _getFileTypeLabel(file),
-                                  );
-                                },
-                                onTap: () {
-                                  setState(() {
-                                    if (isSelected) {
-                                      _selectedPaths.remove(file.path);
-                                    } else {
-                                      _selectedPaths.add(file.path);
-                                    }
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // 左侧图标或缩略图
-                                      Padding(
-                                        padding: const EdgeInsets.only(right: 12, top: 4),
-                                        child: FileListItemBuilder.buildFileThumbnail(
-                                          filePath: file.path,
-                                          mimeType: file.mimeType,
-                                          fileName: file.name,
-                                          onTap: () => _previewFile(file),
-                                          size: 48.0,
-                                        ),
-                                      ),
-                                      // 中间内容区域
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            // 第一行：文件名 + 勾选框
-                                            Row(
+                            return SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final file = displayedFiles[index];
+                                  final isSelected = _selectedPaths.contains(file.path);
+
+                                  return InkWell(
+                                    onLongPress: () {
+                                      FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                        context,
+                                        file,
+                                        trashBinName: _getTrashBinName(file),
+                                        fileTypeLabel: _getFileTypeLabel(file),
+                                      );
+                                    },
+                                    onTap: () {
+                                      setState(() {
+                                        if (isSelected) {
+                                          _selectedPaths.remove(file.path);
+                                        } else {
+                                          _selectedPaths.add(file.path);
+                                        }
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // 左侧图标或缩略图
+                                          Padding(
+                                            padding: const EdgeInsets.only(right: 12, top: 4),
+                                            child: FileListItemBuilder.buildFileThumbnail(
+                                              filePath: file.path,
+                                              mimeType: file.mimeType,
+                                              fileName: file.name,
+                                              onTap: () => _previewFile(file),
+                                              size: 48.0,
+                                            ),
+                                          ),
+                                          // 中间内容区域
+                                          Expanded(
+                                            child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    FileListItemBuilder.truncateFileName(file.name, maxLength: 35),
-                                                    style: const TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                // 勾选框
-                                                SizedBox(
-                                                  width: 24,
-                                                  height: 24,
-                                                  child: Checkbox(
-                                                    value: isSelected,
-                                                    onChanged: (checked) {
-                                                      setState(() {
-                                                        if (checked == true) {
-                                                          _selectedPaths.add(file.path);
-                                                        } else {
-                                                          _selectedPaths.remove(file.path);
-                                                        }
-                                                      });
-                                                    },
-                                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                    visualDensity: VisualDensity.compact,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            // 第二行：类型和大小
-                                            Text(
-                                              '${_getFileTypeLabel(file)} · ${FileSizeFormatter.formatBytes(file.size)}',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Color(0xFF757575),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            // 第三行：回收站位置 · 删除时间 · 详情
-                                            GestureDetector(
-                                              onTapUp: (details) {
-                                                final trashBinName = _getTrashBinName(file);
-                                                final textPainter = TextPainter(
-                                                  text: TextSpan(
-                                                    text:
-                                                        '$trashBinName · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: Color(0xFF757575),
-                                                    ),
-                                                  ),
-                                                  textDirection: TextDirection.ltr,
-                                                );
-                                                textPainter.layout();
-                                                final offset = textPainter.width;
-
-                                                if (details.localPosition.dx >= offset) {
-                                                  FileDetailsHelper.showTrashFileDetailsBottomSheet(
-                                                    context,
-                                                    file,
-                                                    trashBinName: _getTrashBinName(file),
-                                                    fileTypeLabel: _getFileTypeLabel(file),
-                                                  );
-                                                }
-                                              },
-                                              child: RichText(
-                                                text: TextSpan(
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: Color(0xFF757575),
-                                                    fontFamily: 'Roboto',
-                                                  ),
+                                                // 第一行：文件名 + 勾选框
+                                                Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    TextSpan(
-                                                      text:
-                                                          '${_getTrashBinName(file)} · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
+                                                    Expanded(
+                                                      child: Text(
+                                                        FileListItemBuilder.truncateFileName(file.name, maxLength: 35),
+                                                        style: const TextStyle(
+                                                          fontSize: 15,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
                                                     ),
-                                                    const TextSpan(
-                                                      text: '详情',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors.blue,
+                                                    const SizedBox(width: 8),
+                                                    // 勾选框
+                                                    SizedBox(
+                                                      width: 24,
+                                                      height: 24,
+                                                      child: Checkbox(
+                                                        value: isSelected,
+                                                        onChanged: (checked) {
+                                                          setState(() {
+                                                            if (checked == true) {
+                                                              _selectedPaths.add(file.path);
+                                                            } else {
+                                                              _selectedPaths.remove(file.path);
+                                                            }
+                                                          });
+                                                        },
+                                                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                        visualDensity: VisualDensity.compact,
                                                       ),
                                                     ),
                                                   ],
                                                 ),
-                                              ),
+                                                const SizedBox(height: 4),
+                                                // 第二行：类型和大小
+                                                Text(
+                                                  '${_getFileTypeLabel(file)} · ${FileSizeFormatter.formatBytes(file.size)}',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Color(0xFF757575),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                // 第三行：回收站位置 · 删除时间 · 详情
+                                                GestureDetector(
+                                                  onTapUp: (details) {
+                                                    final trashBinName = _getTrashBinName(file);
+                                                    final textPainter = TextPainter(
+                                                      text: TextSpan(
+                                                        text:
+                                                            '$trashBinName · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: Color(0xFF757575),
+                                                        ),
+                                                      ),
+                                                      textDirection: TextDirection.ltr,
+                                                    );
+                                                    textPainter.layout();
+                                                    final offset = textPainter.width;
+
+                                                    if (details.localPosition.dx >= offset) {
+                                                      FileDetailsHelper.showTrashFileDetailsBottomSheet(
+                                                        context,
+                                                        file,
+                                                        trashBinName: _getTrashBinName(file),
+                                                        fileTypeLabel: _getFileTypeLabel(file),
+                                                      );
+                                                    }
+                                                  },
+                                                  child: RichText(
+                                                    text: TextSpan(
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                        color: Color(0xFF757575),
+                                                        fontFamily: 'Roboto',
+                                                      ),
+                                                      children: [
+                                                        TextSpan(
+                                                          text:
+                                                              '${_getTrashBinName(file)} · ${FileListItemBuilder.formatRelativeDate(file.trashedTime ?? file.modified)} · ',
+                                                        ),
+                                                        const TextSpan(
+                                                          text: '详情',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            color: Colors.blue,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                            childCount: _getDisplayedFiles().length,
-                          ),
+                                    ),
+                                  );
+                                },
+                                childCount: displayedFiles.length,
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),
@@ -1325,7 +1365,12 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
                     ),
                     TextButton(
                       onPressed: () {
-                        setState(() => _showOldFilesOnly = false);
+                        setState(() {
+                          _showOldFilesOnly = false;
+                          logger.i('🔄 点击"显示全部"按钮: _showOldFilesOnly = false');
+                          logger.i('   总文件数: ${_allFiles.length}');
+                          logger.i('   过滤后文件数: ${_getDisplayedFiles().length}');
+                        });
                       },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 8),

@@ -16,10 +16,7 @@ class TrashScanResult {
   /// 所有文件列表
   final List<TrashFileItem> allFiles;
 
-  TrashScanResult({
-    required this.trashBins,
-    required this.allFiles,
-  });
+  TrashScanResult({required this.trashBins, required this.allFiles});
 }
 
 /// 回收站文件扫描服务
@@ -138,11 +135,7 @@ class TrashFileService {
             final subDirs = dir.listSync(recursive: false);
             for (final subDir in subDirs) {
               if (subDir is Directory) {
-                await _scanTrashDirectory(
-                  subDir,
-                  results: trashBinFiles[binId]!,
-                  trashBinId: binId,
-                );
+                await _scanTrashDirectory(subDir, results: trashBinFiles[binId]!, trashBinId: binId);
               }
             }
           } catch (e) {
@@ -150,11 +143,7 @@ class TrashFileService {
           }
         } else {
           // 普通回收站直接扫描
-          await _scanTrashDirectory(
-            dir,
-            results: trashBinFiles[binId]!,
-            trashBinId: binId,
-          );
+          await _scanTrashDirectory(dir, results: trashBinFiles[binId]!, trashBinId: binId);
         }
       }
     }
@@ -213,11 +202,7 @@ class TrashFileService {
 
           onProgress?.call(0, 1, dirPath);
 
-          await _scanTrashDirectory(
-            entity,
-            results: trashBinFiles[binId]!,
-            trashBinId: binId,
-          );
+          await _scanTrashDirectory(entity, results: trashBinFiles[binId]!, trashBinId: binId);
         }
       } catch (e) {
         logger.e('搜索 $searchPath 失败: $e');
@@ -274,10 +259,7 @@ class TrashFileService {
     logger.i('总大小: ${FileSizeFormatter.formatBytes(allFiles.fold<int>(0, (sum, f) => sum + f.size))}');
     logger.i('========================================');
 
-    final result = TrashScanResult(
-      trashBins: trashBins,
-      allFiles: allFiles,
-    );
+    final result = TrashScanResult(trashBins: trashBins, allFiles: allFiles);
 
     // 缓存结果
     await _cacheManager.saveCache(result);
@@ -468,25 +450,24 @@ class TrashFileService {
             }
 
             // 添加文件
-            results.add(TrashFileItem(
-              name: fileName,
-              path: entity.path,
-              size: stat.size,
-              modified: stat.modified,
-              trashedTime: stat.modified, // 使用修改时间作为删除时间的近似值
-              isDirectory: false,
-              mimeType: mimeType, // 如果检测到真实类型，使用检测结果
-              mimeTypeVerified: mimeType != null, // 标记是否通过文件头验证
-              trashBinId: trashBinId, // 标记所属回收站
-            ));
+            results.add(
+              TrashFileItem(
+                name: fileName,
+                path: entity.path,
+                size: stat.size,
+                modified: stat.modified,
+                // ⚠️ 文件系统扫描无法获取真实删除时间，使用修改时间作为近似值
+                // MediaStore 扫描（Android 11+）可以获取准确的 DATE_TRASHED
+                trashedTime: stat.modified,
+                isDirectory: false,
+                mimeType: mimeType, // 如果检测到真实类型，使用检测结果
+                mimeTypeVerified: mimeType != null, // 标记是否通过文件头验证
+                trashBinId: trashBinId, // 标记所属回收站
+              ),
+            );
           } else if (entity is Directory) {
             // 递归扫描子目录
-            await _scanTrashDirectory(
-              entity,
-              results: results,
-              depth: depth + 1,
-              trashBinId: trashBinId,
-            );
+            await _scanTrashDirectory(entity, results: results, depth: depth + 1, trashBinId: trashBinId);
           }
         } catch (e) {
           logger.d('扫描回收站文件失败: ${entity.path}, 错误: $e');
@@ -592,12 +573,7 @@ class TrashFileService {
 
     if (filesToDelete.isEmpty) {
       logger.i('选中的回收站为空，无需清空');
-      return {
-        'success': 0,
-        'failed': 0,
-        'totalSize': 0,
-        'formattedSize': '0 B',
-      };
+      return {'success': 0, 'failed': 0, 'totalSize': 0, 'formattedSize': '0 B'};
     }
 
     logger.i('准备删除 ${filesToDelete.length} 个文件');
@@ -628,12 +604,7 @@ class TrashFileService {
 
     if (allTrashFiles.isEmpty) {
       logger.i('回收站为空，无需清空');
-      return {
-        'success': 0,
-        'failed': 0,
-        'totalSize': 0,
-        'formattedSize': '0 B',
-      };
+      return {'success': 0, 'failed': 0, 'totalSize': 0, 'formattedSize': '0 B'};
     }
 
     return await deleteMultiple(allTrashFiles);
@@ -653,10 +624,7 @@ class TrashFileService {
 
       if (!await trashFile.exists()) {
         logger.w('文件不存在: ${item.path}');
-        return {
-          'success': false,
-          'message': '文件不存在',
-        };
+        return {'success': false, 'message': '文件不存在'};
       }
 
       // 1. 确定目标路径
@@ -704,17 +672,10 @@ class TrashFileService {
       await trashFile.delete();
       logger.i('✓ 文件恢复成功: ${item.name} → $targetPath');
 
-      return {
-        'success': true,
-        'targetPath': targetPath,
-        'message': '恢复成功',
-      };
+      return {'success': true, 'targetPath': targetPath, 'message': '恢复成功'};
     } catch (e) {
       logger.e('恢复文件失败: ${item.path}, 错误: $e');
-      return {
-        'success': false,
-        'message': '恢复失败: $e',
-      };
+      return {'success': false, 'message': '恢复失败: $e'};
     }
   }
 
@@ -888,10 +849,7 @@ class TrashFileService {
   /// 统计指定月份前的文件
   /// [months] 月份数，如果不传则从配置文件读取 FileScanConfig.systemTrashOldFileMonths
   /// [forceRefresh] 强制刷新，忽略缓存
-  Future<Map<String, dynamic>> getOldFilesStatistics({
-    int? months,
-    bool forceRefresh = false,
-  }) async {
+  Future<Map<String, dynamic>> getOldFilesStatistics({int? months, bool forceRefresh = false}) async {
     // 从配置读取默认值，确保与配置保持一致
     final effectiveMonths = months ?? AppConfig.instance.fileScan.systemTrashOldFileMonths;
     logger.i('开始统计$effectiveMonths个月前的系统回收站文件');
@@ -901,11 +859,9 @@ class TrashFileService {
 
     if (!forceRefresh && await _cacheManager.isCacheValid()) {
       result = await _cacheManager.getCachedResult();
-      if (result != null) {
-        logger.i('使用缓存数据统计旧文件（避免重复扫描）');
-      }
+      logger.i('使用缓存数据统计旧文件（避免重复扫描）');
     }
-    
+
     if (result == null) {
       logger.i('缓存无效，执行完整扫描');
       result = await scanTrashBinsWithFiles(forceRefresh: forceRefresh);

@@ -82,6 +82,8 @@ class TrashFileCacheManager {
                 'modified': file.modified.millisecondsSinceEpoch,
                 'trashedTime': file.trashedTime?.millisecondsSinceEpoch,
                 'trashBinId': file.trashBinId,
+                'mimeType': file.mimeType,
+                'mimeTypeVerified': file.mimeTypeVerified,
               })
           .toList();
 
@@ -157,6 +159,8 @@ class TrashFileCacheManager {
                     ? DateTime.fromMillisecondsSinceEpoch(json['trashedTime'] as int)
                     : null,
                 trashBinId: json['trashBinId'] as String?,
+                mimeType: json['mimeType'] as String?,
+                mimeTypeVerified: json['mimeTypeVerified'] as bool? ?? false,
               ))
           .toList();
 
