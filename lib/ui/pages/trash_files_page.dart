@@ -5,6 +5,7 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/preferences/system_trash_preferences.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/trash_bin.dart';
@@ -458,6 +459,13 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       // 清除缓存并设置抑制期
       // 注：清空操作无论是清空3个月前还是全部，都总是设置抑制期
       if (result['success'] > 0) {
+        // 记录用户操作
+        await UserOperationLogger.log(
+          type: OperationType.systemTrashClean,
+          fileCount: result['success'] as int,
+          sizeBytes: result['totalSize'] as int,
+        );
+
         final days = AppConfig.instance.fileScan.systemTrashCleanSuppressionDays;
         await SystemTrashPreferences.setCleanedSuppressionPeriod(
           Duration(days: days),
@@ -514,6 +522,13 @@ class _TrashFilesPageState extends State<TrashFilesPage> {
       // 阈值：<10个文件且<100MB（表示清理得较彻底）
       // 此设计避免了“只删部分文件就隐藏剩余文件”的问题
       if (result['success'] > 0) {
+        // 记录用户操作（删除选中文件）
+        await UserOperationLogger.log(
+          type: OperationType.systemTrashDelete,
+          fileCount: result['success'] as int,
+          sizeBytes: result['totalSize'] as int,
+        );
+
         // 计算剩余的3个月前的文件
         final cutoffDate = DateTime.now().subtract(
           const Duration(days: 3 * 30),

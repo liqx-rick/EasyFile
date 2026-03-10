@@ -6,6 +6,7 @@ import 'package:easyfile/core/models/junk_file_scan_config.dart';
 import 'package:easyfile/core/preferences/system_trash_preferences.dart';
 import 'package:easyfile/core/services/junk_file_service.dart';
 import 'package:easyfile/core/services/trash_file_service.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/junk_file_item.dart';
 import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:easyfile/ui/utils/file_details_helper.dart';
@@ -265,6 +266,15 @@ class _JunkFilesPageState extends State<JunkFilesPage> {
 
     if (mounted) {
       Navigator.of(context).pop(); // 关闭加载对话框
+
+      // 记录用户操作
+      if (result['success'] > 0) {
+        await UserOperationLogger.log(
+          type: OperationType.junkClean,
+          fileCount: result['success'] as int,
+          sizeBytes: result['totalSize'] as int,
+        );
+      }
 
       _showResultDialog(result);
 

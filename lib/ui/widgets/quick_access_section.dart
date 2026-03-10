@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:easyfile/analytics/analytics_helper.dart';
-import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/data_sources/data_source_factory.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/factories/recommend_page_config_factory.dart';
@@ -10,45 +9,19 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/app_detection_service.dart';
 import 'package:easyfile/core/services/app_file_list_cache.dart';
 import 'package:easyfile/core/services/file_count_cache.dart';
-import 'package:easyfile/core/services/privacy_service.dart';
 import 'package:easyfile/core/services/recommendation_service.dart';
 import 'package:easyfile/core/services/unified_app_scanner.dart';
 import 'package:easyfile/data/models/quick_access_folder.dart';
 import 'package:easyfile/data/models/recommendation_card.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/presenter/quick_access_presenter.dart';
-import 'package:easyfile/ui/pages/apk_management_page.dart';
-import 'package:easyfile/ui/pages/app_management_page.dart';
-import 'package:easyfile/ui/pages/archive_management_page.dart';
-import 'package:easyfile/ui/pages/junk_files_page.dart';
-import 'package:easyfile/ui/pages/privacy_auth_page.dart';
-import 'package:easyfile/ui/pages/privacy_setup_page.dart';
-import 'package:easyfile/ui/pages/privacy_space_page.dart';
 import 'package:easyfile/ui/pages/recommend_aggregate_page.dart';
-import 'package:easyfile/ui/pages/trash_page.dart';
 import 'package:easyfile/ui/widgets/files_browse_card.dart';
 import 'package:easyfile/ui/widgets/storage_management_card.dart';
 import 'package:easyfile/viewmodel/file_viewmodel.dart';
 import 'package:easyfile/viewmodel/quick_access_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// 简单数据载体，供第二屏功能卡使用
-class _QuickAction {
-  final String label;
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback? onTap;
-  final Color color;
-
-  const _QuickAction({
-    required this.label,
-    required this.icon,
-    required this.enabled,
-    required this.color,
-    this.onTap,
-  });
-}
 
 /// 快速访问区域组件（可展开/折叠）
 ///
@@ -106,10 +79,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   late RecommendationService _recommendationService;
   List<RecommendationCard> _recommendationCards = [];
   late bool _loadingRecommendations;
-
-  // 分页控制
-  late final PageController _pageController;
-  int _currentPage = 0;
 
   // 静态缓存：在App同一会话中共享
   static List<RecommendationCard>? _cachedCards;
@@ -230,7 +199,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     super.initState();
     _initServices();
     _initAnimation();
-    _pageController = PageController();
     _loadStorageInfo();
     _loadRecommendations(); // 后台异步加载/刷新
     // 延迟加载避免在build期间触发setState
@@ -375,15 +343,11 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
   @override
   void dispose() {
     _animationController.dispose();
-    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 固定3x2网格布局（6个位置：4个推荐卡片 + 2个功能卡片）
-    // 推荐卡片数据准备暂时保留占位符，后续填充
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
       child: LayoutBuilder(
@@ -396,60 +360,18 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
           // 固定高度：QuickAccessSection自己的2行卡片 + 行间距 + 指示器
           final spacing = isSmallScreen ? 3.0 : 4.0;
           const indicatorHeight = 14.0;
-          // QuickAccessSection显示2行推荐卡片，使用categoryCardSize作为单个卡片高度
           final totalHeight = widget.categoryCardSize * 2 + spacing + indicatorHeight;
 
           return SizedBox(
             height: totalHeight,
-            child: Stack(
-              children: [
-                PageView(
-                  controller: _pageController,
-                  physics: const PageScrollPhysics(),
-                  onPageChanged: (index) {
-                    if (mounted) {
-                      setState(() {
-                        _currentPage = index;
-                      });
-                    }
-                  },
-                  children: [
-                    _buildFirstPage(context, availableWidth, isSmallScreen, spacing),
-                    _buildSecondPage(context, availableWidth, isSmallScreen, spacing),
-                  ],
-                ),
-                Positioned(
-                  right: 8,
-                  bottom: 0,
-                  child: Row(
-                    children: List.generate(2, (index) {
-                      final isActive = _currentPage == index;
-                      return Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isActive
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
+            child: _buildFirstPage(context, availableWidth, isSmallScreen, spacing),
           );
         },
       ),
     );
   }
 
-  /// 构建第1页：固定3x2网格（4推荐 + 2功能）
-  /// 布局：1:1:1（等比例）
-  /// [推荐1] [推荐2] [功能1-浏览]
-  /// [推荐3] [推荐4] [功能2-存储]
+  /// 构建推荐卡片区域（3x2网格：4个推荐卡片 + 2个功能卡片）
   Widget _buildFirstPage(
     BuildContext context,
     double availableWidth,
@@ -466,7 +388,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
       padding: const EdgeInsets.symmetric(horizontal: 0),
       child: Column(
         children: [
-          // 第一行：推荐1, 推荐2, 功能1
           Row(
             children: [
               SizedBox(width: spacing),
@@ -484,7 +405,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
             ],
           ),
           SizedBox(height: spacing),
-          // 第二行：推荐3, 推荐4, 功能2
           Row(
             children: [
               SizedBox(width: spacing),
@@ -498,64 +418,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
                 cardHeight,
                 isBrowseCard: false,
               ),
-              SizedBox(width: spacing),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建第2页：固定3x2网格（功能入口）
-  Widget _buildSecondPage(
-    BuildContext context,
-    double availableWidth,
-    bool isSmallScreen,
-    double spacing,
-  ) {
-    final cardWidth = (availableWidth - spacing * 4) / 3;
-    final cardHeight = widget.categoryCardSize;
-
-    final actions = _buildSecondPageActions();
-
-    Widget buildSlot(int index) {
-      if (index >= actions.length) {
-        return _buildDisabledPlaceholderCard(cardWidth, cardHeight);
-      }
-      final action = actions[index];
-      return _buildActionCard(
-        context,
-        cardWidth,
-        cardHeight,
-        action,
-        isSmallScreen,
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              SizedBox(width: spacing),
-              buildSlot(0),
-              SizedBox(width: spacing),
-              buildSlot(1),
-              SizedBox(width: spacing),
-              buildSlot(2),
-              SizedBox(width: spacing),
-            ],
-          ),
-          SizedBox(height: spacing),
-          Row(
-            children: [
-              SizedBox(width: spacing),
-              buildSlot(3),
-              SizedBox(width: spacing),
-              buildSlot(4),
-              SizedBox(width: spacing),
-              buildSlot(5),
               SizedBox(width: spacing),
             ],
           ),
@@ -726,10 +588,8 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
     );
   }
 
-  /// 构建单个功能卡片（固定尺寸，嵌入3x2网格）
-  ///
-  /// 参数：
-  /// - [isBrowseCard]: true=文件浏览卡片，false=存储管理卡片
+  /// 构建功能卡片
+  /// [isBrowseCard]: true=文件浏览，false=存储管理
   Widget _buildFunctionCard(
     BuildContext context,
     double cardWidth,
@@ -762,108 +622,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
         ),
       );
     }
-  }
-
-  /// 构建功能入口卡片（第二屏）
-  Widget _buildActionCard(
-    BuildContext context,
-    double cardWidth,
-    double cardHeight,
-    _QuickAction action,
-    bool isSmallScreen,
-  ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    // 竖向布局：图标占30%，文字占15%，间距5%
-    final iconSize = (cardHeight * 0.30).clamp(20.0, 40.0);
-    final fontSize = (cardHeight * 0.15).clamp(11.0, 16.0);
-
-    final colors = isDark
-        ? [Colors.white.withValues(alpha: 0.12), Colors.white.withValues(alpha: 0.06)]
-        : [Colors.white, const Color(0xFFF8F9FA)];
-
-    return Opacity(
-      opacity: action.enabled ? 1.0 : 0.55,
-      child: SizedBox(
-        width: cardWidth,
-        height: cardHeight,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: action.enabled ? action.onTap : null,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: colors,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // 上方：图标
-                  Container(
-                    padding: EdgeInsets.all(iconSize * 0.25),
-                    decoration: BoxDecoration(
-                      color: action.color.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      action.icon,
-                      size: iconSize,
-                      color: action.color,
-                    ),
-                  ),
-                  SizedBox(height: cardHeight * 0.05),
-                  // 下方：文字标签
-                  Text(
-                    action.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? fontSize - 1 : fontSize,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                      color: action.color,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDisabledPlaceholderCard(double cardWidth, double cardHeight) {
-    return SizedBox(
-      width: cardWidth,
-      height: cardHeight,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.grey.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.grey.withValues(alpha: 0.15),
-            width: 1,
-          ),
-        ),
-      ),
-    );
   }
 
   // 此方法保留用于未来可能的快捷访问导航功能
@@ -912,7 +670,6 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
       presenter: widget.filePresenter,
     );
 
-    // 跳转到统一的推荐聚合页面（方案A：无需等待返回值）
     if (!mounted) return;
     Navigator.push(
       context,
@@ -925,147 +682,5 @@ class _QuickAccessSectionState extends State<QuickAccessSection> with SingleTick
         ),
       ),
     );
-
-    // 方案A优化：卡片无统计数据，详情页返回无需刷新
-    logger.d('详情页返回（卡片无需刷新）');
-  }
-
-  List<_QuickAction> _buildSecondPageActions() {
-    final feature = AppConfig.instance.feature;
-
-    return [
-      _QuickAction(
-        label: '压缩包管理',
-        icon: Icons.archive_outlined,
-        enabled: feature.isArchiveManagementEnabled,
-        color: Colors.orange,
-        onTap: feature.isArchiveManagementEnabled
-            ? () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ArchiveManagementPage(),
-                  ),
-                );
-              }
-            : null,
-      ),
-      _QuickAction(
-        label: '回收站',
-        icon: Icons.delete_outline,
-        enabled: feature.isTrashEnabled,
-        color: Colors.red,
-        onTap: feature.isTrashEnabled
-            ? () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => TrashPage(),
-                  ),
-                );
-              }
-            : null,
-      ),
-      _QuickAction(
-        label: '垃圾文件清理',
-        icon: Icons.delete_sweep,
-        enabled: feature.isJunkCleanupEnabled,
-        color: Colors.orange,
-        onTap: feature.isJunkCleanupEnabled
-            ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const JunkFilesPage(),
-                  ),
-                );
-              }
-            : null,
-      ),
-      _QuickAction(
-        label: '安装包管理',
-        icon: Icons.file_download_done,
-        enabled: feature.isApkManagementEnabled,
-        color: Colors.deepPurple,
-        onTap: feature.isApkManagementEnabled
-            ? () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ApkManagementPage(),
-                  ),
-                );
-              }
-            : null,
-      ),
-      _QuickAction(
-        label: '应用管理',
-        icon: Icons.apps,
-        enabled: feature.isAppManagementEnabled,
-        color: Colors.blue,
-        onTap: feature.isAppManagementEnabled
-            ? () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const AppManagementPage(),
-                  ),
-                );
-              }
-            : null,
-      ),
-      _QuickAction(
-        label: '隐私空间',
-        icon: Icons.lock,
-        enabled: feature.isPrivacySpaceEnabled,
-        color: const Color.fromARGB(255, 31, 2, 250),
-        onTap: feature.isPrivacySpaceEnabled ? () => _navigateToPrivacySpace(context) : null,
-      ),
-    ];
-  }
-
-  /// 导航到隐私空间（带身份验证）
-  Future<void> _navigateToPrivacySpace(BuildContext context) async {
-    final privacyService = PrivacyService();
-
-    try {
-      // 检查是否已初始化
-      final isInitialized = await privacyService.isInitialized();
-      logger.d('🔐 隐私空间初始化状态: $isInitialized');
-
-      if (!isInitialized) {
-        // 首次进入，显示设置页面
-        if (!context.mounted) return;
-        logger.d('📝 首次进入，打开 PrivacySetupPage');
-        final result = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (context) => const PrivacySetupPage(),
-          ),
-        );
-
-        logger.d('📝 PrivacySetupPage 返回结果: $result');
-        // 如果设置成功，直接进入隐私空间（已在 PrivacySetupPage 中激活会话）
-        if (result == true && context.mounted) {
-          logger.d('✅ 设置成功，直接进入 PrivacySpacePage');
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const PrivacySpacePage(),
-            ),
-          );
-        }
-      } else {
-        // 已初始化，显示验证页面
-        if (!context.mounted) return;
-        logger.d('🔒 已初始化，打开 PrivacyAuthPage');
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const PrivacyAuthPage(),
-          ),
-        );
-      }
-    } catch (e) {
-      logger.e('导航到隐私空间失败: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开隐私空间失败：$e')),
-        );
-      }
-    }
   }
 }

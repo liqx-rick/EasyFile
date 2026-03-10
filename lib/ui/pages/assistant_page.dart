@@ -4,14 +4,17 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
+import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
 import 'package:easyfile/core/services/smart_task_generator.dart';
+import 'package:easyfile/core/services/trash_file_cache_manager.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/task_card.dart';
+import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
-import 'package:easyfile/ui/pages/apk_management_page.dart';
-import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
@@ -31,7 +34,7 @@ class AssistantPage extends StatefulWidget {
   State<AssistantPage> createState() => _AssistantPageState();
 }
 
-class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveClientMixin {
+class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   @override
   bool get wantKeepAlive => true;
 
@@ -47,8 +50,18 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
   double? _totalSpace;
   double? _freeSpace;
 
-  // 最近活动（简化版，占位数据）
-  final List<String> _recentActivities = [];
+  // 快速操作统计数据
+  int? _largeFileCount; // 大文件数量
+  int? _largeFileSize; // 大文件总大小（字节）
+  int? _duplicateGroups; // 重复文件组数
+  int? _duplicateSize; // 重复文件可释放空间（字节）
+  int? _trashFileCount; // 系统回收站文件数
+  int? _trashFileSize; // 系统回收站文件大小（字节）
+  int? _newFileCount; // 新文件数量
+  int? _newFileSize; // 新文件总大小（字节）
+
+  // 最近活动数据
+  List<UserOperationLog> _recentActivities = [];
 
   // 已忽略的任务类型（Map<TaskType, DateTime> 存储忽略时间）
   final Map<TaskType, DateTime> _dismissedTasks = {};
@@ -59,10 +72,27 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDismissedTasks();
     _loadTasks();
     _loadStorageStats();
     _loadRecentActivities();
+    _loadQuickActionStats(); // 加载快速操作统计数据
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // 当应用从后台恢复到前台时，刷新最近活动
+    if (state == AppLifecycleState.resumed) {
+      _loadRecentActivities();
+    }
   }
 
   /// 加载已忽略的任务
@@ -244,16 +274,16 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
 
   /// 加载最近活动
   Future<void> _loadRecentActivities() async {
-    // TODO: 从AppTrashManager和操作日志获取真实数据
-    // 这里先使用占位数据
-    if (mounted) {
-      setState(() {
-        _recentActivities.addAll([
-          '清理了 234 MB 垃圾文件',
-          '整理了 12 个重复文件',
-          '移入隐私空间 3 个文件',
-        ]);
-      });
+    try {
+      final logs = await UserOperationLogger.getRecentLogs(limit: 5);
+      if (mounted) {
+        setState(() {
+          _recentActivities = logs;
+        });
+        logger.d('加载了 ${logs.length} 条最近活动记录');
+      }
+    } catch (e) {
+      logger.e('加载最近活动失败: $e');
     }
   }
 
@@ -271,15 +301,11 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
       case TaskType.junkFiles:
         _navigateToJunkFiles();
         break;
-      case TaskType.apkFiles:
-        _navigateToApkManagement();
-        break;
       case TaskType.systemTrash:
         _navigateToTrashFiles();
         break;
-      case TaskType.appCache:
-        _openAppSettings();
-        break;
+      default:
+        logger.w('未处理的任务类型: $type');
     }
   }
 
@@ -375,16 +401,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
     );
   }
 
-  /// 跳转到APK安装包管理页面
-  void _navigateToApkManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ApkManagementPage(),
-      ),
-    );
-  }
-
   /// 跳转到新文件列表页面
   void _navigateToNewFiles() {
     Navigator.push(
@@ -395,14 +411,114 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
     );
   }
 
-  /// 打开应用管理页面（查看应用缓存）
-  void _openAppSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AppManagementPage(),
-      ),
-    );
+  /// 加载快速操作统计数据
+  Future<void> _loadQuickActionStats() async {
+    logger.i('开始加载快速操作统计数据...');
+    await Future.wait([
+      _loadLargeFileStats(),
+      _loadDuplicateFileStats(),
+      _loadTrashFileStats(),
+      _loadNewFileStats(),
+    ]);
+    logger.i(
+        '快速操作统计数据加载完成: 大文件=$_largeFileCount(${_largeFileSize != null ? FileSizeFormatter.formatBytes(_largeFileSize!) : "0B"}), 重复文件=$_duplicateGroups(${_duplicateSize != null ? FileSizeFormatter.formatBytes(_duplicateSize!) : "0B"}), 回收站=$_trashFileCount(${_trashFileSize != null ? FileSizeFormatter.formatBytes(_trashFileSize!) : "0B"}), 新文件=$_newFileCount(${_newFileSize != null ? FileSizeFormatter.formatBytes(_newFileSize!) : "0B"})');
+  }
+
+  /// 加载大文件统计
+  Future<void> _loadLargeFileStats() async {
+    try {
+      final cacheManager = LargeFileCacheManager();
+      final cache = await cacheManager.loadCache();
+      if (cache != null && mounted) {
+        final totalSize = cache.files.fold<int>(0, (sum, file) => sum + file.size);
+        setState(() {
+          _largeFileCount = cache.files.length;
+          _largeFileSize = totalSize;
+        });
+        logger.i('✅ 大文件统计加载成功: ${cache.files.length}个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+      } else {
+        logger.d('ℹ️ 大文件缓存不存在');
+      }
+    } catch (e) {
+      logger.w('❌ 加载大文件统计失败: $e');
+    }
+  }
+
+  /// 加载重复文件统计
+  Future<void> _loadDuplicateFileStats() async {
+    try {
+      // 直接使用单例 DuplicateFileScanManager，不依赖 GetIt
+      final scanManager = DuplicateFileScanManager();
+      final groups = scanManager.getCachedGroupsFor(
+        DuplicateFileScanConfig(
+          scanMode: DuplicateScanMode.full,
+        ),
+      );
+      if (groups.isNotEmpty && mounted) {
+        final reclaimableSize = groups.fold<int>(0, (sum, group) => sum + group.reclaimableSpace);
+        setState(() {
+          _duplicateGroups = groups.length;
+          _duplicateSize = reclaimableSize;
+        });
+        logger.i('✅ 重复文件统计加载成功: ${groups.length}组重复, 可节省${FileSizeFormatter.formatBytes(reclaimableSize)}');
+      } else {
+        logger.d('ℹ️ 重复文件缓存不存在');
+      }
+    } catch (e) {
+      logger.w('❌ 加载重复文件统计失败: $e');
+    }
+  }
+
+  /// 加载系统回收站统计
+  Future<void> _loadTrashFileStats() async {
+    try {
+      final trashCacheManager = TrashFileCacheManager();
+      if (await trashCacheManager.isCacheValid()) {
+        final cache = await trashCacheManager.getCachedResult();
+        if (cache != null && mounted) {
+          final totalSize = cache.allFiles.fold<int>(0, (sum, file) => sum + file.size);
+          setState(() {
+            _trashFileCount = cache.allFiles.length;
+            _trashFileSize = totalSize;
+          });
+          logger.i('✅ 系统回收站统计加载成功: ${cache.allFiles.length}个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+        }
+      } else {
+        logger.d('ℹ️ 系统回收站缓存不存在');
+      }
+    } catch (e) {
+      logger.w('❌ 加载系统回收站统计失败: $e');
+    }
+  }
+
+  /// 加载新文件统计
+  Future<void> _loadNewFileStats() async {
+    try {
+      // 从 NewFilesLocalSource 读取缓存，不触发扫描
+      final localSource = locator<NewFilesLocalSource>();
+      final cachedFiles = await localSource.loadCachedIndex();
+      if (cachedFiles.isNotEmpty && mounted) {
+        // 将 NewFileItem 转为 FileItem 计算大小
+        int totalSize = 0;
+        int validCount = 0;
+        for (final item in cachedFiles) {
+          final fileItem = item.toFileItem();
+          if (fileItem != null) {
+            totalSize += fileItem.size;
+            validCount++;
+          }
+        }
+        setState(() {
+          _newFileCount = validCount;
+          _newFileSize = totalSize > 0 ? totalSize : null;
+        });
+        logger.i('✅ 新文件统计加载成功: $validCount个文件, ${FileSizeFormatter.formatBytes(totalSize)}');
+      } else {
+        logger.d('ℹ️ 新文件缓存为空');
+      }
+    } catch (e) {
+      logger.w('❌ 加载新文件统计失败: $e');
+    }
   }
 
   /// 跳转到存储管理页
@@ -419,6 +535,8 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
   Future<void> _refresh() async {
     await _loadTasks(forceRefresh: true);
     await _loadStorageStats();
+    await _loadRecentActivities();
+    await _loadQuickActionStats(); // 刷新快速操作统计数据
   }
 
   @override
@@ -618,36 +736,31 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
         label: '大文件',
         color: Colors.blue,
         onTap: _navigateToLargeFiles,
+        subtitle:
+            _largeFileSize != null ? '${FileSizeFormatter.formatBytes(_largeFileSize!)} · $_largeFileCount个' : null,
       ),
       _QuickAction(
         icon: Icons.content_copy,
         label: '重复文件',
         color: Colors.orange,
         onTap: _navigateToDuplicateFiles,
+        subtitle:
+            _duplicateSize != null ? '可省${FileSizeFormatter.formatBytes(_duplicateSize!)} · $_duplicateGroups组' : null,
       ),
       _QuickAction(
         icon: Icons.delete_outline,
         label: '系统回收站',
         color: Colors.brown,
         onTap: _navigateToTrashFiles,
-      ),
-      _QuickAction(
-        icon: Icons.android,
-        label: '安装包',
-        color: Colors.green,
-        onTap: _navigateToApkManagement,
-      ),
-      _QuickAction(
-        icon: Icons.cached,
-        label: '应用缓存',
-        color: Colors.purple,
-        onTap: _openAppSettings,
+        subtitle:
+            _trashFileSize != null ? '${FileSizeFormatter.formatBytes(_trashFileSize!)} · $_trashFileCount个' : null,
       ),
       _QuickAction(
         icon: Icons.fiber_new,
         label: '新文件',
         color: Colors.teal,
         onTap: _navigateToNewFiles,
+        subtitle: _newFileSize != null ? '${FileSizeFormatter.formatBytes(_newFileSize!)} · $_newFileCount个' : null,
       ),
     ];
 
@@ -668,11 +781,12 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
         ),
         const SizedBox(height: 12),
         GridView.count(
-          crossAxisCount: 3,
+          crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
+          childAspectRatio: 1.2,
           children: quickActions.map((action) => _buildQuickActionCard(action, theme)).toList(),
         ),
       ],
@@ -685,20 +799,36 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
       onTap: action.onTap,
       borderRadius: BorderRadius.circular(12),
       child: Card(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              action.icon,
-              size: 32,
-              color: action.color,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              action.label,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                action.icon,
+                size: 32,
+                color: action.color,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                action.label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (action.subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  action.subtitle!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -835,6 +965,11 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
 
   /// 构建最近活动区域
   Widget _buildRecentActivitiesSection(ThemeData theme) {
+    // 如果没有活动记录，隐藏整个模块
+    if (_recentActivities.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -854,25 +989,43 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: _recentActivities.isEmpty
-                ? const Text('暂无操作记录')
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _recentActivities
-                        .map((activity) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _recentActivities
+                  .map((log) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 18,
+                              color: Colors.green[600],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(activity, style: theme.textTheme.bodyMedium),
+                                  Text(
+                                    log.description,
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    log.timeDescription,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey[600],
+                                    ),
                                   ),
                                 ],
                               ),
-                            ))
-                        .toList(),
-                  ),
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
           ),
         ),
       ],
@@ -898,11 +1051,13 @@ class _QuickAction {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final String? subtitle; // 统计信息（如"23个文件"）
 
   const _QuickAction({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.subtitle,
   });
 }

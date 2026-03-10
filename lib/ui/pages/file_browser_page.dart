@@ -3694,6 +3694,17 @@ class _FileBrowserPageState extends State<FileBrowserPage>
                             ),
                             const PopupMenuDivider(),
                             PopupMenuItem(
+                              value: 'trash',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete_outline, color: Theme.of(context).iconTheme.color),
+                                  const SizedBox(width: 8),
+                                  const Text('应用回收站'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            PopupMenuItem(
                               value: 'help',
                               child: Row(
                                 children: [

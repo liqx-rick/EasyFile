@@ -1,4 +1,5 @@
 import 'package:easyfile/analytics/analytics_helper.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -672,6 +673,8 @@ class _TrashPageState extends State<TrashPage> {
       if (result['success'] == true) {
         final restoredPath = result['targetPath'] as String;
 
+        if (!mounted) return;
+
         // 显示恢复成功对话框
         // 注：文件列表更新依赖UI层的didChangeDependencies自动刷新机制
         _showRestoreSuccessDialog(restoredPath);
@@ -790,8 +793,10 @@ class _TrashPageState extends State<TrashPage> {
 
       if (!mounted) return;
 
+      final messenger = ScaffoldMessenger.of(context);
+
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('已永久删除')),
         );
         await _loadData();
@@ -840,6 +845,10 @@ class _TrashPageState extends State<TrashPage> {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
+      // 记录清空前的文件数和大小
+      final fileCountBefore = _items.length;
+      final totalSizeBefore = _statistics?['totalSize'] as int? ?? 0;
+
       final result = await _trashManager.emptyTrash();
 
       // 关闭加载对话框
@@ -850,7 +859,20 @@ class _TrashPageState extends State<TrashPage> {
         _showErrorDialog('清空失败', result['error'] ?? '未知错误');
       } else {
         final deletedCount = result['success'] as int? ?? 0;
-        ScaffoldMessenger.of(context).showSnackBar(
+
+        // 记录用户操作
+        if (deletedCount > 0) {
+          await UserOperationLogger.log(
+            type: OperationType.trashEmpty,
+            fileCount: fileCountBefore,
+            sizeBytes: totalSizeBefore,
+          );
+        }
+
+        if (!mounted) return;
+
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.showSnackBar(
           SnackBar(content: Text('已清空回收站（$deletedCount 个文件）')),
         );
         await _loadData();

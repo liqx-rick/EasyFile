@@ -1,11 +1,22 @@
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
+import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/junk_file_scan_config.dart';
-import 'package:easyfile/core/services/app_trash_manager.dart';
-import 'package:easyfile/core/services/junk_file_cache_manager.dart';
+import 'package:easyfile/core/models/large_file_scan_config.dart';
+import 'package:easyfile/core/services/duplicate_file_service.dart';
+import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
+import 'package:easyfile/core/services/large_file_service.dart';
+import 'package:easyfile/core/services/privacy_service.dart';
+import 'package:easyfile/presenter/file_presenter.dart';
+import 'package:easyfile/ui/pages/apk_management_page.dart';
+import 'package:easyfile/ui/pages/app_management_page.dart';
+import 'package:easyfile/ui/pages/duplicate_files_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
-import 'package:easyfile/ui/pages/trash_page.dart';
-import 'package:easyfile/utils/file_size_formatter.dart';
+import 'package:easyfile/ui/pages/large_files_page.dart';
+import 'package:easyfile/ui/pages/privacy_auth_page.dart';
+import 'package:easyfile/ui/pages/privacy_setup_page.dart';
+import 'package:easyfile/ui/pages/privacy_space_page.dart';
+import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:flutter/material.dart';
 
 /// 专业工具页（+1屏）
@@ -16,77 +27,40 @@ class ToolsPage extends StatefulWidget {
   State<ToolsPage> createState() => _ToolsPageState();
 }
 
-class _ToolsPageState extends State<ToolsPage>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
+class _ToolsPageState extends State<ToolsPage> {
+  /// 跳转到大文件页
+  void _navigateToLargeFiles() {
+    final presenter = locator<FilePresenter>();
+    final largeFileService = LargeFileService(presenter);
 
-  // 工具统计数据
-  final int _archiveCount = 0;
-  int _trashCount = 0;
-  int _junkSize = 0;
-  int _apkCount = 0;
-  final int _privacyCount = 0;
-  final int _appCount = 0;
-
-  bool _isLoadingStats = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadToolStatistics();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LargeFilesPage(
+          largeFileService: largeFileService,
+          initialConfig: const LargeFileScanConfig(
+            minSizeInMB: 100,
+          ),
+        ),
+      ),
+    );
   }
 
-  /// 加载工具统计数据
-  Future<void> _loadToolStatistics() async {
-    setState(() => _isLoadingStats = true);
+  /// 跳转到重复文件页
+  void _navigateToDuplicateFiles() {
+    final presenter = locator<FilePresenter>();
+    final duplicateService = DuplicateFileService(presenter);
+    final enhancedService = EnhancedDuplicateFileScanService(duplicateService);
 
-    try {
-      // 并行加载所有统计数据
-      await Future.wait([
-        _loadTrashStats(),
-        _loadJunkStats(),
-      ]);
-    } catch (e) {
-      logger.e('加载工具统计失败: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingStats = false);
-      }
-    }
-  }
-
-  /// 加载回收站统计
-  Future<void> _loadTrashStats() async {
-    try {
-      final trashManager = locator<AppTrashManager>();
-      final stats = await trashManager.getStatistics();
-      
-      if (mounted) {
-        setState(() {
-          _trashCount = stats['fileCount'] as int? ?? 0;
-        });
-      }
-    } catch (e) {
-      logger.w('加载回收站统计失败: $e');
-    }
-  }
-
-  /// 加载垃圾文件统计
-  Future<void> _loadJunkStats() async {
-    try {
-      final junkCacheManager = locator<JunkFileCacheManager>();
-      final cacheInfo = await junkCacheManager.getCacheInfo();
-
-      if (mounted) {
-        setState(() {
-          _apkCount = cacheInfo['apkCount'] as int? ?? 0;
-          _junkSize = cacheInfo['totalSize'] as int? ?? 0;
-        });
-      }
-    } catch (e) {
-      logger.w('加载垃圾文件统计失败: $e');
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DuplicateFilesPage(
+          enhancedScanService: enhancedService,
+          initialConfig: DuplicateFileScanConfig.fullScan(),
+        ),
+      ),
+    );
   }
 
   /// 跳转到垃圾清理页
@@ -101,12 +75,32 @@ class _ToolsPageState extends State<ToolsPage>
     );
   }
 
-  /// 跳转到回收站页
-  void _navigateToTrash() {
+  /// 跳转到安装包管理页
+  void _navigateToApkManagement() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const TrashPage(),
+        builder: (context) => const ApkManagementPage(),
+      ),
+    );
+  }
+
+  /// 跳转到应用管理页
+  void _navigateToAppManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AppManagementPage(),
+      ),
+    );
+  }
+
+  /// 跳转到系统回收站页
+  void _navigateToTrashFiles() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TrashFilesPage(),
       ),
     );
   }
@@ -123,47 +117,36 @@ class _ToolsPageState extends State<ToolsPage>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('专业工具'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadToolStatistics,
-            tooltip: '刷新',
-          ),
-        ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadToolStatistics,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // 存储优化分组
-            _buildSectionHeader('🔧 存储优化', theme),
-            const SizedBox(height: 12),
-            _buildOptimizationTools(theme),
-            const SizedBox(height: 24),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 存储优化分组
+          _buildSectionHeader('🔧 存储优化', theme),
+          const SizedBox(height: 12),
+          _buildOptimizationTools(theme),
+          const SizedBox(height: 24),
 
-            // 安全与隐私分组
-            _buildSectionHeader('🔐 安全与隐私', theme),
-            const SizedBox(height: 12),
-            _buildSecurityTools(theme),
-            const SizedBox(height: 24),
+          // 安全与隐私分组
+          _buildSectionHeader('🔐 安全与隐私', theme),
+          const SizedBox(height: 12),
+          _buildSecurityTools(theme),
+          const SizedBox(height: 24),
 
-            // 智能整理分组
-            _buildSectionHeader('✨ 智能整理', theme),
-            const SizedBox(height: 12),
-            _buildSmartTools(theme),
-            const SizedBox(height: 24),
+          // 智能整理分组
+          _buildSectionHeader('✨ 智能整理', theme),
+          const SizedBox(height: 12),
+          _buildSmartTools(theme),
+          const SizedBox(height: 24),
 
-            // 提示：向左滑动
-            _buildSwipeHint(theme),
-          ],
-        ),
+          // 提示：向左滑动
+          _buildSwipeHint(theme),
+        ],
       ),
     );
   }
@@ -182,38 +165,40 @@ class _ToolsPageState extends State<ToolsPage>
   Widget _buildOptimizationTools(ThemeData theme) {
     final tools = [
       _ToolItem(
-        icon: Icons.folder_zip,
-        label: '压缩包管理',
-        subtitle: _archiveCount > 0 ? '$_archiveCount 个压缩包' : '敬请期待',
-        color: Colors.amber,
-        enabled: false,
-        onTap: () => _showComingSoon('压缩包管理'),
+        icon: Icons.description,
+        label: '大文件',
+        color: Colors.orange,
+        onTap: _navigateToLargeFiles,
       ),
       _ToolItem(
-        icon: Icons.delete,
-        label: '回收站',
-        subtitle: _trashCount > 0 ? '$_trashCount 个文件' : '空',
-        color: Colors.red,
-        enabled: true,
-        onTap: _navigateToTrash,
+        icon: Icons.content_copy,
+        label: '重复文件',
+        color: Colors.purple,
+        onTap: _navigateToDuplicateFiles,
       ),
       _ToolItem(
         icon: Icons.cleaning_services,
         label: '垃圾清理',
-        subtitle: _junkSize > 0
-            ? '可清理 ${FileSizeFormatter.formatBytesWithSpace(_junkSize)}'
-            : '正在扫描...',
         color: Colors.brown,
-        enabled: true,
         onTap: _navigateToJunkFiles,
       ),
       _ToolItem(
         icon: Icons.android,
         label: '安装包管理',
-        subtitle: _apkCount > 0 ? '$_apkCount 个 APK' : '无',
         color: Colors.green,
-        enabled: true,
-        onTap: _navigateToJunkFiles, // APK在垃圾清理中
+        onTap: _navigateToApkManagement,
+      ),
+      _ToolItem(
+        icon: Icons.apps,
+        label: '应用管理',
+        color: Colors.blue,
+        onTap: _navigateToAppManagement,
+      ),
+      _ToolItem(
+        icon: Icons.restore_from_trash,
+        label: '系统回收站',
+        color: Colors.red,
+        onTap: _navigateToTrashFiles,
       ),
     ];
 
@@ -223,9 +208,58 @@ class _ToolsPageState extends State<ToolsPage>
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.3,
       children: tools.map((tool) => _buildToolCard(tool, theme)).toList(),
     );
+  }
+
+  /// 跳转到隐私空间页（带身份验证）
+  Future<void> _navigateToPrivacySpace() async {
+    final privacyService = PrivacyService();
+
+    try {
+      // 检查是否已初始化
+      final isInitialized = await privacyService.isInitialized();
+      logger.d('🔐 隐私空间初始化状态: $isInitialized');
+
+      if (!isInitialized) {
+        // 首次进入，显示设置页面
+        if (!mounted) return;
+        logger.d('📝 首次进入，打开 PrivacySetupPage');
+        final result = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (context) => const PrivacySetupPage(),
+          ),
+        );
+
+        logger.d('📝 PrivacySetupPage 返回结果: $result');
+        // 如果设置成功，直接进入隐私空间（已在 PrivacySetupPage 中激活会话）
+        if (result == true && mounted) {
+          logger.d('✅ 设置成功，直接进入 PrivacySpacePage');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const PrivacySpacePage(),
+            ),
+          );
+        }
+      } else {
+        // 已初始化，显示验证页面
+        if (!mounted) return;
+        logger.d('🔒 已初始化，打开 PrivacyAuthPage');
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const PrivacyAuthPage(),
+          ),
+        );
+      }
+    } catch (e) {
+      logger.e('导航到隐私空间失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('打开隐私空间失败：$e')),
+        );
+      }
+    }
   }
 
   /// 构建安全与隐私工具
@@ -234,18 +268,8 @@ class _ToolsPageState extends State<ToolsPage>
       _ToolItem(
         icon: Icons.lock,
         label: '隐私空间',
-        subtitle: _privacyCount > 0 ? '$_privacyCount 个文件' : '敬请期待',
         color: Colors.indigo,
-        enabled: false,
-        onTap: () => _showComingSoon('隐私空间'),
-      ),
-      _ToolItem(
-        icon: Icons.apps,
-        label: '应用管理',
-        subtitle: _appCount > 0 ? '$_appCount 个应用' : '敬请期待',
-        color: Colors.blue,
-        enabled: false,
-        onTap: () => _showComingSoon('应用管理'),
+        onTap: _navigateToPrivacySpace,
       ),
     ];
 
@@ -255,7 +279,7 @@ class _ToolsPageState extends State<ToolsPage>
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.3,
       children: tools.map((tool) => _buildToolCard(tool, theme)).toList(),
     );
   }
@@ -266,33 +290,25 @@ class _ToolsPageState extends State<ToolsPage>
       _ToolItem(
         icon: Icons.photo_album,
         label: '智能相册',
-        subtitle: '敬请期待',
         color: Colors.pink,
-        enabled: false,
         onTap: () => _showComingSoon('智能相册'),
       ),
       _ToolItem(
         icon: Icons.collections,
         label: '文件集合',
-        subtitle: '敬请期待',
         color: Colors.purple,
-        enabled: false,
         onTap: () => _showComingSoon('文件集合'),
       ),
       _ToolItem(
         icon: Icons.note,
         label: '文件笔记',
-        subtitle: '敬请期待',
         color: Colors.teal,
-        enabled: false,
         onTap: () => _showComingSoon('文件笔记'),
       ),
       _ToolItem(
         icon: Icons.build,
         label: '批量工具',
-        subtitle: '敬请期待',
         color: Colors.deepOrange,
-        enabled: false,
         onTap: () => _showComingSoon('批量工具'),
       ),
     ];
@@ -303,49 +319,36 @@ class _ToolsPageState extends State<ToolsPage>
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.3,
       children: tools.map((tool) => _buildToolCard(tool, theme)).toList(),
     );
   }
 
   /// 构建工具卡片
   Widget _buildToolCard(_ToolItem tool, ThemeData theme) {
-    return Opacity(
-      opacity: tool.enabled ? 1.0 : 0.5,
-      child: InkWell(
-        onTap: tool.enabled ? tool.onTap : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  tool.icon,
-                  size: 40,
-                  color: tool.enabled ? tool.color : Colors.grey,
+    return InkWell(
+      onTap: tool.onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                tool.icon,
+                size: 48,
+                color: tool.color,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tool.label,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  tool.label,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _isLoadingStats && tool.subtitle.contains('个')
-                      ? '加载中...'
-                      : tool.subtitle,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),
@@ -369,17 +372,13 @@ class _ToolsPageState extends State<ToolsPage>
 class _ToolItem {
   final IconData icon;
   final String label;
-  final String subtitle;
   final Color color;
-  final bool enabled;
   final VoidCallback onTap;
 
   const _ToolItem({
     required this.icon,
     required this.label,
-    required this.subtitle,
     required this.color,
-    required this.enabled,
     required this.onTap,
   });
 }

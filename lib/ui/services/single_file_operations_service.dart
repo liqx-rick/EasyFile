@@ -5,6 +5,7 @@ import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/services/privacy_service.dart';
 import 'package:easyfile/core/services/privacy_session_manager.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/dialogs/extract_archive_dialog.dart';
@@ -1157,6 +1158,13 @@ class SingleFileOperationsService {
         // 埋点：隐私文件添加
         final fileType = file.category.name;
         AnalyticsHelper.logPrivacyFileAdd(fileType, 1);
+
+        // 记录用户操作
+        await UserOperationLogger.log(
+          type: OperationType.privacyMoveIn,
+          fileCount: 1,
+          sizeBytes: file.size,
+        );
 
         logger.i('✅ 文件已移入隐私空间: ${file.name}');
 

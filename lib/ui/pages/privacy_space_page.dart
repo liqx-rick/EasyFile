@@ -3,6 +3,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/page_settings.dart';
 import 'package:easyfile/core/services/page_settings_service.dart';
 import 'package:easyfile/core/services/privacy_service.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/file_category.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/services/file_type_analyzer.dart';
@@ -137,6 +138,14 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
       if (autoRestored) {
         // 成功恢复到原位置
         if (mounted) {
+          // 记录用户操作
+          await UserOperationLogger.log(
+            type: OperationType.privacyMoveOut,
+            fileCount: 1,
+            sizeBytes: file.size,
+          );
+
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('✅ 已恢复到原位置')),
           );
@@ -169,6 +178,14 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
       );
 
       if (success && mounted) {
+        // 记录用户操作
+        await UserOperationLogger.log(
+          type: OperationType.privacyMoveOut,
+          fileCount: 1,
+          sizeBytes: file.size,
+        );
+
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ 文件已移出隐私空间')),
         );
@@ -297,13 +314,6 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('我知道了'),
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context); // 关闭对话框
-              Navigator.pop(context); // 返回主页
-            },
-            child: const Text('去文件浏览器'),
-          ),
         ],
       ),
     );
@@ -364,8 +374,8 @@ class _PrivacySpacePageState extends State<PrivacySpacePage> {
       floatingActionButton: _files.isEmpty && !_isLoading
           ? FloatingActionButton.extended(
               onPressed: _showHelpDialog,
-              icon: const Icon(Icons.add),
-              label: const Text('添加文件'),
+              icon: const Icon(Icons.help_outline),
+              label: const Text('如何使用？'),
             )
           : null,
     );

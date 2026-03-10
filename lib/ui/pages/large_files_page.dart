@@ -8,6 +8,7 @@ import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/large_file_cache_manager.dart';
 import 'package:easyfile/core/services/large_file_service.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
@@ -267,6 +268,7 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
     // 更新状态
     if (mounted) {
       final deletedCount = originalCount - existingFiles.length;
+
       setState(() {
         _largeFiles = existingFiles;
         _totalSize = existingFiles.fold<int>(0, (sum, f) => sum + f.size);
@@ -965,18 +967,33 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
       onDelete: () {
         if (!mounted) return;
 
-        // 埋点：清理操作
+        // 计算要删除的文件总大小和数量
+        final selectedCount = _selectionController.selected.length;
         final totalSize = _selectionController.selected
             .map((path) => _largeFiles.firstWhere((f) => f.path == path,
                 orElse: () => FileItem(name: '', path: '', isDirectory: false, size: 0, modified: DateTime.now())))
             .fold<int>(0, (sum, file) => sum + file.size);
+
+        // 埋点：清理操作
         AnalyticsHelper.logCleanAction(
           cleanType: 'large_file',
-          itemCount: _selectionController.selected.length,
+          itemCount: selectedCount,
           sizeMb: totalSize / (1024 * 1024),
         );
 
-        _batchService.batchDelete(context, _selectionController.selected);
+        // 执行批量删除，然后记录日志
+        _batchService.batchDelete(context, _selectionController.selected).then((_) {
+          // 删除完成后记录用户操作日志
+          if (selectedCount > 0 && totalSize > 0) {
+            UserOperationLogger.log(
+              type: OperationType.largeFileClean,
+              fileCount: selectedCount,
+              sizeBytes: totalSize,
+            );
+          }
+        }).catchError((error) {
+          logger.e('Error in batchDelete or logging: $error');
+        });
       },
     );
   }
@@ -1151,6 +1168,14 @@ class _LargeFilesPageState extends State<LargeFilesPage> with EditModeMixin, Pop
         if (mounted) {
           setState(() {});
         }
+      },
+      onFileDeleted: () {
+        // 文件删除后记录用户操作日志
+        UserOperationLogger.log(
+          type: OperationType.largeFileClean,
+          fileCount: 1,
+          sizeBytes: file.size,
+        );
       },
     );
 

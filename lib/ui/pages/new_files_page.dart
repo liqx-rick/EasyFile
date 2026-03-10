@@ -2,6 +2,7 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/models/new_file_item.dart';
+import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/data/sources/new_files_scanner.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/mixins/edit_mode_mixin.dart';
@@ -137,7 +138,16 @@ class _NewFilesPageState extends State<NewFilesPage> with EditModeMixin, PopScop
         _isLoading = false;
       });
 
-      logger.i('新文件加载完成: ${existingFiles.length}个文件 (扫描到${files.length}个), 共${FileSizeFormatter.formatBytes(_totalSize)}');
+      // 保存缓存，供智能助手页面使用
+      try {
+        await locator<NewFilesLocalSource>().saveCachedIndex(existingFiles);
+        logger.d('✅ 新文件缓存已保存: ${existingFiles.length}个文件');
+      } catch (e) {
+        logger.e('❌ 保存新文件缓存失败: $e');
+      }
+
+      logger.i(
+          '新文件加载完成: ${existingFiles.length}个文件 (扫描到${files.length}个), 共${FileSizeFormatter.formatBytes(_totalSize)}');
     } catch (e) {
       logger.e('加载新文件失败: $e');
       if (!mounted) return;
@@ -163,11 +173,7 @@ class _NewFilesPageState extends State<NewFilesPage> with EditModeMixin, PopScop
     }
 
     // 构建文件列表（只包含存在的文件）
-    final fileList = _files
-        .map((e) => e.toFileItem())
-        .where((e) => e != null)
-        .cast<FileItem>()
-        .toList();
+    final fileList = _files.map((e) => e.toFileItem()).where((e) => e != null).cast<FileItem>().toList();
 
     Navigator.push(
       context,
@@ -228,11 +234,7 @@ class _NewFilesPageState extends State<NewFilesPage> with EditModeMixin, PopScop
 
   /// 获取所有文件路径（用于全选）
   List<String> _getAllFilePaths() {
-    return _files
-        .map((item) => item.toFileItem())
-        .where((file) => file != null)
-        .map((file) => file!.path)
-        .toList();
+    return _files.map((item) => item.toFileItem()).where((file) => file != null).map((file) => file!.path).toList();
   }
 
   /// 构建批量选择底部工具栏

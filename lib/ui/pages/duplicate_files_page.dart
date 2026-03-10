@@ -11,6 +11,7 @@ import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
 import 'package:easyfile/core/services/file_display_settings_service.dart';
+import 'package:easyfile/core/services/user_operation_logger.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
 import 'package:easyfile/data/services/video_thumbnail_load_queue.dart';
@@ -237,12 +238,16 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
   /// 扫描错误回调
   void _onScanError(String error) {
     if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _isScanning = false;
       _updateStatus = ''; // 清除更新状态提示
       _isCheckingUpdates = false; // 清除检查更新标志
     });
-    ScaffoldMessenger.of(context).showSnackBar(
+
+    messenger.showSnackBar(
       SnackBar(
         content: Text('扫描失败: $error'),
         backgroundColor: Colors.red,
@@ -676,6 +681,10 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
     if (confirmed != true) return;
 
+    // 在删除前先计算文件总大小
+    final deletedFiles = _allGroups.expand((g) => g.files).where((f) => _selectedFilePaths.contains(f.path)).toList();
+    final totalSize = deletedFiles.fold<int>(0, (sum, f) => sum + f.size);
+
     // 执行删除 - 使用FilePresenter确保经过回收站
     int deletedCount = 0;
     final presenter = locator<FilePresenter>();
@@ -708,12 +717,25 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
     await _refreshAfterDeletion();
 
     if (mounted) {
+      // 记录用户操作
+      if (deletedCount > 0) {
+        await UserOperationLogger.log(
+          type: OperationType.duplicateClean,
+          fileCount: deletedCount,
+          sizeBytes: totalSize,
+        );
+      }
+
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+
       setState(() {
         _selectedFilePaths.clear();
         _isSelectionMode = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('已删除 $deletedCount 个文件'),
           backgroundColor: Colors.green,
@@ -1901,6 +1923,8 @@ class _DuplicateFilesPageState extends State<DuplicateFilesPage> {
 
   /// 打开文件预览
   Future<void> _openFilePreview(FileItem file) async {
+    if (!mounted) return;
+
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => FilePreviewPage(

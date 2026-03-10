@@ -1,8 +1,8 @@
 # 三屏智能架构方案（负一屏 Assistant / 主页 / +1屏 Tools）
 
-版本：v1.0
+版本：v1.1（最终确认版）
 作者：产品/工程
-日期：2026-02-26
+日期：2026-03-10（最后更新）
 
 ---
 
@@ -13,6 +13,26 @@
 
 ## 概要（1句）
 引入应用级三屏交互（左：智能助手 / 中：文件浏览主页 / 右：专业工具集），每屏为完整独立页面，通过左右滑动切换；首版本实现基础任务卡与工具分组，后续分阶段完善可视化报告与智能相册。
+
+---
+
+## 最终方案速览
+
+### 负一屏 - 智能助手（AssistantPage）
+- **智能任务卡**：2-5个动态任务（重复文件、大文件、系统回收站、安装包、应用缓存）
+- **快速操作**：4个固定入口（大文件、重复文件、系统回收站、新文件） - 2x2布局
+- **空间健康**：3级状态提示（充足≥20%、紧张10-20%、告急<10%）
+- **最近活动**：最多显示5条操作记录
+
+### 主页 - 文件浏览（FileBrowserPage）
+- **主体UI**：保持现状不变
+- **菜单调整**：添加"应用回收站"菜单项（设置之后）
+- **默认启动**：应用启动时默认停在主页（PageView index=1）
+
+### +1屏 - 专业工具（ToolsPage）
+- **存储优化**（6个工具，2x3布局）：大文件、重复文件、垃圾清理、安装包管理、应用管理、系统回收站
+- **安全与隐私**（1个工具）：隐私空间
+- **智能整理**（第二阶段）：智能相册、文件集合、文件笔记、批量工具
 
 ---
 
@@ -45,13 +65,13 @@
 │ │ [立即清理] [忽略]              │ │
 │ └────────────────────────────────┘ │
 │                                    │
-│ ⚡ 快速操作 (3x2网格)              │
-│ [大文件] [重复] [垃圾]             │
-│ [缓存]   [截图] [相册]             │
+│ ⚡ 快速操作 (2x2网格)              │
+│ [大文件]     [重复文件]            │
+│ [系统回收站] [新文件]              │
 │                                    │
-│ 📊 简要统计                        │
-│ 总存储: 128GB | 可用: 23GB         │
-│ 本周新增: 458 个文件               │
+│ 📊 空间健康                        │
+│ 存储空间充足                       │
+│ 剩余空间: 23.5 GB (18.4%)         │
 │                                    │
 │ 📝 最近活动 (简化版)                │
 │ - 清理了 234 MB 垃圾文件           │
@@ -68,17 +88,20 @@
 - **应用缓存提醒**：调取 `AppManagementService`，显示可清理的应用缓存总大小
 - **截图整理提醒**（新增）：扫描图片分类，识别文件名包含"screenshot"/"截图"或路径为 `/Pictures/Screenshots` 的图片，显示本周新增截图数
 
-**2. 快速操作网格**（6 个常用工具入口，2x3或3x2布局）
+**2. 快速操作网格**（4 个常用工具入口，2x2布局）
 - 大文件 → `LargeFilesPage`
-- 重复 → `DuplicateFilesPage`
-- 垃圾 → `JunkFilesPage`
-- 缓存 → `AppManagementPage`（应用管理）
-- 截图整理 → `CategoryFilePage`（图片分类，带截图筛选）
-- 相册归档 → 智能相册（第二阶段实现，第一版跳转到图片分类）
+- 重复文件 → `DuplicateFilesPage`
+- 系统回收站 → `SystemTrashPage`（系统回收站管理）
+- 新文件 → `NewFilesPage`（新产生的文件）
 
-**3. 简要统计**
-- 总存储 / 可用空间（`disk_space_plus`）
-- 本周新增文件数（基于 `NewFilesService` 或文件修改时间统计）
+**3. 空间健康**
+- 根据可用空间百分比显示三种状态：
+  - **≥20%**：存储空间充足（绿色）
+  - **10-20%**：存储空间紧张（橙色）
+  - **<10%**：存储空间告急（红色，显示建议清理量）
+- 显示剩余空间大小和百分比
+- 点击跳转到存储管理页
+- 数据来源：`disk_space_plus` 插件
 
 **4. 最近活动时间线**（第一版简化为操作摘要，3-5条）
 - 从 `AppTrashManager` 获取最近清理记录
@@ -89,22 +112,51 @@
 - ✅ 启动后自动触发一次后台扫描（利用现有缓存优先，超时则后台刷新）
 - ✅ 至少生成 1 个任务卡（若设备上有可处理项）
 - ✅ 每张任务卡支持跳转到对应页面并带上下文（例如：重复文件页自动触发扫描）
-- ✅ 快速操作网格 6 个入口均可正常跳转
-- ✅ 统计数字准确（或标注"正在计算"）
+- ✅ 快速操作网格 4 个入口均可正常跳转
+- ✅ 空间健康状态判断准确（百分比计算正确，颜色状态对应）
 - ✅ 空状态显示友好提示"正在扫描..."而非"暂无任务"
 
 ---
 
 ## FileBrowserPage（主页，0屏） - 保持现状
 
-**核心原则**：FileBrowserPage 本身保持不变，所有改动在 MainContainerPage 层面。
+**核心原则**：FileBrowserPage 主体UI保持不变，仅在AppBar菜单中添加应用回收站入口。
 
-**调整方式**（两种可选方案）：
+**需要调整的部分**：
+
+### AppBar菜单调整
+在主页AppBar的PopupMenuButton中添加"应用回收站"菜单项：
+
+**当前菜单结构**：
+```
+- 设置
+- 快速访问管理
+- 帮助与支持
+- 关于
+```
+
+**调整后菜单结构**：
+```
+- 设置
+- 应用回收站（新增）
+---（分隔符）
+- 快速访问管理
+- 帮助与支持
+- 关于
+```
+
+**实现说明**：
+- 位置：在"设置"之后、"快速访问管理"之前
+- 添加分隔符（PopupMenuDivider）区分系统设置类和功能类菜单
+- 点击后跳转到 `TrashPage`（应用回收站页面）
+- 图标：使用 `Icons.delete_outline` 或 `Icons.restore_from_trash`
+
+**三屏切换方式**（两种可选方案）：
 
 ### 方案A：仅靠滑动发现（推荐，最小改动）
-- FileBrowserPage 完全保持现状，不增加任何入口卡片
+- FileBrowserPage 主体完全保持现状，不增加任何入口卡片
 - 依赖底部页面指示器和首次滑动引导让用户发现左右两屏
-- 优点：零侵入，FileBrowserPage 无需修改
+- 优点：零侵入，FileBrowserPage 主体无需修改
 - 缺点：依赖用户主动滑动探索
 
 ### 方案B：在快速推荐区添加提示卡片（可选）
@@ -136,17 +188,20 @@
 │                                    │
 │ 🔧 存储优化                        │
 │ ┌────────────────────────────────┐ │
-│ │ [压缩包管理]  [回收站]          │ │
-│ │  12个压缩包    3个文件          │ │
+│ │ [大文件]      [重复文件]        │ │
+│ │  23个文件      156个重复        │ │
 │ │                                 │ │
 │ │ [垃圾清理]    [安装包管理]      │ │
 │ │  可清理2.3GB   6个APK          │ │
+│ │                                 │ │
+│ │ [应用管理]    [系统回收站]      │ │
+│ │  45个应用      12个文件         │ │
 │ └────────────────────────────────┘ │
 │                                    │
 │ 🔐 安全与隐私                      │
 │ ┌────────────────────────────────┐ │
-│ │ [隐私空间]    [应用管理]        │ │
-│ │  8个文件       45个应用         │ │
+│ │ [隐私空间]                      │ │
+│ │  8个文件                        │ │
 │ └────────────────────────────────┘ │
 │                                    │
 │ ✨ 智能整理                        │
@@ -167,15 +222,16 @@
 
 ### 分组与工具详解：
 
-**分组1：存储优化**（4个工具，2x2布局）
-- **压缩包管理**：显示设备上压缩包总数，点击跳转 `ArchiveManagementPage`
-- **回收站**：显示回收站文件数，点击跳转 `TrashPage`
+**分组1：存储优化**（6个工具，2x3布局）
+- **大文件**：显示大文件数量和总大小，点击跳转 `LargeFilesPage`
+- **重复文件**：显示重复文件数量和可节省空间，点击跳转 `DuplicateFilesPage`
 - **垃圾清理**：显示可清理的垃圾总大小，点击跳转 `JunkFilesPage`
 - **安装包管理**：显示APK文件数，点击跳转 `ApkManagementPage`
-
-**分组2：安全与隐私**（2个工具，1x2布局）
-- **隐私空间**：显示隐私文件数，点击跳转 `PrivacyAuthPage`（需验证）
 - **应用管理**：显示已安装应用数，点击跳转 `AppManagementPage`
+- **系统回收站**：显示回收站文件数，点击跳转 `SystemTrashPage`
+
+**分组2：安全与隐私**（1个工具）
+- **隐私空间**：显示隐私文件数，点击跳转 `PrivacyAuthPage`（需验证）
 
 **分组3：智能整理**（4个工具，2x2布局，第一版占位）
 - **智能相册**：第二阶段实现，第一版显示"敬请期待"或跳转到图片分类
@@ -184,12 +240,13 @@
 - **批量工具**：第一版可跳转到任意文件浏览页并自动进入编辑模式
 
 ### 统计数字获取：
-- 压缩包数：实时扫描或从 `ArchiveManagementPage` 缓存读取
-- 回收站文件数：`AppTrashManager.getStatistics()`
+- 大文件数量：`LargeFileCacheManager` 缓存
+- 重复文件数量：`EnhancedDuplicateFileScanService` 缓存
 - 垃圾文件大小：`JunkFileCacheManager` 缓存或快速估算
 - APK数量：扫描或从缓存读取
-- 隐私空间文件数：`PrivacyService.getPrivateFiles().length`
 - 应用数：`AppManagementService` 缓存
+- 系统回收站文件数：`SystemTrashManager.getStatistics()`
+- 隐私空间文件数：`PrivacyService.getPrivateFiles().length`
 
 ### 验收标准（基础版）：
 - ✅ 页面为完整独立页面，采用纵向滚动布局
@@ -358,8 +415,9 @@ SharedPreferences.setBool('three_screen_guidance_shown', true)
 1. 创建 `MainContainerPage` 并将 `FileBrowserPage` 嵌入中屏（3 天）
 2. `AssistantPage` 基础版：智能任务卡 + 快速操作（6 天）
 3. `ToolsPage` 基础版：分组布局 + 现有功能入口（4 天）
-4. 页面指示器、首次滑动引导（2 天）
-5. 准备应用商店必需素材（截图、文案、审核说明）（3 天）
+4. 主页菜单调整：添加"应用回收站"菜单项（0.5 天）
+5. 页面指示器、首次滑动引导（2 天）
+6. 准备应用商店必需素材（截图、文案、审核说明）（3 天）
 
 ### 第二阶段（1-2 周） - 强化（建议）
 
@@ -423,6 +481,7 @@ SharedPreferences.setBool('three_screen_guidance_shown', true)
 ## 验收准则（提交审核前）
 
 - 三屏可滑动、每屏为独立页面，且所有跳转正常
+- 主页菜单中"应用回收站"菜单项正常显示并可跳转
 - AssistantPage 能根据扫描产出至少 1 条任务并支持跳转
 - ToolsPage 中各工具可跳转、统计数字正确或有占位符说明
 - 首次引导在首次启动显示且可跳过
@@ -444,13 +503,15 @@ SharedPreferences.setBool('three_screen_guidance_shown', true)
 **现有代码**：
 - 主页入口与推荐卡片： `lib/ui/widgets/quick_access_section.dart`
 - 文件浏览主页： `lib/ui/pages/file_browser_page.dart`
+- 文件浏览主页菜单： `lib/ui/pages/file_browser_page.dart`（PopupMenuButton部分，需添加应用回收站菜单项）
 - 重复文件： `lib/core/services/enhanced_duplicate_file_scan_service.dart`
 - 垃圾文件： `lib/core/services/junk_file_service.dart`
 - 大文件： `lib/ui/pages/large_files_page.dart`
 - 存储统计： `lib/ui/pages/storage_management_page.dart`
 - 隐私空间： `lib/core/services/privacy_service.dart`
 - 应用管理： `lib/core/services/app_management_service.dart`
-- 回收站： `lib/core/services/app_trash_manager.dart`
+- 应用回收站： `lib/core/services/app_trash_manager.dart` + `lib/ui/pages/trash_page.dart`
+- 系统回收站： `lib/ui/pages/system_trash_page.dart`（若已实现）或需新建
 - 新文件： `lib/core/services/new_files_service.dart`
 
 **需新建文件**：
