@@ -246,4 +246,104 @@ class AnalyticsHelper {
       'item_count': itemCount,
     });
   }
+
+  /// Hash 校验工具进入
+  static Future<void> logHashCheckerEnter() async {
+    await AnalyticsManager.log('hash_checker_enter');
+  }
+
+  /// Hash 计算完成
+  static Future<void> logHashCalculateFinish({
+    required int fileSizeBytes,
+    required int durationMs,
+  }) async {
+    await AnalyticsManager.log('hash_calculate_finish', params: {
+      'file_size_bytes': fileSizeBytes,
+      'duration_ms': durationMs,
+    });
+  }
+
+  /// Hash 值复制
+  static Future<void> logHashCopy(String hashType) async {
+    await AnalyticsManager.log('hash_copy', params: {'hash_type': hashType});
+  }
+
+  /// 文件夹大小计算工具进入
+  static Future<void> logFolderSizeCalculatorEnter() async {
+    await AnalyticsManager.log('folder_size_calculator_enter');
+  }
+
+  /// 文件夹大小计算完成
+  static Future<void> logFolderSizeCalculateFinish({
+    required int folderSizeBytes,
+    required int fileCount,
+    required int durationMs,
+  }) async {
+    await AnalyticsManager.log('folder_size_calculate_finish', params: {
+      'folder_size_bytes': folderSizeBytes,
+      'file_count': fileCount,
+      'duration_ms': durationMs,
+    });
+  }
+
+  /// 文件类型识别器进入
+  static Future<void> logFileTypeDetectorEnter() async {
+    await AnalyticsManager.log('file_type_detector_enter');
+  }
+
+  /// 文件类型识别完成
+  static Future<void> logFileTypeDetectFinish({
+    required int fileCount,
+  }) async {
+    await AnalyticsManager.log('file_type_detect_finish', params: {
+      'file_count': fileCount,
+    });
+  }
+
+  /// 二维码工具进入
+  static Future<void> logQrCodeToolEnter() async {
+    await AnalyticsManager.log('qr_code_tool_enter');
+  }
+
+  /// 生成二维码
+  static Future<void> logQrCodeGenerate({
+    required int contentLength,
+  }) async {
+    await AnalyticsManager.log('qr_code_generate', params: {
+      'content_length': contentLength,
+    });
+  }
+
+  /// 保存二维码
+  static Future<void> logQrCodeSave() async {
+    await AnalyticsManager.log('qr_code_save');
+  }
+
+  /// 扫描二维码
+  static Future<void> logQrCodeScan({
+    required int contentLength,
+  }) async {
+    await AnalyticsManager.log('qr_code_scan', params: {
+      'content_length': contentLength,
+    });
+  }
+
+  /// 从图片扫描二维码
+  static Future<void> logQrCodeScanFromImage({
+    required int contentLength,
+  }) async {
+    await AnalyticsManager.log('qr_code_scan_from_image', params: {
+      'content_length': contentLength,
+    });
+  }
+
+  /// 复制扫描结果
+  static Future<void> logQrCodeCopyScanResult() async {
+    await AnalyticsManager.log('qr_code_copy_scan_result');
+  }
+
+  /// 打开二维码链接
+  static Future<void> logQrCodeOpenUrl() async {
+    await AnalyticsManager.log('qr_code_open_url');
+  }
 }

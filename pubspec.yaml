@@ -46,6 +46,9 @@ dependencies:
   local_auth_android: ^1.0.34  # Android生物识别实现
   local_auth_ios: ^1.1.4  # iOS生物识别实现
   intl: ^0.18.1  # 国际化和日期格式化
+  qr_flutter: ^4.1.0  # 二维码生成
+  mobile_scanner: ^5.2.3  # 二维码扫描
+  url_launcher: ^6.2.5  # 打开URL链接
 
 dev_dependencies:
   flutter_test:

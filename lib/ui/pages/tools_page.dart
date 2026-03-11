@@ -11,11 +11,15 @@ import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/apk_management_page.dart';
 import 'package:easyfile/ui/pages/app_management_page.dart';
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
+import 'package:easyfile/ui/pages/file_type_detector_page.dart';
+import 'package:easyfile/ui/pages/folder_size_calculator_page.dart';
+import 'package:easyfile/ui/pages/hash_checker_page.dart';
 import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/privacy_auth_page.dart';
 import 'package:easyfile/ui/pages/privacy_setup_page.dart';
 import 'package:easyfile/ui/pages/privacy_space_page.dart';
+import 'package:easyfile/ui/pages/qr_code_tool_page.dart';
 import 'package:easyfile/ui/pages/trash_files_page.dart';
 import 'package:flutter/material.dart';
 
@@ -105,12 +109,42 @@ class _ToolsPageState extends State<ToolsPage> {
     );
   }
 
-  /// 显示"敬请期待"提示
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature 功能即将上线'),
-        duration: const Duration(seconds: 2),
+  /// 跳转到 Hash 校验工具页
+  void _navigateToHashChecker() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HashCheckerPage(),
+      ),
+    );
+  }
+
+  /// 跳转到文件夹大小计算工具页
+  void _navigateToFolderSizeCalculator() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FolderSizeCalculatorPage(),
+      ),
+    );
+  }
+
+  /// 跳转到文件类型识别器工具页
+  void _navigateToFileTypeDetector() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FileTypeDetectorPage(),
+      ),
+    );
+  }
+
+  /// 跳转到二维码工具页
+  void _navigateToQrCodeTool() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const QrCodeToolPage(),
       ),
     );
   }
@@ -138,10 +172,10 @@ class _ToolsPageState extends State<ToolsPage> {
           _buildSecurityTools(theme),
           const SizedBox(height: 24),
 
-          // 智能整理分组
-          _buildSectionHeader('✨ 智能整理', theme),
+          // 实用小工具分组
+          _buildSectionHeader('🔨 实用小工具', theme),
           const SizedBox(height: 12),
-          _buildSmartTools(theme),
+          _buildUtilityTools(theme),
           const SizedBox(height: 24),
 
           // 提示：向左滑动
@@ -284,32 +318,32 @@ class _ToolsPageState extends State<ToolsPage> {
     );
   }
 
-  /// 构建智能整理工具
-  Widget _buildSmartTools(ThemeData theme) {
+  /// 构建实用小工具
+  Widget _buildUtilityTools(ThemeData theme) {
     final tools = [
       _ToolItem(
-        icon: Icons.photo_album,
-        label: '智能相册',
-        color: Colors.pink,
-        onTap: () => _showComingSoon('智能相册'),
+        icon: Icons.fingerprint,
+        label: 'Hash 校验',
+        color: Colors.cyan,
+        onTap: _navigateToHashChecker,
       ),
       _ToolItem(
-        icon: Icons.collections,
-        label: '文件集合',
-        color: Colors.purple,
-        onTap: () => _showComingSoon('文件集合'),
+        icon: Icons.folder_special,
+        label: '文件夹大小',
+        color: Colors.amber,
+        onTap: _navigateToFolderSizeCalculator,
       ),
       _ToolItem(
-        icon: Icons.note,
-        label: '文件笔记',
+        icon: Icons.search,
+        label: '文件类型识别',
         color: Colors.teal,
-        onTap: () => _showComingSoon('文件笔记'),
+        onTap: _navigateToFileTypeDetector,
       ),
       _ToolItem(
-        icon: Icons.build,
-        label: '批量工具',
-        color: Colors.deepOrange,
-        onTap: () => _showComingSoon('批量工具'),
+        icon: Icons.qr_code,
+        label: '二维码工具',
+        color: Colors.deepPurple,
+        onTap: _navigateToQrCodeTool,
       ),
     ];
 
@@ -331,7 +365,7 @@ class _ToolsPageState extends State<ToolsPage> {
       borderRadius: BorderRadius.circular(12),
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -340,13 +374,15 @@ class _ToolsPageState extends State<ToolsPage> {
                 size: 48,
                 color: tool.color,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 tool.label,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
