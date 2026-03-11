@@ -63,6 +63,12 @@ class _FolderSizeCalculatorPageState extends State<FolderSizeCalculatorPage> {
       await _calculateSize(result);
     } catch (e, stackTrace) {
       logger.e('选择文件夹失败: $e\nStackTrace: $stackTrace');
+
+      // 埋点：文件夹选择失败
+      AnalyticsHelper.logFolderSelectFail(
+        e.toString().contains('permission') ? 'permission_denied' : 'user_cancel',
+      );
+
       _showSnackBar('选择文件夹失败: $e');
     }
   }
@@ -108,6 +114,13 @@ class _FolderSizeCalculatorPageState extends State<FolderSizeCalculatorPage> {
       setState(() {
         _isCalculating = false;
       });
+
+      // 埋点：文件夹大小计算失败
+      AnalyticsHelper.logFolderSizeCalculateFail(
+        errorType: e.toString().contains('permission') ? 'permission_denied' : 'path_not_found',
+        scannedFiles: _processedFiles,
+      );
+
       _showSnackBar('计算失败: $e');
     }
   }

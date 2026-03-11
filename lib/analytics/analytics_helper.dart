@@ -268,6 +268,17 @@ class AnalyticsHelper {
     await AnalyticsManager.log('hash_copy', params: {'hash_type': hashType});
   }
 
+  /// Hash 计算失败
+  static Future<void> logHashCalculateFail({
+    required String errorType,
+    required int fileSizeBytes,
+  }) async {
+    await AnalyticsManager.log('hash_calculate_fail', params: {
+      'error_type': errorType,
+      'file_size_bytes': fileSizeBytes,
+    });
+  }
+
   /// 文件夹大小计算工具进入
   static Future<void> logFolderSizeCalculatorEnter() async {
     await AnalyticsManager.log('folder_size_calculator_enter');
@@ -286,6 +297,24 @@ class AnalyticsHelper {
     });
   }
 
+  /// 文件夹选择失败
+  static Future<void> logFolderSelectFail(String reason) async {
+    await AnalyticsManager.log('folder_select_fail', params: {
+      'reason': reason,
+    });
+  }
+
+  /// 文件夹大小计算失败
+  static Future<void> logFolderSizeCalculateFail({
+    required String errorType,
+    required int scannedFiles,
+  }) async {
+    await AnalyticsManager.log('folder_size_calculate_fail', params: {
+      'error_type': errorType,
+      'scanned_files': scannedFiles,
+    });
+  }
+
   /// 文件类型识别器进入
   static Future<void> logFileTypeDetectorEnter() async {
     await AnalyticsManager.log('file_type_detector_enter');
@@ -300,9 +329,28 @@ class AnalyticsHelper {
     });
   }
 
+  /// 文件类型不匹配检出
+  static Future<void> logFileTypeMismatchDetected({
+    required int mismatchCount,
+    required int totalCount,
+  }) async {
+    await AnalyticsManager.log('file_type_mismatch_detected', params: {
+      'mismatch_count': mismatchCount,
+      'total_count': totalCount,
+      'mismatch_rate': (mismatchCount / totalCount * 100).toStringAsFixed(2),
+    });
+  }
+
   /// 二维码工具进入
   static Future<void> logQrCodeToolEnter() async {
     await AnalyticsManager.log('qr_code_tool_enter');
+  }
+
+  /// 二维码 Tab 切换
+  static Future<void> logQrCodeTabSwitch(String tabName) async {
+    await AnalyticsManager.log('qr_code_tab_switch', params: {
+      'tab_name': tabName,
+    });
   }
 
   /// 生成二维码
@@ -311,6 +359,13 @@ class AnalyticsHelper {
   }) async {
     await AnalyticsManager.log('qr_code_generate', params: {
       'content_length': contentLength,
+    });
+  }
+
+  /// 生成二维码失败
+  static Future<void> logQrCodeGenerateFail(String reason) async {
+    await AnalyticsManager.log('qr_code_generate_fail', params: {
+      'reason': reason,
     });
   }
 
@@ -334,6 +389,24 @@ class AnalyticsHelper {
   }) async {
     await AnalyticsManager.log('qr_code_scan_from_image', params: {
       'content_length': contentLength,
+    });
+  }
+
+  /// 二维码扫描失败
+  static Future<void> logQrCodeScanFail({
+    required String scanSource,
+    required String errorType,
+  }) async {
+    await AnalyticsManager.log('qr_code_scan_fail', params: {
+      'scan_source': scanSource,
+      'error_type': errorType,
+    });
+  }
+
+  /// 二维码内容类型识别
+  static Future<void> logQrCodeContentType(String contentType) async {
+    await AnalyticsManager.log('qr_code_content_type', params: {
+      'content_type': contentType,
     });
   }
 

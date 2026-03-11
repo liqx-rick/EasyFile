@@ -123,6 +123,13 @@ class _HashCheckerPageState extends State<HashCheckerPage> {
       setState(() {
         _isCalculating = false;
       });
+
+      // 埋点：Hash 计算失败
+      AnalyticsHelper.logHashCalculateFail(
+        errorType: e.toString().contains('permission') ? 'permission_denied' : 'io_error',
+        fileSizeBytes: _fileSize ?? 0,
+      );
+
       _showSnackBar('计算失败: $e');
     }
   }

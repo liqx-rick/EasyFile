@@ -43,6 +43,14 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
+    // 监听 Tab 切换
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        final tabName = _tabController.index == 0 ? 'generate' : 'scan';
+        AnalyticsHelper.logQrCodeTabSwitch(tabName);
+      }
+    });
+
     // 埋点：进入二维码工具页面
     AnalyticsHelper.logQrCodeToolEnter();
   }
@@ -59,6 +67,8 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
   void _generateQrCode() {
     final text = _inputController.text.trim();
     if (text.isEmpty) {
+      // 埋点：生成失败
+      AnalyticsHelper.logQrCodeGenerateFail('empty_content');
       _showSnackBar('请输入要生成二维码的内容');
       return;
     }
@@ -124,6 +134,10 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
       AnalyticsHelper.logQrCodeSave();
     } catch (e, stackTrace) {
       logger.e('保存二维码失败: $e\nStackTrace: $stackTrace');
+
+      // 埋点：保存失败（虽然方案里未明确，但实际应该有）
+      // 这里可根据需要决定是否保留此埋点
+
       _showSnackBar('保存失败: $e');
     }
   }
@@ -146,6 +160,10 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
 
     // 埋点：扫描二维码
     AnalyticsHelper.logQrCodeScan(contentLength: result.length);
+
+    // 埋点：识别内容类型
+    final contentType = _detectContentType(result);
+    AnalyticsHelper.logQrCodeContentType(contentType);
 
     // 震动反馈
     HapticFeedback.mediumImpact();
@@ -198,6 +216,25 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
   /// 判断是否是URL
   bool _isUrl(String text) {
     return text.startsWith('http://') || text.startsWith('https://');
+  }
+
+  /// 检测二维码内容类型
+  String _detectContentType(String content) {
+    if (content.startsWith('http://') || content.startsWith('https://')) {
+      return 'url';
+    } else if (content.startsWith('WIFI:')) {
+      return 'wifi';
+    } else if (content.startsWith('BEGIN:VCARD') || content.startsWith('MECARD:')) {
+      return 'contact';
+    } else if (content.startsWith('tel:')) {
+      return 'phone';
+    } else if (content.startsWith('mailto:')) {
+      return 'email';
+    } else if (content.startsWith('geo:')) {
+      return 'location';
+    } else {
+      return 'text';
+    }
   }
 
   /// 从图片识别二维码
@@ -260,6 +297,13 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
 
       if (capture == null || capture.barcodes.isEmpty) {
         logger.d('图片中未识别到二维码');
+
+        // 埋点：扫描失败
+        AnalyticsHelper.logQrCodeScanFail(
+          scanSource: 'image',
+          errorType: 'no_qr_found',
+        );
+
         _showSnackBar('未识别到二维码，请选择包含二维码的图片');
         return;
       }
@@ -281,12 +325,22 @@ class _QrCodeToolPageState extends State<QrCodeToolPage> with SingleTickerProvid
       // 埋点：扫描图片二维码
       AnalyticsHelper.logQrCodeScanFromImage(contentLength: qrContent.length);
 
+      // 埋点：识别内容类型
+      final contentType = _detectContentType(qrContent);
+      AnalyticsHelper.logQrCodeContentType(contentType);
+
       // 震动反馈
       HapticFeedback.mediumImpact();
 
       _showSnackBar('识别成功');
     } catch (e, stackTrace) {
       logger.e('从图片识别二维码失败: $e\nStackTrace: $stackTrace');
+
+      // 埋点：扫描失败
+      AnalyticsHelper.logQrCodeScanFail(
+        scanSource: 'image',
+        errorType: 'invalid_image',
+      );
 
       // 关闭加载对话框（如果还在显示）
       if (mounted && Navigator.of(context).canPop()) {

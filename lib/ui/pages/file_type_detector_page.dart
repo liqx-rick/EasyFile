@@ -80,6 +80,15 @@ class _FileTypeDetectorPageState extends State<FileTypeDetectorPage> {
         fileCount: results.length,
       );
 
+      // 埋点：统计不匹配文件
+      final mismatchCount = results.where((r) => !r.isExtensionMatch).length;
+      if (mismatchCount > 0) {
+        AnalyticsHelper.logFileTypeMismatchDetected(
+          mismatchCount: mismatchCount,
+          totalCount: results.length,
+        );
+      }
+
       if (results.isNotEmpty) {
         _showSnackBar('已识别 ${results.length} 个文件');
       }
