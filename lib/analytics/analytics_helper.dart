@@ -419,4 +419,19 @@ class AnalyticsHelper {
   static Future<void> logQrCodeOpenUrl() async {
     await AnalyticsManager.log('qr_code_open_url');
   }
+
+  // ============================================================================
+  // 三屏架构埋点
+  // ============================================================================
+
+  /// 三屏切换
+  static Future<void> logThreeScreenSwitch({
+    required String fromScreen,
+    required String toScreen,
+  }) async {
+    await AnalyticsManager.log('three_screen_switch', params: {
+      'from_screen': fromScreen,
+      'to_screen': toScreen,
+    });
+  }
 }

@@ -1,12 +1,12 @@
 import 'dart:convert';
-import 'package:easyfile/core/config/app_config.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:easyfile/core/config/app_config.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_files_recommendation_engine.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 文件指纹（用于快速检测变化）
 class FileFingerprint {
@@ -131,14 +131,10 @@ class DuplicateFileScanCache {
   factory DuplicateFileScanCache.fromJson(Map<String, dynamic> json) {
     return DuplicateFileScanCache(
       scanTime: DateTime.parse(json['scanTime'] as String),
-      config: DuplicateFileScanConfig.fromJson(
-          json['config'] as Map<String, dynamic>),
-      groups: (json['groups'] as List)
-          .map((g) => DuplicateFileGroup.fromJson(g as Map<String, dynamic>))
-          .toList(),
+      config: DuplicateFileScanConfig.fromJson(json['config'] as Map<String, dynamic>),
+      groups: (json['groups'] as List).map((g) => DuplicateFileGroup.fromJson(g as Map<String, dynamic>)).toList(),
       fileIndex: (json['fileIndex'] as Map<String, dynamic>).map(
-        (key, value) => MapEntry(
-            key, FileFingerprint.fromJson(value as Map<String, dynamic>)),
+        (key, value) => MapEntry(key, FileFingerprint.fromJson(value as Map<String, dynamic>)),
       ),
     );
   }
@@ -147,6 +143,9 @@ class DuplicateFileScanCache {
 /// 智能缓存服务
 ///
 /// 提供智能缓存管理功能：
+/// 智能缓存管理器 (推荐使用)
+///
+/// 提供重复文件扫描结果的持久化存储和智能更新：
 /// - 💾 持久化缓存：将扫描结果保存到本地
 /// - 🔍 快速变化检测：只检查文件元数据，不读取内容
 /// - ⚡ 增量更新：只重新扫描变化的文件
@@ -169,15 +168,13 @@ class DuplicateFileSmartCache {
       // 检查大小
       final sizeInBytes = jsonStr.length;
       if (sizeInBytes > _maxCacheSize) {
-        logger.w(
-            'Cache size too large (${sizeInBytes ~/ 1024 ~/ 1024}MB), skipping save');
+        logger.w('Cache size too large (${sizeInBytes ~/ 1024 ~/ 1024}MB), skipping save');
         return;
       }
 
       // 保存
       await prefs.setString(cacheKey, jsonStr);
-      logger.i(
-          'Cache saved successfully (${sizeInBytes ~/ 1024}KB, ${cache.groups.length} groups)');
+      logger.i('Cache saved successfully (${sizeInBytes ~/ 1024}KB, ${cache.groups.length} groups)');
     } catch (e, stackTrace) {
       logger.e('Failed to save cache: $e\n$stackTrace');
     }
@@ -189,8 +186,7 @@ class DuplicateFileSmartCache {
   /// - 不跨模式复用
   /// - 不考虑minSize降级
   /// - 逻辑简单可靠
-  Future<DuplicateFileScanCache?> loadCache(
-      DuplicateFileScanConfig config) async {
+  Future<DuplicateFileScanCache?> loadCache(DuplicateFileScanConfig config) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = _getCacheKey(config);
@@ -325,10 +321,7 @@ class DuplicateFileSmartCache {
         .toList();
 
     // 移除被删除或修改的文件
-    final removePaths = changes
-        .where((c) => c.isDeleted || c.isModified)
-        .map((c) => c.path)
-        .toSet();
+    final removePaths = changes.where((c) => c.isDeleted || c.isModified).map((c) => c.path).toSet();
 
     for (final group in groups) {
       group.files.removeWhere((f) => removePaths.contains(f.path));
@@ -340,8 +333,7 @@ class DuplicateFileSmartCache {
     // 合并新扫描的重复组
     for (final newGroup in newGroupsFromChanges) {
       // 检查是否有相同hash的组
-      final existingGroup =
-          groups.where((g) => g.groupId == newGroup.groupId).firstOrNull;
+      final existingGroup = groups.where((g) => g.groupId == newGroup.groupId).firstOrNull;
 
       if (existingGroup != null) {
         // 合并到现有组
@@ -359,8 +351,7 @@ class DuplicateFileSmartCache {
     // 再次清理小于2个文件的组
     groups.removeWhere((g) => g.files.length < 2);
 
-    logger
-        .i('Incremental update applied: ${groups.length} groups after update');
+    logger.i('Incremental update applied: ${groups.length} groups after update');
 
     return groups;
   }
@@ -368,8 +359,7 @@ class DuplicateFileSmartCache {
   /// 生成缓存键
   String _getCacheKey(DuplicateFileScanConfig config) {
     // 使用配置生成唯一键
-    final key =
-        '$_cacheKeyPrefix${config.scanMode.name}_${config.selectedType?.name ?? 'all'}_${config.minSizeInKB}';
+    final key = '$_cacheKeyPrefix${config.scanMode.name}_${config.selectedType?.name ?? 'all'}_${config.minSizeInKB}';
     return key;
   }
 

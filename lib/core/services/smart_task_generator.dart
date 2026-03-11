@@ -3,8 +3,6 @@ import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
-import 'package:easyfile/core/services/apk_cache_service.dart';
-import 'package:easyfile/core/services/app_list_cache_manager.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/core/services/duplicate_file_smart_cache.dart';
 import 'package:easyfile/core/services/enhanced_duplicate_file_scan_service.dart';
@@ -33,15 +31,6 @@ class SmartTaskGenerator {
   /// 系统回收站最小总大小（字节）
   static const int trashMinTotalSize = 100 * 1024 * 1024; // 100MB
 
-  /// APK最小文件数
-  static const int apkMinFileCount = 3;
-
-  /// APK最小总大小（字节）
-  static const int apkMinTotalSize = 50 * 1024 * 1024; // 50MB
-
-  /// 应用缓存最小总大小（字节）
-  static const int appCacheMinTotalSize = 200 * 1024 * 1024; // 100MB（测试用）
-
   /// 大文件最小单个文件大小（字节）
   static const int largeFileMinSize = 100 * 1024 * 1024; // 100MB
 
@@ -67,12 +56,6 @@ class SmartTaskGenerator {
 
       // 3. 检查系统回收站
       await _checkSystemTrash(tasks, onTaskAction, onTaskDismiss);
-
-      // 4. 检查APK文件（通过垃圾文件服务）
-      await _checkApkFiles(tasks, onTaskAction, onTaskDismiss);
-
-      // 5. 检查应用缓存
-      await _checkAppCache(tasks, onTaskAction, onTaskDismiss);
 
       // 按优先级排序
       tasks.sort((a, b) => b.priority.compareTo(a.priority));
@@ -268,123 +251,6 @@ class SmartTaskGenerator {
     }
   }
 
-  /// 检查APK文件（通过APK缓存服务）
-  Future<void> _checkApkFiles(
-    List<TaskCard> tasks,
-    Function(TaskType) onTaskAction,
-    Function(TaskType) onTaskDismiss,
-  ) async {
-    try {
-      final apkCacheService = ApkCacheService();
-
-      // 从APK缓存服务获取统计信息
-      final cacheInfo = await apkCacheService.getCacheInfo();
-      final exists = cacheInfo['exists'] as bool? ?? false;
-      final isExpired = cacheInfo['isExpired'] as bool? ?? false;
-
-      if (!exists || isExpired) {
-        logger.d('APK缓存不存在或已过期，跳过任务生成（等待后台扫描）');
-        return;
-      }
-
-      final apkCount = cacheInfo['apkCount'] as int? ?? 0;
-      final apkSize = cacheInfo['apkSize'] as int? ?? 0;
-
-      logger.d('APK文件统计: apkCount=$apkCount, apkSize=${FileSizeFormatter.formatBytes(apkSize)}');
-
-      if (apkCount < apkMinFileCount && apkSize < apkMinTotalSize) {
-        logger.d(
-            'APK文件数不足或大小不足: 文件数=$apkCount(需要>=$apkMinFileCount), 大小=${FileSizeFormatter.formatBytes(apkSize)}(需要>=${FileSizeFormatter.formatBytes(apkMinTotalSize)})');
-        return;
-      }
-
-      final priority = _calculatePriority(apkSize);
-
-      tasks.add(TaskCard(
-        type: TaskType.apkFiles,
-        priority: priority,
-        title: '发现 $apkCount 个安装包',
-        subtitle: '共占用 ${FileSizeFormatter.formatBytes(apkSize)}',
-        savableSize: apkSize,
-        fileCount: apkCount,
-        onAction: () => onTaskAction(TaskType.apkFiles),
-        onDismiss: () => onTaskDismiss(TaskType.apkFiles),
-      ));
-
-      logger.i('✓ APK任务: $apkCount个, ${FileSizeFormatter.formatBytes(apkSize)}');
-    } catch (e) {
-      logger.w('检查APK文件失败: $e');
-    }
-  }
-
-  /// 检查应用缓存（提醒类任务）
-  Future<void> _checkAppCache(
-    List<TaskCard> tasks,
-    Function(TaskType) onTaskAction,
-    Function(TaskType) onTaskDismiss,
-  ) async {
-    try {
-      logger.d('========== 开始检查应用缓存任务 ==========');
-
-      // 从应用列表缓存读取数据
-      final appListCacheManager = AppListCacheManager();
-      final cachedApps = await appListCacheManager.getCachedAppList(
-        includeSystemApps: false, // 只统计用户应用
-      );
-
-      if (cachedApps == null || cachedApps.isEmpty) {
-        logger.d('应用列表缓存不存在或为空，跳过任务生成（等待应用扫描）');
-        return;
-      }
-
-      // 计算总缓存大小
-      final totalCacheSize = cachedApps.fold<int>(
-        0,
-        (sum, app) => sum + (app.storageInfo?.cacheSize ?? 0),
-      );
-
-      // 统计有缓存的应用数量
-      final appsWithCache = cachedApps
-          .where(
-            (app) => (app.storageInfo?.cacheSize ?? 0) > 0,
-          )
-          .length;
-
-      logger.d(
-          '应用缓存统计: 总应用数=${cachedApps.length}, 有缓存应用数=$appsWithCache, 总缓存大小=${FileSizeFormatter.formatBytes(totalCacheSize)}');
-
-      // 检查是否满足生成条件
-      if (totalCacheSize < appCacheMinTotalSize) {
-        logger.d(
-            '应用缓存不满足生成条件: 大小=${FileSizeFormatter.formatBytes(totalCacheSize)}(需要>=${FileSizeFormatter.formatBytes(appCacheMinTotalSize)})');
-        return;
-      }
-
-      logger.i(
-          '✅ 应用缓存满足生成条件: $appsWithCache个应用, ${FileSizeFormatter.formatBytes(totalCacheSize)}(>=${FileSizeFormatter.formatBytes(appCacheMinTotalSize)})');
-
-      // 优先级相对较低（提醒类任务，需要跳转系统设置）
-      final priority = _calculatePriority(totalCacheSize) - 1; // 降低一级优先级
-      final adjustedPriority = priority > 0 ? priority : 1; // 确保优先级至少为1
-
-      tasks.add(TaskCard(
-        type: TaskType.appCache,
-        priority: adjustedPriority,
-        title: '发现 $appsWithCache 个应用有缓存',
-        subtitle: '可清理 ${FileSizeFormatter.formatBytes(totalCacheSize)}',
-        savableSize: totalCacheSize,
-        fileCount: appsWithCache,
-        onAction: () => onTaskAction(TaskType.appCache),
-        onDismiss: () => onTaskDismiss(TaskType.appCache),
-      ));
-
-      logger.i(
-          '✓ 应用缓存任务卡已生成: $appsWithCache个应用, ${FileSizeFormatter.formatBytes(totalCacheSize)}, 优先级=$adjustedPriority');
-    } catch (e, stackTrace) {
-      logger.e('检查应用缓存失败: $e\n$stackTrace');
-    }
-  }
-
   /// 计算可节省空间（重复文件）
   int _calculateDuplicateSavableSize(List<dynamic> groups) {
     int totalSavable = 0;
@@ -508,13 +374,7 @@ class SmartTaskGenerator {
     }
   }
 
-  /// 检查是否有缓存数据（向后兼容）
-  ///
-  /// 返回 true 表示至少有一种类型的缓存存在
-  Future<bool> hasCachedData() async {
-    final status = await checkCacheStatus();
-    return status['hasAnyCache'] as bool;
-  }
+
 
   /// 启动后台扫描
   ///

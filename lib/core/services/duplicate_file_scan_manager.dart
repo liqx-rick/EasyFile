@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
 import 'package:easyfile/data/models/duplicate_file_group.dart';
 import 'package:easyfile/data/models/file_item.dart';
+import 'package:flutter/foundation.dart';
 
 /// 重复文件扫描状态
 enum DuplicateScanState {
@@ -109,10 +109,11 @@ class _ConfigScanState {
 /// - 📊 进度跟踪：实时更新扫描进度
 /// - 🔔 完成通知：扫描完成后通知所有监听者
 /// - ✨ 多配置支持：每个配置独立状态和缓存
+///
+/// @Deprecated('此类为旧版内存缓存API，仅保持老代码兼容。新功能请使用 DuplicateFileSmartCache 实现持久化缓存。')
 class DuplicateFileScanManager {
   // 单例实例
-  static final DuplicateFileScanManager _instance =
-      DuplicateFileScanManager._internal();
+  static final DuplicateFileScanManager _instance = DuplicateFileScanManager._internal();
 
   factory DuplicateFileScanManager() => _instance;
 
@@ -227,45 +228,38 @@ class DuplicateFileScanManager {
   }
 
   /// 移除状态监听器
-  void removeStateListener(
-      DuplicateFileScanConfig config, VoidCallback listener) {
+  void removeStateListener(DuplicateFileScanConfig config, VoidCallback listener) {
     final state = _getState(config);
     state.stateListeners.remove(listener);
   }
 
   /// 添加进度监听器
-  void addProgressListener(
-      DuplicateFileScanConfig config, void Function(ScanProgress) listener) {
+  void addProgressListener(DuplicateFileScanConfig config, void Function(ScanProgress) listener) {
     _getState(config).progressListeners.add(listener);
   }
 
   /// 移除进度监听器
-  void removeProgressListener(
-      DuplicateFileScanConfig config, void Function(ScanProgress) listener) {
+  void removeProgressListener(DuplicateFileScanConfig config, void Function(ScanProgress) listener) {
     _getState(config).progressListeners.remove(listener);
   }
 
   /// 添加完成监听器
-  void addCompletionListener(DuplicateFileScanConfig config,
-      void Function(List<DuplicateFileGroup>) listener) {
+  void addCompletionListener(DuplicateFileScanConfig config, void Function(List<DuplicateFileGroup>) listener) {
     _getState(config).completionListeners.add(listener);
   }
 
   /// 移除完成监听器
-  void removeCompletionListener(DuplicateFileScanConfig config,
-      void Function(List<DuplicateFileGroup>) listener) {
+  void removeCompletionListener(DuplicateFileScanConfig config, void Function(List<DuplicateFileGroup>) listener) {
     _getState(config).completionListeners.remove(listener);
   }
 
   /// 添加错误监听器
-  void addErrorListener(
-      DuplicateFileScanConfig config, void Function(String) listener) {
+  void addErrorListener(DuplicateFileScanConfig config, void Function(String) listener) {
     _getState(config).errorListeners.add(listener);
   }
 
   /// 移除错误监听器
-  void removeErrorListener(
-      DuplicateFileScanConfig config, void Function(String) listener) {
+  void removeErrorListener(DuplicateFileScanConfig config, void Function(String) listener) {
     _getState(config).errorListeners.remove(listener);
   }
 
@@ -300,8 +294,7 @@ class DuplicateFileScanManager {
   }
 
   /// 通知扫描完成
-  void _notifyCompletion(
-      DuplicateFileScanConfig config, List<DuplicateFileGroup> groups) {
+  void _notifyCompletion(DuplicateFileScanConfig config, List<DuplicateFileGroup> groups) {
     final state = _getState(config);
     for (final listener in List.from(state.completionListeners)) {
       try {
@@ -401,18 +394,14 @@ class DuplicateFileScanManager {
       state.state = DuplicateScanState.completed;
       state.scanCompletionTime = DateTime.now();
 
-      final duration =
-          state.scanCompletionTime!.difference(state.scanStartTime!);
-      logger.i(
-          'Scan completed successfully in ${duration.inSeconds} seconds, found ${groups.length} groups');
+      final duration = state.scanCompletionTime!.difference(state.scanStartTime!);
+      logger.i('Scan completed successfully in ${duration.inSeconds} seconds, found ${groups.length} groups');
 
       // 📊 诊断日志 + 验证
       if (state.allScannedFiles != null) {
-        logger.i(
-            '✅ All scanned files stored in manager: ${state.allScannedFiles!.length} files');
+        logger.i('✅ All scanned files stored in manager: ${state.allScannedFiles!.length} files');
       } else {
-        logger.w(
-            '⚠️ WARNING: allScannedFiles is null! onFilesCollected callback may not have been called');
+        logger.w('⚠️ WARNING: allScannedFiles is null! onFilesCollected callback may not have been called');
       }
 
       _notifyStateChange(config);
@@ -490,8 +479,7 @@ class DuplicateFileScanManager {
   }
 
   /// 手动设置扫描状态（用于增量更新等场景）
-  void setStateManually(
-      DuplicateFileScanConfig config, DuplicateScanState newState) {
+  void setStateManually(DuplicateFileScanConfig config, DuplicateScanState newState) {
     _activeConfig = config;
     final state = _getState(config);
 
@@ -525,11 +513,9 @@ class DuplicateFileScanManager {
   }
 
   /// 手动完成扫描（用于增量更新等场景）
-  void completeWithResults(
-      DuplicateFileScanConfig config, List<DuplicateFileGroup> groups) {
+  void completeWithResults(DuplicateFileScanConfig config, List<DuplicateFileGroup> groups) {
     final t1 = DateTime.now();
-    logger.i(
-        '[${t1.toIso8601String()}] completeWithResults started with ${groups.length} groups');
+    logger.i('[${t1.toIso8601String()}] completeWithResults started with ${groups.length} groups');
 
     _activeConfig = config;
     final state = _getState(config);
@@ -539,18 +525,15 @@ class DuplicateFileScanManager {
     state.scanCompletionTime = DateTime.now();
 
     final t2 = DateTime.now();
-    logger.i(
-        '[${t2.toIso8601String()}] About to notify state change, delay: ${t2.difference(t1).inMilliseconds}ms');
+    logger.i('[${t2.toIso8601String()}] About to notify state change, delay: ${t2.difference(t1).inMilliseconds}ms');
     _notifyStateChange(config);
 
     final t3 = DateTime.now();
-    logger.i(
-        '[${t3.toIso8601String()}] About to notify completion, delay: ${t3.difference(t2).inMilliseconds}ms');
+    logger.i('[${t3.toIso8601String()}] About to notify completion, delay: ${t3.difference(t2).inMilliseconds}ms');
     _notifyCompletion(config, groups);
 
     final t4 = DateTime.now();
-    logger.i(
-        '[${t4.toIso8601String()}] All notifications sent, total delay: ${t4.difference(t1).inMilliseconds}ms');
+    logger.i('[${t4.toIso8601String()}] All notifications sent, total delay: ${t4.difference(t1).inMilliseconds}ms');
   }
 
   /// 清除指定配置的缓存
@@ -567,8 +550,7 @@ class DuplicateFileScanManager {
       state.scanStartTime = null;
       state.scanCompletionTime = null;
 
-      if (state.state == DuplicateScanState.completed ||
-          state.state == DuplicateScanState.error) {
+      if (state.state == DuplicateScanState.completed || state.state == DuplicateScanState.error) {
         state.state = DuplicateScanState.idle;
         _notifyStateChange(config);
       }
@@ -583,16 +565,14 @@ class DuplicateFileScanManager {
   /// 检查指定配置是否有缓存的结果
   bool hasCachedResults(DuplicateFileScanConfig config) {
     final state = _getState(config);
-    return state.state == DuplicateScanState.completed &&
-        state.cachedGroups.isNotEmpty;
+    return state.state == DuplicateScanState.completed && state.cachedGroups.isNotEmpty;
   }
 
   /// 清除扫描的文件列表（用于在保存缓存后释放内存）
   void clearScannedFiles(DuplicateFileScanConfig config) {
     final state = _getState(config);
     if (state.allScannedFiles != null) {
-      logger.d(
-          'Clearing scanned files list (${state.allScannedFiles!.length} files)');
+      logger.d('Clearing scanned files list (${state.allScannedFiles!.length} files)');
       state.allScannedFiles = null;
     }
   }

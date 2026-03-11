@@ -2,7 +2,6 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:easyfile/core/di/locator.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/core/models/duplicate_file_scan_config.dart';
-import 'package:easyfile/core/models/junk_file_scan_config.dart';
 import 'package:easyfile/core/models/large_file_scan_config.dart';
 import 'package:easyfile/core/services/duplicate_file_scan_manager.dart';
 import 'package:easyfile/core/services/duplicate_file_service.dart';
@@ -16,7 +15,6 @@ import 'package:easyfile/data/models/task_card.dart';
 import 'package:easyfile/data/sources/new_files_local_source.dart';
 import 'package:easyfile/presenter/file_presenter.dart';
 import 'package:easyfile/ui/pages/duplicate_files_page.dart';
-import 'package:easyfile/ui/pages/junk_files_page.dart';
 import 'package:easyfile/ui/pages/large_files_page.dart';
 import 'package:easyfile/ui/pages/new_files_page.dart';
 import 'package:easyfile/ui/pages/storage_management_page.dart';
@@ -42,7 +40,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
   List<TaskCard> _tasks = [];
   bool _isRefreshing = false;
   bool _isBackgroundScanning = false;
-  String _backgroundScanStatus = ''; // 后台扫描状态提示
   int _backgroundScanAttempts = 0; // 后台扫描尝试次数
   static const int _maxBackgroundScanAttempts = 1; // 最多尝试1次
 
@@ -143,7 +140,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
     if (forceRefresh) {
       setState(() {
         _isRefreshing = true;
-        _backgroundScanStatus = '';
       });
       // 手动刷新时，清除所有忽略状态（用户想看最新的所有任务）
       _dismissedTasks.clear();
@@ -190,7 +186,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
       if (mounted) {
         setState(() {
           _isRefreshing = false;
-          _backgroundScanStatus = '';
         });
       }
     }
@@ -221,7 +216,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
 
     setState(() {
       _isBackgroundScanning = true;
-      _backgroundScanStatus = '智能助手正在检查是否有可优化的任务，请稍候...';
       _backgroundScanAttempts++; // 增加尝试次数
     });
 
@@ -236,7 +230,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
           if (mounted) {
             setState(() {
               _isBackgroundScanning = false;
-              _backgroundScanStatus = '';
             });
             // 重新加载任务（但不会再次触发后台扫描，因为已达到最大尝试次数）
             await _loadTasks();
@@ -248,7 +241,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
       if (mounted) {
         setState(() {
           _isBackgroundScanning = false;
-          _backgroundScanStatus = '';
         });
       }
     }
@@ -297,9 +289,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
         break;
       case TaskType.largeFiles:
         _navigateToLargeFiles();
-        break;
-      case TaskType.junkFiles:
-        _navigateToJunkFiles();
         break;
       case TaskType.systemTrash:
         _navigateToTrashFiles();
@@ -378,19 +367,6 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
   }
 
   /// 跳转到垃圾文件页面
-  void _navigateToJunkFiles() async {
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const JunkFilesPage(
-          initialConfig: JunkFileScanConfig(),
-        ),
-      ),
-    );
-  }
-
   /// 跳转到系统回收站页面
   void _navigateToTrashFiles() {
     Navigator.push(
@@ -648,7 +624,7 @@ class _AssistantPageState extends State<AssistantPage> with AutomaticKeepAliveCl
             ),
             const SizedBox(height: 8),
             Text(
-              _backgroundScanStatus.isNotEmpty ? _backgroundScanStatus : '智能助手正在检查是否有可优化的任务，请稍候...',
+              '智能助手正在检查是否有可优化的任务，请稍候...',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.textTheme.bodySmall?.color,
               ),

@@ -1,3 +1,4 @@
+import 'package:easyfile/analytics/analytics_helper.dart';
 import 'package:easyfile/core/logger.dart';
 import 'package:easyfile/ui/pages/assistant_page.dart';
 import 'package:easyfile/ui/pages/file_browser_page.dart';
@@ -29,7 +30,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 1);
-    
+
     // 等待主页第一帧渲染完成后再检查是否需要显示引导
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onMainPageRendered();
@@ -45,9 +46,9 @@ class _MainContainerPageState extends State<MainContainerPage> {
   /// 主页渲染完成后的处理
   Future<void> _onMainPageRendered() async {
     if (!mounted) return;
-    
+
     logger.i('主页第一帧已渲染完成');
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final shown = prefs.getBool('three_screen_guidance_shown') ?? false;
@@ -56,9 +57,9 @@ class _MainContainerPageState extends State<MainContainerPage> {
         // 等待路由切换动画完成和页面稳定（800ms）
         await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
-        
+
         logger.i('主页已完全稳定，开始观察延迟');
-        
+
         // 再给用户 2 秒观察主页，建立认知后再显示引导
         await Future.delayed(const Duration(milliseconds: 2000));
         if (mounted) {
@@ -82,17 +83,19 @@ class _MainContainerPageState extends State<MainContainerPage> {
 
   /// 页面切换回调
   void _onPageChanged(int index) {
+    final oldPage = _currentPage;
     setState(() => _currentPage = index);
 
     // 记录页面切换事件
-    final pageName = _getPageName(index);
-    logger.i('切换到页面: $pageName');
+    final fromScreen = _getPageName(oldPage);
+    final toScreen = _getPageName(index);
+    logger.i('切换到页面: $toScreen');
 
-    // TODO: 添加页面切换分析事件
-    // AnalyticsHelper.logScreenSwitch(
-    //   from: _getPageName(_currentPage),
-    //   to: pageName,
-    // );
+    // 三屏切换埋点
+    AnalyticsHelper.logThreeScreenSwitch(
+      fromScreen: fromScreen,
+      toScreen: toScreen,
+    );
   }
 
   /// 获取页面名称
@@ -128,9 +131,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
             controller: _pageController,
             onPageChanged: _onPageChanged,
             // 根据状态控制是否允许滑动：主页渲染完成且（引导已关闭或不需要显示引导）时才启用
-            physics: _enableSwipe 
-                ? const PageScrollPhysics() 
-                : const NeverScrollableScrollPhysics(),
+            physics: _enableSwipe ? const PageScrollPhysics() : const NeverScrollableScrollPhysics(),
             children: const [
               AssistantPage(), // 负一屏：智能助手
               FileBrowserPage(), // 主页：文件浏览器
@@ -180,8 +181,7 @@ class _MainContainerPageState extends State<MainContainerPage> {
                 borderRadius: BorderRadius.circular(4),
                 color: _currentPage == index
                     ? theme.colorScheme.primary
-                    : (isDark ? Colors.white : Colors.black)
-                        .withOpacity(0.3),
+                    : (isDark ? Colors.white : Colors.black).withOpacity(0.3),
               ),
             );
           }),

@@ -17,8 +17,7 @@ class SwipeGuidanceOverlay extends StatefulWidget {
   State<SwipeGuidanceOverlay> createState() => _SwipeGuidanceOverlayState();
 }
 
-class _SwipeGuidanceOverlayState extends State<SwipeGuidanceOverlay>
-    with SingleTickerProviderStateMixin {
+class _SwipeGuidanceOverlayState extends State<SwipeGuidanceOverlay> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _leftSlideAnimation;
@@ -211,30 +210,17 @@ class _SwipeGuidanceOverlayState extends State<SwipeGuidanceOverlay>
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: _dismiss,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                        ),
-                        child: const Text('跳过'),
+                  child: ElevatedButton(
+                    onPressed: _dismiss,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 12,
                       ),
-                      const SizedBox(width: 24),
-                      ElevatedButton(
-                        onPressed: _dismiss,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: const Text('知道了'),
-                      ),
-                    ],
+                    ),
+                    child: const Text('知道了'),
                   ),
                 ),
               ),
