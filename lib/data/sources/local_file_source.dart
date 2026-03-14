@@ -26,8 +26,8 @@ class LocalFileRepository implements FileRepository {
     try {
       logger.i('LocalFileRepository.getFiles called with path: $path');
 
-      // 请求存储权限
-      if (!await _requestStoragePermission()) {
+      // 检查存储权限（权限的实际申请由 UI 层在用户主动触发时负责）
+      if (!await _checkStoragePermission()) {
         logger.w('Storage permission denied');
         return [];
       }
@@ -116,14 +116,13 @@ class LocalFileRepository implements FileRepository {
     }
   }
 
-  Future<bool> _requestStoragePermission() async {
+  Future<bool> _checkStoragePermission() async {
     if (Platform.isAndroid) {
-      final status = await Permission.storage.request();
-      if (status.isDenied) {
-        final manageStatus = await Permission.manageExternalStorage.request();
-        return manageStatus.isGranted;
-      }
-      return status.isGranted;
+      // 仅检查权限状态，不主动申请（权限申请须由 UI 层在用户主动触发时发起）
+      final manageStatus = await Permission.manageExternalStorage.status;
+      if (manageStatus.isGranted) return true;
+      final storageStatus = await Permission.storage.status;
+      return storageStatus.isGranted;
     }
     return true; // iOS 和其他平台不需要特殊权限
   }
@@ -567,8 +566,8 @@ class LocalFileRepository implements FileRepository {
         return await getFiles(path);
       }
 
-      // 请求存储权限
-      if (!await _requestStoragePermission()) {
+      // 检查存储权限（权限的实际申请由 UI 层在用户主动触发时负责）
+      if (!await _checkStoragePermission()) {
         logger.w('Storage permission denied');
         return [];
       }

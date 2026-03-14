@@ -423,13 +423,41 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     });
 
     try {
-      // 请求相册权限
+      // 请求相册权限前，先告知用户权限用途（合规要求）
       if (Platform.isAndroid) {
         // Android 13+ 需要 photos 权限
         PermissionStatus status;
         if (await Permission.photos.isGranted) {
           status = PermissionStatus.granted;
         } else {
+          // 先弹窗说明申请目的
+          if (mounted) {
+            final shouldRequest = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                title: const Text('需要相册权限'),
+                content: const Text(
+                  '保存视频截图需要访问您的相册（照片和媒体）权限，\n'
+                  '以便将截图保存到相册中。',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('取消'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('继续授权'),
+                  ),
+                ],
+              ),
+            );
+            if (shouldRequest != true) {
+              setState(() => _isTakingScreenshot = false);
+              return;
+            }
+          }
           status = await Permission.photos.request();
           // 如果 photos 权限不可用（Android 12 及以下），尝试 storage 权限
           if (status.isDenied || status.isPermanentlyDenied) {

@@ -71,6 +71,13 @@ val umengCommonVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.
 val umengAsmsVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.asms", "1.8.3")
 val umengAbtestVersion = getAnalyticsConfig("providers.china.umeng.sdk_versions.abtest", "1.0.3")
 
+// 读取签名配置
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.guangqi.easyfile"
     compileSdk = flutter.compileSdkVersion
@@ -133,30 +140,36 @@ android {
         }
     }
 
+    // 签名配置
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = file(keystoreProperties.getProperty("storeFile") ?: "upload-keystore.jks")
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // 使用 debug 签名配置，生产环境需要配置正式签名
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用正式签名配置（用于应用市场发布）
+            signingConfig = signingConfigs.getByName("release")
+            // 启用混淆和优化
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
     buildFeatures {
         buildConfig = true
     }
-
-    // 自定义输出文件名
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "EasyFile-v${variant.versionName}-build${variant.versionCode}-${variant.buildType.name}.apk"
-        }
-    }
 }
 
 flutter {
     source = "../.."
 }
+
 dependencies {
     // ExifInterface 支持（用于读取照片 EXIF 信息）
     implementation("androidx.exifinterface:exifinterface:1.3.7")
@@ -164,4 +177,35 @@ dependencies {
     implementation("com.umeng.umsdk:common:$umengCommonVersion")        // 友盟基础组件
     implementation("com.umeng.umsdk:asms:$umengAsmsVersion")          // 反作弊组件
     // implementation("com.umeng.umsdk:abtest:$umengAbtestVersion")     // ABTest 组件（可选，暂未在 Maven 仓库）
+}
+
+// 自定义输出文件名（在构建后重命名）
+afterEvaluate {
+    tasks.register("renameApk") {
+        doLast {
+            val vName = flutter.versionName
+            val vCode = flutter.versionCode
+            val buildDir = layout.buildDirectory.get().asFile
+            val apkDir = File(buildDir, "outputs/apk/release")
+
+            if (apkDir.exists()) {
+                apkDir.listFiles()?.filter { it.name.endsWith(".apk") }?.forEach { apkFile ->
+                    val buildType = when {
+                        apkFile.name.contains("release", ignoreCase = true) -> "release"
+                        apkFile.name.contains("debug", ignoreCase = true) -> "debug"
+                        else -> "unknown"
+                    }
+                    val newName = "EasyFile-v${vName}-build${vCode}-${buildType}.apk"
+                    val newFile = File(apkDir, newName)
+                    if (apkFile.renameTo(newFile)) {
+                        println("✓ Renamed ${apkFile.name} to $newName")
+                    }
+                }
+            }
+        }
+    }
+
+    tasks.matching { it.name == "assembleRelease" }.configureEach {
+        finalizedBy("renameApk")
+    }
 }

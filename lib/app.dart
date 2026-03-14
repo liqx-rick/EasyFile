@@ -18,7 +18,6 @@ import 'package:easyfile/viewmodel/splash_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -212,8 +211,8 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
     try {
       logger.i('_initializeApp: Starting full initialization...');
 
-      // 用户已同意，请求存储权限并完成 Analytics 初始化
-      await _requestStoragePermissionIfNeeded();
+      // 完成 Analytics 初始化
+      // 注意：不在启动时自动申请存储权限（合规要求：权限须在用户主动触发对应功能时申请）
       await _completeAnalyticsInitialization();
 
       // 检查是否从后台恢复
@@ -337,61 +336,6 @@ class _AppNavigatorState extends State<AppNavigator> with WidgetsBindingObserver
       logger.d('[Analytics] app_launch logged');
     } catch (e) {
       logger.e('Analytics initialization failed: $e');
-    }
-  }
-
-  /// 如果需要，请求存储权限（仅在首次启动且未授予时）
-  Future<void> _requestStoragePermissionIfNeeded() async {
-    try {
-      logger.i('_requestStoragePermissionIfNeeded: Checking permissions...');
-
-      // 检查 MANAGE_EXTERNAL_STORAGE 权限状态（最高权限）
-      final manageStorageStatus = await Permission.manageExternalStorage.status;
-
-      // 如果已有完整文件管理权限，无需请求其他权限
-      if (manageStorageStatus.isGranted) {
-        logger.i(
-            '_requestStoragePermissionIfNeeded: MANAGE_EXTERNAL_STORAGE already granted, no other permissions needed');
-        return;
-      }
-
-      // 如果没有完整权限，尝试请求（只在首次启动时）
-      if (manageStorageStatus.isDenied && !manageStorageStatus.isPermanentlyDenied) {
-        logger.i('_requestStoragePermissionIfNeeded: Requesting MANAGE_EXTERNAL_STORAGE...');
-        final result = await Permission.manageExternalStorage.request();
-
-        // 如果用户授予了完整权限，直接返回
-        if (result.isGranted) {
-          logger.i('_requestStoragePermissionIfNeeded: MANAGE_EXTERNAL_STORAGE granted');
-          return;
-        }
-      }
-
-      // 如果没有获得完整权限，检查基础存储权限
-      final storageStatus = await Permission.storage.status;
-      if (storageStatus.isDenied && !storageStatus.isPermanentlyDenied) {
-        logger.i('_requestStoragePermissionIfNeeded: Requesting basic storage permission...');
-        await Permission.storage.request();
-      }
-
-      // 对于 Android 13+，如果没有完整权限，请求照片和视频权限
-      // 注意：只有在用户拒绝或无法获得 MANAGE_EXTERNAL_STORAGE 时才需要
-      final photosStatus = await Permission.photos.status;
-      final videosStatus = await Permission.videos.status;
-
-      if (photosStatus.isDenied && !photosStatus.isPermanentlyDenied) {
-        logger.i('_requestStoragePermissionIfNeeded: Requesting photos permission (Android 13+)...');
-        await Permission.photos.request();
-      }
-      if (videosStatus.isDenied && !videosStatus.isPermanentlyDenied) {
-        logger.i('_requestStoragePermissionIfNeeded: Requesting videos permission (Android 13+)...');
-        await Permission.videos.request();
-      }
-
-      logger.i('_requestStoragePermissionIfNeeded: Permission requests completed');
-    } catch (e) {
-      logger.w('_requestStoragePermissionIfNeeded: Error requesting permissions: $e');
-      // 权限请求失败不阻塞启动
     }
   }
 

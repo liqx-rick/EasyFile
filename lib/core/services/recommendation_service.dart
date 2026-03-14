@@ -370,6 +370,10 @@ class RecommendationService {
       await _scanner.clearFileCountCache();
       logger.d('已清除文件数量缓存');
 
+      // 清除内存扫描结果缓存（静态缓存，保存了无权限时的 0 文件结果）
+      _scanner.clearMemoryCache();
+      logger.d('已清除内存扫描缓存');
+
       // 清除应用安装状态缓存
       await _detectionService.clearCache();
       logger.d('已清除应用安装状态缓存');

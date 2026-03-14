@@ -527,6 +527,24 @@ class _FileBrowserPageState extends State<FileBrowserPage>
   Future<void> _initializeAppWithOrchestrator() async {
     logger.i('[FileBrowser] Starting startup orchestration...');
 
+    // 先检查实际权限状态：未授权时更新 Banner 并跳过文件扫描（合规要求）
+    final currentPermState = await _permissionService.checkPermission();
+    if (!currentPermState.isGranted) {
+      logger.i('[FileBrowser] Storage permission not granted ($currentPermState), skipping orchestration');
+      if (mounted && currentPermState != _permissionState) {
+        setState(() {
+          _permissionState = currentPermState;
+        });
+      }
+      return;
+    }
+    // 权限已授予，同步状态
+    if (mounted && _permissionState != PermissionState.granted) {
+      setState(() {
+        _permissionState = PermissionState.granted;
+      });
+    }
+
     try {
       // 从 locator 获取服务实例
       final orchestrator = await locator.getAsync<StartupOrchestrator>();
@@ -587,9 +605,47 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     }
   }
 
+  /// 在请求权限前，向用户说明权限申请目的（合规要求：须同步告知）
+  /// 返回 true 表示用户同意继续授权，false 表示取消
+  Future<bool> _showPermissionRationaleDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // 不允许点击背景关闭，确保用户主动确认
+      builder: (ctx) => AlertDialog(
+        title: const Text('需要存储权限'),
+        content: const Text(
+          '本应用申请访问您设备的存储空间，用于以下目的：\n\n'
+          '• 浏览和管理本地文件与文件夹\n'
+          '• 读取、复制、移动、重命名和删除文件\n'
+          '• 播放本地音视频及查看图片\n'
+          '• 统计文件占用的存储空间\n\n'
+          '如不授权，文件管理功能将无法正常使用。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('继续授权'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   /// 请求权限并重新初始化
   Future<void> _requestPermissionAndInit() async {
     logger.i('Requesting permission and re-initializing...');
+
+    // 在弹出系统权限框之前，先告知用户权限的申请目的（合规要求）
+    final shouldProceed = await _showPermissionRationaleDialog();
+    if (!shouldProceed) {
+      logger.i('User cancelled permission rationale dialog');
+      return;
+    }
 
     final permissionState = await _permissionService.requestPermission();
     setState(() {
@@ -599,6 +655,10 @@ class _FileBrowserPageState extends State<FileBrowserPage>
     if (permissionState.isGranted) {
       // 权限授予成功，开始初始化
       await _initializeAppWithOrchestrator();
+      // 权限刚刚授予：完整重置推荐服务（清除所有缓存含内存扫描缓存），
+      // 以确保重新扫描能拿到真实的文件数量，再刷新卡片 Widget。
+      await _recommendationService?.resetRecommendations();
+      await QuickAccessSection.refreshRecommendations();
     } else if (permissionState.isPermanentlyDenied) {
       // 永久拒绝，引导用户去设置
       logger.w('Permission permanently denied');
